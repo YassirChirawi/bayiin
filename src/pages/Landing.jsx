@@ -1,4 +1,4 @@
-import { ArrowRight, BarChart3, Check, Globe, RefreshCw, Shield, Zap } from "lucide-react";
+import { ArrowRight, BarChart3, Check, ShoppingBag, Package, Users, DollarSign, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 import SEO from "../components/SEO";
 import Newsletter from "../components/Newsletter";
@@ -50,10 +50,10 @@ export default function Landing() {
                     New: Advanced Analytics Dashboard
                 </div>
                 <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-indigo-800 to-slate-900 pb-2">
-                    Manage your store <br className="hidden md:block" /> with superpowers.
+                    Stop running your business <br className="hidden md:block" /> on paper & Excel.
                 </h1>
                 <p className="text-lg md:text-xl text-slate-500 mb-10 max-w-2xl mx-auto leading-relaxed">
-                    The all-in-one platform to track orders, manage customers, and grow your business. Simple enough for beginners, powerful enough for enterprises.
+                    BayIIn is the organized dashboard for modern merchants. Track orders, manage stock, and see your profits clearly—without the headache of spreadsheets.
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4 px-4">
                     <Link to="/signup" className="w-full sm:w-auto px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-semibold text-lg transition-all shadow-xl shadow-indigo-200 flex items-center justify-center gap-2">
@@ -93,33 +93,33 @@ export default function Landing() {
                         {[
                             {
                                 icon: <BarChart3 className="w-6 h-6 text-indigo-600" />,
-                                title: "Real-time Analytics",
-                                description: "Track revenue, orders, and customer growth as it happens with beautiful interactive charts."
+                                title: "Clear Dashboard",
+                                description: "Ditch the calculator. See your daily sales, revenue, and active orders at a glance."
                             },
                             {
-                                icon: <RefreshCw className="w-6 h-6 text-indigo-600" />,
-                                title: "Automated Workflows",
-                                description: "Save time with automated order status updates and customer notifications."
+                                icon: <ShoppingBag className="w-6 h-6 text-indigo-600" />,
+                                title: "Order Management",
+                                description: "Replace your notebook. Create, edit, and track order statuses from 'Pending' to 'Delivered' digitally."
                             },
                             {
-                                icon: <Globe className="w-6 h-6 text-indigo-600" />,
-                                title: "Global Selling",
-                                description: "Multi-currency support and localized checkout experiences for international customers."
+                                icon: <Package className="w-6 h-6 text-indigo-600" />,
+                                title: "Smart Inventory",
+                                description: "Know exactly what you have in stock. Manage product details, prices, and images in one place."
                             },
                             {
-                                icon: <Shield className="w-6 h-6 text-indigo-600" />,
-                                title: "Enterprise Security",
-                                description: "Bank-grade encryption and secure data handling to keep your business safe."
+                                icon: <Users className="w-6 h-6 text-indigo-600" />,
+                                title: "Customer Database",
+                                description: "Stop losing customer numbers. Keep a secure list of your clients and their purchase history."
                             },
                             {
-                                icon: <Zap className="w-6 h-6 text-indigo-600" />,
-                                title: "Lightning Fast",
-                                description: "Optimized for speed. No loading screens, no waiting. Just instant action."
+                                icon: <DollarSign className="w-6 h-6 text-indigo-600" />,
+                                title: "Expense Tracking",
+                                description: "Record your expenses (Ads, Shipping, Stock) alongside your sales to know your real profit."
                             },
                             {
-                                icon: <Globe className="w-6 h-6 text-indigo-600" />,
-                                title: "24/7 Support",
-                                description: "Our dedicated support team is always here to help you solve any issues."
+                                icon: <Settings className="w-6 h-6 text-indigo-600" />,
+                                title: "Store Control",
+                                description: "Customize your store settings, logo, and preferences to match your brand identity."
                             }
                         ].map((feature, i) => (
                             <div key={i} className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
@@ -234,8 +234,8 @@ export default function Landing() {
                         <div>
                             <h4 className="font-semibold mb-4">Legal</h4>
                             <ul className="space-y-2 text-sm text-slate-500">
-                                <li><a href="#" className="hover:text-indigo-600">Privacy</a></li>
-                                <li><a href="#" className="hover:text-indigo-600">Terms</a></li>
+                                <li><Link to="/privacy" className="hover:text-indigo-600">Privacy</Link></li>
+                                <li><Link to="/terms" className="hover:text-indigo-600">Terms</Link></li>
                             </ul>
                         </div>
                     </div>

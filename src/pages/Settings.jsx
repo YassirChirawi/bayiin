@@ -1,5 +1,5 @@
 import { useTenant } from "../context/TenantContext";
-import { User, Store, CreditCard, Check, Zap } from "lucide-react";
+import { User, Store, CreditCard, Check, Zap, Shield } from "lucide-react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Button from "../components/Button";
@@ -174,6 +174,23 @@ export default function Settings() {
                                 </p>
                             </div>
                         )}
+                    </div>
+                </div>
+            </div>
+            {/* Legal Information Section */}
+            <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
+                <div className="px-4 py-5 sm:p-6">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
+                        <Shield className="h-5 w-5 text-gray-400" />
+                        Legal Information
+                    </h3>
+                    <div className="mt-4 flex flex-col gap-2">
+                        <a href="/privacy" target="_blank" className="text-sm text-indigo-600 hover:text-indigo-500 hover:underline">
+                            Privacy Policy
+                        </a>
+                        <a href="/terms" target="_blank" className="text-sm text-indigo-600 hover:text-indigo-500 hover:underline">
+                            Terms of Service
+                        </a>
                     </div>
                 </div>
             </div>

@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
@@ -35,6 +37,8 @@ function App() {
             <AnalyticsTracker />
             <Routes>
               <Route path="/" element={<Landing />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/terms" element={<Terms />} />
               <Route path="/demo" element={<DemoDashboard />} />
               <Route path="/admin" element={
                 <ProtectedRoute>
