@@ -44,8 +44,8 @@ export default function Sidebar({ isOpen, onClose }) {
             `}>
                 <div className="p-6 border-b border-gray-200 flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                            <span className="text-white font-bold text-xl">S</span>
+                        <div className="h-8 w-8 rounded-lg flex items-center justify-center overflow-hidden">
+                            <img src="/logo.png" alt="BayIIn Logo" className="h-full w-full object-contain" />
                         </div>
                         <span className="font-bold text-gray-900 truncate max-w-[120px]">
                             {store?.name || 'Loading...'}

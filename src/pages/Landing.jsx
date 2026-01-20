@@ -15,10 +15,10 @@ export default function Landing() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-16">
                         <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                                <span className="text-white font-bold text-lg">C</span>
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
+                                <img src="/logo.png" alt="BayIIn Logo" className="h-full w-full object-contain" />
                             </div>
-                            <span className="font-bold text-xl tracking-tight">Commerce</span>
+                            <span className="font-bold text-xl tracking-tight">BayIIn</span>
                         </div>
                         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
                             <a href="#features" className="hover:text-indigo-600 transition-colors">Features</a>
@@ -39,6 +39,9 @@ export default function Landing() {
 
             {/* Hero Section */}
             <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center">
+                <div className="flex justify-center mb-8">
+                    <img src="/logo.png" alt="BayIIn Logo" className="w-32 h-auto object-contain" />
+                </div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-sm font-medium mb-8">
                     <span className="relative flex h-2 w-2">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
@@ -203,10 +206,10 @@ export default function Landing() {
                     <div className="grid md:grid-cols-4 gap-12 mb-12">
                         <div>
                             <div className="flex items-center gap-2 mb-6">
-                                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                                    <span className="text-white font-bold text-lg">C</span>
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
+                                    <img src="/logo.png" alt="BayIIn Logo" className="h-full w-full object-contain" />
                                 </div>
-                                <span className="font-bold text-xl">Commerce</span>
+                                <span className="font-bold text-xl">BayIIn</span>
                             </div>
                             <p className="text-slate-500 text-sm">
                                 Empowering businesses to grow without limits. The modern commerce OS.

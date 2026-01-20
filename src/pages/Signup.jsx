@@ -41,8 +41,8 @@ export default function Signup() {
                     <Link to="/" className="inline-flex items-center text-sm text-gray-500 hover:text-indigo-600 mb-6 transition-colors">
                         ← Back to Home
                     </Link>
-                    <div className="mx-auto h-12 w-12 bg-indigo-100 rounded-full flex items-center justify-center">
-                        <ShoppingBag className="h-6 w-6 text-indigo-600" />
+                    <div className="mx-auto h-20 w-20 flex items-center justify-center">
+                        <img src="/logo.png" alt="BayIIn Logo" className="h-full w-full object-contain" />
                     </div>
                     <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
                         Create your store
