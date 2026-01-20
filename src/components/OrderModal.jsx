@@ -9,8 +9,10 @@ import { useTenant } from "../context/TenantContext";
 import { getWhatsappMessage, getWhatsappLink } from "../utils/whatsappTemplates";
 
 const ORDER_STATUSES = [
-    'reçu', 'packing', 'ramassage', 'livraison', 'livré', 'pas de réponse', 'retour'
+    'reçu', 'packing', 'ramassage', 'livraison', 'livré', 'pas de réponse', 'retour', 'annulé'
 ];
+
+const INACTIVE_STATUSES = ['retour', 'annulé'];
 
 export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
     const { data: products } = useStoreData("products"); // Fetch products for selection
@@ -31,7 +33,9 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
         size: "",
         color: "",
         quantity: 1,
+        quantity: 1,
         price: "",
+        costPrice: 0, // Snapshot of product cost
         status: "reçu",
         date: new Date().toISOString().split('T')[0]
     });
@@ -52,7 +56,9 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 size: order.size || "",
                 color: order.color || "",
                 quantity: order.quantity || 1,
+                quantity: order.quantity || 1,
                 price: order.price || "",
+                costPrice: order.costPrice || 0,
                 status: order.status || "reçu",
                 date: order.date || new Date().toISOString().split('T')[0]
             });
@@ -141,7 +147,8 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 articleName: product.name,
                 // If price is empty or user hasn't manually edited it much, set it? 
                 // Let's just set it to product price
-                price: product.price
+                price: product.price,
+                costPrice: product.costPrice || 0 // Snapshot cost
             }));
         }
     };
@@ -189,12 +196,35 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 finalCustomerId = docRef.id;
             }
 
-            // Stock Management: Decrease stock if new order and product selected
-            if (!order && formData.articleId) {
-                const productRef = doc(db, "products", formData.articleId);
-                await updateDoc(productRef, {
-                    stock: increment(-parseInt(formData.quantity))
-                });
+            // Stock Management
+            const qty = parseInt(formData.quantity) || 0;
+            const isNewStatusInactive = INACTIVE_STATUSES.includes(formData.status);
+
+            if (order) {
+                // EDIT MODE: Reconcile Stock
+                const oldQty = parseInt(order.quantity) || 0;
+                const isOldStatusInactive = INACTIVE_STATUSES.includes(order.status);
+
+                // 1. If old order was consuming stock, give it back first
+                if (!isOldStatusInactive && order.articleId) {
+                    const oldProductRef = doc(db, "products", order.articleId);
+                    await updateDoc(oldProductRef, { stock: increment(oldQty) });
+                }
+
+                // 2. If new state consumes stock, take it
+                if (!isNewStatusInactive && formData.articleId) {
+                    const newProductRef = doc(db, "products", formData.articleId);
+                    await updateDoc(newProductRef, { stock: increment(-qty) });
+                }
+            } else {
+                // NEW ORDER MODE
+                // Only deduct if creating an ACTIVE order
+                if (formData.articleId && !isNewStatusInactive) {
+                    const productRef = doc(db, "products", formData.articleId);
+                    await updateDoc(productRef, {
+                        stock: increment(-qty)
+                    });
+                }
             }
 
             await onSave({
@@ -202,6 +232,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 customerId: finalCustomerId,
                 quantity: parseInt(formData.quantity),
                 price: parseFloat(formData.price),
+                costPrice: parseFloat(formData.costPrice) || 0,
                 updatedAt: new Date().toISOString()
             });
 

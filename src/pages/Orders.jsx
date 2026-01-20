@@ -5,7 +5,12 @@ import Button from "../components/Button";
 import OrderModal from "../components/OrderModal";
 import QRCode from "react-qr-code";
 import { generateInvoice } from "../utils/generateInvoice";
+import { generateInvoice } from "../utils/generateInvoice";
 import { useTenant } from "../context/TenantContext";
+import { db } from "../lib/firebase";
+import { doc, updateDoc, increment, getDoc } from "firebase/firestore";
+
+const INACTIVE_STATUSES = ['retour', 'annulé'];
 
 export default function Orders() {
     const { store } = useTenant();
@@ -89,9 +94,38 @@ export default function Orders() {
     };
 
     const handleBulkStatus = async (status) => {
-        if (window.confirm(`Mark ${selectedOrders.length} orders as ${status}?`)) {
-            await Promise.all(selectedOrders.map(id => updateStoreItem(id, { status })));
+        if (!window.confirm(`Mark ${selectedOrders.length} orders as ${status}?`)) return;
+
+        setLoading(true); // Manually toggle loading if possible, or just blocking
+        try {
+            await Promise.all(selectedOrders.map(async (id) => {
+                const order = orders.find(o => o.id === id);
+                if (!order) return;
+
+                // Stock Automation Logic
+                const isNewStatusInactive = INACTIVE_STATUSES.includes(status);
+                const isOldStatusInactive = INACTIVE_STATUSES.includes(order.status);
+
+                // Only act if status "category" changes (Active <-> Inactive) AND we have an articleId
+                if (order.articleId && isNewStatusInactive !== isOldStatusInactive) {
+                    const productRef = doc(db, "products", order.articleId);
+                    const qty = parseInt(order.quantity) || 1;
+
+                    if (isNewStatusInactive) {
+                        // Returning to stock (Order Cancelled/Returned)
+                        await updateDoc(productRef, { stock: increment(qty) });
+                    } else {
+                        // Deducting from stock (Order Reactivated)
+                        await updateDoc(productRef, { stock: increment(-qty) });
+                    }
+                }
+
+                return updateStoreItem(id, { status });
+            }));
             setSelectedOrders([]);
+        } catch (err) {
+            console.error("Error updating statuses:", err);
+            alert("Failed to update some orders.");
         }
     };
 
@@ -99,6 +133,7 @@ export default function Orders() {
         switch (status) {
             case 'livré': return 'bg-green-100 text-green-800';
             case 'retour': return 'bg-red-100 text-red-800';
+            case 'annulé': return 'bg-gray-100 text-gray-400 line-through';
             case 'packing': return 'bg-yellow-100 text-yellow-800';
             case 'livraison': return 'bg-blue-100 text-blue-800';
             default: return 'bg-gray-100 text-gray-800';
@@ -134,13 +169,22 @@ export default function Orders() {
                                     Restore ({selectedOrders.length})
                                 </Button>
                             ) : (
-                                <Button
-                                    onClick={() => handleBulkStatus('livré')}
-                                    className="bg-green-600 hover:bg-green-700 text-white"
-                                    icon={Check}
-                                >
-                                    Mark Delivered ({selectedOrders.length})
-                                </Button>
+                                <>
+                                    <Button
+                                        onClick={() => handleBulkStatus('livré')}
+                                        className="bg-green-600 hover:bg-green-700 text-white"
+                                        icon={Check}
+                                    >
+                                        Mark Delivered ({selectedOrders.length})
+                                    </Button>
+                                    <Button
+                                        onClick={() => handleBulkStatus('retour')}
+                                        className="bg-orange-600 hover:bg-orange-700 text-white"
+                                        icon={RotateCcw}
+                                    >
+                                        Mark Returned ({selectedOrders.length})
+                                    </Button>
+                                </>
                             )}
                             <Button
                                 onClick={handleBulkDelete}
@@ -322,33 +366,35 @@ export default function Orders() {
             />
 
             {/* QR Code Modal */}
-            {qrOrder && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full relative text-center">
-                        <button
-                            onClick={() => setQrOrder(null)}
-                            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-                        >
-                            <X className="h-6 w-6" />
-                        </button>
-                        <h3 className="text-lg font-bold text-gray-900 mb-4">Order Scan Code</h3>
-                        <div className="flex justify-center p-4 bg-white rounded-lg">
-                            <QRCode
-                                value={JSON.stringify({
-                                    id: qrOrder.id,
-                                    number: qrOrder.orderNumber,
-                                    client: qrOrder.clientName,
-                                    phone: qrOrder.clientPhone
-                                })}
-                                size={200}
-                            />
+            {
+                qrOrder && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                        <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full relative text-center">
+                            <button
+                                onClick={() => setQrOrder(null)}
+                                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                            >
+                                <X className="h-6 w-6" />
+                            </button>
+                            <h3 className="text-lg font-bold text-gray-900 mb-4">Order Scan Code</h3>
+                            <div className="flex justify-center p-4 bg-white rounded-lg">
+                                <QRCode
+                                    value={JSON.stringify({
+                                        id: qrOrder.id,
+                                        number: qrOrder.orderNumber,
+                                        client: qrOrder.clientName,
+                                        phone: qrOrder.clientPhone
+                                    })}
+                                    size={200}
+                                />
+                            </div>
+                            <p className="mt-4 text-sm text-gray-500 break-all">
+                                #{qrOrder.orderNumber}
+                            </p>
                         </div>
-                        <p className="mt-4 text-sm text-gray-500 break-all">
-                            #{qrOrder.orderNumber}
-                        </p>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 }

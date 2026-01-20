@@ -1,12 +1,16 @@
 import { useState, useMemo } from "react";
 import { useStoreData } from "../hooks/useStoreData";
-import { Search, MapPin, Users, DollarSign, TrendingUp, Eye, Trash2, RotateCcw } from "lucide-react";
+import { Search, MapPin, Users, DollarSign, TrendingUp, Eye, Trash2, RotateCcw, Download, Plus, Edit2 } from "lucide-react";
 import CustomerDetailModal from "../components/CustomerDetailModal";
+import CustomerModal from "../components/CustomerModal";
+import Button from "../components/Button";
 
 export default function Customers() {
-    const { data: customers, loading, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("customers");
+    const { data: customers, loading, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("customers");
     const [searchTerm, setSearchTerm] = useState("");
-    const [selectedCustomer, setSelectedCustomer] = useState(null);
+    const [selectedCustomer, setSelectedCustomer] = useState(null); // For Detail View
+    const [editingCustomer, setEditingCustomer] = useState(null); // For Edit Modal
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [showTrash, setShowTrash] = useState(false);
 
     const kpiStats = useMemo(() => {
@@ -50,6 +54,46 @@ export default function Customers() {
         await restoreStoreItem(id);
     };
 
+    const handleSaveCustomer = async (formData) => {
+        if (editingCustomer) {
+            await updateStoreItem(editingCustomer.id, formData);
+        } else {
+            await addStoreItem({
+                ...formData,
+                totalSpent: 0,
+                orderCount: 0,
+                firstOrderDate: null,
+                lastOrderDate: null
+            });
+        }
+        setIsEditModalOpen(false);
+        setEditingCustomer(null);
+    };
+
+    const handleExportCSV = () => {
+        if (!customers.length) return;
+
+        const headers = ["Name", "Phone", "City", "Address", "Total Orders", "Total Spent", "Last Order"];
+        const csvContent = [
+            headers.join(","),
+            ...customers.map(c => [
+                `"${c.name || ''}"`,
+                `"${c.phone || ''}"`,
+                `"${c.city || ''}"`,
+                `"${c.address || ''}"`,
+                c.orderCount || 0,
+                (c.totalSpent || 0).toFixed(2),
+                c.lastOrderDate || ''
+            ].join(","))
+        ].join("\n");
+
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `customers_export_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+    };
+
     const filteredCustomers = customers
         .filter(c => showTrash ? c.deleted : !c.deleted)
         .filter(c =>
@@ -67,19 +111,34 @@ export default function Customers() {
                         View customer profiles, lifetime value, and history.
                     </p>
                 </div>
-                <div className="flex bg-gray-100 p-1 rounded-lg self-center sm:self-auto">
-                    <button
-                        onClick={() => setShowTrash(false)}
-                        className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${!showTrash ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                <div className="flex gap-2">
+                    <Button
+                        variant="secondary"
+                        icon={Download}
+                        onClick={handleExportCSV}
+                        disabled={customers.length === 0}
                     >
-                        Active
-                    </button>
-                    <button
-                        onClick={() => setShowTrash(true)}
-                        className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${showTrash ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        Trash
-                    </button>
+                        Export CSV
+                    </Button>
+                    <div className="flex bg-gray-100 p-1 rounded-lg self-center sm:self-auto">
+                        <button
+                            onClick={() => setShowTrash(false)}
+                            className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${!showTrash ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Active
+                        </button>
+                        <button
+                            onClick={() => setShowTrash(true)}
+                            className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${showTrash ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Trash
+                        </button>
+                    </div>
+                    {!showTrash && (
+                        <Button onClick={() => { setEditingCustomer(null); setIsEditModalOpen(true); }} icon={Plus}>
+                            New Customer
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -198,10 +257,17 @@ export default function Customers() {
                                             <>
                                                 <button
                                                     onClick={() => setSelectedCustomer(customer)}
-                                                    className="text-indigo-600 hover:text-indigo-900 p-2 hover:bg-indigo-50 rounded-full"
+                                                    className="text-gray-400 hover:text-gray-900 p-2 hover:bg-gray-100 rounded-full"
                                                     title="View Details"
                                                 >
                                                     <Eye className="h-4 w-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => { setEditingCustomer(customer); setIsEditModalOpen(true); }}
+                                                    className="text-indigo-600 hover:text-indigo-900 p-2 hover:bg-indigo-50 rounded-full"
+                                                    title="Edit"
+                                                >
+                                                    <Edit2 className="h-4 w-4" />
                                                 </button>
                                                 <button
                                                     onClick={(e) => handleDelete(customer.id, e)}
@@ -224,6 +290,13 @@ export default function Customers() {
                 isOpen={!!selectedCustomer}
                 onClose={() => setSelectedCustomer(null)}
                 customer={selectedCustomer}
+            />
+
+            <CustomerModal
+                isOpen={isEditModalOpen}
+                onClose={() => { setIsEditModalOpen(false); setEditingCustomer(null); }}
+                onSave={handleSaveCustomer}
+                customer={editingCustomer}
             />
         </div>
     );

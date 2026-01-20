@@ -10,6 +10,7 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
         name: "",
         category: "",
         price: "",
+        costPrice: "",
         stock: "",
         sizes: "",
         description: "",
@@ -35,6 +36,7 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                 name: product.name || "",
                 category: product.category || "",
                 price: product.price || "",
+                costPrice: product.costPrice || "",
                 stock: product.stock || "",
                 sizes: product.sizes ? product.sizes.join(", ") : "",
                 description: product.description || "",
@@ -45,6 +47,7 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                 name: "",
                 category: "",
                 price: "",
+                costPrice: "",
                 stock: "",
                 sizes: "",
                 description: "",
@@ -62,6 +65,7 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
             const productData = {
                 ...formData,
                 price: parseFloat(formData.price),
+                costPrice: parseFloat(formData.costPrice) || 0,
                 stock: parseInt(formData.stock),
                 sizes: formData.sizes.split(",").map(s => s.trim()).filter(Boolean),
                 updatedAt: new Date().toISOString()
@@ -109,6 +113,17 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                                     value={formData.price}
                                     onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                                 />
+                                <Input
+                                    label="Cost Price (DH)"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={formData.costPrice}
+                                    onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
+                                    placeholder="Optional"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
                                 <Input
                                     label="Stock Qty"
                                     type="number"
