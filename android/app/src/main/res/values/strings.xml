@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CommerceSaaS</string>
+    <string name="title_activity_main">CommerceSaaS</string>
+    <string name="package_name">com.commercesaas.app</string>
+    <string name="custom_url_scheme">com.commercesaas.app</string>
+</resources>

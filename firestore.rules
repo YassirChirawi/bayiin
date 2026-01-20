@@ -1,0 +1,70 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to get the signed-in user's data
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Helper to check if the user belongs to the store they are trying to access
+    function belongsToStore(storeId) {
+       // Check if the storeId matches the one in their user profile
+       return getUserData().storeId == storeId;
+    }
+
+    // Users collection: Users can read/write their own profile
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Stores collection: 
+    // - Everyone can read stores (needed for store pages)
+    // - Only authenticated users can create (during signup)
+    // - Only owners can update their store
+    match /stores/{storeId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && belongsToStore(storeId);
+    }
+
+    // Products, Orders, etc.
+    // Generic rule for collections that are children of the store logic
+    // Enforcing that data must have a storeId field that matches the user's store
+    
+    match /products/{productId} {
+       // Allow read/write if the document's storeId matches the user's store
+       // Note: "resource" is the document being read/updated
+       // "request.resource" is the document being created/written
+       
+       allow read: if request.auth != null && resource.data.storeId == getUserData().storeId;
+       allow create: if request.auth != null && request.resource.data.storeId == getUserData().storeId;
+       allow update, delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
+    }
+    
+    match /orders/{orderId} {
+       allow read: if request.auth != null && resource.data.storeId == getUserData().storeId;
+       allow create: if request.auth != null && request.resource.data.storeId == getUserData().storeId;
+       allow update, delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
+    }
+
+    match /expenses/{expenseId} {
+       allow read: if request.auth != null && resource.data.storeId == getUserData().storeId;
+       allow create: if request.auth != null && request.resource.data.storeId == getUserData().storeId;
+       allow update, delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
+    }
+
+    match /customers/{customerId} {
+       allow read: if request.auth != null && resource.data.storeId == getUserData().storeId;
+       allow create: if request.auth != null && request.resource.data.storeId == getUserData().storeId;
+       allow update, delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
+    }
+
+    // Public Leads / Waiting List
+    match /leads/{leadId} {
+       allow create: if true; // Public can sign up
+       allow read, update, delete: if false; // Only admin can read/manage (via Firebase Console for now)
+    }
+  }
+}

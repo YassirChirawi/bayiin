@@ -1,0 +1,136 @@
+import { useTenant } from "../context/TenantContext";
+import { User, Store, CreditCard, Check, Zap } from "lucide-react";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "../lib/firebase";
+import Button from "../components/Button";
+import { useState } from "react";
+
+export default function Settings() {
+    const { store, setStore } = useTenant();
+    const [loading, setLoading] = useState(false);
+
+    const handleUpgrade = async () => {
+        if (!store?.id) return;
+        try {
+            setLoading(true);
+            // Simulate Stripe Checkout process
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
+            await updateDoc(doc(db, "stores", store.id), {
+                plan: 'pro',
+                subscriptionStatus: 'active'
+            });
+
+            // Optimistic update
+            setStore(prev => ({ ...prev, plan: 'pro' }));
+            alert("Upgrade successful! You are now on the Pro plan.");
+        } catch (error) {
+            console.error("Error upgrading:", error);
+            alert("Upgrade failed");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <div>
+                <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+                <p className="mt-1 text-sm text-gray-500">
+                    Manage your store and account preferences
+                </p>
+            </div>
+
+            <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
+                <div className="px-4 py-5 sm:p-6">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
+                        <Store className="h-5 w-5 text-gray-400" />
+                        Store Information
+                    </h3>
+                    <div className="mt-4 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+                        <div className="sm:col-span-3">
+                            <label className="block text-sm font-medium text-gray-700">Store Name</label>
+                            <div className="mt-1">
+                                <input
+                                    type="text"
+                                    disabled
+                                    value={store?.name || ''}
+                                    className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md bg-gray-50 text-gray-500 p-2 border"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="sm:col-span-3">
+                            <label className="block text-sm font-medium text-gray-700">Currency</label>
+                            <div className="mt-1">
+                                <input
+                                    type="text"
+                                    disabled
+                                    value={store?.currency || 'USD'}
+                                    className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md bg-gray-50 text-gray-500 p-2 border"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
+                <div className="px-4 py-5 sm:p-6">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
+                        <User className="h-5 w-5 text-gray-400" />
+                        Owner Information
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                        Owner ID: {store?.ownerId}
+                    </p>
+                </div>
+            </div>
+
+            {/* Subscription Section */}
+            <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
+                <div className="px-4 py-5 sm:p-6">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
+                        <CreditCard className="h-5 w-5 text-gray-400" />
+                        Subscription Plan
+                    </h3>
+
+                    <div className="mt-6 flex flex-col sm:flex-row gap-6 items-start">
+                        <div className="flex-1">
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-2xl font-bold text-gray-900 capitalize">{store?.plan || 'Free'} Plan</span>
+                                {store?.plan === 'pro' && (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                        Active
+                                    </span>
+                                )}
+                            </div>
+                            <p className="mt-1 text-sm text-gray-500">
+                                {store?.plan === 'pro'
+                                    ? "You have access to all features including unlimited orders and advanced analytics."
+                                    : "You are currently on the Free plan. Upgrade to unlock unlimited potential."
+                                }
+                            </p>
+                        </div>
+
+                        {store?.plan !== 'pro' && (
+                            <div className="flex-shrink-0">
+                                <Button
+                                    onClick={handleUpgrade}
+                                    isLoading={loading}
+                                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 border-0 shadow-lg shadow-indigo-200"
+                                    icon={Zap}
+                                >
+                                    Upgrade to Pro (179 DH/mo)
+                                </Button>
+                                <p className="mt-2 text-xs text-center text-gray-500">
+                                    Secure payment via Stripe
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div >
+    );
+}
