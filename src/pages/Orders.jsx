@@ -5,7 +5,7 @@ import Button from "../components/Button";
 import OrderModal from "../components/OrderModal";
 import QRCode from "react-qr-code";
 import { generateInvoice } from "../utils/generateInvoice";
-import { generateInvoice } from "../utils/generateInvoice";
+
 import { useTenant } from "../context/TenantContext";
 import { db } from "../lib/firebase";
 import { doc, updateDoc, increment, getDoc } from "firebase/firestore";
