@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { X, Save, Upload } from "lucide-react";
 import Button from "./Button";
 import Input from "./Input";
+import { useImageUpload } from "../hooks/useImageUpload";
+import { useTenant } from "../context/TenantContext";
 
 export default function ProductModal({ isOpen, onClose, onSave, product = null }) {
     const [formData, setFormData] = useState({
@@ -13,7 +15,19 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
         description: "",
         photoUrl: ""
     });
+    const { store } = useTenant();
     const [loading, setLoading] = useState(false);
+    const { uploadImage, uploading, error: uploadError } = useImageUpload();
+
+    const handleImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file || !store?.id) return;
+
+        const url = await uploadImage(file, `products/${store.id}`);
+        if (url) {
+            setFormData(prev => ({ ...prev, photoUrl: url }));
+        }
+    };
 
     useEffect(() => {
         if (product) {
@@ -123,28 +137,37 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Product Image URL
+                                    Product Image
                                 </label>
-                                <div className="mt-1 flex rounded-md shadow-sm">
-                                    <input
-                                        type="url"
-                                        className="flex-1 block w-full min-w-0 rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
-                                        placeholder="https://example.com/image.jpg"
-                                        value={formData.photoUrl}
-                                        onChange={(e) => setFormData({ ...formData, photoUrl: e.target.value })}
-                                    />
-                                </div>
-                                {formData.photoUrl && (
-                                    <div className="mt-2 aspect-video w-full rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
-                                        <img
-                                            src={formData.photoUrl}
-                                            alt="Preview"
-                                            className="w-full h-full object-cover"
-                                            onError={(e) => e.target.src = 'https://via.placeholder.com/300?text=No+Image'}
-                                        />
+                                <div className="mt-1 flex items-center gap-4">
+                                    <div className="aspect-video w-32 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+                                        {formData.photoUrl ? (
+                                            <img
+                                                src={formData.photoUrl}
+                                                alt="Preview"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="flex items-center justify-center h-full text-gray-400">
+                                                <Upload className="h-6 w-6" />
+                                            </div>
+                                        )}
                                     </div>
-                                )}
+                                    <div className="flex-1">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleImageUpload}
+                                            disabled={uploading}
+                                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                        />
+                                        {uploading && <p className="text-xs text-indigo-600 mt-1">Uploading...</p>}
+                                        {uploadError && <p className="text-xs text-red-600 mt-1">{uploadError}</p>}
+                                        <p className="text-xs text-gray-500 mt-1">Or use a URL (optional)</p>
+                                    </div>
+                                </div>
                             </div>
+
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">

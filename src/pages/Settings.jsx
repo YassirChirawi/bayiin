@@ -4,10 +4,32 @@ import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Button from "../components/Button";
 import { useState } from "react";
+import { useImageUpload } from "../hooks/useImageUpload";
 
 export default function Settings() {
     const { store, setStore } = useTenant();
     const [loading, setLoading] = useState(false);
+    const { uploadImage, uploading, error: uploadError } = useImageUpload();
+
+    const handleLogoUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file || !store?.id) return;
+
+        const url = await uploadImage(file, `logos/${store.id}`);
+        if (url) {
+            try {
+                // Update Firestore
+                await updateDoc(doc(db, "stores", store.id), {
+                    logoUrl: url
+                });
+                // Update local state
+                setStore(prev => ({ ...prev, logoUrl: url }));
+            } catch (err) {
+                console.error("Error updating logo:", err);
+                alert("Failed to update logo");
+            }
+        }
+    };
 
     const handleUpgrade = async () => {
         if (!store?.id) return;
@@ -48,6 +70,30 @@ export default function Settings() {
                         Store Information
                     </h3>
                     <div className="mt-4 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+                        <div className="sm:col-span-6">
+                            <label className="block text-sm font-medium text-gray-700">Store Logo</label>
+                            <div className="mt-1 flex items-center gap-4">
+                                <div className="h-16 w-16 rounded-full overflow-hidden bg-gray-100 border border-gray-200">
+                                    {store?.logoUrl ? (
+                                        <img src={store.logoUrl} alt="Store Logo" className="h-full w-full object-cover" />
+                                    ) : (
+                                        <Store className="h-8 w-8 text-gray-400 m-auto mt-4" />
+                                    )}
+                                </div>
+                                <div>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleLogoUpload}
+                                        disabled={uploading}
+                                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                    />
+                                    {uploading && <p className="text-xs text-indigo-600 mt-1">Uploading...</p>}
+                                    {uploadError && <p className="text-xs text-red-600 mt-1">{uploadError}</p>}
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="sm:col-span-3">
                             <label className="block text-sm font-medium text-gray-700">Store Name</label>
                             <div className="mt-1">
