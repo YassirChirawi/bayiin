@@ -65,6 +65,20 @@ export default function Finances() {
         })
         .reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
 
+    // Advanced Metrics Calculations
+    const adsSpend = expenses
+        .filter(e => e.category === 'Ads' && isWithinInterval(e.date ? parseISO(e.date) : new Date(), { start, end }))
+        .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+
+    const shippingSpend = expenses
+        .filter(e => e.category === 'Shipping' && isWithinInterval(e.date ? parseISO(e.date) : new Date(), { start, end }))
+        .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+
+    const roas = adsSpend > 0 ? (filteredRevenue / adsSpend).toFixed(2) : "0.00";
+    const cac = activeOrdersCount > 0 ? (adsSpend / activeOrdersCount).toFixed(2) : "0.00"; // Cost per Acquisition (approx per order for now)
+    const shippingRatio = filteredRevenue > 0 ? ((shippingSpend / filteredRevenue) * 100).toFixed(1) : "0.0";
+    const profitPerOrder = activeOrdersCount > 0 ? (netProfit / activeOrdersCount).toFixed(2) : "0.00";
+
     const netProfit = filteredRevenue - totalCOGS - filteredExpenses;
     const margin = filteredRevenue > 0 ? (netProfit / filteredRevenue) * 100 : 0;
 
@@ -78,7 +92,12 @@ export default function Finances() {
         netResult: netProfit,
         margin: margin.toFixed(1),
         activeOrdersCount,
-        totalOrders: orders.length
+        totalOrders: orders.length,
+        adsSpend,
+        roas,
+        cac,
+        shippingRatio,
+        profitPerOrder
     };
 }, [orders, expenses, dateRange]);
 
@@ -241,6 +260,47 @@ return (
                 </div>
             </div>
         </div>
+    </div>
+
+        {/* ADVANCED METRICS SECTION */ }
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                <p className="text-xs text-gray-500 font-medium">ROAS (Ads Efficiency)</p>
+                <div className="flex items-baseline gap-2 mt-1">
+                    <span className={`text-xl font-bold ${parseFloat(stats.roas) > 3 ? 'text-green-600' : 'text-gray-900'}`}>
+                        {stats.roas}x
+                    </span>
+                    <span className="text-xs text-gray-400">Target: &gt;3.0</span>
+                </div>
+             </div>
+
+             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                <p className="text-xs text-gray-500 font-medium">CAC (Cost Per Order)</p>
+                <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-xl font-bold text-gray-900">{stats.cac} DH</span>
+                    <span className="text-xs text-gray-400">Ads / Orders</span>
+                </div>
+             </div>
+
+             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                <p className="text-xs text-gray-500 font-medium">Shipping Ratio</p>
+                <div className="flex items-baseline gap-2 mt-1">
+                    <span className={`text-xl font-bold ${parseFloat(stats.shippingRatio) > 15 ? 'text-red-600' : 'text-gray-900'}`}>
+                        {stats.shippingRatio}%
+                    </span>
+                    <span className="text-xs text-gray-400">Target: &lt;15%</span>
+                </div>
+             </div>
+
+             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                <p className="text-xs text-gray-500 font-medium">Net Profit / Order</p>
+                <div className="flex items-baseline gap-2 mt-1">
+                    <span className={`text-xl font-bold ${parseFloat(stats.profitPerOrder) > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {stats.profitPerOrder} DH
+                    </span>
+                </div>
+             </div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Chart Section */}
@@ -267,99 +327,99 @@ return (
 
         </div>
 
-        {/* Expenses Breakdown Chart */}
-        <div className="bg-white p-6 rounded-lg shadow border border-gray-100">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Expenses Breakdown</h3>
-            <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                        <Pie
-                            data={expenseCategoryData}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                            outerRadius={80}
-                            fill="#8884d8"
-                            dataKey="value"
-                        >
-                            {expenseCategoryData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                        </Pie>
-                        <Tooltip formatter={(value) => `${value.toFixed(2)} DH`} />
-                        <Legend />
-                    </PieChart>
-                </ResponsiveContainer>
-            </div>
-        </div>
-
-        {/* Expenses Management */}
-        <div className="bg-white p-6 rounded-lg shadow border border-gray-100 lg:col-span-2">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Expenses Management</h3>
-
-            <form onSubmit={handleAddExpense} className="flex flex-col sm:flex-row gap-2 mb-4">
-                <div className="flex-1">
-                    <Input
-                        placeholder="Description (e.g. Ads, Packaging)"
-                        value={expenseForm.description}
-                        onChange={e => setExpenseForm({ ...expenseForm, description: e.target.value })}
-                        required
-                    />
-                </div>
-                <div className="sm:w-40">
-                    <select
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                        value={expenseForm.category}
-                        onChange={e => setExpenseForm({ ...expenseForm, category: e.target.value })}
-                    >
-                        {EXPENSE_CATEGORIES.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                    </select>
-                </div>
-                <div className="sm:w-32">
-                    <Input
-                        type="number"
-                        placeholder="Cost"
-                        value={expenseForm.amount}
-                        onChange={e => setExpenseForm({ ...expenseForm, amount: e.target.value })}
-                        required
-                    />
-                </div>
-                <Button type="submit" isLoading={loadingExpense} icon={Plus}>Add</Button>
-            </form>
-
-            <div className="overflow-y-auto max-h-64 border-t border-gray-100">
-                {expenses.length === 0 ? (
-                    <p className="py-4 text-center text-sm text-gray-500">No expenses recorded.</p>
-                ) : (
-                    <ul className="divide-y divide-gray-100">
-                        {expenses.map(exp => (
-                            <li key={exp.id} className="py-3 flex justify-between items-center text-sm">
-                                <div className="flex items-center gap-3">
-                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full 
-                                                ${exp.category === 'Ads' ? 'bg-blue-100 text-blue-800' :
-                                            exp.category === 'Shipping' ? 'bg-yellow-100 text-yellow-800' :
-                                                exp.category === 'COGS' ? 'bg-orange-100 text-orange-800' :
-                                                    exp.category === 'Salaries' ? 'bg-purple-100 text-purple-800' :
-                                                        'bg-gray-100 text-gray-800'}`}>
-                                        {exp.category || 'Other'}
-                                    </span>
-                                    <span className="text-gray-700">{exp.description}</span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <span className="font-medium text-red-600">-{parseFloat(exp.amount).toFixed(2)} DH</span>
-                                    <button onClick={() => handleDeleteExpense(exp.id)} className="text-gray-400 hover:text-red-500">
-                                        <Trash2 className="h-4 w-4" />
-                                    </button>
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </div>
-        </div>
+{/* Expenses Breakdown Chart */ }
+<div className="bg-white p-6 rounded-lg shadow border border-gray-100">
+    <h3 className="text-lg font-medium text-gray-900 mb-4">Expenses Breakdown</h3>
+    <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+                <Pie
+                    data={expenseCategoryData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                >
+                    {expenseCategoryData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                </Pie>
+                <Tooltip formatter={(value) => `${value.toFixed(2)} DH`} />
+                <Legend />
+            </PieChart>
+        </ResponsiveContainer>
     </div>
+</div>
+
+{/* Expenses Management */ }
+<div className="bg-white p-6 rounded-lg shadow border border-gray-100 lg:col-span-2">
+    <h3 className="text-lg font-medium text-gray-900 mb-4">Expenses Management</h3>
+
+    <form onSubmit={handleAddExpense} className="flex flex-col sm:flex-row gap-2 mb-4">
+        <div className="flex-1">
+            <Input
+                placeholder="Description (e.g. Ads, Packaging)"
+                value={expenseForm.description}
+                onChange={e => setExpenseForm({ ...expenseForm, description: e.target.value })}
+                required
+            />
+        </div>
+        <div className="sm:w-40">
+            <select
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                value={expenseForm.category}
+                onChange={e => setExpenseForm({ ...expenseForm, category: e.target.value })}
+            >
+                {EXPENSE_CATEGORIES.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                ))}
+            </select>
+        </div>
+        <div className="sm:w-32">
+            <Input
+                type="number"
+                placeholder="Cost"
+                value={expenseForm.amount}
+                onChange={e => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                required
+            />
+        </div>
+        <Button type="submit" isLoading={loadingExpense} icon={Plus}>Add</Button>
+    </form>
+
+    <div className="overflow-y-auto max-h-64 border-t border-gray-100">
+        {expenses.length === 0 ? (
+            <p className="py-4 text-center text-sm text-gray-500">No expenses recorded.</p>
+        ) : (
+            <ul className="divide-y divide-gray-100">
+                {expenses.map(exp => (
+                    <li key={exp.id} className="py-3 flex justify-between items-center text-sm">
+                        <div className="flex items-center gap-3">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full 
+                                                ${exp.category === 'Ads' ? 'bg-blue-100 text-blue-800' :
+                                    exp.category === 'Shipping' ? 'bg-yellow-100 text-yellow-800' :
+                                        exp.category === 'COGS' ? 'bg-orange-100 text-orange-800' :
+                                            exp.category === 'Salaries' ? 'bg-purple-100 text-purple-800' :
+                                                'bg-gray-100 text-gray-800'}`}>
+                                {exp.category || 'Other'}
+                            </span>
+                            <span className="text-gray-700">{exp.description}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <span className="font-medium text-red-600">-{parseFloat(exp.amount).toFixed(2)} DH</span>
+                            <button onClick={() => handleDeleteExpense(exp.id)} className="text-gray-400 hover:text-red-500">
+                                <Trash2 className="h-4 w-4" />
+                            </button>
+                        </div>
+                    </li>
+                ))}
+            </ul>
+        )}
+    </div>
+</div>
+    </div >
 );
 }

@@ -55,7 +55,7 @@ export default function Dashboard() {
             }
         });
 
-        const lowStockProducts = products.filter(p => (parseInt(p.stock) || 0) < 5).length;
+        const lowStockProducts = products.filter(p => (parseInt(p.stock) || 0) < 5);
 
         return {
             revenueToday,
@@ -124,10 +124,28 @@ export default function Dashboard() {
                         <div className="ml-5 w-0 flex-1">
                             <dl>
                                 <dt className="text-sm font-medium text-gray-500 truncate">Low Stock Alert</dt>
-                                <dd className="text-2xl font-semibold text-gray-900">{stats.lowStockProducts}</dd>
+                                <dd className="text-2xl font-semibold text-gray-900">{stats.lowStockProducts.length}</dd>
                             </dl>
                         </div>
                     </div>
+                    {stats.lowStockProducts.length > 0 && (
+                        <div className="mt-4 border-t border-gray-100 pt-3">
+                            <p className="text-xs font-medium text-gray-500 mb-2">Items needing restock:</p>
+                            <ul className="space-y-1">
+                                {stats.lowStockProducts.slice(0, 3).map(p => (
+                                    <li key={p.id} className="flex justify-between text-xs">
+                                        <span className="text-gray-900 truncate">{p.name}</span>
+                                        <span className="text-red-600 font-bold">{p.stock} left</span>
+                                    </li>
+                                ))}
+                                {stats.lowStockProducts.length > 3 && (
+                                    <li className="text-xs text-indigo-600 pt-1">
+                                        + {stats.lowStockProducts.length - 3} more...
+                                    </li>
+                                )}
+                            </ul>
+                        </div>
+                    )}
                 </div>
             </div>
 

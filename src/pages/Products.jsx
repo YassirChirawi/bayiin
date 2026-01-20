@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useStoreData } from "../hooks/useStoreData";
-import { Plus, Edit2, Trash2, Package, Search, RotateCcw } from "lucide-react";
+import { Plus, Edit2, Trash2, Package, Search, RotateCcw, AlertCircle } from "lucide-react";
 import Button from "../components/Button";
 import ProductModal from "../components/ProductModal";
 
@@ -144,6 +144,12 @@ export default function Products() {
                                                             {size}
                                                         </span>
                                                     ))}
+                                                </div>
+                                            )}
+                                            {(parseInt(product.stock) || 0) < 5 && (
+                                                <div className="mt-1 flex items-center gap-1 text-xs text-red-600 font-medium bg-red-50 px-2 py-0.5 rounded w-fit">
+                                                    <AlertCircle className="h-3 w-3" />
+                                                    Low Stock
                                                 </div>
                                             )}
                                         </div>
