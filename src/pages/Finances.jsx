@@ -28,7 +28,8 @@ export default function Finances() {
         let revenueMonth = 0;
         let totalCOGS = 0;
         let activeOrdersCount = 0;
-        let filteredRevenue = 0;
+        let realizedRevenue = 0; // Only 'livré'
+        let pendingRevenue = 0;  // 'reçu', 'packing', 'ramassage', 'livraison'
 
         const today = new Date();
         const start = startOfDay(parseISO(dateRange.start));
@@ -36,17 +37,34 @@ export default function Finances() {
 
         orders.forEach(order => {
             const orderDate = parseISO(order.date);
-            const amount = (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
-            const cost = (parseFloat(order.costPrice) || 0) * (parseInt(order.quantity) || 1);
+            // Ensure numeric values
+            const price = parseFloat(order.price) || 0;
+            const quantity = parseInt(order.quantity) || 1;
+            const costPrice = parseFloat(order.costPrice) || 0;
+
+            const amount = price * quantity;
+            const cost = costPrice * quantity;
+
+            // Date Filters for visual charts (Revenue Trend) might still want 'potential' revenue? 
+            // Or strictly realized? usually 'Trend' shows sales volume regardless of status unless cancelled.
+            // But for KPIs, the user was specific.
 
             if (isSameDay(orderDate, today)) revenueToday += amount;
             if (isSameWeek(orderDate, today)) revenueWeek += amount;
             if (isSameMonth(orderDate, today)) revenueMonth += amount;
 
             if (isWithinInterval(orderDate, { start, end })) {
-                filteredRevenue += amount;
-                if (!['annulé', 'retour'].includes(order.status)) {
-                    totalCOGS += cost;
+                const status = (order.status || '').toLowerCase();
+
+                if (status === 'livré') {
+                    realizedRevenue += amount;
+                    totalCOGS += cost; // Only realized sales have realized COGS? Or do we count COGS for shipped items too?
+                    // Usually Accrual vs Cash. User said "income" is "livré".
+                    // Let's assume COGS follows realized revenue for Net Profit.
+                } else if (['reçu', 'packing', 'ramassage', 'livraison'].includes(status)) {
+                    pendingRevenue += amount;
+                    // We do NOT add to realizedRevenue
+                    // We might want to track 'Potential COGS' but for Net Profit, let's stick to Realized.
                 }
             }
 
@@ -63,7 +81,13 @@ export default function Finances() {
             })
             .reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
 
-        // Advanced Metrics Calculations
+        // Advanced Metrics Calculations (Based on REALIZED Revenue usually?)
+        // Or should ROAS be based on Total Sales (Realized + Pending)? 
+        // Marketing usually counts 'Sales Generated' (Pending + Realized).
+        // BUT user was very specific about 'Income' being 'Livré'.
+        // Let's use Realized Revenue for Profit, but maybe Total 'Sales' for ROAS?
+        // For safety, let's stick to Realized for financial metrics to be conservative.
+
         const adsSpend = expenses
             .filter(e => e.category === 'Ads' && isWithinInterval(e.date ? parseISO(e.date) : new Date(), { start, end }))
             .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
@@ -72,19 +96,20 @@ export default function Finances() {
             .filter(e => e.category === 'Shipping' && isWithinInterval(e.date ? parseISO(e.date) : new Date(), { start, end }))
             .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
 
-        const netProfit = filteredRevenue - totalCOGS - filteredExpenses;
-        const margin = filteredRevenue > 0 ? (netProfit / filteredRevenue) * 100 : 0;
+        const netProfit = realizedRevenue - totalCOGS - filteredExpenses;
+        const margin = realizedRevenue > 0 ? (netProfit / realizedRevenue) * 100 : 0;
 
-        const roas = adsSpend > 0 ? (filteredRevenue / adsSpend).toFixed(2) : "0.00";
+        const roas = adsSpend > 0 ? (realizedRevenue / adsSpend).toFixed(2) : "0.00";
         const cac = activeOrdersCount > 0 ? (adsSpend / activeOrdersCount).toFixed(2) : "0.00";
-        const shippingRatio = filteredRevenue > 0 ? ((shippingSpend / filteredRevenue) * 100).toFixed(1) : "0.0";
+        const shippingRatio = realizedRevenue > 0 ? ((shippingSpend / realizedRevenue) * 100).toFixed(1) : "0.0";
         const profitPerOrder = activeOrdersCount > 0 ? (netProfit / activeOrdersCount).toFixed(2) : "0.00";
 
         return {
             revenueToday,
             revenueWeek,
             revenueMonth,
-            totalRevenue: filteredRevenue,
+            realizedRevenue, // Was totalRevenue
+            pendingRevenue,  // NEW
             totalCOGS,
             totalExpenses: filteredExpenses,
             netResult: netProfit,
@@ -188,13 +213,16 @@ export default function Finances() {
                     <div className="p-5">
                         <div className="flex items-center">
                             <div className="flex-shrink-0">
-                                <DollarSign className="h-6 w-6 text-gray-400" />
+                                <DollarSign className="h-6 w-6 text-green-500" />
                             </div>
                             <div className="ml-5 w-0 flex-1">
                                 <dl>
-                                    <dt className="text-sm font-medium text-gray-500 truncate">Total Revenue</dt>
+                                    <dt className="text-sm font-medium text-gray-500 truncate">Total Income (Livré)</dt>
                                     <dd>
-                                        <div className="text-lg font-medium text-gray-900">{stats.totalRevenue.toFixed(2)} DH</div>
+                                        <div className="text-lg font-medium text-gray-900">{stats.realizedRevenue.toFixed(2)} DH</div>
+                                        <div className="text-xs text-yellow-600 mt-1">
+                                            + {stats.pendingRevenue.toFixed(2)} DH (Pending)
+                                        </div>
                                     </dd>
                                 </dl>
                             </div>
