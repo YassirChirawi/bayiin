@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, Menu, ArrowLeft } from "lucide-react";
+import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, Menu, ArrowLeft, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts';
 import DemoTour from "../components/DemoTour";
 
 export default function DemoDashboard() {
@@ -12,6 +12,7 @@ export default function DemoDashboard() {
     const stats = {
         revenueToday: 1425.00,
         pendingOrders: 12,
+        returnRate: 4.2,
         lowStockProducts: 3,
         salesTrend: [
             { date: 'Jan 14', revenue: 4200 },
@@ -28,6 +29,12 @@ export default function DemoDashboard() {
             { name: "Running Shoes", count: 25 },
             { name: "Yoga Mat", count: 18 },
             { name: "Water Bottle", count: 15 },
+        ],
+        statusDistribution: [
+            { name: 'Livré', value: 65 },
+            { name: 'Reçu', value: 20 },
+            { name: 'Retour', value: 5 },
+            { name: 'Livraison', value: 10 },
         ]
     };
 
@@ -64,6 +71,8 @@ export default function DemoDashboard() {
     ];
 
     const [isTourOpen, setIsTourOpen] = useState(true);
+
+    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
     return (
         <div className="flex min-h-screen bg-gray-50 flex-col md:flex-row font-sans">
@@ -115,7 +124,7 @@ export default function DemoDashboard() {
                 </div>
 
                 {/* KPI Cards */}
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 mb-8">
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
                     <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5 relative group">
                         <div className="flex items-center">
                             <div className="flex-shrink-0 bg-indigo-50 rounded-md p-3">
@@ -146,6 +155,20 @@ export default function DemoDashboard() {
 
                     <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
                         <div className="flex items-center">
+                            <div className="flex-shrink-0 bg-orange-50 rounded-md p-3">
+                                <RotateCcw className="h-6 w-6 text-orange-600" />
+                            </div>
+                            <div className="ml-5 w-0 flex-1">
+                                <dl>
+                                    <dt className="text-sm font-medium text-gray-500 truncate">Return Rate</dt>
+                                    <dd className="text-2xl font-semibold text-gray-900">{stats.returnRate}%</dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                        <div className="flex items-center">
                             <div className="flex-shrink-0 bg-red-50 rounded-md p-3">
                                 <AlertTriangle className="h-6 w-6 text-red-600" />
                             </div>
@@ -160,8 +183,8 @@ export default function DemoDashboard() {
                 </div>
 
                 {/* CHARTS */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                    <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+                    <div className="lg:col-span-2 bg-white shadow rounded-lg border border-gray-100 p-6">
                         <h3 className="text-lg font-medium text-gray-900 mb-4">Sales Trend</h3>
                         <div className="h-[300px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
@@ -176,6 +199,34 @@ export default function DemoDashboard() {
                         </div>
                     </div>
 
+                    <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4">Order Statuses</h3>
+                        <div className="h-[300px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={stats.statusDistribution}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={60}
+                                        outerRadius={80}
+                                        fill="#8884d8"
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                    >
+                                        {stats.statusDistribution.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip />
+                                    <Legend />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                     <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
                         <h3 className="text-lg font-medium text-gray-900 mb-4">Top Products</h3>
                         <div className="h-[300px] w-full">
