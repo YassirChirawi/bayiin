@@ -74,6 +74,9 @@ export const generateInvoice = async (order, store) => {
 
     const tableColumn = ["Description", "Quantity", "Price", "Total"];
     const itemTotal = (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
+    const shippingCost = parseFloat(order.shippingCost) || 0;
+    const grandTotal = itemTotal + shippingCost;
+
     const tableRows = [
         [
             `${order.articleName} (${order.size}/${order.color})`,
@@ -82,6 +85,15 @@ export const generateInvoice = async (order, store) => {
             `${itemTotal.toFixed(2)} DH`
         ]
     ];
+
+    if (shippingCost > 0) {
+        tableRows.push([
+            "Frais de Livraison",
+            "1",
+            `${shippingCost.toFixed(2)} DH`,
+            `${shippingCost.toFixed(2)} DH`
+        ]);
+    }
 
     autoTable(doc, {
         head: [tableColumn],
@@ -99,7 +111,7 @@ export const generateInvoice = async (order, store) => {
     doc.text("TOTAL AMOUNT:", 140, finalY);
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.text(`${itemTotal.toFixed(2)} DH`, 140, finalY + 7);
+    doc.text(`${grandTotal.toFixed(2)} DH`, 140, finalY + 7);
 
     // Footer Message
     doc.setFontSize(10);

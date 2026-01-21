@@ -33,9 +33,9 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
         size: "",
         color: "",
         quantity: 1,
-        quantity: 1,
         price: "",
         costPrice: 0, // Snapshot of product cost
+        shippingCost: 0,
         status: "reçu",
         date: new Date().toISOString().split('T')[0]
     });
@@ -56,9 +56,9 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 size: order.size || "",
                 color: order.color || "",
                 quantity: order.quantity || 1,
-                quantity: order.quantity || 1,
                 price: order.price || "",
                 costPrice: order.costPrice || 0,
+                shippingCost: order.shippingCost || 0,
                 status: order.status || "reçu",
                 date: order.date || new Date().toISOString().split('T')[0]
             });
@@ -75,6 +75,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 color: "",
                 quantity: 1,
                 price: "",
+                shippingCost: 0,
                 status: "reçu",
                 date: new Date().toISOString().split('T')[0]
             });
@@ -88,9 +89,9 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
     // Update custom message when status or client name changes
     useEffect(() => {
         if (notifyClient) {
-            setCustomWhatsappMessage(getWhatsappMessage(formData.status, formData.clientName));
+            setCustomWhatsappMessage(getWhatsappMessage(formData.status, formData, store));
         }
-    }, [formData.status, formData.clientName, notifyClient]);
+    }, [formData.status, formData.clientName, formData.price, formData.quantity, formData.shippingCost, notifyClient, store]);
 
     const handlePhoneBlur = async () => {
         if (!formData.clientPhone || formData.customerId) return; // Don't check if empty or already linked
@@ -232,6 +233,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 customerId: finalCustomerId,
                 quantity: parseInt(formData.quantity),
                 price: parseFloat(formData.price),
+                shippingCost: parseFloat(formData.shippingCost) || 0,
                 costPrice: parseFloat(formData.costPrice) || 0,
                 updatedAt: new Date().toISOString()
             });
@@ -380,6 +382,14 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                     required
                                     value={formData.price}
                                     onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                                />
+                                <Input
+                                    label="Shipping (DH)"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={formData.shippingCost}
+                                    onChange={(e) => setFormData({ ...formData, shippingCost: e.target.value })}
                                 />
                             </div>
                         </div>

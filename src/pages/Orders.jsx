@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useStoreData } from "../hooks/useStoreData";
-import { Plus, Edit2, Trash2, QrCode, Search, X, FileText, CheckSquare, Square, Check, Trash, RotateCcw } from "lucide-react";
+import { Plus, Edit2, Trash2, QrCode, Search, X, FileText, CheckSquare, Square, Check, Trash, RotateCcw, Upload, Download } from "lucide-react";
 import Button from "../components/Button";
 import OrderModal from "../components/OrderModal";
+import ImportModal from "../components/ImportModal";
 import QRCode from "react-qr-code";
 import { generateInvoice } from "../utils/generateInvoice";
+import { exportToCSV } from "../utils/csvHelper";
 
 import { useTenant } from "../context/TenantContext";
 import { db } from "../lib/firebase";
@@ -16,6 +18,7 @@ export default function Orders() {
     const { store } = useTenant();
     const { data: orders, loading, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("orders");
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [editingOrder, setEditingOrder] = useState(null);
     const [qrOrder, setQrOrder] = useState(null); // Order selected for QR display
     const [searchTerm, setSearchTerm] = useState("");
@@ -58,6 +61,47 @@ export default function Orders() {
         setSelectedOrders(prev => prev.filter(oid => oid !== id));
     };
 
+    const handleExportCSV = () => {
+        const dataToExport = orders.map(o => ({
+            'Order #': o.orderNumber,
+            Date: o.date,
+            Client: o.clientName,
+            Phone: o.clientPhone,
+            Status: o.status,
+            Product: o.articleName,
+            Quantity: o.quantity,
+            Price: o.price,
+            Total: o.price ? o.price * o.quantity : 0
+        }));
+        exportToCSV(dataToExport, 'orders');
+    };
+
+    const handleImport = async (data) => {
+        let importedCount = 0;
+        const promises = data.map(row => {
+            if (!row.Client || !row.Product) return null;
+
+            const orderNumber = row['Order #'] || `CMD-${Math.floor(100000 + Math.random() * 900000)}`;
+
+            return addStoreItem({
+                orderNumber,
+                clientName: row.Client,
+                clientPhone: row.Phone || "",
+                clientAddress: row.Address || "",
+                clientCity: row.City || "",
+                articleName: row.Product,
+                articleId: "", // Linked product ID missing in CSV usually, treat as unlinked
+                quantity: parseInt(row.Quantity) || 1,
+                price: parseFloat(row.Price) || 0,
+                status: row.Status || "reçu",
+                date: row.Date || new Date().toISOString().split('T')[0]
+            }).then(() => { importedCount++; }).catch(e => console.error("Import error", e));
+        });
+
+        await Promise.all(promises);
+        alert(`Successfully imported ${importedCount} orders.`);
+    };
+
     // Bulk Actions
     const handleSelectAll = () => {
         if (selectedOrders.length === filteredOrders.length) {
@@ -96,7 +140,7 @@ export default function Orders() {
     const handleBulkStatus = async (status) => {
         if (!window.confirm(`Mark ${selectedOrders.length} orders as ${status}?`)) return;
 
-        setLoading(true); // Manually toggle loading if possible, or just blocking
+        // setLoading(true); // Manually toggle loading if possible, or just blocking
         try {
             await Promise.all(selectedOrders.map(async (id) => {
                 const order = orders.find(o => o.id === id);
@@ -158,6 +202,21 @@ export default function Orders() {
                     </p>
                 </div>
                 <div className="flex gap-2">
+                    <Button
+                        variant="secondary"
+                        icon={Upload}
+                        onClick={() => setIsImportModalOpen(true)}
+                    >
+                        Import
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        icon={Download}
+                        onClick={handleExportCSV}
+                        disabled={orders.length === 0}
+                    >
+                        Export
+                    </Button>
                     {selectedOrders.length > 0 && (
                         <>
                             {showTrash ? (
@@ -395,6 +454,15 @@ export default function Orders() {
                     </div>
                 )
             }
+
+
+            <ImportModal
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                onImport={handleImport}
+                title="Import Orders"
+                templateHeaders={["Client", "Product"]}
+            />
         </div >
     );
 }

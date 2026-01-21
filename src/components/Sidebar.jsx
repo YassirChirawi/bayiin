@@ -9,7 +9,8 @@ import {
     LogOut,
     DollarSign,
     Users,
-    X
+    X,
+    UserPlus
 } from "lucide-react";
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -17,13 +18,19 @@ export default function Sidebar({ isOpen, onClose }) {
     const { logout } = useAuth();
     const { store } = useTenant();
 
+    const role = store?.role || 'owner'; // Default to owner/admin if not specified (legacy)
+
     const navigation = [
         { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
         { name: 'Orders', href: '/orders', icon: ShoppingBag },
         { name: 'Products', href: '/products', icon: Package },
         { name: 'Customers', href: '/customers', icon: Users },
-        { name: 'Finances', href: '/finances', icon: DollarSign },
-        { name: 'Settings', href: '/settings', icon: Settings },
+        // Restricted links
+        ...(role !== 'staff' ? [
+            { name: 'Finances', href: '/finances', icon: DollarSign },
+            { name: 'Team', href: '/team', icon: UserPlus }, // New Team Link
+            { name: 'Settings', href: '/settings', icon: Settings },
+        ] : []),
     ];
 
     return (

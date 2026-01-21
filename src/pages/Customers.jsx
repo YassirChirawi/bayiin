@@ -1,9 +1,11 @@
 import { useState, useMemo } from "react";
 import { useStoreData } from "../hooks/useStoreData";
-import { Search, MapPin, Users, DollarSign, TrendingUp, Eye, Trash2, RotateCcw, Download, Plus, Edit2 } from "lucide-react";
+import { Search, MapPin, Users, DollarSign, TrendingUp, Eye, Trash2, RotateCcw, Download, Upload, Plus, Edit2 } from "lucide-react";
 import CustomerDetailModal from "../components/CustomerDetailModal";
 import CustomerModal from "../components/CustomerModal";
+import ImportModal from "../components/ImportModal";
 import Button from "../components/Button";
+import { exportToCSV } from "../utils/csvHelper";
 
 export default function Customers() {
     const { data: customers, loading, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("customers");
@@ -11,6 +13,7 @@ export default function Customers() {
     const [selectedCustomer, setSelectedCustomer] = useState(null); // For Detail View
     const [editingCustomer, setEditingCustomer] = useState(null); // For Edit Modal
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [showTrash, setShowTrash] = useState(false);
 
     const kpiStats = useMemo(() => {
@@ -70,28 +73,44 @@ export default function Customers() {
         setEditingCustomer(null);
     };
 
+    // Generic CSV Export
     const handleExportCSV = () => {
-        if (!customers.length) return;
+        const dataToExport = customers.map(c => ({
+            Name: c.name,
+            Phone: c.phone || '',
+            City: c.city || '',
+            Address: c.address || '',
+            'Total Orders': c.orderCount || 0,
+            'Total Spent': c.totalSpent || 0,
+            'Last Order': c.lastOrderDate || ''
+        }));
+        exportToCSV(dataToExport, 'customers');
+    };
 
-        const headers = ["Name", "Phone", "City", "Address", "Total Orders", "Total Spent", "Last Order"];
-        const csvContent = [
-            headers.join(","),
-            ...customers.map(c => [
-                `"${c.name || ''}"`,
-                `"${c.phone || ''}"`,
-                `"${c.city || ''}"`,
-                `"${c.address || ''}"`,
-                c.orderCount || 0,
-                (c.totalSpent || 0).toFixed(2),
-                c.lastOrderDate || ''
-            ].join(","))
-        ].join("\n");
+    // CSV Import Handler
+    const handleImport = async (data) => {
+        let importedCount = 0;
+        // Parallelize requests for speed? Or sequential for safety? 
+        // Firestore batch is limited to 500. `addStoreItem` does one by one.
+        // Let's do parallel with Promise.all for reasonable speed.
+        const promises = data.map(row => {
+            if (!row.Name || !row.Phone) return null; // Skip invalid rows
+            return addStoreItem({
+                name: row.Name,
+                phone: row.Phone,
+                email: row.Email || "",
+                address: row.Address || "",
+                city: row.City || "",
+                notes: row.Notes || "",
+                totalSpent: 0,
+                orderCount: 0,
+                firstOrderDate: null,
+                lastOrderDate: null
+            }).then(() => { importedCount++; }).catch(e => console.error("Import error", e));
+        });
 
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `customers_export_${new Date().toISOString().split('T')[0]}.csv`;
-        link.click();
+        await Promise.all(promises);
+        alert(`Successfully imported ${importedCount} customers.`);
     };
 
     const filteredCustomers = customers
@@ -114,11 +133,18 @@ export default function Customers() {
                 <div className="flex gap-2">
                     <Button
                         variant="secondary"
+                        icon={Upload}
+                        onClick={() => setIsImportModalOpen(true)}
+                    >
+                        Import
+                    </Button>
+                    <Button
+                        variant="secondary"
                         icon={Download}
                         onClick={handleExportCSV}
                         disabled={customers.length === 0}
                     >
-                        Export CSV
+                        Export
                     </Button>
                     <div className="flex bg-gray-100 p-1 rounded-lg self-center sm:self-auto">
                         <button
@@ -297,6 +323,14 @@ export default function Customers() {
                 onClose={() => { setIsEditModalOpen(false); setEditingCustomer(null); }}
                 onSave={handleSaveCustomer}
                 customer={editingCustomer}
+            />
+
+            <ImportModal
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                onImport={handleImport}
+                title="Import Customers"
+                templateHeaders={["Name", "Phone"]}
             />
         </div>
     );

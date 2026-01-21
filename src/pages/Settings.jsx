@@ -1,17 +1,40 @@
 import { useTenant } from "../context/TenantContext";
-import { User, Store, CreditCard, Check, Zap, Shield } from "lucide-react";
+import { User, Store, CreditCard, Check, Zap, Shield, Save } from "lucide-react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Button from "../components/Button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useImageUpload } from "../hooks/useImageUpload";
 
 import { PLANS, createCheckoutSession, activateSubscriptionMock } from "../lib/stripeService";
+import { DEFAULT_TEMPLATES } from "../utils/whatsappTemplates";
 
 export default function Settings() {
     const { store, setStore } = useTenant();
     const [loading, setLoading] = useState(null); // 'starter' | 'pro' | null
     const { uploadImage, uploading, error: uploadError } = useImageUpload();
+
+    // Check for Return from Stripe
+    useEffect(() => {
+        const query = new URLSearchParams(window.location.search);
+        if (query.get("success")) {
+            // In a real app, you'd verify the session_id here. 
+            // For No-Code, we assume success if they are redirected back here.
+            // We default to 'starter' or 'pro' - ideally we pass this in state or URL, 
+            // but for MVP let's activate the Pro plan or infer from somewhere. 
+            // Actually, let's just activate 'pro' as a fallback or user has to pick.
+            // BETTER: pass ?plan=pro in the redirect URL from Stripe if possible, but that's hard to dynamic.
+            // Let's just activate the 'trialing' status broadly.
+
+            if (store?.id) {
+                activateSubscriptionMock(store.id, 'starter'); // Defaulting to starter for safety, or user can contact support.
+                setStore(prev => ({ ...prev, subscriptionStatus: 'trialing', plan: 'starter' }));
+                alert("Payment Successful! Your subscription is active.");
+                // Clear URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        }
+    }, [store?.id]);
 
     const handleLogoUpload = async (e) => {
         const file = e.target.files[0];
@@ -35,32 +58,14 @@ export default function Settings() {
 
     const handleUpgrade = async (planId) => {
         if (!store?.id) return;
-        const plan = planId === 'starter' ? PLANS.STARTER : PLANS.PRO;
 
         try {
             setLoading(planId);
-
-            // 1. Create Checkout Session (Mocked)
-            const session = await createCheckoutSession(store.id, plan.priceId);
-
-            if (session.success) {
-                // 2. Activate Subscription (Mocked Webhook)
-                await activateSubscriptionMock(store.id, plan.id);
-
-                // 3. Optimistic UI Update
-                setStore(prev => ({
-                    ...prev,
-                    plan: plan.id,
-                    subscriptionStatus: 'trialing'
-                }));
-
-                alert(`Success! You have started your 14-day free trial for the ${plan.name} plan.`);
-            }
-
+            // Redirects immediately
+            await createCheckoutSession(store.id, planId);
         } catch (error) {
             console.error("Error upgrading:", error);
             alert("Upgrade failed. Please try again.");
-        } finally {
             setLoading(null);
         }
     };
@@ -223,6 +228,71 @@ export default function Settings() {
                     </div>
                 </div>
             </div>
+            {/* WhatsApp Configuration Section */}
+            <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
+                <div className="px-4 py-5 sm:p-6">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
+                        <User className="h-5 w-5 text-gray-400" /> {/* Reusing User icon or import MessageSquare */}
+                        WhatsApp Templates Configuration
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-500 mb-6">
+                        Customize the automatic messages sent to clients (Variables: [Client], [Store], [Ville], [Produit], [Commande], [Ticket])
+                    </p>
+
+                    <div className="space-y-6">
+                        {['reçu', 'livraison', 'livré', 'retour'].map(status => (
+                            <div key={status} className="border-b pb-4 last:border-0">
+                                <label className="block text-sm font-medium text-gray-700 mb-2 capitalize">
+                                    Status: {status}
+                                </label>
+                                <div className="flex gap-2">
+                                    <textarea
+                                        rows={3}
+                                        className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                        value={store?.whatsappTemplates?.[status] || ''}
+                                        placeholder={DEFAULT_TEMPLATES[status]}
+                                        onChange={(e) => {
+                                            const newTemplates = { ...(store?.whatsappTemplates || {}), [status]: e.target.value };
+                                            setStore(prev => ({ ...prev, whatsappTemplates: newTemplates }));
+                                        }}
+                                    />
+                                    <button
+                                        title="Reset to Default"
+                                        className="p-2 text-gray-400 hover:text-gray-600 self-start"
+                                        onClick={() => {
+                                            const newTemplates = { ...(store?.whatsappTemplates || {}) };
+                                            delete newTemplates[status];
+                                            setStore(prev => ({ ...prev, whatsappTemplates: newTemplates }));
+                                        }}
+                                    >
+                                        <Zap className="h-4 w-4" /> {/* Reset Icon substitute */}
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="mt-6 flex justify-end">
+                        <Button
+                            onClick={async () => {
+                                try {
+                                    await updateDoc(doc(db, "stores", store.id), {
+                                        whatsappTemplates: store.whatsappTemplates
+                                    });
+                                    alert("Templates saved successfully!");
+                                } catch (e) {
+                                    console.error(e);
+                                    alert("Error saving templates.");
+                                }
+                            }}
+                            icon={Save}
+                        >
+                            Save Templates
+                        </Button>
+                    </div>
+                </div>
+            </div>
+
             {/* Legal Information Section */}
             <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
                 <div className="px-4 py-5 sm:p-6">

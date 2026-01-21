@@ -10,48 +10,30 @@ export const PLANS = {
         id: 'starter',
         name: 'Starter',
         price: 79,
-        priceId: 'price_1Ss288RbBL8AcutXLyUCGG0i', // 79 DH
+        paymentLink: 'https://buy.stripe.com/8x2dRb74D4bg7yF4O0es001', // Swapped: Was Pro
         features: ['Up to 50 Orders/mo', 'Basic Analytics', 'Standard Support']
     },
     PRO: {
         id: 'pro',
         name: 'Pro',
         price: 179,
-        priceId: 'price_1Ss28eRbBL8AcutXxJ1jgxPY', // 179 DH
+        paymentLink: 'https://buy.stripe.com/3cIfZj3Sr4bgaKR80ces000', // Swapped: Was Starter
         features: ['Unlimited Orders', 'Advanced Analytics', 'Priority Support', 'Custom Domain', 'Remove Branding']
     }
 };
 
 /**
- * Real Client-Side Stripe Checkout
- * Note: Requires "Client-only integration" to be enabled in Stripe Dashboard
+ * Redirects to Stripe Payment Link
  */
-export const createCheckoutSession = async (storeId, priceId) => {
-    try {
-        const stripe = await stripePromise;
+export const createCheckoutSession = async (storeId, planId) => {
+    const plan = Object.values(PLANS).find(p => p.id === planId);
+    if (!plan || !plan.paymentLink) throw new Error("Invalid Plan or missing link");
 
-        // Define success/cancel URLs
-        const successUrl = `${window.location.origin}/settings?session_id={CHECKOUT_SESSION_ID}&plan_updated=true`;
-        const cancelUrl = `${window.location.origin}/settings?canceled=true`;
+    // Redirect to Stripe with client_reference_id to track who paid
+    window.location.href = `${plan.paymentLink}?client_reference_id=${storeId}`;
 
-        const { error } = await stripe.redirectToCheckout({
-            lineItems: [{ price: priceId, quantity: 1 }],
-            mode: 'subscription',
-            successUrl: successUrl,
-            cancelUrl: cancelUrl,
-            clientReferenceId: storeId, // Pass Store ID to track who paid
-            // customerEmail: storeEmail // Optional if you have it
-        });
-
-        if (error) {
-            console.error("Stripe Redirect Error:", error);
-            throw error;
-        }
-
-    } catch (err) {
-        console.error("Payment Error:", err);
-        throw err;
-    }
+    // Return a promise that never resolves so the UI stays loading until unload
+    return new Promise(() => { });
 };
 
 /**

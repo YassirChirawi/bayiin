@@ -61,6 +61,18 @@ service cloud.firestore {
        allow update, delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
     }
 
+    // Team Management / Allowed Users
+    match /allowed_users/{userId} {
+       // 1. Staff: Can read if looking for their own email (to find their store)
+       // Note: Query must be:collection('allowed_users').where('email', '==', auth.email)
+       allow read: if request.auth != null && resource.data.email == request.auth.token.email;
+       
+       // 2. Owner: Can read/write if the document belongs to their store
+       allow read: if request.auth != null && belongsToStore(resource.data.storeId);
+       allow create: if request.auth != null && belongsToStore(request.resource.data.storeId);
+       allow delete: if request.auth != null && belongsToStore(resource.data.storeId);
+    }
+
     // Public Leads / Waiting List
     match /leads/{leadId} {
        allow create: if true; // Public can sign up

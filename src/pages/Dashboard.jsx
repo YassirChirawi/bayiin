@@ -1,11 +1,11 @@
 import { useTenant } from "../context/TenantContext";
 import { useStoreData } from "../hooks/useStoreData";
 import { Link } from "react-router-dom";
-import { ShoppingBag, DollarSign, Package, AlertTriangle, Lightbulb, ExternalLink } from "lucide-react";
+import { ShoppingBag, DollarSign, Package, AlertTriangle, Lightbulb, ExternalLink, RotateCcw } from "lucide-react";
 import { useMemo } from "react";
 import { format, isSameDay, parseISO } from "date-fns";
 
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts';
 
 export default function Dashboard() {
     const { store } = useTenant();
@@ -43,6 +43,8 @@ export default function Dashboard() {
 
         let revenueToday = 0;
         let pendingOrders = 0;
+        let returnedOrders = 0;
+        const statusCounts = {};
 
         orders.forEach(order => {
             // Revenue Today
@@ -53,9 +55,22 @@ export default function Dashboard() {
             if (['reçu', 'packing'].includes(order.status)) {
                 pendingOrders++;
             }
+            // Returned
+            if (order.status === 'retour') {
+                returnedOrders++;
+            }
+            // Status Distributions
+            const status = order.status || 'Unknown';
+            statusCounts[status] = (statusCounts[status] || 0) + 1;
         });
 
         const lowStockProducts = products.filter(p => (parseInt(p.stock) || 0) < 5);
+        const returnRate = orders.length > 0 ? ((returnedOrders / orders.length) * 100).toFixed(1) : 0;
+
+        const statusDistribution = Object.entries(statusCounts).map(([name, value]) => ({
+            name: name.charAt(0).toUpperCase() + name.slice(1),
+            value
+        }));
 
         return {
             revenueToday,
@@ -63,7 +78,9 @@ export default function Dashboard() {
             lowStockProducts,
             totalOrders: orders.length,
             salesTrend,
-            topProducts
+            topProducts,
+            returnRate,
+            statusDistribution
         };
     }, [orders, products]);
 
@@ -73,6 +90,8 @@ export default function Dashboard() {
         .slice(0, 5);
 
     if (!store) return null;
+
+    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
     return (
         <div className="space-y-8">
@@ -87,7 +106,7 @@ export default function Dashboard() {
             </div>
 
             {/* KPI Grid */}
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
                     <div className="flex items-center">
                         <div className="flex-shrink-0 bg-indigo-50 rounded-md p-3">
@@ -118,6 +137,20 @@ export default function Dashboard() {
 
                 <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
                     <div className="flex items-center">
+                        <div className="flex-shrink-0 bg-orange-50 rounded-md p-3">
+                            <RotateCcw className="h-6 w-6 text-orange-600" />
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt className="text-sm font-medium text-gray-500 truncate">Return Rate</dt>
+                                <dd className="text-2xl font-semibold text-gray-900">{stats.returnRate}%</dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                    <div className="flex items-center">
                         <div className="flex-shrink-0 bg-red-50 rounded-md p-3">
                             <AlertTriangle className="h-6 w-6 text-red-600" />
                         </div>
@@ -138,11 +171,6 @@ export default function Dashboard() {
                                         <span className="text-red-600 font-bold">{p.stock} left</span>
                                     </li>
                                 ))}
-                                {stats.lowStockProducts.length > 3 && (
-                                    <li className="text-xs text-indigo-600 pt-1">
-                                        + {stats.lowStockProducts.length - 3} more...
-                                    </li>
-                                )}
                             </ul>
                         </div>
                     )}
@@ -150,9 +178,9 @@ export default function Dashboard() {
             </div>
 
             {/* CHARTS SECTION */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Sales Trend Chart */}
-                <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
+                <div className="lg:col-span-2 bg-white shadow rounded-lg border border-gray-100 p-6">
                     <h3 className="text-lg font-medium text-gray-900 mb-4">Sales Trend (Last 7 Days)</h3>
                     <div className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
@@ -176,6 +204,35 @@ export default function Dashboard() {
                     </div>
                 </div>
 
+                {/* Status Distribution */}
+                <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Order Statuses</h3>
+                    <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={stats.statusDistribution}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    fill="#8884d8"
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                >
+                                    {stats.statusDistribution.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip />
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Top Products Chart */}
                 <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
                     <h3 className="text-lg font-medium text-gray-900 mb-4">Top 5 Products</h3>
@@ -198,87 +255,87 @@ export default function Dashboard() {
                         </ResponsiveContainer>
                     </div>
                 </div>
-            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Recent Orders */}
-                <div className="lg:col-span-2">
-                    <div className="bg-white shadow rounded-lg border border-gray-100">
-                        <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center">
-                            <h3 className="text-lg font-medium text-gray-900">Recent Orders</h3>
-                            <Link to="/orders" className="text-sm text-indigo-600 hover:text-indigo-900 flex items-center">
-                                View all <ExternalLink className="ml-1 h-3 w-3" />
-                            </Link>
-                        </div>
-                        <div className="overflow-x-auto">
-                            {ordersLoading ? (
-                                <div className="p-4 text-center">Loading...</div>
-                            ) : recentOrders.length === 0 ? (
-                                <div className="p-8 text-center text-gray-500">No orders yet.</div>
-                            ) : (
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order #</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                        {recentOrders.map((order) => (
-                                            <tr key={order.id}>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                                    #{order.orderNumber}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                                        ${order.status === 'livré' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                                        {order.status}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500">
-                                                    {((parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1)).toFixed(2)} DH
-                                                </td>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* Recent Orders */}
+                    <div className="lg:col-span-2">
+                        <div className="bg-white shadow rounded-lg border border-gray-100">
+                            <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center">
+                                <h3 className="text-lg font-medium text-gray-900">Recent Orders</h3>
+                                <Link to="/orders" className="text-sm text-indigo-600 hover:text-indigo-900 flex items-center">
+                                    View all <ExternalLink className="ml-1 h-3 w-3" />
+                                </Link>
+                            </div>
+                            <div className="overflow-x-auto">
+                                {ordersLoading ? (
+                                    <div className="p-4 text-center">Loading...</div>
+                                ) : recentOrders.length === 0 ? (
+                                    <div className="p-8 text-center text-gray-500">No orders yet.</div>
+                                ) : (
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order #</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            )}
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            {recentOrders.map((order) => (
+                                                <tr key={order.id}>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                        #{order.orderNumber}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                                        ${order.status === 'livré' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                                            {order.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500">
+                                                        {((parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1)).toFixed(2)} DH
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Functional Tips */}
-                <div className="lg:col-span-1">
-                    <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-lg shadow-lg text-white p-6">
-                        <div className="flex items-center gap-2 mb-4">
-                            <Lightbulb className="h-6 w-6 text-yellow-300" />
-                            <h3 className="text-lg font-bold">Pro Functional Tips</h3>
-                        </div>
-                        <p className="text-indigo-100 mb-6 text-sm">
-                            Ready to scale? Here are suggested features for your next upgrade:
-                        </p>
-
-                        <div className="space-y-4">
-                            <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
-                                <h4 className="font-semibold text-sm">📣 Marketing Automation</h4>
-                                <p className="text-xs text-indigo-200 mt-1">
-                                    Send automatic SMS/Emails to customers when status changes to 'Delivered'.
-                                </p>
+                    {/* Functional Tips */}
+                    <div className="lg:col-span-1">
+                        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-lg shadow-lg text-white p-6">
+                            <div className="flex items-center gap-2 mb-4">
+                                <Lightbulb className="h-6 w-6 text-yellow-300" />
+                                <h3 className="text-lg font-bold">Pro Functional Tips</h3>
                             </div>
+                            <p className="text-indigo-100 mb-6 text-sm">
+                                Ready to scale? Here are suggested features for your next upgrade:
+                            </p>
 
-                            <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
-                                <h4 className="font-semibold text-sm">🤝 Customer CRM</h4>
-                                <p className="text-xs text-indigo-200 mt-1">
-                                    Track "Top Spenders" and offer them loyalty discounts automatically.
-                                </p>
-                            </div>
+                            <div className="space-y-4">
+                                <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
+                                    <h4 className="font-semibold text-sm">📣 Marketing Automation</h4>
+                                    <p className="text-xs text-indigo-200 mt-1">
+                                        Send automatic SMS/Emails to customers when status changes to 'Delivered'.
+                                    </p>
+                                </div>
 
-                            <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
-                                <h4 className="font-semibold text-sm">📦 Inventory Prediction</h4>
-                                <p className="text-xs text-indigo-200 mt-1">
-                                    Use AI to predict "Out of Stock" dates based on sales velocity.
-                                </p>
+                                <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
+                                    <h4 className="font-semibold text-sm">🤝 Customer CRM</h4>
+                                    <p className="text-xs text-indigo-200 mt-1">
+                                        Track "Top Spenders" and offer them loyalty discounts automatically.
+                                    </p>
+                                </div>
+
+                                <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
+                                    <h4 className="font-semibold text-sm">📦 Inventory Prediction</h4>
+                                    <p className="text-xs text-indigo-200 mt-1">
+                                        Use AI to predict "Out of Stock" dates based on sales velocity.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>

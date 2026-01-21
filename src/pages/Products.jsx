@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { useStoreData } from "../hooks/useStoreData";
-import { Plus, Edit2, Trash2, Package, Search, RotateCcw, AlertCircle } from "lucide-react";
+import { Plus, Edit2, Trash2, Package, Search, RotateCcw, AlertCircle, Upload, Download } from "lucide-react";
 import Button from "../components/Button";
 import ProductModal from "../components/ProductModal";
+import ImportModal from "../components/ImportModal";
+import { exportToCSV } from "../utils/csvHelper";
 
 export default function Products() {
     const { data: products, loading, error, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("products");
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [showTrash, setShowTrash] = useState(false);
@@ -42,6 +45,40 @@ export default function Products() {
         await restoreStoreItem(id);
     };
 
+    const handleExportCSV = () => {
+        const dataToExport = products.map(p => ({
+            Name: p.name,
+            Category: p.category || '',
+            Price: p.price,
+            Stock: p.stock,
+            'Cost Price': p.costPrice || 0,
+            'Is Variable': p.isVariable ? 'Yes' : 'No'
+        }));
+        exportToCSV(dataToExport, 'products');
+    };
+
+    const handleImport = async (data) => {
+        let importedCount = 0;
+        const promises = data.map(row => {
+            if (!row.Name || !row.Price) return null;
+            return addStoreItem({
+                name: row.Name,
+                category: row.Category || "Uncategorized",
+                price: parseFloat(row.Price) || 0,
+                costPrice: parseFloat(row['Cost Price']) || 0,
+                stock: parseInt(row.Stock) || 0,
+                description: row.Description || "",
+                isVariable: false, // Default to simple for CSV import for now
+                sizes: [], // Legacy
+                attributes: [],
+                variants: []
+            }).then(() => { importedCount++; }).catch(e => console.error("Import error", e));
+        });
+
+        await Promise.all(promises);
+        alert(`Successfully imported ${importedCount} products.`);
+    };
+
     const filteredProducts = products
         .filter(p => showTrash ? p.deleted : !p.deleted)
         .filter(p =>
@@ -59,6 +96,21 @@ export default function Products() {
                     </p>
                 </div>
                 <div className="flex gap-2">
+                    <Button
+                        variant="secondary"
+                        icon={Upload}
+                        onClick={() => setIsImportModalOpen(true)}
+                    >
+                        Import
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        icon={Download}
+                        onClick={handleExportCSV}
+                        disabled={products.length === 0}
+                    >
+                        Export
+                    </Button>
                     <div className="flex bg-gray-100 p-1 rounded-lg">
                         <button
                             onClick={() => setShowTrash(false)}
@@ -131,21 +183,43 @@ export default function Products() {
                                             )}
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            <p className="text-sm font-medium text-indigo-600 truncate">{product.name}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-sm font-medium text-indigo-600 truncate">{product.name}</p>
+                                                {product.isVariable && (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                                        With Variants
+                                                    </span>
+                                                )}
+                                            </div>
                                             <p className="flex items-center text-sm text-gray-500">
                                                 <span className="truncate">{product.category}</span>
                                                 <span className="mx-2">•</span>
-                                                <span>{product.stock} in stock</span>
+                                                <span className={parseInt(product.stock) === 0 ? "text-red-600 font-bold" : ""}>
+                                                    {product.stock} in stock
+                                                </span>
                                             </p>
-                                            {product.sizes && product.sizes.length > 0 && (
-                                                <div className="mt-1 flex gap-1">
-                                                    {product.sizes.map(size => (
-                                                        <span key={size} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                                                            {size}
+
+                                            {/* Attributes/Variants Display */}
+                                            {product.isVariable ? (
+                                                <div className="mt-1 flex flex-wrap gap-1">
+                                                    {product.variants?.length > 0 && (
+                                                        <span className="text-xs text-gray-400">
+                                                            {product.variants.length} combinations ({product.attributes?.map(a => a.name).join(", ")})
                                                         </span>
-                                                    ))}
+                                                    )}
                                                 </div>
+                                            ) : (
+                                                product.sizes && product.sizes.length > 0 && (
+                                                    <div className="mt-1 flex gap-1">
+                                                        {product.sizes.map(size => (
+                                                            <span key={size} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                                                {size}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )
                                             )}
+
                                             {(parseInt(product.stock) || 0) < 5 && (
                                                 <div className="mt-1 flex items-center gap-1 text-xs text-red-600 font-medium bg-red-50 px-2 py-0.5 rounded w-fit">
                                                     <AlertCircle className="h-3 w-3" />
@@ -206,6 +280,14 @@ export default function Products() {
                 onClose={() => { setIsModalOpen(false); setEditingProduct(null); }}
                 onSave={handleSave}
                 product={editingProduct}
+            />
+
+            <ImportModal
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                onImport={handleImport}
+                title="Import Products"
+                templateHeaders={["Name", "Price"]}
             />
         </div>
     );
