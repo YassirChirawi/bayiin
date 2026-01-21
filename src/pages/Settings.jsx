@@ -6,9 +6,11 @@ import Button from "../components/Button";
 import { useState } from "react";
 import { useImageUpload } from "../hooks/useImageUpload";
 
+import { PLANS, createCheckoutSession, activateSubscriptionMock } from "../lib/stripeService";
+
 export default function Settings() {
     const { store, setStore } = useTenant();
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(null); // 'starter' | 'pro' | null
     const { uploadImage, uploading, error: uploadError } = useImageUpload();
 
     const handleLogoUpload = async (e) => {
@@ -31,26 +33,35 @@ export default function Settings() {
         }
     };
 
-    const handleUpgrade = async () => {
+    const handleUpgrade = async (planId) => {
         if (!store?.id) return;
+        const plan = planId === 'starter' ? PLANS.STARTER : PLANS.PRO;
+
         try {
-            setLoading(true);
-            // Simulate Stripe Checkout process
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            setLoading(planId);
 
-            await updateDoc(doc(db, "stores", store.id), {
-                plan: 'pro',
-                subscriptionStatus: 'active'
-            });
+            // 1. Create Checkout Session (Mocked)
+            const session = await createCheckoutSession(store.id, plan.priceId);
 
-            // Optimistic update
-            setStore(prev => ({ ...prev, plan: 'pro' }));
-            alert("Upgrade successful! You are now on the Pro plan.");
+            if (session.success) {
+                // 2. Activate Subscription (Mocked Webhook)
+                await activateSubscriptionMock(store.id, plan.id);
+
+                // 3. Optimistic UI Update
+                setStore(prev => ({
+                    ...prev,
+                    plan: plan.id,
+                    subscriptionStatus: 'trialing'
+                }));
+
+                alert(`Success! You have started your 14-day free trial for the ${plan.name} plan.`);
+            }
+
         } catch (error) {
             console.error("Error upgrading:", error);
-            alert("Upgrade failed");
+            alert("Upgrade failed. Please try again.");
         } finally {
-            setLoading(false);
+            setLoading(null);
         }
     };
 
@@ -141,39 +152,74 @@ export default function Settings() {
                         Subscription Plan
                     </h3>
 
-                    <div className="mt-6 flex flex-col sm:flex-row gap-6 items-start">
-                        <div className="flex-1">
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-2xl font-bold text-gray-900 capitalize">{store?.plan || 'Free'} Plan</span>
-                                {store?.plan === 'pro' && (
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Starter Plan */}
+                        <div className={`border rounded-lg p-6 relative flex flex-col ${store?.plan === 'starter' ? 'border-indigo-600 ring-1 ring-indigo-600 bg-indigo-50' : 'border-gray-200 hover:border-indigo-300'}`}>
+                            {store?.plan === 'starter' && (
+                                <div className="absolute top-0 right-0 -mt-2 -mr-2">
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-200">
                                         Active
                                     </span>
-                                )}
-                            </div>
-                            <p className="mt-1 text-sm text-gray-500">
-                                {store?.plan === 'pro'
-                                    ? "You have access to all features including unlimited orders and advanced analytics."
-                                    : "You are currently on the Free plan. Upgrade to unlock unlimited potential."
-                                }
+                                </div>
+                            )}
+                            <h4 className="text-lg font-bold text-gray-900">Starter</h4>
+                            <p className="mt-2 text-sm text-gray-500 flex-1">
+                                Perfect for getting started with your business.
                             </p>
+                            <div className="mt-4 mb-6">
+                                <span className="text-4xl font-extrabold text-gray-900">79 DH</span>
+                                <span className="text-base font-medium text-gray-500">/mo</span>
+                                <p className="text-xs text-green-600 font-semibold mt-1">14 Days Free Trial</p>
+                            </div>
+                            <ul className="space-y-3 mb-6 text-sm text-gray-600">
+                                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> Up to 50 Orders/mo</li>
+                                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> Basic Analytics</li>
+                                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> WhatsApp Integration</li>
+                            </ul>
+                            <Button
+                                onClick={() => handleUpgrade('starter')}
+                                isLoading={loading === 'starter'}
+                                disabled={store?.plan === 'starter'}
+                                className={`w-full justify-center ${store?.plan === 'starter' ? 'bg-indigo-200 text-indigo-700 cursor-default' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-50'}`}
+                            >
+                                {store?.plan === 'starter' ? 'Current Plan' : 'Start Trial'}
+                            </Button>
                         </div>
 
-                        {store?.plan !== 'pro' && (
-                            <div className="flex-shrink-0">
-                                <Button
-                                    onClick={handleUpgrade}
-                                    isLoading={loading}
-                                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 border-0 shadow-lg shadow-indigo-200"
-                                    icon={Zap}
-                                >
-                                    Upgrade to Pro (179 DH/mo)
-                                </Button>
-                                <p className="mt-2 text-xs text-center text-gray-500">
-                                    Secure payment via Stripe
-                                </p>
+                        {/* Pro Plan */}
+                        <div className={`border rounded-lg p-6 relative flex flex-col ${store?.plan === 'pro' ? 'border-purple-600 ring-1 ring-purple-600 bg-purple-50' : 'border-gray-200 hover:border-purple-300'}`}>
+                            {store?.plan === 'pro' && (
+                                <div className="absolute top-0 right-0 -mt-2 -mr-2">
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                                        Active
+                                    </span>
+                                </div>
+                            )}
+                            <h4 className="text-lg font-bold text-gray-900">Pro</h4>
+                            <p className="mt-2 text-sm text-gray-500 flex-1">
+                                For growing businesses that need more power.
+                            </p>
+                            <div className="mt-4 mb-6">
+                                <span className="text-4xl font-extrabold text-gray-900">179 DH</span>
+                                <span className="text-base font-medium text-gray-500">/mo</span>
+                                <p className="text-xs text-green-600 font-semibold mt-1">14 Days Free Trial</p>
                             </div>
-                        )}
+                            <ul className="space-y-3 mb-6 text-sm text-gray-600">
+                                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> Unlimited Orders</li>
+                                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> Advanced Analytics</li>
+                                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> Priority Support</li>
+                                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> Remove Branding</li>
+                            </ul>
+                            <Button
+                                onClick={() => handleUpgrade('pro')}
+                                isLoading={loading === 'pro'}
+                                disabled={store?.plan === 'pro'}
+                                className={`w-full justify-center ${store?.plan === 'pro' ? 'bg-purple-200 text-purple-700 cursor-default' : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-md shadow-indigo-200'}`}
+                                icon={Zap}
+                            >
+                                {store?.plan === 'pro' ? 'Current Plan' : 'Start Trial'}
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </div>
