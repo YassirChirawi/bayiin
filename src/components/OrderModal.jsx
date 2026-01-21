@@ -157,6 +157,12 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
+        if (formData.clientPhone && !/^\d{10}$/.test(formData.clientPhone)) {
+            alert("Phone number must be exactly 10 digits.");
+            setLoading(false);
+            return;
+        }
+
         try {
             let finalCustomerId = formData.customerId;
 
@@ -299,10 +305,15 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                 <Input
                                     label="Phone Number"
                                     required
+                                    type="tel"
+                                    maxLength={10}
                                     value={formData.clientPhone}
-                                    onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
+                                    onChange={(e) => {
+                                        const val = e.target.value.replace(/\D/g, '');
+                                        setFormData({ ...formData, clientPhone: val });
+                                    }}
                                     onBlur={handlePhoneBlur}
-                                    placeholder="Enter phone to check..."
+                                    placeholder="06XXXXXXXX (10 digits)"
                                 />
                                 <Input
                                     label="Client Name"

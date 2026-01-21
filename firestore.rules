@@ -14,45 +14,59 @@ service cloud.firestore {
        return getUserData().storeId == storeId;
     }
 
+    // Helper functions for Data Validation
+    function isValidPhone(data) {
+      // Check if phone exists and matches 10 digits
+      return !("clientPhone" in data) || (data.clientPhone is string && data.clientPhone.matches('^\\d{10}$'));
+    }
+    
+    function isValidPrice(data) {
+       // Only validate if price is present (allow partial updates if field missing, or enforce schema?)
+       // Simpler: if 'price' is in data, it must be number >= 0
+       return !("price" in data) || (data.price is number && data.price >= 0);
+    }
+
     // Users collection: Users can read/write their own profile
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
     // Stores collection: 
-    // - Everyone can read stores (needed for store pages)
-    // - Only authenticated users can create (during signup)
-    // - Only owners can update their store
+    // CRITICAL SECURITY FIX: Only authenticated users can create. Only OWNERS/TEAM can read/update.
     match /stores/{storeId} {
-      allow read: if true;
       allow create: if request.auth != null;
-      allow update: if request.auth != null && belongsToStore(storeId);
+      allow read, update: if request.auth != null && belongsToStore(storeId);
     }
 
-    // Products, Orders, etc.
-    // Generic rule for collections that are children of the store logic
-    // Enforcing that data must have a storeId field that matches the user's store
-    
+    // Products
     match /products/{productId} {
-       // Allow read/write if the document's storeId matches the user's store
-       // Note: "resource" is the document being read/updated
-       // "request.resource" is the document being created/written
-       
        allow read: if request.auth != null && resource.data.storeId == getUserData().storeId;
-       allow create: if request.auth != null && request.resource.data.storeId == getUserData().storeId;
-       allow update, delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
+       allow create: if request.auth != null && 
+                     request.resource.data.storeId == getUserData().storeId &&
+                     isValidPrice(request.resource.data);
+       allow update: if request.auth != null && 
+                     resource.data.storeId == getUserData().storeId &&
+                     isValidPrice(request.resource.data);
+       allow delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
     }
     
+    // Orders
     match /orders/{orderId} {
        allow read: if request.auth != null && resource.data.storeId == getUserData().storeId;
-       allow create: if request.auth != null && request.resource.data.storeId == getUserData().storeId;
-       allow update, delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
+       allow create: if request.auth != null && 
+                     request.resource.data.storeId == getUserData().storeId &&
+                     isValidPhone(request.resource.data) &&
+                     isValidPrice(request.resource.data);
+       allow update: if request.auth != null && 
+                     resource.data.storeId == getUserData().storeId &&
+                     isValidPhone(request.resource.data) &&
+                     isValidPrice(request.resource.data);
+       allow delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
     }
 
     match /expenses/{expenseId} {
        allow read: if request.auth != null && resource.data.storeId == getUserData().storeId;
-       allow create: if request.auth != null && request.resource.data.storeId == getUserData().storeId;
-       allow update, delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
+       allow create, update, delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
     }
 
     match /customers/{customerId} {
@@ -63,11 +77,8 @@ service cloud.firestore {
 
     // Team Management / Allowed Users
     match /allowed_users/{userId} {
-       // 1. Staff: Can read if looking for their own email (to find their store)
-       // Note: Query must be:collection('allowed_users').where('email', '==', auth.email)
        allow read: if request.auth != null && resource.data.email == request.auth.token.email;
        
-       // 2. Owner: Can read/write if the document belongs to their store
        allow read: if request.auth != null && belongsToStore(resource.data.storeId);
        allow create: if request.auth != null && belongsToStore(request.resource.data.storeId);
        allow delete: if request.auth != null && belongsToStore(resource.data.storeId);
@@ -75,8 +86,8 @@ service cloud.firestore {
 
     // Public Leads / Waiting List
     match /leads/{leadId} {
-       allow create: if true; // Public can sign up
-       allow read, update, delete: if false; // Only admin can read/manage (via Firebase Console for now)
+       allow create: if true; 
+       allow read, update, delete: if false;
     }
   }
 }
