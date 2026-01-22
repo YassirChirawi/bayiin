@@ -36,11 +36,15 @@ export default function Team() {
         e.preventDefault();
         setSubmitting(true);
         try {
-            // Check if already exists
-            const q = query(collection(db, "allowed_users"), where("email", "==", inviteEmail));
+            // Check if already exists in THIS store
+            const q = query(
+                collection(db, "allowed_users"),
+                where("storeId", "==", store.id),
+                where("email", "==", inviteEmail)
+            );
             const snapshot = await getDocs(q);
             if (!snapshot.empty) {
-                alert("User already associated with a store."); // Simplified logic
+                alert("User is already a member of this store.");
                 setSubmitting(false);
                 return;
             }

@@ -2,35 +2,101 @@ import { useTenant } from "../context/TenantContext";
 import { useStoreData } from "../hooks/useStoreData";
 import { Link } from "react-router-dom";
 import { ShoppingBag, DollarSign, Package, AlertTriangle, Lightbulb, ExternalLink, RotateCcw } from "lucide-react";
-import { useMemo } from "react";
-import { format, isSameDay, parseISO } from "date-fns";
+import { useMemo, useState, useEffect } from "react";
+import { format, isSameDay, parseISO, subDays } from "date-fns";
+import { doc, onSnapshot, where, limit, orderBy } from "firebase/firestore";
+import { db } from "../lib/firebase";
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts';
 
 export default function Dashboard() {
     const { store } = useTenant();
-    const { data: orders, loading: ordersLoading } = useStoreData("orders");
-    const { data: products, loading: productsLoading } = useStoreData("products");
 
-    // Calculate Dashboard KPIs
-    const stats = useMemo(() => {
-        const today = new Date();
-        const last7Days = Array.from({ length: 7 }, (_, i) => {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            return format(d, 'yyyy-MM-dd');
-        }).reverse();
+    // 1. Scalable Feeds
+    const [aggregatedStats, setAggregatedStats] = useState(null);
+    const [loadingStats, setLoadingStats] = useState(true);
 
-        // 1. Sales Trend Data
-        const salesTrend = last7Days.map(date => {
-            const dayOrders = orders.filter(o => o.date === date);
-            const revenue = dayOrders.reduce((sum, o) => sum + ((parseFloat(o.price) || 0) * (parseInt(o.quantity) || 1)), 0);
-            return { date: format(parseISO(date), 'MMM dd'), revenue };
+    // Fetch Aggregated Stats (Real-time, Single Document)
+    useEffect(() => {
+        if (!store?.id) return;
+        setLoadingStats(true);
+        const textRef = doc(db, "stores", store.id, "stats", "sales");
+        const unsub = onSnapshot(textRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setAggregatedStats(docSnap.data());
+            } else {
+                setAggregatedStats(null); // No stats yet
+            }
+            setLoadingStats(false);
         });
+        return () => unsub();
+    }, [store?.id]);
 
-        // 2. Top Products Data
+    // Fetch Only Recent Orders (Limit 20) for Table & Trending Products
+    const recentOrdersConstraints = useMemo(() => [orderBy("date", "desc"), limit(20)], []);
+    const { data: recentOrders, loading: ordersLoading } = useStoreData("orders", recentOrdersConstraints);
+
+    // Fetch Only Low Stock Products (Limit 20) for Alerts
+    // Note: 'stock' must be number in DB. 
+    // If 'stock' is string in DB, this where clause might fail. 
+    // Assuming we migrated/enforced numbers. (The Security Rules check 'is number' now).
+    const lowStockConstraints = useMemo(() => [where("stock", "<", 5), limit(20)], []);
+    const { data: lowStockProducts } = useStoreData("products", lowStockConstraints);
+
+
+    // Transform Aggregated Data for Components
+    const stats = useMemo(() => {
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        // Defaults
+        let revenueToday = 0;
+        let pendingOrders = 0;
+        let returnRate = 0;
+        let salesTrend = [];
+        let statusDistribution = [];
+
+        if (aggregatedStats) {
+            // Revenue Today
+            if (aggregatedStats.daily && aggregatedStats.daily[todayStr]) {
+                revenueToday = aggregatedStats.daily[todayStr].revenue || 0;
+            }
+
+            // Pending (From Status Counts)
+            const sCounts = aggregatedStats.statusCounts || {};
+            pendingOrders = (sCounts['reçu'] || 0) + (sCounts['packing'] || 0);
+
+            // Return Rate (Global)
+            const totalOrders = aggregatedStats.totals?.count || 1;
+            const returned = sCounts['retour'] || 0;
+            returnRate = ((returned / totalOrders) * 100).toFixed(1);
+
+            // Sales Trend (Last 7 Days)
+            // Reconstruct array from daily map
+            salesTrend = Array.from({ length: 7 }, (_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const dateKey = d.toISOString().split('T')[0];
+                const dayData = aggregatedStats.daily?.[dateKey];
+                return {
+                    date: format(d, 'MMM dd'),
+                    revenue: dayData?.revenue || 0
+                };
+            }).reverse();
+
+            // Status Distribution
+            statusDistribution = Object.entries(sCounts).map(([name, value]) => ({
+                name: name.charAt(0).toUpperCase() + name.slice(1),
+                value
+            }));
+
+        } else {
+            // Fallback for empty stats (New store)
+            // We can try to assume 0 or look at recent orders, but 0 is safer fallback
+        }
+
+        // Top Products: Approximate from Recent Orders (as we don't have global aggregation yet)
         const productMap = {};
-        orders.forEach(o => {
+        recentOrders.forEach(o => {
             if (o.articleName) {
                 productMap[o.articleName] = (productMap[o.articleName] || 0) + (parseInt(o.quantity) || 1);
             }
@@ -41,53 +107,16 @@ export default function Dashboard() {
             .slice(0, 5);
 
 
-        let revenueToday = 0;
-        let pendingOrders = 0;
-        let returnedOrders = 0;
-        const statusCounts = {};
-
-        orders.forEach(order => {
-            // Revenue Today
-            if (order.date && isSameDay(parseISO(order.date), today)) {
-                revenueToday += (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
-            }
-            // Pending Orders
-            if (['reçu', 'packing'].includes(order.status)) {
-                pendingOrders++;
-            }
-            // Returned
-            if (order.status === 'retour') {
-                returnedOrders++;
-            }
-            // Status Distributions
-            const status = order.status || 'Unknown';
-            statusCounts[status] = (statusCounts[status] || 0) + 1;
-        });
-
-        const lowStockProducts = products.filter(p => (parseInt(p.stock) || 0) < 5);
-        const returnRate = orders.length > 0 ? ((returnedOrders / orders.length) * 100).toFixed(1) : 0;
-
-        const statusDistribution = Object.entries(statusCounts).map(([name, value]) => ({
-            name: name.charAt(0).toUpperCase() + name.slice(1),
-            value
-        }));
-
         return {
             revenueToday,
             pendingOrders,
             lowStockProducts,
-            totalOrders: orders.length,
             salesTrend,
             topProducts,
             returnRate,
             statusDistribution
         };
-    }, [orders, products]);
-
-    const recentOrders = orders
-        .slice()
-        .sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt))
-        .slice(0, 5);
+    }, [aggregatedStats, recentOrders, lowStockProducts]);
 
     if (!store) return null;
 
@@ -103,6 +132,16 @@ export default function Dashboard() {
                 <p className="mt-1 text-sm text-gray-500">
                     Here's what's happening in your store today.
                 </p>
+                {loadingStats && (
+                    <div className="mt-2 text-xs text-indigo-600 animate-pulse">
+                        Updating live stats...
+                    </div>
+                )}
+                {!aggregatedStats && !loadingStats && (
+                    <div className="mt-2 p-3 bg-yellow-50 text-yellow-800 text-sm rounded-lg border border-yellow-200">
+                        <strong>Dashboard Notice:</strong> Statistics are initializing. Place a new order to generate the initial report.
+                    </div>
+                )}
             </div>
 
             {/* KPI Grid */}
@@ -235,7 +274,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Top Products Chart */}
                 <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Top 5 Products</h3>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Trending Products (Recent)</h3>
                     <div className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={stats.topProducts} layout="vertical" margin={{ left: 0 }}>

@@ -36,6 +36,11 @@ service cloud.firestore {
     match /stores/{storeId} {
       allow create: if request.auth != null;
       allow read, update: if request.auth != null && belongsToStore(storeId);
+      
+      // Allow reading stats subcollection
+      match /stats/{statId} {
+         allow read: if request.auth != null && belongsToStore(storeId);
+      }
     }
 
     // Products
@@ -66,7 +71,8 @@ service cloud.firestore {
 
     match /expenses/{expenseId} {
        allow read: if request.auth != null && resource.data.storeId == getUserData().storeId;
-       allow create, update, delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
+       allow create: if request.auth != null && request.resource.data.storeId == getUserData().storeId;
+       allow update, delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
     }
 
     match /customers/{customerId} {

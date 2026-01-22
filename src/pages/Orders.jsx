@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useStoreData } from "../hooks/useStoreData";
 import { Plus, Edit2, Trash2, QrCode, Search, X, FileText, CheckSquare, Square, Check, Trash, RotateCcw, Upload, Download } from "lucide-react";
 import Button from "../components/Button";
@@ -10,13 +10,20 @@ import { exportToCSV } from "../utils/csvHelper";
 
 import { useTenant } from "../context/TenantContext";
 import { db } from "../lib/firebase";
-import { doc, updateDoc, increment, getDoc } from "firebase/firestore";
+import { doc, updateDoc, increment, getDoc, orderBy, limit } from "firebase/firestore";
 
 const INACTIVE_STATUSES = ['retour', 'annulé'];
 
 export default function Orders() {
     const { store } = useTenant();
-    const { data: orders, loading, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("orders");
+
+    // SCALABILITY FIX: Limit to last 50 orders
+    const orderConstraints = useMemo(() => [
+        orderBy("date", "desc"),
+        limit(50)
+    ], []);
+
+    const { data: orders, loading, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("orders", orderConstraints);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [editingOrder, setEditingOrder] = useState(null);

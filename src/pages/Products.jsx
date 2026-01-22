@@ -1,13 +1,20 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useStoreData } from "../hooks/useStoreData";
 import { Plus, Edit2, Trash2, Package, Search, RotateCcw, AlertCircle, Upload, Download } from "lucide-react";
 import Button from "../components/Button";
 import ProductModal from "../components/ProductModal";
 import ImportModal from "../components/ImportModal";
 import { exportToCSV } from "../utils/csvHelper";
+import { orderBy, limit } from "firebase/firestore";
 
 export default function Products() {
-    const { data: products, loading, error, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("products");
+    // Limit to 50 products for performance
+    const productConstraints = useMemo(() => [
+        orderBy("createdAt", "desc"),
+        limit(50)
+    ], []);
+
+    const { data: products, loading, error, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("products", productConstraints);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);

@@ -6,9 +6,16 @@ import CustomerModal from "../components/CustomerModal";
 import ImportModal from "../components/ImportModal";
 import Button from "../components/Button";
 import { exportToCSV } from "../utils/csvHelper";
+import { orderBy, limit } from "firebase/firestore";
 
 export default function Customers() {
-    const { data: customers, loading, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("customers");
+    // Limit to 50 active clients for performance
+    const customerConstraints = useMemo(() => [
+        orderBy("lastOrderDate", "desc"),
+        limit(50)
+    ], []);
+
+    const { data: customers, loading, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("customers", customerConstraints);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedCustomer, setSelectedCustomer] = useState(null); // For Detail View
     const [editingCustomer, setEditingCustomer] = useState(null); // For Edit Modal
