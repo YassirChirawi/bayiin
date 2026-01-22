@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { toast } from "react-hot-toast";
 import { useTenant } from "../context/TenantContext";
 import { db } from "../lib/firebase";
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc } from "firebase/firestore";
@@ -44,7 +45,11 @@ export default function Team() {
             );
             const snapshot = await getDocs(q);
             if (!snapshot.empty) {
-                alert("User is already a member of this store.");
+                if (!snapshot.empty) {
+                    toast.error("User is already a member of this store.");
+                    setSubmitting(false);
+                    return;
+                }
                 setSubmitting(false);
                 return;
             }
@@ -60,10 +65,12 @@ export default function Team() {
             setInviteEmail("");
             setInviteName("");
             fetchMembers();
-            alert("Member added! Ask them to sign up with this email.");
+            setInviteName("");
+            fetchMembers();
+            toast.success("Member added! Ask them to sign up with this email.");
         } catch (error) {
             console.error(error);
-            alert("Failed to add member");
+            toast.error("Failed to add member");
         } finally {
             setSubmitting(false);
         }

@@ -1,40 +1,25 @@
 import { useTenant } from "../context/TenantContext";
 import { useStoreData } from "../hooks/useStoreData";
 import { Link } from "react-router-dom";
-import { ShoppingBag, DollarSign, Package, AlertTriangle, Lightbulb, ExternalLink, RotateCcw } from "lucide-react";
+import { ShoppingBag, DollarSign, Package, AlertTriangle, Lightbulb, ExternalLink, RotateCcw, CheckCircle } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { format, isSameDay, parseISO, subDays } from "date-fns";
-import { doc, onSnapshot, where, limit, orderBy } from "firebase/firestore";
+import { where, limit, orderBy } from "firebase/firestore";
 import { db } from "../lib/firebase";
 
+import TrialAlert from "../components/TrialAlert";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts';
 
 export default function Dashboard() {
     const { store } = useTenant();
 
-    // 1. Scalable Feeds
-    const [aggregatedStats, setAggregatedStats] = useState(null);
-    const [loadingStats, setLoadingStats] = useState(true);
+    // 1. Scalable Feeds - REPLACED BY DIRECT FETCH
+    // const [aggregatedStats, setAggregatedStats] = useState(null);
+    // const [loadingStats, setLoadingStats] = useState(true);
 
-    // Fetch Aggregated Stats (Real-time, Single Document)
-    useEffect(() => {
-        if (!store?.id) return;
-        setLoadingStats(true);
-        const textRef = doc(db, "stores", store.id, "stats", "sales");
-        const unsub = onSnapshot(textRef, (docSnap) => {
-            if (docSnap.exists()) {
-                setAggregatedStats(docSnap.data());
-            } else {
-                setAggregatedStats(null); // No stats yet
-            }
-            setLoadingStats(false);
-        });
-        return () => unsub();
-    }, [store?.id]);
-
-    // Fetch Only Recent Orders (Limit 20) for Table & Trending Products
-    const recentOrdersConstraints = useMemo(() => [orderBy("date", "desc"), limit(20)], []);
-    const { data: recentOrders, loading: ordersLoading } = useStoreData("orders", recentOrdersConstraints);
+    // Fetch Large Batch of Orders (Limit 500) for Accurate Client-Side Stats
+    const allOrdersConstraints = useMemo(() => [orderBy("date", "desc"), limit(500)], []);
+    const { data: allOrders, loading: ordersLoading } = useStoreData("orders", allOrdersConstraints);
 
     // Fetch Only Low Stock Products (Limit 20) for Alerts
     // Note: 'stock' must be number in DB. 
@@ -42,6 +27,15 @@ export default function Dashboard() {
     // Assuming we migrated/enforced numbers. (The Security Rules check 'is number' now).
     const lowStockConstraints = useMemo(() => [where("stock", "<", 5), limit(20)], []);
     const { data: lowStockProducts } = useStoreData("products", lowStockConstraints);
+
+    // FIX: Fetch counts manually since server-side aggregation might delay
+    // We fetch 'reçu' and 'packing' orders to count Pending
+    // Optimization: In a real app, use count() query. Here, we can fetch metadata or just use the same "recentOrders" if we assume pending are recent?
+    // No, pending can be old. Let's generic fetch "active" orders for the KPI.
+    // Actually, "orders" hook fetches all? No, it has constraints.
+    // Let's create a specific fetch for stats or just fetch last 100 orders to be safer?
+    // Let's use a broad query for "pending" statuses.
+    // pendingConstraints removed as we use allOrders.
 
 
     // Transform Aggregated Data for Components
@@ -55,48 +49,53 @@ export default function Dashboard() {
         let salesTrend = [];
         let statusDistribution = [];
 
-        if (aggregatedStats) {
+        if (allOrders.length > 0) {
             // Revenue Today
-            if (aggregatedStats.daily && aggregatedStats.daily[todayStr]) {
-                revenueToday = aggregatedStats.daily[todayStr].revenue || 0;
-            }
+            revenueToday = allOrders
+                .filter(o => o.date === todayStr)
+                .reduce((sum, o) => sum + ((parseFloat(o.price) || 0) * (parseInt(o.quantity) || 1)), 0);
 
-            // Pending (From Status Counts)
-            const sCounts = aggregatedStats.statusCounts || {};
-            pendingOrders = (sCounts['reçu'] || 0) + (sCounts['packing'] || 0);
+            // Pending (From Live List)
+            pendingOrders = allOrders
+                .filter(o => ["reçu", "packing"].includes((o.status || "").toLowerCase()))
+                .length;
 
-            // Return Rate (Global)
-            const totalOrders = aggregatedStats.totals?.count || 1;
-            const returned = sCounts['retour'] || 0;
-            returnRate = ((returned / totalOrders) * 100).toFixed(1);
+            // Return Rate (Global from recent sample)
+            const totalOrders = allOrders.length || 1;
+            const returnedCount = allOrders.filter(o => (o.status || "").toLowerCase() === "retour").length;
+            returnRate = ((returnedCount / totalOrders) * 100).toFixed(1);
 
-            // Sales Trend (Last 7 Days)
-            // Reconstruct array from daily map
+            // Sales Trend
             salesTrend = Array.from({ length: 7 }, (_, i) => {
                 const d = new Date();
                 d.setDate(d.getDate() - i);
                 const dateKey = d.toISOString().split('T')[0];
-                const dayData = aggregatedStats.daily?.[dateKey];
+
+                const dailyRevenue = allOrders
+                    .filter(o => o.date === dateKey)
+                    .reduce((sum, o) => sum + ((parseFloat(o.price) || 0) * (parseInt(o.quantity) || 1)), 0);
+
                 return {
                     date: format(d, 'MMM dd'),
-                    revenue: dayData?.revenue || 0
+                    revenue: dailyRevenue
                 };
             }).reverse();
 
             // Status Distribution
-            statusDistribution = Object.entries(sCounts).map(([name, value]) => ({
+            const statusMap = {};
+            allOrders.forEach(o => {
+                const st = (o.status || "Unknown");
+                statusMap[st] = (statusMap[st] || 0) + 1;
+            });
+            statusDistribution = Object.entries(statusMap).map(([name, value]) => ({
                 name: name.charAt(0).toUpperCase() + name.slice(1),
                 value
             }));
-
-        } else {
-            // Fallback for empty stats (New store)
-            // We can try to assume 0 or look at recent orders, but 0 is safer fallback
         }
 
-        // Top Products: Approximate from Recent Orders (as we don't have global aggregation yet)
+        // Top Products: From all fetched orders
         const productMap = {};
-        recentOrders.forEach(o => {
+        allOrders.forEach(o => {
             if (o.articleName) {
                 productMap[o.articleName] = (productMap[o.articleName] || 0) + (parseInt(o.quantity) || 1);
             }
@@ -116,7 +115,7 @@ export default function Dashboard() {
             returnRate,
             statusDistribution
         };
-    }, [aggregatedStats, recentOrders, lowStockProducts]);
+    }, [allOrders, lowStockProducts]);
 
     if (!store) return null;
 
@@ -124,6 +123,7 @@ export default function Dashboard() {
 
     return (
         <div className="space-y-8">
+            <TrialAlert createdAt={store?.createdAt} plan={store?.plan} />
             {/* Header */}
             <div>
                 <h1 className="text-2xl font-bold text-gray-900">
@@ -132,14 +132,38 @@ export default function Dashboard() {
                 <p className="mt-1 text-sm text-gray-500">
                     Here's what's happening in your store today.
                 </p>
-                {loadingStats && (
+                {ordersLoading && (
                     <div className="mt-2 text-xs text-indigo-600 animate-pulse">
                         Updating live stats...
                     </div>
                 )}
-                {!aggregatedStats && !loadingStats && (
-                    <div className="mt-2 p-3 bg-yellow-50 text-yellow-800 text-sm rounded-lg border border-yellow-200">
-                        <strong>Dashboard Notice:</strong> Statistics are initializing. Place a new order to generate the initial report.
+                {!ordersLoading && allOrders.length === 0 && (
+                    <div className="mt-6 bg-white rounded-lg shadow-sm border border-indigo-100 p-6">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4">🚀 Getting Started Checklist</h3>
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-lg border border-indigo-100">
+                                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white font-bold text-sm">1</span>
+                                <div className="flex-1">
+                                    <h4 className="text-sm font-semibold text-gray-900">Customize Store</h4>
+                                    <p className="text-xs text-gray-600">Add your logo and company details in <Link to="/settings" className="text-indigo-600 underline">Settings</Link>.</p>
+                                </div>
+                                <div className="h-6 w-6 text-green-500">{store?.logoUrl ? <CheckCircle className="h-6 w-6" /> : <div className="h-6 w-6 border-2 border-gray-300 rounded-full"></div>}</div>
+                            </div>
+                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-600 font-bold text-sm">2</span>
+                                <div className="flex-1">
+                                    <h4 className="text-sm font-semibold text-gray-900">Add Products</h4>
+                                    <p className="text-xs text-gray-600">Go to <Link to="/products" className="text-indigo-600 underline">Products</Link> and add your inventory.</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-600 font-bold text-sm">3</span>
+                                <div className="flex-1">
+                                    <h4 className="text-sm font-semibold text-gray-900">Create Order</h4>
+                                    <p className="text-xs text-gray-600">Manually create a test order in <Link to="/orders" className="text-indigo-600 underline">Orders</Link> to see stats.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
@@ -308,7 +332,7 @@ export default function Dashboard() {
                             <div className="overflow-x-auto">
                                 {ordersLoading ? (
                                     <div className="p-4 text-center">Loading...</div>
-                                ) : recentOrders.length === 0 ? (
+                                ) : allOrders.length === 0 ? (
                                     <div className="p-8 text-center text-gray-500">No orders yet.</div>
                                 ) : (
                                     <table className="min-w-full divide-y divide-gray-200">
@@ -320,7 +344,7 @@ export default function Dashboard() {
                                             </tr>
                                         </thead>
                                         <tbody className="bg-white divide-y divide-gray-200">
-                                            {recentOrders.map((order) => (
+                                            {allOrders.slice(0, 20).map((order) => (
                                                 <tr key={order.id}>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                                         #{order.orderNumber}

@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
+import { toast } from "react-hot-toast";
 import { useStoreData } from "../hooks/useStoreData";
-import { Plus, Edit2, Trash2, QrCode, Search, X, FileText, CheckSquare, Square, Check, Trash, RotateCcw, Upload, Download } from "lucide-react";
+import { Plus, Edit2, Trash2, QrCode, Search, X, FileText, CheckSquare, Square, Check, Trash, RotateCcw, Upload, Download, MessageCircle } from "lucide-react";
 import Button from "../components/Button";
 import OrderModal from "../components/OrderModal";
 import ImportModal from "../components/ImportModal";
@@ -32,13 +33,20 @@ export default function Orders() {
     const [selectedOrders, setSelectedOrders] = useState([]); // Selected IDs
     const [showTrash, setShowTrash] = useState(false);
 
+    // Filter State
+    const [statusFilter, setStatusFilter] = useState("all");
+    const [startDate, setStartDate] = useState("");
+    const [endDate, setEndDate] = useState("");
+
     const handleSave = async (orderData) => {
         if (editingOrder) {
             await updateStoreItem(editingOrder.id, orderData);
+            toast.success("Order updated successfully");
         } else {
             // Generate a simple Order Number if new
             const orderNumber = `CMD-${Math.floor(100000 + Math.random() * 900000)}`;
             await addStoreItem({ ...orderData, orderNumber });
+            toast.success("New order created");
         }
         setIsModalOpen(false);
         setEditingOrder(null);
@@ -54,11 +62,13 @@ export default function Orders() {
             if (window.confirm("Are you sure you want to permanently delete this order? This cannot be undone.")) {
                 await permanentDeleteStoreItem(id);
                 setSelectedOrders(prev => prev.filter(oid => oid !== id));
+                toast.success("Order permanently deleted");
             }
         } else {
             if (window.confirm("Are you sure you want to move this order to trash?")) {
                 await deleteStoreItem(id);
                 setSelectedOrders(prev => prev.filter(oid => oid !== id));
+                toast.success("Order moved to trash");
             }
         }
     };
@@ -66,6 +76,7 @@ export default function Orders() {
     const handleRestore = async (id) => {
         await restoreStoreItem(id);
         setSelectedOrders(prev => prev.filter(oid => oid !== id));
+        toast.success("Order restored");
     };
 
     const handleExportCSV = () => {
@@ -106,7 +117,7 @@ export default function Orders() {
         });
 
         await Promise.all(promises);
-        alert(`Successfully imported ${importedCount} orders.`);
+        toast.success(`Successfully imported ${importedCount} orders.`);
     };
 
     // Bulk Actions
@@ -134,6 +145,7 @@ export default function Orders() {
         if (window.confirm(message)) {
             await Promise.all(selectedOrders.map(id => showTrash ? permanentDeleteStoreItem(id) : deleteStoreItem(id)));
             setSelectedOrders([]);
+            toast.success(showTrash ? "Orders deleted permanently" : "Orders moved to trash");
         }
     };
 
@@ -141,6 +153,7 @@ export default function Orders() {
         if (window.confirm(`Restore ${selectedOrders.length} orders?`)) {
             await Promise.all(selectedOrders.map(id => restoreStoreItem(id)));
             setSelectedOrders([]);
+            toast.success("Orders restored");
         }
     };
 
@@ -174,9 +187,10 @@ export default function Orders() {
                 return updateStoreItem(id, { status });
             }));
             setSelectedOrders([]);
+            toast.success(`Orders marked as ${status}`);
         } catch (err) {
             console.error("Error updating statuses:", err);
-            alert("Failed to update some orders.");
+            toast.error("Failed to update some orders.");
         }
     };
 
@@ -193,6 +207,17 @@ export default function Orders() {
 
     const filteredOrders = orders
         .filter(o => showTrash ? o.deleted : !o.deleted)
+        .filter(o =>
+            statusFilter === 'all' || o.status === statusFilter
+        )
+        .filter(o => {
+            if (!startDate) return true;
+            return o.date >= startDate;
+        })
+        .filter(o => {
+            if (!endDate) return true;
+            return o.date <= endDate;
+        })
         .filter(o =>
             o.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             o.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -284,8 +309,8 @@ export default function Orders() {
             </div>
 
             {/* Filters */}
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex gap-4">
-                <div className="relative flex-1 max-w-md">
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4">
+                <div className="relative flex-1">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <Search className="h-5 w-5 text-gray-400" />
                     </div>
@@ -295,6 +320,40 @@ export default function Orders() {
                         placeholder="Search by Client, Phone or Order #..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+
+                {/* Status Filter */}
+                <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="block w-full md:w-40 py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                >
+                    <option value="all">All Status</option>
+                    <option value="reçu">Reçu</option>
+                    <option value="confirmation">Confirmation</option>
+                    <option value="packing">Packing</option>
+                    <option value="livraison">Livraison</option>
+                    <option value="livré">Livré</option>
+                    <option value="retour">Retour</option>
+                    <option value="annulé">Annulé</option>
+                </select>
+
+                {/* Date Filters */}
+                <div className="flex gap-2">
+                    <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="block w-full md:w-auto py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        placeholder="Start Date"
+                    />
+                    <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="block w-full md:w-auto py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        placeholder="End Date"
                     />
                 </div>
             </div>
@@ -415,6 +474,23 @@ export default function Orders() {
                                                     </button>
                                                 </>
                                             )}
+                                            {/* WhatsApp Notification */}
+                                            <a
+                                                href={`https://wa.me/${order.clientPhone ? order.clientPhone.replace(/\D/g, '') : ''}?text=${encodeURIComponent(
+                                                    (store?.whatsappTemplates?.[order.status] || `Bonjour ${order.clientName}, votre commande #${order.orderNumber} est ${order.status}.`)
+                                                        .replace('[Make]', store?.name || '')
+                                                        .replace('[Client]', order.clientName || '')
+                                                        .replace('[Produit]', order.articleName || '')
+                                                        .replace('[Commande]', order.orderNumber || '')
+                                                        .replace('[Ville]', order.clientCity || '')
+                                                )}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-gray-400 hover:text-green-600"
+                                                title="Notify on WhatsApp"
+                                            >
+                                                <MessageCircle className="h-4 w-4" />
+                                            </a>
                                         </div>
                                     </td>
                                 </tr>

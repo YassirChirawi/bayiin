@@ -33,7 +33,23 @@ export const generateInvoice = async (order, store) => {
             doc.setTextColor(40, 40, 40);
             doc.text(store?.name || "My Store", 20, 20 + logoHeight + 8);
 
-            startY = 20 + logoHeight + 20; // Update Y position for next elements if needed
+            // Legal Info
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
+            let legalY = 20 + logoHeight + 14;
+            if (store?.address) {
+                doc.text(store.address, 20, legalY);
+                legalY += 5;
+            }
+            if (store?.phone) {
+                doc.text(`Tel: ${store.phone}`, 20, legalY);
+                legalY += 5;
+            }
+            if (store?.ice) {
+                doc.text(`ICE: ${store.ice}`, 20, legalY);
+            }
+
+            startY = 20 + logoHeight + 35; // Update Y position for next elements
         } catch (err) {
             console.warn("Error loading logo:", err);
             // Fallback
@@ -41,12 +57,44 @@ export const generateInvoice = async (order, store) => {
             doc.setFont("helvetica", "bold");
             doc.setTextColor(40, 40, 40);
             doc.text(store?.name || "My Store", 20, 20);
+
+            // Legal Info (Fallback position)
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
+            let legalY = 26;
+            if (store?.address) {
+                doc.text(store.address, 20, legalY);
+                legalY += 5;
+            }
+            if (store?.phone) {
+                doc.text(`Tel: ${store.phone}`, 20, legalY);
+                legalY += 5;
+            }
+            if (store?.ice) {
+                doc.text(`ICE: ${store.ice}`, 20, legalY);
+            }
         }
     } else {
         doc.setFontSize(22);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(40, 40, 40);
         doc.text(store?.name || "My Store", 20, 20);
+
+        // Legal Info (No Logo position)
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        let legalY = 26;
+        if (store?.address) {
+            doc.text(store.address, 20, legalY);
+            legalY += 5;
+        }
+        if (store?.phone) {
+            doc.text(`Tel: ${store.phone}`, 20, legalY);
+            legalY += 5;
+        }
+        if (store?.ice) {
+            doc.text(`ICE: ${store.ice}`, 20, legalY);
+        }
     }
 
     // Invoice Meta (Top Right)

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { toast } from "react-hot-toast";
 import { useStoreData } from "../hooks/useStoreData";
 import { Search, MapPin, Users, DollarSign, TrendingUp, Eye, Trash2, RotateCcw, Download, Upload, Plus, Edit2 } from "lucide-react";
 import CustomerDetailModal from "../components/CustomerDetailModal";
@@ -51,10 +52,12 @@ export default function Customers() {
         if (showTrash) {
             if (window.confirm("Are you sure you want to permanently delete this customer? This cannot be undone.")) {
                 await permanentDeleteStoreItem(id);
+                toast.success("Customer permanently deleted");
             }
         } else {
             if (window.confirm("Are you sure you want to move this customer to trash?")) {
                 await deleteStoreItem(id);
+                toast.success("Customer moved to trash");
             }
         }
     };
@@ -62,11 +65,13 @@ export default function Customers() {
     const handleRestore = async (id, e) => {
         e.stopPropagation();
         await restoreStoreItem(id);
+        toast.success("Customer restored");
     };
 
     const handleSaveCustomer = async (formData) => {
         if (editingCustomer) {
             await updateStoreItem(editingCustomer.id, formData);
+            toast.success("Customer updated");
         } else {
             await addStoreItem({
                 ...formData,
@@ -75,6 +80,7 @@ export default function Customers() {
                 firstOrderDate: null,
                 lastOrderDate: null
             });
+            toast.success("Customer added");
         }
         setIsEditModalOpen(false);
         setEditingCustomer(null);
@@ -117,7 +123,8 @@ export default function Customers() {
         });
 
         await Promise.all(promises);
-        alert(`Successfully imported ${importedCount} customers.`);
+        await Promise.all(promises);
+        toast.success(`Successfully imported ${importedCount} customers.`);
     };
 
     const filteredCustomers = customers

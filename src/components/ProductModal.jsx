@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { toast } from "react-hot-toast";
 import { X, Save, Upload, Plus, Trash2, RefreshCw } from "lucide-react";
 import Button from "./Button";
 import Input from "./Input";
@@ -155,7 +156,7 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
             onClose();
         } catch (error) {
             console.error("Error saving product:", error);
-            alert("Failed to save product");
+            toast.error("Failed to save product");
         } finally {
             setLoading(false);
         }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { toast } from "react-hot-toast";
 import { X, Save } from "lucide-react";
 import Button from "./Button";
 import Input from "./Input";
@@ -43,7 +44,7 @@ export default function CustomerModal({ isOpen, onClose, onSave, customer = null
             onClose();
         } catch (error) {
             console.error("Error saving customer:", error);
-            alert("Failed to save customer");
+            toast.error("Failed to save customer");
         } finally {
             setLoading(false);
         }

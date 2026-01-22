@@ -22,6 +22,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 
 import { HelmetProvider } from 'react-helmet-async';
 import { useAnalytics } from './hooks/useAnalytics';
+import { Toaster } from 'react-hot-toast';
 
 // Navigation Tracker Component
 const AnalyticsTracker = () => {
@@ -36,6 +37,7 @@ function App() {
         <TenantProvider>
           <BrowserRouter>
             <AnalyticsTracker />
+            <Toaster position="top-right" />
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/privacy" element={<Privacy />} />

@@ -8,7 +8,7 @@ import { format, isSameDay, isSameWeek, isSameMonth, parseISO, startOfMonth, sub
 
 export default function Finances() {
     const { data: orders } = useStoreData("orders");
-    const { data: expenses, addStoreItem: addExpense, deleteStoreItem: deleteExpense } = useStoreData("expenses");
+    const { data: expenses, loading: loadingExpenses, error: expensesError, addStoreItem: addExpense, deleteStoreItem: deleteExpense } = useStoreData("expenses");
 
     // Expense Form State
     const [expenseForm, setExpenseForm] = useState({ description: "", amount: "", category: "Other" });
@@ -206,6 +206,13 @@ export default function Finances() {
                     />
                 </div>
             </div>
+
+            {expensesError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                    <p className="font-bold">Error loading finances:</p>
+                    <p className="text-sm">{expensesError.message} - Check your 'expenses' collection permissions in Firebase Console.</p>
+                </div>
+            )}
 
             {/* KPI Cards */}
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">

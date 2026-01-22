@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { toast } from "react-hot-toast";
 import { useStoreData } from "../hooks/useStoreData";
 import { Plus, Edit2, Trash2, Package, Search, RotateCcw, AlertCircle, Upload, Download } from "lucide-react";
 import Button from "../components/Button";
@@ -24,8 +25,10 @@ export default function Products() {
     const handleSave = async (productData) => {
         if (editingProduct) {
             await updateStoreItem(editingProduct.id, productData);
+            toast.success("Product updated");
         } else {
             await addStoreItem(productData);
+            toast.success("Product added");
         }
         setIsModalOpen(false);
         setEditingProduct(null);
@@ -40,16 +43,19 @@ export default function Products() {
         if (showTrash) {
             if (window.confirm("Are you sure you want to permanently delete this product? This cannot be undone.")) {
                 await permanentDeleteStoreItem(id);
+                toast.success("Product deleted permanently");
             }
         } else {
             if (window.confirm("Are you sure you want to move this product to trash?")) {
                 await deleteStoreItem(id);
+                toast.success("Product moved to trash");
             }
         }
     };
 
     const handleRestore = async (id) => {
         await restoreStoreItem(id);
+        toast.success("Product restored");
     };
 
     const handleExportCSV = () => {
@@ -83,7 +89,8 @@ export default function Products() {
         });
 
         await Promise.all(promises);
-        alert(`Successfully imported ${importedCount} products.`);
+        await Promise.all(promises);
+        toast.success(`Successfully imported ${importedCount} products.`);
     };
 
     const filteredProducts = products

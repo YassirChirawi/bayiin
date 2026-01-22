@@ -1,10 +1,11 @@
 import { useTenant } from "../context/TenantContext";
-import { User, Store, CreditCard, Check, Zap, Shield, Save } from "lucide-react";
-import { doc, updateDoc } from "firebase/firestore";
+import { User, Store, CreditCard, Check, Zap, Shield, Save, Settings as SettingsIcon } from "lucide-react";
+import { doc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Button from "../components/Button";
 import { useState, useEffect } from "react";
 import { useImageUpload } from "../hooks/useImageUpload";
+import { toast } from "react-hot-toast";
 
 import { PLANS, createCheckoutSession, activateSubscriptionMock } from "../lib/stripeService";
 import { DEFAULT_TEMPLATES } from "../utils/whatsappTemplates";
@@ -29,7 +30,7 @@ export default function Settings() {
             if (store?.id) {
                 activateSubscriptionMock(store.id, 'starter'); // Defaulting to starter for safety, or user can contact support.
                 setStore(prev => ({ ...prev, subscriptionStatus: 'trialing', plan: 'starter' }));
-                alert("Payment Successful! Your subscription is active.");
+                toast.success("Payment Successful! Your subscription is active.");
                 // Clear URL
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
@@ -49,9 +50,10 @@ export default function Settings() {
                 });
                 // Update local state
                 setStore(prev => ({ ...prev, logoUrl: url }));
+                toast.success("Logo updated!");
             } catch (err) {
                 console.error("Error updating logo:", err);
-                alert("Failed to update logo");
+                toast.error("Failed to update logo");
             }
         }
     };
@@ -65,7 +67,63 @@ export default function Settings() {
             await createCheckoutSession(store.id, planId);
         } catch (error) {
             console.error("Error upgrading:", error);
-            alert("Upgrade failed. Please try again.");
+            toast.error("Upgrade failed. Please try again.");
+            setLoading(null);
+        }
+    };
+
+    const [recalcMsg, setRecalcMsg] = useState("");
+
+    const handleRecalculateStats = async () => {
+        if (!store?.id) return;
+        if (!window.confirm("This will scan all orders and fix customer order counts and total spent. Continue?")) return;
+
+        setLoading('recalc');
+        setRecalcMsg("Scanning orders...");
+        try {
+            // 1. Fetch ALL orders for this store
+            const ordersRef = collection(db, "orders");
+            const q = query(ordersRef, where("storeId", "==", store.id));
+            const snapshot = await getDocs(q);
+            const orders = snapshot.docs.map(d => d.data());
+
+            // 2. Aggregate data by Customer ID
+            const customerStats = {}; // { custId: { count: 0, spent: 0, lastDate: ... } }
+
+            orders.forEach(order => {
+                if (!order.customerId) return;
+
+                if (!customerStats[order.customerId]) {
+                    customerStats[order.customerId] = { count: 0, spent: 0, dates: [] };
+                }
+
+                const amount = (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
+                customerStats[order.customerId].count += 1;
+                customerStats[order.customerId].spent += amount;
+                if (order.date) customerStats[order.customerId].dates.push(order.date);
+            });
+
+            // 3. Update Customers
+            setRecalcMsg("Updating customers...");
+            const updates = Object.entries(customerStats).map(async ([custId, stats]) => {
+                const custRef = doc(db, "customers", custId);
+                // Find latest date
+                const lastOrderDate = stats.dates.sort().pop() || new Date().toISOString().split('T')[0];
+
+                await updateDoc(custRef, {
+                    orderCount: stats.count,
+                    totalSpent: stats.spent,
+                    lastOrderDate: lastOrderDate
+                });
+            });
+
+            await Promise.all(updates);
+            toast.success(`Fixed stats for ${updates.length} customers!`);
+            setRecalcMsg("");
+        } catch (error) {
+            console.error("Recalculation error:", error);
+            toast.error("Failed to recalculate stats.");
+        } finally {
             setLoading(null);
         }
     };
@@ -133,6 +191,70 @@ export default function Settings() {
                                 />
                             </div>
                         </div>
+
+
+                        {/* Invoice & Contact Details */}
+                        <div className="mt-8 border-t border-gray-100 pt-6">
+                            <h4 className="text-sm font-medium text-gray-900 mb-4">Invoice & Contact Details</h4>
+                            <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+                                <div className="sm:col-span-3">
+                                    <label className="block text-sm font-medium text-gray-700">Company Phone</label>
+                                    <div className="mt-1">
+                                        <input
+                                            type="text"
+                                            value={store?.phone || ''}
+                                            onChange={(e) => setStore(prev => ({ ...prev, phone: e.target.value }))}
+                                            placeholder="+212 6..."
+                                            className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="sm:col-span-3">
+                                    <label className="block text-sm font-medium text-gray-700">ICE / Tax ID</label>
+                                    <div className="mt-1">
+                                        <input
+                                            type="text"
+                                            value={store?.ice || ''}
+                                            onChange={(e) => setStore(prev => ({ ...prev, ice: e.target.value }))}
+                                            placeholder="Tax ID or ICE"
+                                            className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="sm:col-span-6">
+                                    <label className="block text-sm font-medium text-gray-700">Company Address</label>
+                                    <div className="mt-1">
+                                        <textarea
+                                            rows={2}
+                                            value={store?.address || ''}
+                                            onChange={(e) => setStore(prev => ({ ...prev, address: e.target.value }))}
+                                            placeholder="123 Business St, Casablanca"
+                                            className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="sm:col-span-6 flex justify-end">
+                                    <Button
+                                        onClick={async () => {
+                                            try {
+                                                await updateDoc(doc(db, "stores", store.id), {
+                                                    phone: store.phone || "",
+                                                    ice: store.ice || "",
+                                                    address: store.address || ""
+                                                });
+                                                toast.success("Details saved!");
+                                            } catch (e) {
+                                                console.error(e);
+                                                toast.error("Failed to save.");
+                                            }
+                                        }}
+                                        icon={Save}
+                                    >
+                                        Save Details
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -146,6 +268,61 @@ export default function Settings() {
                     <p className="mt-1 text-sm text-gray-500">
                         Owner ID: {store?.ownerId}
                     </p>
+                </div>
+            </div>
+
+            {/* Promo Code Redemption */}
+            <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
+                <div className="px-4 py-5 sm:p-6">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
+                        <Zap className="h-5 w-5 text-yellow-500" />
+                        Redeem Promo Code
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-500 mb-4">
+                        Have a code? Enter it below to unlock special features.
+                    </p>
+                    <form
+                        onSubmit={async (e) => {
+                            e.preventDefault();
+                            const code = e.target.elements.promoCode.value.trim().toUpperCase();
+                            if (!code) return;
+
+                            // HARDCODED SECRETS for MVP
+                            const VALID_CODES = ['EYA1907', 'VIP2026', 'LAUNCH_PRO', 'ADMIN_ACCESS'];
+
+                            if (VALID_CODES.includes(code)) {
+                                setLoading('promo');
+                                try {
+                                    await updateDoc(doc(db, "stores", store.id), {
+                                        plan: 'pro',
+                                        subscriptionStatus: 'active_promo',
+                                        promoCodeUsed: code
+                                    });
+                                    setStore(prev => ({ ...prev, plan: 'pro', subscriptionStatus: 'active_promo' }));
+                                    toast.success("Code Redeemed! You are now on the PRO plan.");
+                                    e.target.reset();
+                                } catch (err) {
+                                    console.error(err);
+                                    toast.error("Failed to apply code.");
+                                } finally {
+                                    setLoading(null);
+                                }
+                            } else {
+                                toast.error("Invalid Promo Code");
+                            }
+                        }}
+                        className="flex gap-2 max-w-md"
+                    >
+                        <input
+                            name="promoCode"
+                            type="text"
+                            placeholder="Enter Code"
+                            className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                        />
+                        <Button type="submit" isLoading={loading === 'promo'}>
+                            Apply
+                        </Button>
+                    </form>
                 </div>
             </div>
 
@@ -279,10 +456,10 @@ export default function Settings() {
                                     await updateDoc(doc(db, "stores", store.id), {
                                         whatsappTemplates: store.whatsappTemplates
                                     });
-                                    alert("Templates saved successfully!");
+                                    toast.success("Templates saved successfully!");
                                 } catch (e) {
                                     console.error(e);
-                                    alert("Error saving templates.");
+                                    toast.error("Error saving templates.");
                                 }
                             }}
                             icon={Save}
@@ -291,6 +468,27 @@ export default function Settings() {
                         </Button>
                     </div>
                 </div>
+            </div>
+
+            {/* Maintenance Zone */}
+            <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+                    <SettingsIcon className="h-5 w-5 text-gray-500" />
+                    System Maintenance
+                </h3>
+                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 mb-4">
+                    <p className="text-sm text-yellow-800">
+                        Use this if you notice incorrect numbers in your Customer profiles (e.g. wrong order counts).
+                    </p>
+                </div>
+                <Button
+                    onClick={handleRecalculateStats}
+                    isLoading={loading === 'recalc'}
+                    variant="secondary"
+                    className="w-full sm:w-auto"
+                >
+                    {recalcMsg || "Recalculate Customer Stats"}
+                </Button>
             </div>
 
             {/* Legal Information Section */}

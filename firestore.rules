@@ -69,6 +69,7 @@ service cloud.firestore {
        allow delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
     }
 
+    // Expenses (Ads, Shipping, etc.) - Critical for Finances page
     match /expenses/{expenseId} {
        allow read: if request.auth != null && resource.data.storeId == getUserData().storeId;
        allow create: if request.auth != null && request.resource.data.storeId == getUserData().storeId;

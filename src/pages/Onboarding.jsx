@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTenant } from "../context/TenantContext";
@@ -52,7 +53,7 @@ export default function Onboarding() {
             navigate("/dashboard");
         } catch (error) {
             console.error("Error creating store DETAILS:", error);
-            alert("Failed to create store: " + error.code + " - " + error.message);
+            toast.error("Failed to create store: " + error.message);
         } finally {
             setLoading(false);
         }
