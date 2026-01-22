@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { db } from "../lib/firebase";
-import { doc, getDoc, collection, query, where, getDocs, updateDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, updateDoc, setDoc } from "firebase/firestore";
 
 const TenantContext = createContext({});
 
@@ -14,6 +14,7 @@ export const TenantProvider = ({ children }) => {
 
     useEffect(() => {
         async function loadStore() {
+            setLoading(true); // START LOADING IMMEDIATELY
             if (!user) {
                 setStore(null);
                 setLoading(false);
@@ -35,7 +36,28 @@ export const TenantProvider = ({ children }) => {
                     }
                 }
 
-                // If not an owner, check if they are an invited team member
+                // If no storeId mapped in User Profile, try to find a store owned by this user (Self-Healing)
+                if (!targetStoreId) {
+                    const storesRef = collection(db, "stores");
+                    const q = query(storesRef, where("ownerId", "==", user.uid));
+                    const snapshot = await getDocs(q);
+
+                    if (!snapshot.empty) {
+                        const storeDoc = snapshot.docs[0];
+                        targetStoreId = storeDoc.id;
+                        userRole = 'owner';
+
+                        // HEAL THE LINK
+                        try {
+                            await setDoc(doc(db, "users", user.uid), { storeId: targetStoreId }, { merge: true });
+                            console.log("Self-healed missing storeId link for user.");
+                        } catch (err) {
+                            console.warn("Failed to heal storeId link", err);
+                        }
+                    }
+                }
+
+                // If check for valid invited user
                 if (!targetStoreId) {
                     const q = query(collection(db, "allowed_users"), where("email", "==", user.email));
                     const snapshot = await getDocs(q);

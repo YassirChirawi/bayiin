@@ -3,13 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Button from "../components/Button";
 import Input from "../components/Input";
-import { ShoppingBag } from "lucide-react";
+import { getFriendlyErrorMessage } from "../utils/firebaseErrors";
+import { toast } from "react-hot-toast";
 
 export default function Signup() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
-    const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
     const { signup, loginWithGoogle } = useAuth();
@@ -19,16 +19,18 @@ export default function Signup() {
         e.preventDefault();
 
         if (password !== confirmPassword) {
-            return setError("Passwords do not match");
+            toast.error("Passwords do not match");
+            return;
         }
 
         try {
-            setError("");
             setLoading(true);
             await signup(email, password);
+            toast.success("Account created! Please setup your store.");
             navigate("/onboarding");
         } catch (err) {
-            setError("Failed to create an account: " + err.message);
+            const message = getFriendlyErrorMessage(err);
+            toast.error(message);
         } finally {
             setLoading(false);
         }
@@ -52,11 +54,6 @@ export default function Signup() {
                     </p>
                 </div>
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-                    {error && (
-                        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
-                            {error}
-                        </div>
-                    )}
                     <div className="space-y-4">
                         <Input
                             label="Email address"
@@ -109,12 +106,13 @@ export default function Signup() {
                             type="button"
                             onClick={async () => {
                                 try {
-                                    setError("");
                                     setLoading(true);
                                     await loginWithGoogle();
+                                    toast.success("Welcome!");
                                     navigate("/onboarding");
                                 } catch (err) {
-                                    setError("Failed to sign up with Google: " + err.message);
+                                    const message = getFriendlyErrorMessage(err);
+                                    toast.error(message);
                                 } finally {
                                     setLoading(false);
                                 }

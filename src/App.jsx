@@ -37,7 +37,48 @@ function App() {
         <TenantProvider>
           <BrowserRouter>
             <AnalyticsTracker />
-            <Toaster position="top-right" />
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                className: '',
+                style: {
+                  background: '#333',
+                  color: '#fff',
+                },
+                success: {
+                  style: {
+                    background: 'white',
+                    color: '#15803d', // green-700
+                    border: '1px solid #bbf7d0', // green-200
+                    padding: '16px',
+                    borderRadius: '12px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                    fontWeight: 500,
+                  },
+                  iconTheme: {
+                    primary: '#22c55e',
+                    secondary: '#fff',
+                  },
+                  duration: 4000,
+                },
+                error: {
+                  style: {
+                    background: 'white',
+                    color: '#b91c1c', // red-700
+                    border: '1px solid #fecaca', // red-200
+                    padding: '16px',
+                    borderRadius: '12px',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', // Stronger shadow for errors
+                    fontWeight: 600,
+                  },
+                  iconTheme: {
+                    primary: '#ef4444',
+                    secondary: '#fff',
+                  },
+                  duration: 5000, // Stay longer
+                },
+              }}
+            />
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/privacy" element={<Privacy />} />

@@ -3,12 +3,12 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Button from "../components/Button";
 import Input from "../components/Input";
-import { ShoppingBag } from "lucide-react";
+import { getFriendlyErrorMessage } from "../utils/firebaseErrors";
+import { toast } from "react-hot-toast";
 
 export default function Login() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
     const { login, loginWithGoogle } = useAuth();
@@ -18,12 +18,13 @@ export default function Login() {
         e.preventDefault();
 
         try {
-            setError("");
             setLoading(true);
             await login(email, password);
+            toast.success("Welcome back!");
             navigate("/dashboard");
         } catch (err) {
-            setError("Failed to log in: " + err.message);
+            const message = getFriendlyErrorMessage(err);
+            toast.error(message);
         } finally {
             setLoading(false);
         }
@@ -44,11 +45,6 @@ export default function Login() {
                     </h2>
                 </div>
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-                    {error && (
-                        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
-                            {error}
-                        </div>
-                    )}
                     <div className="space-y-4">
                         <Input
                             label="Email address"
@@ -93,12 +89,13 @@ export default function Login() {
                             type="button"
                             onClick={async () => {
                                 try {
-                                    setError("");
                                     setLoading(true);
                                     await loginWithGoogle();
+                                    toast.success("Welcome back!");
                                     navigate("/dashboard");
                                 } catch (err) {
-                                    setError("Failed to log in with Google: " + err.message);
+                                    const message = getFriendlyErrorMessage(err);
+                                    toast.error(message);
                                 } finally {
                                     setLoading(false);
                                 }
