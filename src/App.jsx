@@ -15,6 +15,16 @@ import Team from "./pages/Team";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Layout from "./components/Layout";
 import { TenantProvider } from "./context/TenantContext";
+import BiometricLock from "./components/BiometricLock"; // NEW
+import { useAuth } from "./context/AuthContext"; // NEW for Redirect
+
+// New Component for Smart Redirect
+const SmartLanding = () => {
+  const { user, loading } = useAuth();
+  if (loading) return null; // Or a spinner
+  if (user) return <Navigate to="/dashboard" replace />;
+  return <Landing />;
+};
 
 import Landing from "./pages/Landing";
 import DemoDashboard from "./pages/DemoDashboard";
@@ -80,13 +90,15 @@ function App() {
               }}
             />
             <Routes>
-              <Route path="/" element={<Landing />} />
+              <Route path="/" element={<SmartLanding />} /> {/* Modified */}
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/demo" element={<DemoDashboard />} />
               <Route path="/admin" element={
                 <ProtectedRoute>
-                  <AdminDashboard />
+                  <BiometricLock>
+                    <AdminDashboard />
+                  </BiometricLock>
                 </ProtectedRoute>
               } />
               <Route path="/login" element={<Login />} />
@@ -98,7 +110,9 @@ function App() {
               } />
               <Route element={
                 <ProtectedRoute>
-                  <Layout />
+                  <BiometricLock> {/* Protected by Lock */}
+                    <Layout />
+                  </BiometricLock>
                 </ProtectedRoute>
               }>
                 <Route path="/dashboard" element={<Dashboard />} />

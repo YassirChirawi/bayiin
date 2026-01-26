@@ -1,10 +1,11 @@
 import { useTenant } from "../context/TenantContext";
-import { User, Store, CreditCard, Check, Zap, Shield, Save, Settings as SettingsIcon, Truck, Users } from "lucide-react";
+import { User, Store, CreditCard, Check, Zap, Shield, Save, Settings as SettingsIcon, Truck, Users, Lock } from "lucide-react";
 import { doc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Button from "../components/Button";
 import { useState, useEffect } from "react";
 import { useImageUpload } from "../hooks/useImageUpload";
+import { useBiometrics } from "../hooks/useBiometrics"; // NEW
 import { toast } from "react-hot-toast";
 
 import { PLANS, createCheckoutSession, activateSubscriptionMock } from "../lib/stripeService";
@@ -109,8 +110,44 @@ export default function Settings() {
         { id: "general", label: "General", icon: Store },
         { id: "shipping", label: "Shipping", icon: Truck },
         { id: "billing", label: "Plans & Billing", icon: CreditCard },
+        { id: "security", label: "Security", icon: Shield }, // NEW
         // { id: "team", label: "Team", icon: Users }, // Future
     ];
+
+    // Biometric Logic
+    const { isAvailable, register } = useBiometrics();
+    const [biometricSupported, setBiometricSupported] = useState(false);
+    const [biometricEnabled, setBiometricEnabled] = useState(false);
+
+    useEffect(() => {
+        isAvailable().then(setBiometricSupported);
+        setBiometricEnabled(localStorage.getItem('biometricEnabled') === 'true');
+    }, []);
+
+    const handleToggleBiometric = async () => {
+        if (!biometricEnabled) {
+            // Enable
+            if (!store?.ownerId) {
+                toast.error("Error: User ID not found.");
+                return;
+            }
+            const success = await register(store.ownerId); // Use ownerId/userId as key
+            if (success) {
+                localStorage.setItem('biometricEnabled', 'true');
+                setBiometricEnabled(true);
+                toast.success("Biometric lock enabled!");
+            } else {
+                toast.error("Biometric registration failed.");
+            }
+        } else {
+            // Disable
+            if (window.confirm("Disable biometric lock?")) {
+                localStorage.removeItem('biometricEnabled');
+                setBiometricEnabled(false);
+                toast.success("Biometric lock disabled.");
+            }
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -503,6 +540,62 @@ export default function Settings() {
                             >
                                 {recalcMsg || "Recalculate Customer Stats"}
                             </Button>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === "security" && (
+                    <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
+                        <div className="px-4 py-5 sm:p-6">
+                            <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
+                                <Shield className="h-5 w-5 text-gray-400" />
+                                App Security
+                            </h3>
+                            <div className="mt-6">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h4 className="text-base font-medium text-gray-900">Biometric App Lock</h4>
+                                        <p className="text-sm text-gray-500">
+                                            Require FaceID or TouchID when opening the app.
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center">
+                                        {!biometricSupported ? (
+                                            <span className="text-sm text-red-500 bg-red-50 px-2 py-1 rounded">Not Supported on this device</span>
+                                        ) : (
+                                            <button
+                                                onClick={handleToggleBiometric}
+                                                className={`
+                                                    relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500
+                                                    ${biometricEnabled ? 'bg-indigo-600' : 'bg-gray-200'}
+                                                `}
+                                            >
+                                                <span
+                                                    aria-hidden="true"
+                                                    className={`
+                                                        pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200
+                                                        ${biometricEnabled ? 'translate-x-5' : 'translate-x-0'}
+                                                    `}
+                                                />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="mt-4 bg-yellow-50 p-4 rounded-md border border-yellow-100">
+                                    <div className="flex">
+                                        <Lock className="h-5 w-5 text-yellow-400" aria-hidden="true" />
+                                        <div className="ml-3">
+                                            <h3 className="text-sm font-medium text-yellow-800">Note</h3>
+                                            <div className="mt-2 text-sm text-yellow-700">
+                                                <p>
+                                                    This locks the app interface on this specific device. It does not change your account password.
+                                                    If you clear your browser cache, you may need to re-enable this.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
