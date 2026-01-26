@@ -3,16 +3,13 @@ import { collection, query, where, onSnapshot, addDoc, doc, deleteDoc, updateDoc
 import { db } from '../lib/firebase';
 import { useTenant } from '../context/TenantContext';
 
-export function useStoreData(collectionName, constraints = []) {
+const DEFAULT_CONSTRAINTS = [];
+
+export function useStoreData(collectionName, constraints = DEFAULT_CONSTRAINTS) {
     const { store } = useTenant();
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-
-    // Simple memoization key for constraints to prevent infinite loops if passed inline
-    const constraintsKey = JSON.stringify(constraints.map(c => c._queryOptions || c.type));
-    // ^ Firestore Query Constraints structure is complex, this key is imperfect but helps. 
-    // Ideally caller uses useMemo.
 
     useEffect(() => {
         if (!store?.id) {
@@ -48,8 +45,7 @@ export function useStoreData(collectionName, constraints = []) {
         );
 
         return () => unsubscribe();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [store.id, collectionName, constraintsKey]);
+    }, [store?.id, collectionName, constraints]);
 
     // Helper function to add a document with the current storeId automatically attached
     const addStoreItem = async (itemData) => {

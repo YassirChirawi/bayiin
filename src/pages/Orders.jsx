@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { toast } from "react-hot-toast";
 import { useStoreData } from "../hooks/useStoreData";
-import { Plus, Edit2, Trash2, QrCode, Search, X, FileText, CheckSquare, Square, Check, Trash, RotateCcw, Upload, Download, MessageCircle } from "lucide-react";
+import { Plus, Edit2, Trash2, QrCode, Search, X, FileText, CheckSquare, Square, Check, Trash, RotateCcw, Upload, Download, MessageCircle, DollarSign } from "lucide-react";
 import Button from "../components/Button";
 import OrderModal from "../components/OrderModal";
 import ImportModal from "../components/ImportModal";
@@ -11,32 +11,114 @@ import { exportToCSV } from "../utils/csvHelper";
 
 import { useTenant } from "../context/TenantContext";
 import { db } from "../lib/firebase";
-import { doc, updateDoc, increment, getDoc, orderBy, limit } from "firebase/firestore";
+import { doc, updateDoc, increment, getDoc, orderBy, limit, writeBatch, where } from "firebase/firestore";
 
 const INACTIVE_STATUSES = ['retour', 'annulé'];
 
 export default function Orders() {
     const { store } = useTenant();
 
-    // SCALABILITY FIX: Limit to last 50 orders
-    const orderConstraints = useMemo(() => [
-        orderBy("date", "desc"),
-        limit(50)
-    ], []);
+    // Search State
+    const [searchTerm, setSearchTerm] = useState(""); // Input value
+    const [activeSearch, setActiveSearch] = useState(""); // Triggered Server Search
+
+    // SCALABILITY FIX: Dynamic Constraints
+    const orderConstraints = useMemo(() => {
+        if (activeSearch) {
+            // Smart Search Detection
+            const isPhone = /^\d+$/.test(activeSearch.replace(/\s/g, ''));
+            // If it looks like a phone, search phone. Else order number.
+            if (isPhone) {
+                return [where("clientPhone", "==", activeSearch)]; // Exact Phone Match
+            } else {
+                return [where("orderNumber", "==", activeSearch)]; // Exact Order Number Match
+            }
+        }
+        // Default: Recent 50
+        return [orderBy("date", "desc"), limit(50)];
+    }, [activeSearch]);
 
     const { data: orders, loading, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("orders", orderConstraints);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [editingOrder, setEditingOrder] = useState(null);
-    const [qrOrder, setQrOrder] = useState(null); // Order selected for QR display
-    const [searchTerm, setSearchTerm] = useState("");
-    const [selectedOrders, setSelectedOrders] = useState([]); // Selected IDs
+    const [qrOrder, setQrOrder] = useState(null);
+    const [selectedOrders, setSelectedOrders] = useState([]);
     const [showTrash, setShowTrash] = useState(false);
 
     // Filter State
     const [statusFilter, setStatusFilter] = useState("all");
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
+
+    const togglePaid = async (order) => {
+        if (!store?.id) return;
+
+        try {
+            const batch = writeBatch(db);
+            const orderRef = doc(db, "orders", order.id);
+            // Stat path: stores/{storeId}/stats/sales
+            const statsRef = doc(db, "stores", store.id, "stats", "sales");
+
+            const newIsPaid = !order.isPaid;
+            const revenueDelta = (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
+            const costDelta = (parseFloat(order.costPrice) || 0) * (parseInt(order.quantity) || 1);
+            const sign = newIsPaid ? 1 : -1;
+
+            batch.update(orderRef, { isPaid: newIsPaid });
+
+            // Update Stats (Realized Revenue & COGS)
+            batch.set(statsRef, {
+                totals: {
+                    realizedRevenue: increment(revenueDelta * sign),
+                    realizedCOGS: increment(costDelta * sign)
+                }
+            }, { merge: true });
+
+            await batch.commit();
+            toast.success(newIsPaid ? "Payment Marked" : "Payment Cancelled");
+        } catch (err) {
+            console.error("Error toggling paid:", err);
+            toast.error("Failed to update payment status");
+        }
+    };
+
+    // Trigger Search
+    const handleSearch = () => {
+        if (!searchTerm.trim()) {
+            setActiveSearch("");
+            return;
+        }
+        setActiveSearch(searchTerm.trim());
+        toast.loading("Searching database...", { duration: 1000 });
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            handleSearch();
+        }
+    };
+
+    // Clear Search
+    const clearSearch = () => {
+        setSearchTerm("");
+        setActiveSearch("");
+    };
+
+    const handleExportCSV = () => {
+        const dataToExport = orders.map(o => ({
+            'Order #': o.orderNumber,
+            Date: o.date,
+            Client: o.clientName,
+            Phone: o.clientPhone,
+            Status: o.status,
+            Product: o.articleName,
+            Quantity: o.quantity,
+            Price: o.price,
+            Total: o.price ? o.price * o.quantity : 0
+        }));
+        exportToCSV(dataToExport, 'orders');
+    };
 
     const handleSave = async (orderData) => {
         if (editingOrder) {
@@ -77,21 +159,6 @@ export default function Orders() {
         await restoreStoreItem(id);
         setSelectedOrders(prev => prev.filter(oid => oid !== id));
         toast.success("Order restored");
-    };
-
-    const handleExportCSV = () => {
-        const dataToExport = orders.map(o => ({
-            'Order #': o.orderNumber,
-            Date: o.date,
-            Client: o.clientName,
-            Phone: o.clientPhone,
-            Status: o.status,
-            Product: o.articleName,
-            Quantity: o.quantity,
-            Price: o.price,
-            Total: o.price ? o.price * o.quantity : 0
-        }));
-        exportToCSV(dataToExport, 'orders');
     };
 
     const handleImport = async (data) => {
@@ -160,13 +227,21 @@ export default function Orders() {
     const handleBulkStatus = async (status) => {
         if (!window.confirm(`Mark ${selectedOrders.length} orders as ${status}?`)) return;
 
-        // setLoading(true); // Manually toggle loading if possible, or just blocking
         try {
-            await Promise.all(selectedOrders.map(async (id) => {
+            const batch = writeBatch(db);
+            // Stat path: stores/{storeId}/stats/sales
+            const statsRef = doc(db, "stores", store.id, "stats", "sales");
+            let revenueAdjustment = 0;
+            let cogsAdjustment = 0;
+
+            selectedOrders.forEach(id => {
                 const order = orders.find(o => o.id === id);
                 if (!order) return;
 
-                // Stock Automation Logic
+                const orderRef = doc(db, "orders", id);
+                const updates = { status };
+
+                // 1. Stock Logic
                 const isNewStatusInactive = INACTIVE_STATUSES.includes(status);
                 const isOldStatusInactive = INACTIVE_STATUSES.includes(order.status);
 
@@ -174,23 +249,40 @@ export default function Orders() {
                 if (order.articleId && isNewStatusInactive !== isOldStatusInactive) {
                     const productRef = doc(db, "products", order.articleId);
                     const qty = parseInt(order.quantity) || 1;
-
-                    if (isNewStatusInactive) {
-                        // Returning to stock (Order Cancelled/Returned)
-                        await updateDoc(productRef, { stock: increment(qty) });
-                    } else {
-                        // Deducting from stock (Order Reactivated)
-                        await updateDoc(productRef, { stock: increment(-qty) });
-                    }
+                    // If becoming inactive (cancelled/returned), add stock back. Else remove.
+                    const stockChange = isNewStatusInactive ? qty : -qty;
+                    batch.update(productRef, { stock: increment(stockChange) });
                 }
 
-                return updateStoreItem(id, { status });
-            }));
+                // 2. Financial Logic (Optimization for Returns)
+                // If moving TO inactive status (Retour/Annulé) AND it was Paid -> Auto-Unpay & Deduct Revenue
+                if (isNewStatusInactive && order.isPaid) {
+                    updates.isPaid = false;
+                    const revenue = (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
+                    const cogs = (parseFloat(order.costPrice) || 0) * (parseInt(order.quantity) || 1);
+                    revenueAdjustment -= revenue;
+                    cogsAdjustment -= cogs;
+                }
+
+                batch.update(orderRef, updates);
+            });
+
+            // 3. Apply Aggregated Stats Update (One stats write for all orders)
+            if (revenueAdjustment !== 0 || cogsAdjustment !== 0) {
+                batch.set(statsRef, {
+                    totals: {
+                        realizedRevenue: increment(revenueAdjustment),
+                        realizedCOGS: increment(cogsAdjustment)
+                    }
+                }, { merge: true });
+            }
+
+            await batch.commit();
             setSelectedOrders([]);
             toast.success(`Orders marked as ${status}`);
         } catch (err) {
             console.error("Error updating statuses:", err);
-            toast.error("Failed to update some orders.");
+            toast.error("Failed to update orders.");
         }
     };
 
@@ -201,28 +293,31 @@ export default function Orders() {
             case 'annulé': return 'bg-gray-100 text-gray-400 line-through';
             case 'packing': return 'bg-yellow-100 text-yellow-800';
             case 'livraison': return 'bg-blue-100 text-blue-800';
+            case 'reporté': return 'bg-purple-100 text-purple-800';
             default: return 'bg-gray-100 text-gray-800';
         }
     };
 
+    // Filter Logic (Client Side Refinement of Server Results)
     const filteredOrders = orders
         .filter(o => showTrash ? o.deleted : !o.deleted)
-        .filter(o =>
-            statusFilter === 'all' || o.status === statusFilter
-        )
+        .filter(o => statusFilter === 'all' || o.status === statusFilter)
+        .filter(o => !startDate || o.date >= startDate)
+        .filter(o => !endDate || o.date <= endDate)
+        // If Active Search is NOT set, we allow client-side partial filtering of the 50 items
+        // If Active Search IS set, the DB already filtered, but we can still highlight/filter locally if strictly needed.
+        // For consistency, let's keep client filter on top of DB result (e.g. searching 'CMD' might retun nothing if exact match, but searching local list works).
+        // Actually, to avoid confusion:
+        // If activeSearch is set, rely on DB result primarily.
         .filter(o => {
-            if (!startDate) return true;
-            return o.date >= startDate;
-        })
-        .filter(o => {
-            if (!endDate) return true;
-            return o.date <= endDate;
-        })
-        .filter(o =>
-            o.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            o.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            o.clientPhone?.includes(searchTerm)
-        );
+            if (activeSearch) return true; // DB Filtered
+            // Local Filter for the "Recent" list
+            return (
+                o.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                o.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                o.clientPhone?.includes(searchTerm)
+            );
+        });
 
     return (
         <div className="space-y-6">
@@ -275,6 +370,13 @@ export default function Orders() {
                                     >
                                         Mark Returned ({selectedOrders.length})
                                     </Button>
+                                    <Button
+                                        onClick={() => handleBulkStatus('reporté')}
+                                        className="bg-purple-600 hover:bg-purple-700 text-white"
+                                        icon={RotateCcw}
+                                    >
+                                        Mark Reporté ({selectedOrders.length})
+                                    </Button>
                                 </>
                             )}
                             <Button
@@ -310,17 +412,29 @@ export default function Orders() {
 
             {/* Filters */}
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Search className="h-5 w-5 text-gray-400" />
+                <div className="relative flex-1 flex gap-2">
+                    <div className="relative flex-1">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Search className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <input
+                            type="text"
+                            className={`block w-full pl-10 pr-3 py-2 border rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-150 ease-in-out ${activeSearch ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-300'}`}
+                            placeholder="Search Order # or Phone (Exact)..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                        />
                     </div>
-                    <input
-                        type="text"
-                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-150 ease-in-out"
-                        placeholder="Search by Client, Phone or Order #..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
+                    {activeSearch ? (
+                        <Button onClick={clearSearch} variant="secondary" icon={X}>
+                            Clear
+                        </Button>
+                    ) : (
+                        <Button onClick={handleSearch} icon={Search}>
+                            Search
+                        </Button>
+                    )}
                 </div>
 
                 {/* Status Filter */}
@@ -335,6 +449,7 @@ export default function Orders() {
                     <option value="packing">Packing</option>
                     <option value="livraison">Livraison</option>
                     <option value="livré">Livré</option>
+                    <option value="reporté">Reporté</option>
                     <option value="retour">Retour</option>
                     <option value="annulé">Annulé</option>
                 </select>
@@ -378,6 +493,7 @@ export default function Orders() {
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Article</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
@@ -419,6 +535,15 @@ export default function Orders() {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
                                         {order.price ? `${(order.price * order.quantity).toFixed(2)} DH` : '-'}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <button
+                                            onClick={() => togglePaid(order)}
+                                            className={`p-1 rounded-full ${order.isPaid ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}
+                                            title={order.isPaid ? "Mark Unpaid" : "Mark Paid"}
+                                        >
+                                            <DollarSign className="h-5 w-5" />
+                                        </button>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.status)}`}>

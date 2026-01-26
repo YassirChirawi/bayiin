@@ -10,6 +10,7 @@ import { collection, query, where, getDocs, addDoc, updateDoc, doc, increment, g
 import { db } from "../lib/firebase";
 import { useTenant } from "../context/TenantContext";
 import { getWhatsappMessage, getWhatsappLink } from "../utils/whatsappTemplates";
+import { MOROCCAN_CITIES } from "../utils/moroccanCities";
 
 const ORDER_STATUSES = [
     'reçu', 'packing', 'ramassage', 'livraison', 'livré', 'pas de réponse', 'retour', 'annulé'
@@ -62,6 +63,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 price: order.price || "",
                 costPrice: order.costPrice || 0,
                 shippingCost: order.shippingCost || 0,
+                realDeliveryCost: order.realDeliveryCost || 0,
                 status: order.status || "reçu",
                 date: order.date || new Date().toISOString().split('T')[0]
             });
@@ -79,6 +81,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 quantity: 1,
                 price: "",
                 shippingCost: 0,
+                realDeliveryCost: 0,
                 status: "reçu",
                 date: new Date().toISOString().split('T')[0]
             });
@@ -379,13 +382,23 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                     value={formData.clientAddress}
                                     onChange={(e) => setFormData({ ...formData, clientAddress: e.target.value })}
                                 />
-                                <Input
-                                    label="City"
-                                    required
-                                    value={formData.clientCity}
-                                    onChange={(e) => setFormData({ ...formData, clientCity: e.target.value })}
-                                    placeholder="e.g. Casablanca"
-                                />
+                                <div className="space-y-1">
+                                    <label className="block text-sm font-medium text-gray-700">City</label>
+                                    <input
+                                        list="moroccan-cities"
+                                        type="text"
+                                        required
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                        value={formData.clientCity}
+                                        onChange={(e) => setFormData({ ...formData, clientCity: e.target.value })}
+                                        placeholder="e.g. Casablanca"
+                                    />
+                                    <datalist id="moroccan-cities">
+                                        {MOROCCAN_CITIES.map(city => (
+                                            <option key={city} value={city} />
+                                        ))}
+                                    </datalist>
+                                </div>
                             </div>
                         </div>
 
@@ -447,12 +460,22 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                     onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                                 />
                                 <Input
-                                    label="Shipping (DH)"
+                                    label="Shipping (Client Price)"
                                     type="number"
                                     min="0"
                                     step="0.01"
                                     value={formData.shippingCost}
                                     onChange={(e) => setFormData({ ...formData, shippingCost: e.target.value })}
+                                />
+                                <Input
+                                    label="Real Delivery Cost (Charge)"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    className="bg-red-50"
+                                    value={formData.realDeliveryCost}
+                                    onChange={(e) => setFormData({ ...formData, realDeliveryCost: e.target.value })}
+                                    placeholder="e.g. 35"
                                 />
                             </div>
                         </div>
