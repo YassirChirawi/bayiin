@@ -16,9 +16,9 @@ export default function CustomerDetailModal({ isOpen, onClose, customer }) {
     const orderCount = customer.orderCount || 0;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl overflow-hidden my-8">
-                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+        <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto sm:p-6">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl overflow-hidden my-8 md:my-0 relative">
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 sticky top-0 z-10">
                     <h2 className="text-xl font-bold text-gray-900">
                         Customer Profile
                     </h2>
@@ -57,7 +57,7 @@ export default function CustomerDetailModal({ isOpen, onClose, customer }) {
                             Order History
                         </h4>
 
-                        <div className="bg-gray-50 rounded-lg overflow-hidden border border-gray-200">
+                        <div className="bg-gray-50 rounded-lg overflow-x-auto border border-gray-200">
                             {loading ? (
                                 <div className="p-4 text-center text-gray-500">Loading history...</div>
                             ) : customerOrders.length === 0 ? (

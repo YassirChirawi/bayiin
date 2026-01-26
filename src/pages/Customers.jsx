@@ -236,7 +236,7 @@ export default function Customers() {
             </div>
 
             {/* Table */}
-            <div className="bg-white shadow overflow-hidden border-b border-gray-200 sm:rounded-lg overflow-x-auto">
+            <div className="bg-white shadow border-b border-gray-200 sm:rounded-lg overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
