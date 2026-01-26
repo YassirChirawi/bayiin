@@ -10,29 +10,52 @@ export default function BiometricLock({ children }) {
     useEffect(() => {
         const checkLockError = async () => {
             const biometricEnabled = localStorage.getItem('biometricEnabled') === 'true';
+
+            // Check if we have a saved "last active" time
+            const lastActive = localStorage.getItem('lastActive');
+            const now = Date.now();
+            const GRACE_PERIOD = 60 * 1000; // 1 Minute
+
             if (biometricEnabled) {
-                // Determine if we should lock. 
-                // Simple logic: Lock on mount (refresh/open).
-                // Advanced: Lock on background (visibilityChange).
-                setIsLocked(true);
-                // Try to auto-unlock immediately for smooth UX
-                // const success = await verify();
-                // if (success) setIsLocked(false);
-                // Auto-unlock might be annoying if it pops up unexpectedly, better let user tap "Unlock"
+                // If it's a fresh load (no lastActive) OR time diff > 1 min, LOCK.
+                if (!lastActive || (now - parseInt(lastActive)) > GRACE_PERIOD) {
+                    setIsLocked(true);
+                }
             }
         };
         checkLockError();
 
-        // Optional: Re-lock on visibility hidden?
-        const handleVisibilityCode = () => {
-            if (document.hidden && localStorage.getItem('biometricEnabled') === 'true') {
-                // Creating a "grace period" could be checking a timestamp here.
-                // For now, strict security: Hide app content when backgrounded.
-                setIsLocked(true);
+        const handleVisibilityChange = () => {
+            const biometricEnabled = localStorage.getItem('biometricEnabled') === 'true';
+            if (!biometricEnabled) return;
+
+            if (document.hidden) {
+                // App went to background: Save timestamp
+                localStorage.setItem('lastActive', Date.now().toString());
+            } else {
+                // App came to foreground: Check time
+                const lastActive = localStorage.getItem('lastActive');
+                const now = Date.now();
+                const GRACE_PERIOD = 60 * 1000; // 1 Minute
+
+                if (lastActive && (now - parseInt(lastActive)) > GRACE_PERIOD) {
+                    setIsLocked(true);
+                    // Clear timestamp so we don't loop or if they unlock we set a new one? 
+                    // Actually, if we lock, we wait for unlock. 
+                    // Upon unlock (handleUnlock), we should probably reset/update lastActive or just rely on next background event?
+                    // Let's rely on next background event, BUT we must ensure we don't spam lock.
+                    // Once locked, isLocked is true.
+                }
             }
         };
-        document.addEventListener("visibilitychange", handleVisibilityCode);
-        return () => document.removeEventListener("visibilitychange", handleVisibilityCode);
+
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+
+        // Also update timestamp periodically while active? 
+        // No, "backgrounding" is the trigger. 
+        // But what if they close the tab? "checkLockError" handles fresh load.
+
+        return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
 
     }, []);
 
