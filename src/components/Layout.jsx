@@ -1,15 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, Navigate, useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import { useTenant } from "../context/TenantContext";
 import { Loader2, Menu, ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../lib/firebase";
 
 export default function Layout() {
     const { store, loading } = useTenant();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const location = useLocation();
     const navigate = useNavigate();
+    const [announcement, setAnnouncement] = useState(null);
+
+    // Fetch Announcement
+    useEffect(() => {
+        getDoc(doc(db, "system", "announcements")).then(snap => {
+            if (snap.exists() && snap.data().active) {
+                setAnnouncement(snap.data());
+            }
+        });
+    }, []);
 
     if (loading) {
         return (
@@ -60,6 +72,11 @@ export default function Layout() {
             />
 
             <main className="flex-1 overflow-auto h-[calc(100vh-65px)] md:h-screen w-full">
+                {announcement && (
+                    <div className={`w-full px-4 py-3 text-white text-center shadow-sm ${announcement.type === 'warning' ? 'bg-orange-600' : 'bg-indigo-600'}`}>
+                        <p className="font-medium text-sm md:text-base">{announcement.message}</p>
+                    </div>
+                )}
                 <div className="p-4 md:p-8">
                     <AnimatePresence mode="wait">
                         <motion.div

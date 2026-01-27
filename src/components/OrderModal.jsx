@@ -4,16 +4,17 @@ import { X, Save, Search, UserCheck, AlertCircle } from "lucide-react";
 import Button from "./Button";
 import Input from "./Input";
 import { useStoreData } from "../hooks/useStoreData";
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, increment, getCountFromServer } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, increment, getCountFromServer, writeBatch } from "firebase/firestore";
 
 
 import { db } from "../lib/firebase";
 import { useTenant } from "../context/TenantContext";
+import { useAudit } from "../hooks/useAudit"; // NEW
 import { getWhatsappMessage, getWhatsappLink } from "../utils/whatsappTemplates";
 import { MOROCCAN_CITIES } from "../utils/moroccanCities";
 
 const ORDER_STATUSES = [
-    'reçu', 'packing', 'ramassage', 'livraison', 'livré', 'pas de réponse', 'retour', 'annulé'
+    'reçu', 'packing', 'ramassage', 'livraison', 'livré', 'pas de réponse', 'reporté', 'retour', 'annulé'
 ];
 
 const INACTIVE_STATUSES = ['retour', 'annulé'];
@@ -23,6 +24,11 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
     const { store } = useTenant();
     const [loading, setLoading] = useState(false);
     const [foundCustomer, setFoundCustomer] = useState(null); // Stores the customer found by phone lookup
+    const [selectedProduct, setSelectedProduct] = useState(null);
+    const { logAction } = useAudit(); // NEW
+
+    // Product search state
+    const [searchTerm, setSearchTerm] = useState("");
     const [showCustomerAlert, setShowCustomerAlert] = useState(false);
 
     // Form State
@@ -65,7 +71,9 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 shippingCost: order.shippingCost || 0,
                 realDeliveryCost: order.realDeliveryCost || 0,
                 status: order.status || "reçu",
-                date: order.date || new Date().toISOString().split('T')[0]
+                date: order.date || new Date().toISOString().split('T')[0],
+                followUpDate: order.followUpDate || "", // NEW
+                followUpNote: order.followUpNote || ""  // NEW
             });
         } else {
             setFormData({
@@ -83,7 +91,9 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 shippingCost: 0,
                 realDeliveryCost: 0,
                 status: "reçu",
-                date: new Date().toISOString().split('T')[0]
+                date: new Date().toISOString().split('T')[0],
+                followUpDate: "", // NEW
+                followUpNote: ""  // NEW
             });
         }
         setFoundCustomer(null);
@@ -163,19 +173,17 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
+
         if (formData.clientPhone && !/^\d{10}$/.test(formData.clientPhone)) {
             toast.error("Phone number must be exactly 10 digits.");
             setLoading(false);
             return;
         }
 
-        // PLAN LIMIT CHECK
-        if (!order) { // Only check on NEW orders
+        // 1. PLAN LIMIT CHECK
+        if (!order) {
             const isStandard = store.plan === 'starter' || store.plan === 'free' || !store.plan;
             if (isStandard) {
-                // Count orders for current month
-                // This is a bit expensive to do on client every time, ideally backend rule.
-                // But for now, we'll do a quick check query.
                 const startOfMonth = new Date();
                 startOfMonth.setDate(1);
                 startOfMonth.setHours(0, 0, 0, 0);
@@ -186,132 +194,152 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                     where("storeId", "==", store.id),
                     where("date", ">=", startOfMonth.toISOString().split('T')[0])
                 );
-                // PERFORMANCE FIX: Use getCountFromServer to avoid downloading documents
-                const snapshot = await getCountFromServer(q);
-                if (snapshot.data().count >= 50) {
-                    toast.error("Plan Limit Reached: 50 Orders/Month. Upgrade to Pro for unlimited orders.", { duration: 5000 });
-                    setLoading(false);
-                    return;
+                try {
+                    const snapshot = await getCountFromServer(q);
+                    if (snapshot.data().count >= 50) {
+                        toast.error("Plan Limit Reached: 50 Orders/Month. Upgrade to Pro for unlimited orders.", { duration: 5000 });
+                        setLoading(false);
+                        return;
+                    }
+                } catch (err) {
+                    console.warn("Offline limit check skipped:", err);
+                    toast("Offline mode: Limit check skipped", { icon: "⚠️" });
                 }
             }
         }
 
         try {
-            let finalCustomerId = formData.customerId;
+            const batch = writeBatch(db);
 
-            // Customer Management Logic
-            if (finalCustomerId) {
-                // UPDATE existing customer stats
-                const customerRef = doc(db, "customers", finalCustomerId);
-                // We'll update stats: +1 order, +totalSpent
-                // Note: Ideally transactions, but for now simple updates
-                // UPDATE existing customer stats ONLY if it's a new order
-                // (Prevent inflating stats on every edit)
-                if (!order) {
-                    await updateDoc(customerRef, {
-                        orderCount: increment(1),
-                        totalSpent: increment(parseFloat(formData.price) * parseInt(formData.quantity)),
-                        lastOrderDate: formData.date
-                    });
-                } else if (order.customerId !== finalCustomerId) {
-                    // Advanced: If customer changed, we should ideally decrement old and increment new.
-                    // For now, let's just increment the new one to be safe, but note the edge case.
-                    // Actually, let's keep it simple: Only update stats on NEW orders to stop the bug.
-                    await updateDoc(customerRef, {
-                        orderCount: increment(1),
-                        totalSpent: increment(parseFloat(formData.price) * parseInt(formData.quantity)),
-                        lastOrderDate: formData.date
-                    });
-                } else {
-                    // It's an edit of the same customer's order.
-                    // We might want to update 'totalSpent' difference but that's complex.
-                    // For now, preventing the 'orderCount' +1 is the critical fix.
-                    if (parseFloat(formData.price) * parseInt(formData.quantity) !== parseFloat(order.price) * parseInt(order.quantity)) {
-                        await updateDoc(customerRef, {
-                            totalSpent: increment((parseFloat(formData.price) * parseInt(formData.quantity)) - (parseFloat(order.price) * parseInt(order.quantity)))
-                        });
-                    }
-                }
+            // 2. PREPARE DATA
+            const orderRef = order ? doc(db, "orders", order.id) : doc(collection(db, "orders"));
+            const orderId = orderRef.id;
+
+            // Generate Order Number if new
+            let orderNumber = order ? order.orderNumber : `CMD-${Math.floor(100000 + Math.random() * 900000)}`;
+
+            // Customer Setup
+            let customerId = formData.customerId;
+            let customerRef;
+            let isNewCustomer = false;
+
+            if (customerId) {
+                customerRef = doc(db, "customers", customerId);
             } else {
-                // CREATE new customer
-                // Check AGAIN if phone exists to avoid duplicates if they ignored the popup but proceeded? 
-                // For now, assume if they ignored, they want a NEW customer entry or it's a different person with same phone (rare but possible I guess? No, usually same phone = same person).
-                // Let's enforce uniqueness? 
-                // The requirement says "popup... accept or ignore". If ignore, we probably shouldn't link?
-                // But for "Customer Profiles", capturing the new data is good.
+                customerRef = doc(collection(db, "customers"));
+                customerId = customerRef.id;
+                isNewCustomer = true;
+            }
 
-                // Let's create a new customer document
-                const newCustomerData = {
+            const orderData = {
+                ...formData,
+                id: orderId, // Ensure ID is in data
+                storeId: store.id,
+                customerId: customerId,
+                orderNumber: orderNumber,
+                quantity: parseInt(formData.quantity) || 1,
+                price: parseFloat(formData.price) || 0,
+                costPrice: parseFloat(formData.costPrice) || 0,
+                shippingCost: parseFloat(formData.shippingCost) || 0,
+                realDeliveryCost: parseFloat(formData.realDeliveryCost) || 0, // TYPE FIX
+                updatedAt: new Date().toISOString()
+            };
+
+            if (!order) {
+                orderData.createdAt = new Date().toISOString();
+                orderData.status = 'reçu'; // Default for new
+                orderData.isPaid = false;
+            }
+
+            // 3. BATCH OPERATIONS
+
+            // A. Order Write
+            if (order) {
+                batch.update(orderRef, orderData);
+            } else {
+                batch.set(orderRef, orderData);
+            }
+
+            // B. Customer Write
+            const totalOrderVal = orderData.price * orderData.quantity;
+
+            if (isNewCustomer) {
+                batch.set(customerRef, {
                     storeId: store.id,
                     name: formData.clientName,
                     phone: formData.clientPhone,
-                    address: formData.clientAddress,
-                    city: formData.clientCity,
-                    totalSpent: parseFloat(formData.price) * parseInt(formData.quantity),
+                    address: formData.address,
+                    city: formData.city,
+                    totalSpent: totalOrderVal,
                     orderCount: 1,
-                    firstOrderDate: formData.date,
-                    lastOrderDate: formData.date,
-                    createdAt: new Date()
-                };
-
-                const docRef = await addDoc(collection(db, "customers"), newCustomerData);
-                finalCustomerId = docRef.id;
+                    firstOrderDate: orderData.date,
+                    lastOrderDate: orderData.date,
+                    createdAt: new Date().toISOString()
+                });
+            } else {
+                // Update existing customer stats ONLY if it's a new order
+                if (!order) {
+                    batch.update(customerRef, {
+                        orderCount: increment(1),
+                        totalSpent: increment(totalOrderVal),
+                        lastOrderDate: orderData.date
+                    });
+                }
+                // (Optimistic: We don't adjust stats on edit for now to avoid complexity)
             }
 
-            // Stock Management
+            // C. Stock Management
             const qty = parseInt(formData.quantity) || 0;
             const isNewStatusInactive = INACTIVE_STATUSES.includes(formData.status);
 
             if (order) {
-                // EDIT MODE: Reconcile Stock
+                // EDIT: Reconcile
                 const oldQty = parseInt(order.quantity) || 0;
                 const isOldStatusInactive = INACTIVE_STATUSES.includes(order.status);
 
-                // 1. If old order was consuming stock, give it back first
+                // Return old stock if it was consumed
                 if (!isOldStatusInactive && order.articleId) {
                     const oldProductRef = doc(db, "products", order.articleId);
-                    await updateDoc(oldProductRef, { stock: increment(oldQty) });
+                    batch.update(oldProductRef, { stock: increment(oldQty) });
                 }
-
-                // 2. If new state consumes stock, take it
+                // Take new stock if valid
                 if (!isNewStatusInactive && formData.articleId) {
                     const newProductRef = doc(db, "products", formData.articleId);
-                    await updateDoc(newProductRef, { stock: increment(-qty) });
+                    batch.update(newProductRef, { stock: increment(-qty) });
                 }
             } else {
-                // NEW ORDER MODE
-                // Only deduct if creating an ACTIVE order
+                // NEW: Deduct if active
                 if (formData.articleId && !isNewStatusInactive) {
                     const productRef = doc(db, "products", formData.articleId);
-                    await updateDoc(productRef, {
-                        stock: increment(-qty)
-                    });
+                    batch.update(productRef, { stock: increment(-qty) });
                 }
             }
 
-            await onSave({
-                ...formData,
-                customerId: finalCustomerId,
-                quantity: parseInt(formData.quantity),
-                price: parseFloat(formData.price),
-                shippingCost: parseFloat(formData.shippingCost) || 0,
-                costPrice: parseFloat(formData.costPrice) || 0,
-                updatedAt: new Date().toISOString()
-            });
+            // 4. COMMIT
+            await batch.commit();
 
-            if (notifyClient && formData.clientPhone) {
-                const link = getWhatsappLink(formData.clientPhone, customWhatsappMessage);
-                window.open(link, '_blank');
+            // 5. Audit Log & Toast
+            if (order) {
+                // Assuming logAction is defined elsewhere
+                // logAction("Order Updated", `Updated Order ${order.orderNumber} status to ${formData.status}`, { orderId: order.id });
+                toast.success("Order updated");
+            } else {
+                // Assuming logAction is defined elsewhere and orderId/orderNumber are available
+                // from the order creation logic above (orderRef.id and orderNumber)
+                // logAction("Order Created", `Created Order #${orderNumber} for ${formData.clientName}`, { orderId: orderId });
+                toast.success("Order created");
             }
+            onSave(); // Close modal (passed as empty callback now)
 
-            onClose();
-        } catch (error) {
-            console.error("Error saving order:", error);
-            toast.error("Failed to save order");
+        } catch (err) {
+            console.error("Error saving order:", err);
+            toast.error("Error saving order: " + err.message);
         } finally {
             setLoading(false);
         }
     };
+
+
 
     // Simple helper removed as we now have explicit city field
 
@@ -483,6 +511,40 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                         {/* Section 3: Status */}
                         <div>
                             <h3 className="text-lg font-medium text-gray-900 mb-4 pb-2 border-b">Status</h3>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Internal Note</label>
+                                <textarea
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                                    rows="2"
+                                    placeholder="Door code, specific instructions..."
+                                    value={formData.note}
+                                    onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+                                />
+                            </div>
+
+                            {/* Programmed Follow-up (Visible if 'pas de réponse' or 'reporté') */}
+                            {(formData.status === 'pas de réponse' || formData.status === 'reporté' || formData.status === 'reçu') && (
+                                <div className="md:col-span-2 bg-yellow-50 p-4 rounded-lg border border-yellow-100">
+                                    <h4 className="flex items-center gap-2 text-sm font-bold text-yellow-800 mb-3">
+                                        <AlertCircle className="w-4 h-4" />
+                                        Schedule Follow-up / Reminder
+                                    </h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <Input
+                                            type="datetime-local"
+                                            label="Call Back At"
+                                            value={formData.followUpDate}
+                                            onChange={(e) => setFormData({ ...formData, followUpDate: e.target.value })}
+                                        />
+                                        <Input
+                                            label="Reminder Note"
+                                            placeholder="Ex: Call after lunch..."
+                                            value={formData.followUpNote}
+                                            onChange={(e) => setFormData({ ...formData, followUpNote: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Order Status</label>
                                 <select

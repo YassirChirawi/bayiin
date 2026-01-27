@@ -1,6 +1,8 @@
 import { useState, useMemo } from "react";
 import { useStoreData } from "../hooks/useStoreData";
 import { useStoreStats } from "../hooks/useStoreStats"; // New hook
+import { useTenant } from "../context/TenantContext"; // NEW
+import { Navigate } from "react-router-dom"; // NEW
 import { DollarSign, TrendingUp, CreditCard, Activity, Plus, Trash2 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import Button from "../components/Button";
@@ -9,6 +11,12 @@ import { format, isSameDay, isSameWeek, isSameMonth, parseISO, startOfMonth, sub
 import { where } from "firebase/firestore";
 
 export default function Finances() {
+    const { store } = useTenant();
+    // Security: Redirect Staff
+    if (store?.role === 'staff') {
+        return <Navigate to="/dashboard" replace />;
+    }
+
     // 1. Scalable Aggregated Stats (Realized Revenue, Totals, Daily History)
     const { stats: aggregatedStats, loading: loadingStats } = useStoreStats();
 
@@ -52,7 +60,9 @@ export default function Finances() {
             roas: "0.00",
             cac: "0.00",
             shippingRatio: "0.0",
-            profitPerOrder: "0.00"
+            profitPerOrder: "0.00",
+            deliveredRevenue: 0, // Fix undefined crash
+            realizedRevenue: 0 // Fix undefined crash
         };
 
         if (!aggregatedStats) return res;
@@ -61,7 +71,8 @@ export default function Finances() {
         const statusCounts = aggregatedStats.statusCounts || {};
 
         // 1. Realized Revenue & COGS (Server-side)
-        res.realizedRevenue = aggregatedStats.totals?.realizedRevenue || 0;
+        res.realizedRevenue = aggregatedStats.totals?.realizedRevenue || 0; // Tracks PAID ($)
+        res.deliveredRevenue = aggregatedStats.totals?.deliveredRevenue || 0; // Tracks LIVRÉ
         res.totalCOGS = aggregatedStats.totals?.realizedCOGS || 0;
         const totalRealDelivery = aggregatedStats.totals?.realizedDeliveryCost || 0;
         res.totalOrders = aggregatedStats.totals?.count || 0;
@@ -239,79 +250,71 @@ export default function Finances() {
 
             {/* KPI Cards */}
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100">
-                    <div className="p-5">
-                        <div className="flex items-center">
-                            <div className="flex-shrink-0">
-                                <DollarSign className="h-6 w-6 text-green-500" />
+
+                {/* 1. Total Income (LIVRÉ) */}
+                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                    <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                            <div className="flex items-center justify-center h-12 w-12 rounded-md bg-indigo-100 text-indigo-600">
+                                <TrendingUp className="h-6 w-6" />
                             </div>
-                            <div className="ml-5 w-0 flex-1">
-                                <dl>
-                                    <dt className="text-sm font-medium text-gray-500 truncate">Total Income (Livré)</dt>
-                                    <dd>
-                                        <div className="text-lg font-medium text-gray-900">{Math.max(0, stats.realizedRevenue).toFixed(2)} DH</div>
-                                        <div className="text-xs text-yellow-600 mt-1">
-                                            {loadingStats ? "..." : (Math.max(0, stats.pendingRevenue).toFixed(2) || "0.00")} DH (Pending)
-                                        </div>
-                                    </dd>
-                                </dl>
-                            </div>
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt className="text-sm font-medium text-gray-500 truncate">Total Income (Livré)</dt>
+                                <dd className="text-2xl font-semibold text-gray-900">{stats.deliveredRevenue.toLocaleString()} DH</dd>
+                            </dl>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100">
-                    <div className="p-5">
-                        <div className="flex items-center">
-                            <div className="flex-shrink-0">
-                                <TrendingUp className="h-6 w-6 text-indigo-400" />
+                {/* 2. Total Paid (CASH) */}
+                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                    <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                            <div className="flex items-center justify-center h-12 w-12 rounded-md bg-green-100 text-green-600">
+                                <DollarSign className="h-6 w-6" />
                             </div>
-                            <div className="ml-5 w-0 flex-1">
-                                <dl>
-                                    <dt className="text-sm font-medium text-gray-500 truncate">Net Profit (Margin: {stats.margin}%)</dt>
-                                    <dd>
-                                        <div className={`text-lg font-medium ${stats.netResult >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                            {stats.netResult.toFixed(2)} DH
-                                        </div>
-                                    </dd>
-                                </dl>
-                            </div>
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt className="text-sm font-medium text-gray-500 truncate">Total Paid ($)</dt>
+                                <dd className="text-2xl font-semibold text-gray-900">{stats.realizedRevenue.toLocaleString()} DH</dd>
+                            </dl>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100">
-                    <div className="p-5">
-                        <div className="flex items-center">
-                            <div className="flex-shrink-0">
-                                <CreditCard className="h-6 w-6 text-red-400" />
+                {/* 3. Net Profit */}
+                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                    <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                            <div className="flex items-center justify-center h-12 w-12 rounded-md bg-purple-100 text-purple-600">
+                                <Activity className="h-6 w-6" />
                             </div>
-                            <div className="ml-5 w-0 flex-1">
-                                <dl>
-                                    <dt className="text-sm font-medium text-gray-500 truncate">Costs (COGS + Delivery + Exp)</dt>
-                                    <dd>
-                                        <div className="text-lg font-medium text-gray-900">{(stats.totalExpenses + stats.totalCOGS + stats.totalRealDelivery).toFixed(2)} DH</div>
-                                    </dd>
-                                </dl>
-                            </div>
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt className="text-sm font-medium text-gray-500 truncate">Net Profit (Cash)</dt>
+                                <dd className="text-2xl font-semibold text-gray-900">{stats.netResult.toLocaleString()} DH</dd>
+                            </dl>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100">
-                    <div className="p-5">
-                        <div className="flex items-center">
-                            <div className="flex-shrink-0">
-                                <Activity className="h-6 w-6 text-yellow-500" />
+                {/* 4. Net Margin */}
+                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                    <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                            <div className="flex items-center justify-center h-12 w-12 rounded-md bg-yellow-100 text-yellow-600">
+                                <CreditCard className="h-6 w-6" />
                             </div>
-                            <div className="ml-5 w-0 flex-1">
-                                <dl>
-                                    <dt className="text-sm font-medium text-gray-500 truncate">Active Orders</dt>
-                                    <dd>
-                                        <div className="text-lg font-medium text-gray-900">{stats.activeOrdersCount}</div>
-                                    </dd>
-                                </dl>
-                            </div>
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt className="text-sm font-medium text-gray-500 truncate">Net Margin</dt>
+                                <dd className="text-2xl font-semibold text-gray-900">{stats.margin}%</dd>
+                            </dl>
                         </div>
                     </div>
                 </div>

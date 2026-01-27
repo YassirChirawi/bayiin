@@ -50,81 +50,79 @@ service cloud.firestore {
        return data.storeId == getUserData().storeId &&
               isNumber(data.price) && data.price >= 0 &&
               isNumber(data.quantity) && data.quantity > 0 &&
-              ("status" in data == false || data.status in ['reçu', 'confirmation', 'packing', 'ramassage', 'livraison', 'reporté', 'livré', 'retour', 'annulé']) &&
+              ("status" in data == false || data.status in ['reçu', 'confirmation', 'packing', 'ramassage', 'livraison', 'reporté', 'livré', 'retour', 'annulé', 'pas de réponse']) &&
               (!("isPaid" in data) || data.isPaid is bool) &&
               (!("realDeliveryCost" in data) || (isNumber(data.realDeliveryCost) && data.realDeliveryCost >= 0));
     }
 
+    // Check if user is Super Admin
+    function isSuperAdmin() {
+      return getUserData().role == 'super_admin';
+    }
+
     // --- RULES ---
 
-    // Users collection: Users can read/write their own profile
+    // Users collection
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && (request.auth.uid == userId || isSuperAdmin());
     }
 
     // Stores collection
     match /stores/{storeId} {
-      // Create: Anyone auth'd can create a store (Signup)
       allow create: if request.auth != null;
+      allow update: if request.auth != null && ((belongsToStore(storeId) && isValidStoreUpdate(request.resource.data)) || isSuperAdmin());
+      allow read: if request.auth != null && (belongsToStore(storeId) || isSuperAdmin());
+      allow delete: if request.auth != null && isSuperAdmin();
       
-      // Update: Only if it's THEIR store using 'belongsToStore'
-      allow update: if request.auth != null && belongsToStore(storeId) && isValidStoreUpdate(request.resource.data);
-      
-      // Read: Only if it's THEIR store
-      allow read: if request.auth != null && belongsToStore(storeId);
-      
-      // Stats Subcollection (Read-Only for Client)
       match /stats/{statId} {
-         allow read: if request.auth != null && belongsToStore(storeId);
-         allow write: if request.auth != null && belongsToStore(storeId);
+         allow read, write: if request.auth != null && (belongsToStore(storeId) || isSuperAdmin());
+      }
+      match /audit_logs/{logId} {
+         allow read, create: if request.auth != null && (belongsToStore(storeId) || isSuperAdmin());
       }
     }
 
     // Products
     match /products/{productId} {
-       allow read: if request.auth != null && resource.data.storeId == getUserData().storeId;
-       allow create: if request.auth != null && isValidProduct(request.resource.data);
-       allow update: if request.auth != null && resource.data.storeId == getUserData().storeId && isValidProduct(request.resource.data);
-       allow delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
+       allow read: if request.auth != null && (resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow create: if request.auth != null && (request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow update, delete: if request.auth != null && (resource.data.storeId == getUserData().storeId || isSuperAdmin());
     }
     
     // Orders
     match /orders/{orderId} {
-       allow read: if request.auth != null && resource.data.storeId == getUserData().storeId;
-       allow create: if request.auth != null && isValidOrder(request.resource.data);
-       allow update: if request.auth != null && resource.data.storeId == getUserData().storeId && isValidOrder(request.resource.data);
-       allow delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
+       allow read: if request.auth != null && (resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow create: if request.auth != null && (request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow update, delete: if request.auth != null && (resource.data.storeId == getUserData().storeId || isSuperAdmin());
     }
 
     // Expenses
     match /expenses/{expenseId} {
-       allow read: if request.auth != null && resource.data.storeId == getUserData().storeId;
-       allow create: if request.auth != null && 
-                     request.resource.data.storeId == getUserData().storeId &&
-                     isNumber(request.resource.data.amount);
-       allow update, delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
+       allow read, write: if request.auth != null && (resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow create: if request.auth != null && (request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
     }
 
     // Customers
     match /customers/{customerId} {
-       allow read: if request.auth != null && resource.data.storeId == getUserData().storeId;
-       allow create: if request.auth != null && request.resource.data.storeId == getUserData().storeId;
-       allow update, delete: if request.auth != null && resource.data.storeId == getUserData().storeId;
+       allow read, write: if request.auth != null && (resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow create: if request.auth != null && (request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
     }
 
     // Team Management
     match /allowed_users/{userId} {
        allow read: if request.auth != null && resource.data.email == request.auth.token.email;
-       allow read: if request.auth != null && belongsToStore(resource.data.storeId);
-       
-       // Only the store owner should invite? Or anyone in the store? Assuming Store Owner logic elsewhere, but generally safer:
-       allow create, delete: if request.auth != null && belongsToStore(request.resource.data.storeId); 
+       allow read, write: if request.auth != null && (belongsToStore(resource.data.storeId) || isSuperAdmin());
     }
 
-    // Public Leads / Waiting List (Strictly Create Only)
+    // Public Leads
     match /leads/{leadId} {
-       allow create: if true; // Public can create
-       allow read, update, delete: if false; // No one can read/edit via Client SDK
+       allow create: if true;
+       allow read: if request.auth != null && (belongsToStore(resource.data.storeId) || isSuperAdmin());
+    }
+    // System Announcements
+    match /system/announcements {
+        allow read: if true;
+        allow write: if request.auth != null && isSuperAdmin();
     }
   }
 }

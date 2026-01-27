@@ -17,6 +17,7 @@
     "@stripe/stripe-js": "^8.6.3",
     "autoprefixer": "^10.4.23",
     "date-fns": "^4.1.0",
+    "driver.js": "^1.4.0",
     "firebase": "^11.1.0",
     "framer-motion": "^12.27.0",
     "jspdf": "^4.0.0",

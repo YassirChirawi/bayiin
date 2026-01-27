@@ -1,14 +1,17 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { useTenant } from "../context/TenantContext";
+import { useAuth } from "../context/AuthContext"; // Import useAuth
 import { db } from "../lib/firebase";
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc } from "firebase/firestore";
+import { Navigate } from "react-router-dom"; // Import Navigate
 import Button from "../components/Button";
 import Input from "../components/Input";
 import { UserPlus, Trash2, Shield, User } from "lucide-react";
 
 export default function Team() {
     const { store } = useTenant();
+    const { user } = useAuth(); // Get current user
     const [members, setMembers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [inviteEmail, setInviteEmail] = useState("");
@@ -19,6 +22,11 @@ export default function Team() {
     useEffect(() => {
         if (store) fetchMembers();
     }, [store]);
+
+    // Security: Redirect Staff
+    if (store?.role === 'staff') {
+        return <Navigate to="/dashboard" replace />;
+    }
 
     const fetchMembers = async () => {
         try {
@@ -76,7 +84,11 @@ export default function Team() {
         }
     };
 
-    const handleRemove = async (id) => {
+    const handleRemove = async (id, memberEmail) => {
+        if (memberEmail === user?.email) {
+            toast.error("You cannot remove yourself.");
+            return;
+        }
         if (!window.confirm("Are you sure? This user will lose access.")) return;
         try {
             await deleteDoc(doc(db, "allowed_users", id));
@@ -169,7 +181,7 @@ export default function Team() {
                                     </span>
                                 </div>
                                 <button
-                                    onClick={() => handleRemove(member.id)}
+                                    onClick={() => handleRemove(member.id, member.email)}
                                     className="text-gray-400 hover:text-red-600 transition-colors"
                                     title="Remove Access"
                                 >

@@ -9,11 +9,13 @@ import { exportToCSV } from "../utils/csvHelper";
 import { orderBy, limit } from "firebase/firestore";
 
 export default function Products() {
+    const [limitCount, setLimitCount] = useState(50);
+
     // Limit to 50 products for performance
     const productConstraints = useMemo(() => [
         orderBy("createdAt", "desc"),
-        limit(50)
-    ], []);
+        limit(limitCount)
+    ], [limitCount]);
 
     const { data: products, loading, error, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("products", productConstraints);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -21,6 +23,7 @@ export default function Products() {
     const [editingProduct, setEditingProduct] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [showTrash, setShowTrash] = useState(false);
+
 
     const handleSave = async (productData) => {
         if (editingProduct) {
@@ -288,6 +291,17 @@ export default function Products() {
                     </ul>
                 </div>
             )}
+
+            {/* Pagination / Load More */}
+            <div className="mt-4 flex justify-center">
+                <Button
+                    variant="secondary"
+                    onClick={() => setLimitCount(prev => prev + 50)}
+                    disabled={loading || products.length < limitCount}
+                >
+                    {loading ? "Loading..." : "Load More"}
+                </Button>
+            </div>
 
             <ProductModal
                 isOpen={isModalOpen}

@@ -16,11 +16,20 @@ export default function Dashboard() {
     // 1. SCALABLE STATS (Server-Side Aggregation)
     const { stats: aggregatedStats, loading: statsLoading } = useStoreStats();
 
-    // 2. Recent Orders (Only fetch 20 for the table, NOT 500 for stats)
+    // 2. Recent Orders (Only fetch 20)
     const recentOrdersConstraints = useMemo(() => [orderBy("date", "desc"), limit(20)], []);
     const { data: recentOrders, loading: ordersLoading } = useStoreData("orders", recentOrdersConstraints);
 
-    // 3. Low Stock (Alerts only)
+    // 3. Programmed / Follow-up Orders (Fetch orders with a follow-up date)
+    // Note: In a real app, we'd filter by date <= today. For now, we fetch recent 10 active follow-ups.
+    const tasksConstraints = useMemo(() => [
+        where("followUpDate", ">", ""),
+        orderBy("followUpDate", "asc"),
+        limit(10)
+    ], []);
+    const { data: tasks, loading: loadingTasks } = useStoreData("orders", tasksConstraints);
+
+    // 4. Low Stock (Alerts only)
     const lowStockConstraints = useMemo(() => [where("stock", "<", 5), limit(20)], []);
     const { data: lowStockProducts } = useStoreData("products", lowStockConstraints);
 
@@ -42,7 +51,7 @@ export default function Dashboard() {
 
         // Pending Orders (Reçu + Packing)
         const sCounts = aggregatedStats.statusCounts || {};
-        const pendingOrders = (sCounts['reçu'] || 0) + (sCounts['packing'] || 0) + (sCounts['confirmation'] || 0);
+        const pendingOrders = (sCounts['reçu'] || 0) + (sCounts['packing'] || 0) + (sCounts['confirmation'] || 0) + (sCounts['livraison'] || 0) + (sCounts['ramassage'] || 0);
 
         // Return Rate
         const totalCount = aggregatedStats.totals?.count || 1;
@@ -203,140 +212,145 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* CHARTS SECTION */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Sales Trend Chart */}
-                <div className="lg:col-span-2 bg-white shadow rounded-lg border border-gray-100 p-6">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Sales Trend (Last 7 Days)</h3>
-                    <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={dashboardData.salesTrend}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} />
-                                <Tooltip
-                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                />
-                                <Line
-                                    type="monotone"
-                                    dataKey="revenue"
-                                    stroke="#4F46E5"
-                                    strokeWidth={3}
-                                    dot={{ r: 4, fill: '#4F46E5', strokeWidth: 2, stroke: '#fff' }}
-                                    activeDot={{ r: 6 }}
-                                />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
+            {/* Dashboard 2-column Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                {/* Status Distribution */}
-                <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Order Statuses</h3>
-                    <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={dashboardData.statusDistribution}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={80}
-                                    fill="#8884d8"
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {dashboardData.statusDistribution.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip />
-                                <Legend />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Recent Orders */}
-                <div className="lg:col-span-2">
-                    <div className="bg-white shadow rounded-lg border border-gray-100">
-                        <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center">
-                            <h3 className="text-lg font-medium text-gray-900">Recent Orders</h3>
-                            <Link to="/orders" className="text-sm text-indigo-600 hover:text-indigo-900 flex items-center">
-                                View all <ExternalLink className="ml-1 h-3 w-3" />
-                            </Link>
-                        </div>
-                        <div className="overflow-x-auto">
-                            {ordersLoading ? (
-                                <div className="p-4 text-center">Loading...</div>
-                            ) : recentOrders.length === 0 ? (
-                                <div className="p-8 text-center text-gray-500">No orders yet.</div>
+                {/* Left Column (Charts & Tasks) */}
+                <div className="lg:col-span-2 space-y-6">
+                    {/* Sales Trend Chart */}
+                    <div className="bg-white p-6 rounded-lg shadow border border-gray-100">
+                        <h3 className="text-lg font-bold text-gray-900 mb-4">Sales Trend (Last 7 Days)</h3>
+                        <div className="h-[300px] w-full">
+                            {dashboardData.salesTrend.length > 0 ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={dashboardData.salesTrend}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} tickFormatter={(val) => `${val} DH`} />
+                                        <Tooltip
+                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                            formatter={(value) => [`${value} DH`, 'Revenue']}
+                                        />
+                                        <Line
+                                            type="monotone"
+                                            dataKey="revenue"
+                                            stroke="#4F46E5"
+                                            strokeWidth={3}
+                                            dot={{ r: 4, fill: '#4F46E5', strokeWidth: 2, stroke: '#fff' }}
+                                            activeDot={{ r: 6 }}
+                                        />
+                                    </LineChart>
+                                </ResponsiveContainer>
                             ) : (
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order #</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                        {recentOrders.map((order) => (
-                                            <tr key={order.id}>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                                    #{order.orderNumber}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                                    ${order.status === 'livré' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                                        {order.status}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500">
-                                                    {((parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1)).toFixed(2)} DH
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                                    <AlertTriangle className="h-8 w-8 mb-2 opacity-50" />
+                                    <p>No sales data recorded yet</p>
+                                </div>
                             )}
                         </div>
                     </div>
+
+                    {/* Pending Tasks (Follow-ups) Widget */}
+                    <div className="bg-white p-6 rounded-lg shadow border border-yellow-100">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                <CheckCircle className="h-5 w-5 text-yellow-600" />
+                                To-Do List (Follow-ups)
+                            </h3>
+                            <Link to="/orders" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">View All</Link>
+                        </div>
+
+                        {tasks.length === 0 ? (
+                            <p className="text-sm text-gray-500 italic py-4">No pending calls or tasks.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {tasks.map(task => (
+                                    <div key={task.id} className="flex items-start justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                                        <div>
+                                            <p className="font-semibold text-gray-900 text-sm">{task.clientName}</p>
+                                            <p className="text-xs text-yellow-800 mt-1">
+                                                {task.followUpNote || "No note"}
+                                            </p>
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                Phone: <a href={`tel:${task.clientPhone}`} className="hover:underline">{task.clientPhone}</a>
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-white text-gray-800 border border-gray-200 shadow-sm">
+                                                {task.followUpDate ? format(new Date(task.followUpDate), 'MMM dd, HH:mm') : 'Asap'}
+                                            </span>
+                                            <Link to={`/orders?search=${task.orderNumber}`} className="block mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                                                Open Order &rarr;
+                                            </Link>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                {/* Functional Tips */}
-                <div className="lg:col-span-1">
-                    <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-lg shadow-lg text-white p-6">
-                        <div className="flex items-center gap-2 mb-4">
-                            <Lightbulb className="h-6 w-6 text-yellow-300" />
-                            <h3 className="text-lg font-bold">Pro Functional Tips</h3>
+                {/* Right Column (Pie Chart & Orders) */}
+                <div className="lg:col-span-1 space-y-6">
+                    {/* Status Breakdown (Pie Chart) */}
+                    <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4">Order Statuses</h3>
+                        <div className="h-[300px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={dashboardData.statusDistribution}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={60}
+                                        outerRadius={80}
+                                        fill="#8884d8"
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                    >
+                                        {dashboardData.statusDistribution.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip />
+                                    <Legend />
+                                </PieChart>
+                            </ResponsiveContainer>
                         </div>
-                        <p className="text-indigo-100 mb-6 text-sm">
-                            Ready to scale? Here are suggested features for your next upgrade:
-                        </p>
+                    </div>
 
-                        <div className="space-y-4">
-                            <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
-                                <h4 className="font-semibold text-sm">📣 Marketing Automation</h4>
-                                <p className="text-xs text-indigo-200 mt-1">
-                                    Send automatic SMS/Emails to customers when status changes to 'Delivered'.
-                                </p>
+                    {/* Functional Tips */}
+                    <div className="lg:col-span-1">
+                        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-lg shadow-lg text-white p-6">
+                            <div className="flex items-center gap-2 mb-4">
+                                <Lightbulb className="h-6 w-6 text-yellow-300" />
+                                <h3 className="text-lg font-bold">Pro Functional Tips</h3>
                             </div>
+                            <p className="text-indigo-100 mb-6 text-sm">
+                                Ready to scale? Here are suggested features for your next upgrade:
+                            </p>
 
-                            <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
-                                <h4 className="font-semibold text-sm">🤝 Customer CRM</h4>
-                                <p className="text-xs text-indigo-200 mt-1">
-                                    Track "Top Spenders" and offer them loyalty discounts automatically.
-                                </p>
-                            </div>
+                            <div className="space-y-4">
+                                <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
+                                    <h4 className="font-semibold text-sm">📣 Marketing Automation</h4>
+                                    <p className="text-xs text-indigo-200 mt-1">
+                                        Send automatic SMS/Emails to customers when status changes to 'Delivered'.
+                                    </p>
+                                </div>
 
-                            <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
-                                <h4 className="font-semibold text-sm">📦 Inventory Prediction</h4>
-                                <p className="text-xs text-indigo-200 mt-1">
-                                    Use AI to predict "Out of Stock" dates based on sales velocity.
-                                </p>
+                                <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
+                                    <h4 className="font-semibold text-sm">🤝 Customer CRM</h4>
+                                    <p className="text-xs text-indigo-200 mt-1">
+                                        Track "Top Spenders" and offer them loyalty discounts automatically.
+                                    </p>
+                                </div>
+
+                                <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
+                                    <h4 className="font-semibold text-sm">📦 Inventory Prediction</h4>
+                                    <p className="text-xs text-indigo-200 mt-1">
+                                        Use AI to predict "Out of Stock" dates based on sales velocity.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>

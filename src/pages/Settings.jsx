@@ -1,19 +1,29 @@
 import { useTenant } from "../context/TenantContext";
-import { User, Store, CreditCard, Check, Zap, Shield, Save, Settings as SettingsIcon, Truck, Users, Lock } from "lucide-react";
-import { doc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { User, Store, CreditCard, Check, Zap, Shield, Save, Settings as SettingsIcon, Truck, Users, Lock, Activity } from "lucide-react";
+import { doc, updateDoc, setDoc, collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Button from "../components/Button";
 import { useState, useEffect } from "react";
 import { useImageUpload } from "../hooks/useImageUpload";
 import { useBiometrics } from "../hooks/useBiometrics"; // NEW
 import { toast } from "react-hot-toast";
+import { Navigate } from "react-router-dom"; // Security
+import { format } from "date-fns"; // For Audit Dates
 
 import { PLANS, createCheckoutSession, activateSubscriptionMock } from "../lib/stripeService";
 import { DEFAULT_TEMPLATES, DARIJA_TEMPLATES } from "../utils/whatsappTemplates";
 import ShippingSettings from "./ShippingSettings";
 
+
+
 export default function Settings() {
     const { store, setStore } = useTenant();
+
+    // Security: Redirect Staff
+    if (store?.role === 'staff') {
+        return <Navigate to="/dashboard" replace />;
+    }
+
     const [activeTab, setActiveTab] = useState("general");
     const [loading, setLoading] = useState(null); // 'starter' | 'pro' | null
     const { uploadImage, uploading, error: uploadError } = useImageUpload();
@@ -98,20 +108,111 @@ export default function Settings() {
             await Promise.all(updates);
             toast.success(`Fixed stats for ${updates.length} customers!`);
             setRecalcMsg("");
-        } catch (error) {
-            console.error("Recalculation error:", error);
-            toast.error("Failed to recalculate stats.");
+        } catch (err) {
+            console.error("Recalc Error:", err);
+            toast.error("Failed to recalculate");
+            setRecalcMsg("");
         } finally {
             setLoading(null);
         }
     };
 
+    const handleRecalculateStoreStats = async () => {
+        if (!store?.id) return;
+        if (!window.confirm("⚠️ WARNING: This will RESET your Dashboard Financials based on current active orders. \n\nUse this only if your stats are out of sync.\n\nContinue?")) return;
+
+        setLoading('recalcStore');
+        setRecalcMsg("Resetting Stats...");
+        try {
+            // 1. Fetch ALL Orders
+            const ordersRef = collection(db, "orders");
+            const q = query(ordersRef, where("storeId", "==", store.id));
+            const snapshot = await getDocs(q);
+            const orders = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+
+            // 2. Aggregate
+            let realizedRevenue = 0;
+            let realizedCOGS = 0;
+            let realizedDeliveryCost = 0;
+            let count = 0;
+            const statusCounts = {};
+            const daily = {};
+
+            orders.forEach(o => {
+                if (o.deleted) return; // Skip deleted
+
+                // Status Counts
+                statusCounts[o.status] = (statusCounts[o.status] || 0) + 1;
+                count++;
+
+                // Financials (Paid OR Livré)
+                // FORCE 'livré' to count as revenue to fix legacy data
+                if (o.isPaid || o.status === 'livré') {
+                    const qty = parseInt(o.quantity) || 1;
+                    realizedRevenue += (parseFloat(o.price) || 0) * qty;
+                    realizedCOGS += (parseFloat(o.costPrice) || 0) * qty;
+                    realizedDeliveryCost += parseFloat(o.realDeliveryCost || 0);
+                }
+
+                // Daily Sales (Created Revenue, regardless of Paid status - for Trend)
+                if (o.date) {
+                    const dateKey = o.date; // YYYY-MM-DD
+                    if (!daily[dateKey]) daily[dateKey] = { revenue: 0, count: 0 };
+
+                    const qty = parseInt(o.quantity) || 1;
+                    daily[dateKey].revenue += (parseFloat(o.price) || 0) * qty;
+                    daily[dateKey].count += 1;
+                }
+            });
+
+            // 3. Update Store Stats Document
+            const statsRef = doc(db, "stores", store.id, "stats", "sales");
+            await setDoc(statsRef, {
+                totals: {
+                    count,
+                    realizedRevenue,
+                    realizedCOGS,
+                    realizedDeliveryCost
+                },
+                statusCounts,
+                daily
+            });
+
+            toast.success("Financials Recalculated Successfully!");
+            window.location.reload(); // Refresh to see changes
+        } catch (err) {
+            console.error("Store Recalc Error:", err);
+            toast.error("Failed: " + err.message);
+        } finally {
+            setLoading(null);
+            setRecalcMsg("");
+        }
+    };
+
+    // Audit Log State
+    const [logs, setLogs] = useState([]);
+    useEffect(() => {
+        if (activeTab === 'activity' && store?.id) {
+            const fetchLogs = async () => {
+                const q = query(
+                    collection(db, "stores", store.id, "audit_logs"),
+                    orderBy("timestamp", "desc"),
+                    limit(50)
+                );
+                const snap = await getDocs(q);
+                setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            };
+            fetchLogs();
+        }
+    }, [activeTab, store?.id]);
+
+
     const tabs = [
         { id: "general", label: "General", icon: Store },
         { id: "shipping", label: "Shipping", icon: Truck },
         { id: "billing", label: "Plans & Billing", icon: CreditCard },
-        { id: "security", label: "Security", icon: Shield }, // NEW
-        // { id: "team", label: "Team", icon: Users }, // Future
+        { id: "security", label: "Security", icon: Shield },
+        { id: "activity", label: "Activity Log", icon: Activity }, // NEW
     ];
 
     // Biometric Logic
@@ -187,6 +288,37 @@ export default function Settings() {
 
             {/* Tab Content */}
             <div className="mt-6">
+                {activeTab === "activity" && (
+                    <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
+                        <div className="px-4 py-5 sm:px-6 border-b border-gray-100">
+                            <h3 className="text-lg leading-6 font-medium text-gray-900">Recent Activity</h3>
+                            <p className="mt-1 text-sm text-gray-500">Audit log of system actions.</p>
+                        </div>
+                        <ul className="divide-y divide-gray-200">
+                            {logs.length === 0 ? (
+                                <li className="px-4 py-4 text-sm text-gray-500 text-center">No activity recorded yet.</li>
+                            ) : logs.map((log) => (
+                                <li key={log.id} className="px-4 py-4 sm:px-6 hover:bg-gray-50">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex flex-col">
+                                            <p className="text-sm font-medium text-indigo-600 truncate">{log.action}</p>
+                                            <p className="flex items-center text-sm text-gray-500 cursor-help" title={JSON.stringify(log.metadata || {})}>
+                                                <span className="truncate">{log.details}</span>
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-col items-end">
+                                            <p className="text-xs text-gray-900 font-semibold">{log.user?.name || log.user?.email}</p>
+                                            <p className="text-xs text-gray-500">
+                                                {log.timestamp ? format(log.timestamp.toDate(), 'MMM dd, HH:mm') : '-'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
                 {activeTab === "shipping" && <ShippingSettings />}
 
                 {activeTab === "billing" && (
@@ -540,6 +672,18 @@ export default function Settings() {
                             >
                                 {recalcMsg || "Recalculate Customer Stats"}
                             </Button>
+
+                            <div className="mt-4 pt-4 border-t border-gray-100">
+                                <p className="text-sm text-gray-500 mb-2">Fix Dashboard Data</p>
+                                <Button
+                                    onClick={handleRecalculateStoreStats}
+                                    isLoading={loading === 'recalcStore'}
+                                    variant="secondary"
+                                    className="w-full sm:w-auto text-red-600 border-red-200 hover:bg-red-50"
+                                >
+                                    {loading === 'recalcStore' ? recalcMsg : "Fix Financials"}
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 )}

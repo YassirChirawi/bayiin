@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { toast } from "react-hot-toast";
 import { useStoreData } from "../hooks/useStoreData";
-import { Plus, Edit2, Trash2, QrCode, Search, X, FileText, CheckSquare, Square, Check, Trash, RotateCcw, Upload, Download, MessageCircle, DollarSign } from "lucide-react";
+import { Plus, Edit2, Trash2, QrCode, Search, X, FileText, CheckSquare, Square, Check, Trash, RotateCcw, Upload, Download, MessageCircle, DollarSign, AlertCircle } from "lucide-react";
 import Button from "../components/Button";
 import OrderModal from "../components/OrderModal";
 import ImportModal from "../components/ImportModal";
@@ -21,6 +21,7 @@ export default function Orders() {
     // Search State
     const [searchTerm, setSearchTerm] = useState(""); // Input value
     const [activeSearch, setActiveSearch] = useState(""); // Triggered Server Search
+    const [limitCount, setLimitCount] = useState(50); // Pagination Limit
 
     // SCALABILITY FIX: Dynamic Constraints
     const orderConstraints = useMemo(() => {
@@ -35,7 +36,7 @@ export default function Orders() {
             }
         }
         // Default: Recent 50
-        return [orderBy("date", "desc"), limit(50)];
+        return [orderBy("date", "desc"), limit(limitCount)];
     }, [activeSearch]);
 
     const { data: orders, loading, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("orders", orderConstraints);
@@ -57,21 +58,23 @@ export default function Orders() {
         try {
             const batch = writeBatch(db);
             const orderRef = doc(db, "orders", order.id);
-            // Stat path: stores/{storeId}/stats/sales
             const statsRef = doc(db, "stores", store.id, "stats", "sales");
 
+            // Calculations
             const newIsPaid = !order.isPaid;
-            const revenueDelta = (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
-            const costDelta = (parseFloat(order.costPrice) || 0) * (parseInt(order.quantity) || 1);
+            const revenue = (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
+            const cogs = (parseFloat(order.costPrice) || 0) * (parseInt(order.quantity) || 1);
+            const delivery = parseFloat(order.realDeliveryCost) || 0;
             const sign = newIsPaid ? 1 : -1;
 
             batch.update(orderRef, { isPaid: newIsPaid });
 
-            // Update Stats (Realized Revenue & COGS)
+            // Update Stats
             batch.set(statsRef, {
                 totals: {
-                    realizedRevenue: increment(revenueDelta * sign),
-                    realizedCOGS: increment(costDelta * sign)
+                    realizedRevenue: increment(revenue * sign),
+                    realizedCOGS: increment(cogs * sign),
+                    realizedDeliveryCost: increment(delivery * sign)
                 }
             }, { merge: true });
 
@@ -120,18 +123,10 @@ export default function Orders() {
         exportToCSV(dataToExport, 'orders');
     };
 
-    const handleSave = async (orderData) => {
-        if (editingOrder) {
-            await updateStoreItem(editingOrder.id, orderData);
-            toast.success("Order updated successfully");
-        } else {
-            // Generate a simple Order Number if new
-            const orderNumber = `CMD-${Math.floor(100000 + Math.random() * 900000)}`;
-            await addStoreItem({ ...orderData, orderNumber });
-            toast.success("New order created");
-        }
+    const handleSave = () => {
         setIsModalOpen(false);
         setEditingOrder(null);
+        // Database write is now handled atomicly inside OrderModal
     };
 
     const handleEdit = (order) => {
@@ -229,10 +224,10 @@ export default function Orders() {
 
         try {
             const batch = writeBatch(db);
-            // Stat path: stores/{storeId}/stats/sales
             const statsRef = doc(db, "stores", store.id, "stats", "sales");
             let revenueAdjustment = 0;
             let cogsAdjustment = 0;
+            let deliveryAdjustment = 0;
 
             selectedOrders.forEach(id => {
                 const order = orders.find(o => o.id === id);
@@ -245,34 +240,44 @@ export default function Orders() {
                 const isNewStatusInactive = INACTIVE_STATUSES.includes(status);
                 const isOldStatusInactive = INACTIVE_STATUSES.includes(order.status);
 
-                // Only act if status "category" changes (Active <-> Inactive) AND we have an articleId
                 if (order.articleId && isNewStatusInactive !== isOldStatusInactive) {
                     const productRef = doc(db, "products", order.articleId);
                     const qty = parseInt(order.quantity) || 1;
-                    // If becoming inactive (cancelled/returned), add stock back. Else remove.
                     const stockChange = isNewStatusInactive ? qty : -qty;
                     batch.update(productRef, { stock: increment(stockChange) });
                 }
 
-                // 2. Financial Logic (Optimization for Returns)
-                // If moving TO inactive status (Retour/Annulé) AND it was Paid -> Auto-Unpay & Deduct Revenue
+                // 2. Financial Logic
+                const revenue = (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
+                const cogs = (parseFloat(order.costPrice) || 0) * (parseInt(order.quantity) || 1);
+                const delivery = parseFloat(order.realDeliveryCost) || 0;
+
+                // Case A: Moving TO Inactive (Refund/Cancel) AND was Paid -> Unpay & Deduct
                 if (isNewStatusInactive && order.isPaid) {
                     updates.isPaid = false;
-                    const revenue = (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
-                    const cogs = (parseFloat(order.costPrice) || 0) * (parseInt(order.quantity) || 1);
                     revenueAdjustment -= revenue;
                     cogsAdjustment -= cogs;
+                    deliveryAdjustment -= delivery;
+                }
+
+                // Case B: Moving TO 'Livré' (Delivered) AND not Paid -> Auto-Pay & Add
+                if (status === 'livré' && !order.isPaid) {
+                    updates.isPaid = true;
+                    revenueAdjustment += revenue;
+                    cogsAdjustment += cogs;
+                    deliveryAdjustment += delivery;
                 }
 
                 batch.update(orderRef, updates);
             });
 
-            // 3. Apply Aggregated Stats Update (One stats write for all orders)
-            if (revenueAdjustment !== 0 || cogsAdjustment !== 0) {
+            // 3. Apply Aggregated Stats Update
+            if (revenueAdjustment !== 0 || cogsAdjustment !== 0 || deliveryAdjustment !== 0) {
                 batch.set(statsRef, {
                     totals: {
                         realizedRevenue: increment(revenueAdjustment),
-                        realizedCOGS: increment(cogsAdjustment)
+                        realizedCOGS: increment(cogsAdjustment),
+                        realizedDeliveryCost: increment(deliveryAdjustment)
                     }
                 }, { merge: true });
             }
@@ -357,25 +362,32 @@ export default function Orders() {
                             ) : (
                                 <>
                                     <Button
-                                        onClick={() => handleBulkStatus('livré')}
+                                        onClick={() => handleBulkStatusUpdate('confirmation')}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                                        icon={Check}
+                                    >
+                                        Mark Confirmed
+                                    </Button>
+                                    <Button
+                                        onClick={() => handleBulkStatusUpdate('livré')}
                                         className="bg-green-600 hover:bg-green-700 text-white"
                                         icon={Check}
                                     >
-                                        Mark Delivered ({selectedOrders.length})
+                                        Mark Delivered
                                     </Button>
                                     <Button
-                                        onClick={() => handleBulkStatus('retour')}
+                                        onClick={() => handleBulkStatusUpdate('reporté')}
+                                        className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                                        icon={RotateCcw}
+                                    >
+                                        Mark Reporté
+                                    </Button>
+                                    <Button
+                                        onClick={() => handleBulkStatusUpdate('pas de réponse')}
                                         className="bg-orange-600 hover:bg-orange-700 text-white"
-                                        icon={RotateCcw}
+                                        icon={AlertCircle}
                                     >
-                                        Mark Returned ({selectedOrders.length})
-                                    </Button>
-                                    <Button
-                                        onClick={() => handleBulkStatus('reporté')}
-                                        className="bg-purple-600 hover:bg-purple-700 text-white"
-                                        icon={RotateCcw}
-                                    >
-                                        Mark Reporté ({selectedOrders.length})
+                                        No Answer
                                     </Button>
                                 </>
                             )}
@@ -623,6 +635,17 @@ export default function Orders() {
                         })}
                     </tbody>
                 </table>
+            </div>
+
+            {/* Pagination / Load More */}
+            <div className="mt-4 flex justify-center">
+                <Button
+                    variant="secondary"
+                    onClick={() => setLimitCount(prev => prev + 50)}
+                    disabled={loading || orders.length < limitCount}
+                >
+                    {loading ? "Loading..." : "Load More"}
+                </Button>
             </div>
 
             <OrderModal
