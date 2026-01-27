@@ -1,17 +1,39 @@
 import { useTenant } from "../context/TenantContext";
 import { useStoreData } from "../hooks/useStoreData";
-import { useStoreStats } from "../hooks/useStoreStats"; // NEW HOOK
+import { useStoreStats } from "../hooks/useStoreStats";
 import { Link } from "react-router-dom";
-import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, RotateCcw, CheckCircle } from "lucide-react";
-import { useMemo } from "react";
+import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, RotateCcw, CheckCircle, RefreshCw } from "lucide-react"; // Added RefreshCw
+import { useMemo, useState } from "react"; // Added useState
 import { format, subDays } from "date-fns";
 import { where, limit, orderBy } from "firebase/firestore";
+import { reconcileStoreStats } from "../utils/reconcileStats"; // New Import
+import { db } from "../lib/firebase"; // New Import
+import { toast } from "react-hot-toast"; // Ensure Toast is available
 
 import TrialAlert from "../components/TrialAlert";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 export default function Dashboard() {
     const { store } = useTenant();
+    const [isRecalculating, setIsRecalculating] = useState(false);
+
+    const handleHardRefresh = async () => {
+        if (!store?.id) return;
+        if (isRecalculating) return;
+
+        setIsRecalculating(true);
+        const toastId = toast.loading("Synchonizing data...");
+        try {
+            await reconcileStoreStats(db, store.id);
+            toast.success("Dashboard Updated", { id: toastId });
+            // No need to reload page, the hooks will stream the new data automatically via onSnapshot
+        } catch (err) {
+            console.error(err);
+            toast.error("Sync failed", { id: toastId });
+        } finally {
+            setIsRecalculating(false);
+        }
+    };
 
     // 1. SCALABLE STATS (Server-Side Aggregation)
     const { stats: aggregatedStats, loading: statsLoading } = useStoreStats();
@@ -20,8 +42,7 @@ export default function Dashboard() {
     const recentOrdersConstraints = useMemo(() => [orderBy("date", "desc"), limit(20)], []);
     const { data: recentOrders, loading: ordersLoading } = useStoreData("orders", recentOrdersConstraints);
 
-    // 3. Programmed / Follow-up Orders (Fetch orders with a follow-up date)
-    // Note: In a real app, we'd filter by date <= today. For now, we fetch recent 10 active follow-ups.
+    // 3. Programmed / Follow-up Orders
     const tasksConstraints = useMemo(() => [
         where("followUpDate", ">", ""),
         orderBy("followUpDate", "asc"),
@@ -29,11 +50,11 @@ export default function Dashboard() {
     ], []);
     const { data: tasks, loading: loadingTasks } = useStoreData("orders", tasksConstraints);
 
-    // 4. Low Stock (Alerts only)
+    // 4. Low Stock
     const lowStockConstraints = useMemo(() => [where("stock", "<", 5), limit(20)], []);
     const { data: lowStockProducts } = useStoreData("products", lowStockConstraints);
 
-    // Transform Data for UI
+    // Transform Data
     const dashboardData = useMemo(() => {
         if (!aggregatedStats) return {
             revenueToday: 0,
@@ -46,19 +67,18 @@ export default function Dashboard() {
         const todayStr = new Date().toISOString().split('T')[0];
 
         // Revenue Today
-        // The aggregated doc has 'daily.{date}.revenue'
         const revenueToday = aggregatedStats.daily?.[todayStr]?.revenue || 0;
 
-        // Pending Orders (Reçu + Packing)
+        // Pending Orders (Reçu + Packing + Reporté)
         const sCounts = aggregatedStats.statusCounts || {};
-        const pendingOrders = (sCounts['reçu'] || 0) + (sCounts['packing'] || 0) + (sCounts['confirmation'] || 0) + (sCounts['livraison'] || 0) + (sCounts['ramassage'] || 0);
+        const pendingOrders = (sCounts['reçu'] || 0) + (sCounts['packing'] || 0) + (sCounts['confirmation'] || 0) + (sCounts['livraison'] || 0) + (sCounts['ramassage'] || 0) + (sCounts['reporté'] || 0);
 
         // Return Rate
         const totalCount = aggregatedStats.totals?.count || 1;
         const returnCount = sCounts['retour'] || 0;
         const returnRate = ((returnCount / totalCount) * 100).toFixed(1);
 
-        // Sales Trend (Last 7 Days)
+        // Sales Trend
         const salesTrend = Array.from({ length: 7 }, (_, i) => {
             const d = new Date();
             d.setDate(d.getDate() - i);
@@ -95,44 +115,53 @@ export default function Dashboard() {
         <div className="space-y-8">
             <TrialAlert createdAt={store?.createdAt} plan={store?.plan} />
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                    Welcome back, {store?.name}! 👋
-                </h1>
-                <p className="mt-1 text-sm text-gray-500">
-                    Here's what's happening in your store today.
-                </p>
-
-                {!isLoading && recentOrders.length === 0 && (
-                    <div className="mt-6 bg-white rounded-lg shadow-sm border border-indigo-100 p-6">
-                        <h3 className="text-lg font-medium text-gray-900 mb-4">🚀 Getting Started Checklist</h3>
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-lg border border-indigo-100">
-                                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white font-bold text-sm">1</span>
-                                <div className="flex-1">
-                                    <h4 className="text-sm font-semibold text-gray-900">Customize Store</h4>
-                                    <p className="text-xs text-gray-600">Add your logo and company details in <Link to="/settings" className="text-indigo-600 underline">Settings</Link>.</p>
-                                </div>
-                                <div className="h-6 w-6 text-green-500">{store?.logoUrl ? <CheckCircle className="h-6 w-6" /> : <div className="h-6 w-6 border-2 border-gray-300 rounded-full"></div>}</div>
+            <div className="flex justify-between items-start">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900">
+                        Welcome back, {store?.name}! 👋
+                    </h1>
+                    <p className="mt-1 text-sm text-gray-500">
+                        Here's what's happening in your store today.
+                    </p>
+                </div>
+                <button
+                    onClick={handleHardRefresh}
+                    disabled={isRecalculating}
+                    className={`p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-200 transition-all ${isRecalculating ? 'animate-spin text-indigo-600' : ''}`}
+                    title="Recalculate & Sync Stats"
+                >
+                    <RefreshCw className="h-5 w-5" />
+                </button>
+            </div>
+            {!isLoading && recentOrders.length === 0 && (
+                <div className="mt-6 bg-white rounded-lg shadow-sm border border-indigo-100 p-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">🚀 Getting Started Checklist</h3>
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-lg border border-indigo-100">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white font-bold text-sm">1</span>
+                            <div className="flex-1">
+                                <h4 className="text-sm font-semibold text-gray-900">Customize Store</h4>
+                                <p className="text-xs text-gray-600">Add your logo and company details in <Link to="/settings" className="text-indigo-600 underline">Settings</Link>.</p>
                             </div>
-                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-600 font-bold text-sm">2</span>
-                                <div className="flex-1">
-                                    <h4 className="text-sm font-semibold text-gray-900">Add Products</h4>
-                                    <p className="text-xs text-gray-600">Go to <Link to="/products" className="text-indigo-600 underline">Products</Link> and add your inventory.</p>
-                                </div>
+                            <div className="h-6 w-6 text-green-500">{store?.logoUrl ? <CheckCircle className="h-6 w-6" /> : <div className="h-6 w-6 border-2 border-gray-300 rounded-full"></div>}</div>
+                        </div>
+                        <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-600 font-bold text-sm">2</span>
+                            <div className="flex-1">
+                                <h4 className="text-sm font-semibold text-gray-900">Add Products</h4>
+                                <p className="text-xs text-gray-600">Go to <Link to="/products" className="text-indigo-600 underline">Products</Link> and add your inventory.</p>
                             </div>
-                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-600 font-bold text-sm">3</span>
-                                <div className="flex-1">
-                                    <h4 className="text-sm font-semibold text-gray-900">Create Order</h4>
-                                    <p className="text-xs text-gray-600">Manually create a test order in <Link to="/orders" className="text-indigo-600 underline">Orders</Link> to see stats.</p>
-                                </div>
+                        </div>
+                        <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-600 font-bold text-sm">3</span>
+                            <div className="flex-1">
+                                <h4 className="text-sm font-semibold text-gray-900">Create Order</h4>
+                                <p className="text-xs text-gray-600">Manually create a test order in <Link to="/orders" className="text-indigo-600 underline">Orders</Link> to see stats.</p>
                             </div>
                         </div>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
 
             {/* KPI Grid */}
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -356,6 +385,6 @@ export default function Dashboard() {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

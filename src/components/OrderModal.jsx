@@ -4,31 +4,22 @@ import { X, Save, Search, UserCheck, AlertCircle } from "lucide-react";
 import Button from "./Button";
 import Input from "./Input";
 import { useStoreData } from "../hooks/useStoreData";
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, increment, getCountFromServer, writeBatch } from "firebase/firestore";
-
-
+import { collection, query, where, getDocs, doc } from "firebase/firestore"; // Minimized imports
 import { db } from "../lib/firebase";
 import { useTenant } from "../context/TenantContext";
-import { useAudit } from "../hooks/useAudit"; // NEW
 import { getWhatsappMessage, getWhatsappLink } from "../utils/whatsappTemplates";
 import { MOROCCAN_CITIES } from "../utils/moroccanCities";
-
-const ORDER_STATUSES = [
-    'reçu', 'packing', 'ramassage', 'livraison', 'livré', 'pas de réponse', 'reporté', 'retour', 'annulé'
-];
-
-const INACTIVE_STATUSES = ['retour', 'annulé'];
+import { ORDER_STATUS, ORDER_STATUS_LABELS, PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "../utils/constants";
+import { useOrderActions } from "../hooks/useOrderActions";
 
 export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
-    const { data: products } = useStoreData("products"); // Fetch products for selection
+    const { data: products } = useStoreData("products");
     const { store } = useTenant();
-    const [loading, setLoading] = useState(false);
-    const [foundCustomer, setFoundCustomer] = useState(null); // Stores the customer found by phone lookup
-    const [selectedProduct, setSelectedProduct] = useState(null);
-    const { logAction } = useAudit(); // NEW
 
-    // Product search state
-    const [searchTerm, setSearchTerm] = useState("");
+    // Custom Hook for Logic
+    const { createOrder, updateOrder, loading: actionLoading, error: actionError } = useOrderActions();
+
+    const [foundCustomer, setFoundCustomer] = useState(null);
     const [showCustomerAlert, setShowCustomerAlert] = useState(false);
 
     // Form State
@@ -36,18 +27,24 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
         clientName: "",
         clientPhone: "",
         clientAddress: "",
-        clientCity: "", // New explicit city field
-        customerId: null, // Link to customer document
+        clientCity: "",
+        customerId: null,
         articleId: "",
-        articleName: "", // Denormalized for easier display
+        articleName: "",
         size: "",
         color: "",
         quantity: 1,
         price: "",
-        costPrice: 0, // Snapshot of product cost
+        costPrice: 0,
         shippingCost: 0,
-        status: "reçu",
-        date: new Date().toISOString().split('T')[0]
+        realDeliveryCost: 0,
+        status: ORDER_STATUS.RECEIVED,
+        paymentMethod: PAYMENT_METHODS.COD,
+        isPaid: false,
+        date: new Date().toISOString().split('T')[0],
+        note: "",
+        followUpDate: "",
+        followUpNote: ""
     });
 
     const [notifyClient, setNotifyClient] = useState(false);
@@ -59,7 +56,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 clientName: order.clientName || "",
                 clientPhone: order.clientPhone || "",
                 clientAddress: order.clientAddress || "",
-                clientCity: order.clientCity || order.city || "", // Handle both legacy and new
+                clientCity: order.clientCity || order.city || "",
                 customerId: order.customerId || null,
                 articleId: order.articleId || "",
                 articleName: order.articleName || "",
@@ -70,12 +67,16 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 costPrice: order.costPrice || 0,
                 shippingCost: order.shippingCost || 0,
                 realDeliveryCost: order.realDeliveryCost || 0,
-                status: order.status || "reçu",
+                status: order.status || ORDER_STATUS.RECEIVED,
+                paymentMethod: order.paymentMethod || PAYMENT_METHODS.COD,
+                isPaid: order.isPaid || false,
                 date: order.date || new Date().toISOString().split('T')[0],
-                followUpDate: order.followUpDate || "", // NEW
-                followUpNote: order.followUpNote || ""  // NEW
+                note: order.note || "",
+                followUpDate: order.followUpDate || "",
+                followUpNote: order.followUpNote || ""
             });
         } else {
+            // Reset for New Order
             setFormData({
                 clientName: "",
                 clientPhone: "",
@@ -88,12 +89,16 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 color: "",
                 quantity: 1,
                 price: "",
+                costPrice: 0,
                 shippingCost: 0,
                 realDeliveryCost: 0,
-                status: "reçu",
+                status: ORDER_STATUS.RECEIVED,
+                paymentMethod: PAYMENT_METHODS.COD,
+                isPaid: false,
                 date: new Date().toISOString().split('T')[0],
-                followUpDate: "", // NEW
-                followUpNote: ""  // NEW
+                note: "",
+                followUpDate: "",
+                followUpNote: ""
             });
         }
         setFoundCustomer(null);
@@ -102,33 +107,27 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
         setCustomWhatsappMessage("");
     }, [order, isOpen]);
 
-    // Update custom message when status or client name changes
+    // Whatsapp msg update logic...
     useEffect(() => {
         if (notifyClient) {
             setCustomWhatsappMessage(getWhatsappMessage(formData.status, formData, store));
         }
     }, [formData.status, formData.clientName, formData.price, formData.quantity, formData.shippingCost, notifyClient, store]);
 
-    const handlePhoneBlur = async () => {
-        if (!formData.clientPhone || formData.customerId) return; // Don't check if empty or already linked
 
-        // Query customers collection
+    const handlePhoneBlur = async () => {
+        if (!formData.clientPhone || formData.customerId) return;
         try {
             const customersRef = collection(db, "customers");
-            const q = query(
-                customersRef,
-                where("storeId", "==", store.id),
-                where("phone", "==", formData.clientPhone)
-            );
+            const q = query(customersRef, where("storeId", "==", store.id), where("phone", "==", formData.clientPhone));
             const querySnapshot = await getDocs(q);
-
             if (!querySnapshot.empty) {
                 const customerDoc = querySnapshot.docs[0];
                 setFoundCustomer({ id: customerDoc.id, ...customerDoc.data() });
                 setShowCustomerAlert(true);
             }
         } catch (err) {
-            console.error("Error looking up customer:", err);
+            console.error(err);
         }
     };
 
@@ -138,16 +137,11 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 ...prev,
                 clientName: foundCustomer.name,
                 clientAddress: foundCustomer.address || prev.clientAddress,
-                clientCity: foundCustomer.city || prev.clientCity, // Auto-fill city
+                clientCity: foundCustomer.city || prev.clientCity,
                 customerId: foundCustomer.id
             }));
             setShowCustomerAlert(false);
         }
-    };
-
-    const ignoreCustomerLink = () => {
-        setFoundCustomer(null);
-        setShowCustomerAlert(false);
     };
 
     const handleProductChange = (e) => {
@@ -162,186 +156,54 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 ...prev,
                 articleId: product.id,
                 articleName: product.name,
-                // If price is empty or user hasn't manually edited it much, set it? 
-                // Let's just set it to product price
                 price: product.price,
-                costPrice: product.costPrice || 0 // Snapshot cost
+                costPrice: product.costPrice || 0
             }));
         }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true);
 
         if (formData.clientPhone && !/^\d{10}$/.test(formData.clientPhone)) {
             toast.error("Phone number must be exactly 10 digits.");
-            setLoading(false);
             return;
         }
 
-        // 1. PLAN LIMIT CHECK
-        if (!order) {
-            const isStandard = store.plan === 'starter' || store.plan === 'free' || !store.plan;
-            if (isStandard) {
-                const startOfMonth = new Date();
-                startOfMonth.setDate(1);
-                startOfMonth.setHours(0, 0, 0, 0);
+        const payload = {
+            ...formData,
+            storeId: store.id,
+            quantity: parseInt(formData.quantity) || 1,
+            price: parseFloat(formData.price) || 0,
+            costPrice: parseFloat(formData.costPrice) || 0,
+            shippingCost: parseFloat(formData.shippingCost) || 0,
+            realDeliveryCost: parseFloat(formData.realDeliveryCost) || 0,
+        };
 
-                const ordersRef = collection(db, "orders");
-                const q = query(
-                    ordersRef,
-                    where("storeId", "==", store.id),
-                    where("date", ">=", startOfMonth.toISOString().split('T')[0])
-                );
-                try {
-                    const snapshot = await getCountFromServer(q);
-                    if (snapshot.data().count >= 50) {
-                        toast.error("Plan Limit Reached: 50 Orders/Month. Upgrade to Pro for unlimited orders.", { duration: 5000 });
-                        setLoading(false);
-                        return;
-                    }
-                } catch (err) {
-                    console.warn("Offline limit check skipped:", err);
-                    toast("Offline mode: Limit check skipped", { icon: "⚠️" });
-                }
-            }
+        let success = false;
+        if (order) {
+            success = await updateOrder(order.id, order, payload);
+            if (success) toast.success("Order updated successfully (Stock Adjusted)");
+        } else {
+            success = await createOrder(payload);
+            if (success) toast.success("Order created successfully (Stock Reserved)");
         }
 
-        try {
-            const batch = writeBatch(db);
-
-            // 2. PREPARE DATA
-            const orderRef = order ? doc(db, "orders", order.id) : doc(collection(db, "orders"));
-            const orderId = orderRef.id;
-
-            // Generate Order Number if new
-            let orderNumber = order ? order.orderNumber : `CMD-${Math.floor(100000 + Math.random() * 900000)}`;
-
-            // Customer Setup
-            let customerId = formData.customerId;
-            let customerRef;
-            let isNewCustomer = false;
-
-            if (customerId) {
-                customerRef = doc(db, "customers", customerId);
-            } else {
-                customerRef = doc(collection(db, "customers"));
-                customerId = customerRef.id;
-                isNewCustomer = true;
+        if (success) {
+            if (notifyClient) {
+                // Generate fresh message to be sure (using latest formData)
+                const message = getWhatsappMessage(formData.status, formData, store);
+                const link = getWhatsappLink(formData.clientPhone, message);
+                window.open(link, '_blank');
             }
 
-            const orderData = {
-                ...formData,
-                id: orderId, // Ensure ID is in data
-                storeId: store.id,
-                customerId: customerId,
-                orderNumber: orderNumber,
-                quantity: parseInt(formData.quantity) || 1,
-                price: parseFloat(formData.price) || 0,
-                costPrice: parseFloat(formData.costPrice) || 0,
-                shippingCost: parseFloat(formData.shippingCost) || 0,
-                realDeliveryCost: parseFloat(formData.realDeliveryCost) || 0, // TYPE FIX
-                updatedAt: new Date().toISOString()
-            };
-
-            if (!order) {
-                orderData.createdAt = new Date().toISOString();
-                orderData.status = 'reçu'; // Default for new
-                orderData.isPaid = false;
-            }
-
-            // 3. BATCH OPERATIONS
-
-            // A. Order Write
-            if (order) {
-                batch.update(orderRef, orderData);
-            } else {
-                batch.set(orderRef, orderData);
-            }
-
-            // B. Customer Write
-            const totalOrderVal = orderData.price * orderData.quantity;
-
-            if (isNewCustomer) {
-                batch.set(customerRef, {
-                    storeId: store.id,
-                    name: formData.clientName,
-                    phone: formData.clientPhone,
-                    address: formData.address,
-                    city: formData.city,
-                    totalSpent: totalOrderVal,
-                    orderCount: 1,
-                    firstOrderDate: orderData.date,
-                    lastOrderDate: orderData.date,
-                    createdAt: new Date().toISOString()
-                });
-            } else {
-                // Update existing customer stats ONLY if it's a new order
-                if (!order) {
-                    batch.update(customerRef, {
-                        orderCount: increment(1),
-                        totalSpent: increment(totalOrderVal),
-                        lastOrderDate: orderData.date
-                    });
-                }
-                // (Optimistic: We don't adjust stats on edit for now to avoid complexity)
-            }
-
-            // C. Stock Management
-            const qty = parseInt(formData.quantity) || 0;
-            const isNewStatusInactive = INACTIVE_STATUSES.includes(formData.status);
-
-            if (order) {
-                // EDIT: Reconcile
-                const oldQty = parseInt(order.quantity) || 0;
-                const isOldStatusInactive = INACTIVE_STATUSES.includes(order.status);
-
-                // Return old stock if it was consumed
-                if (!isOldStatusInactive && order.articleId) {
-                    const oldProductRef = doc(db, "products", order.articleId);
-                    batch.update(oldProductRef, { stock: increment(oldQty) });
-                }
-                // Take new stock if valid
-                if (!isNewStatusInactive && formData.articleId) {
-                    const newProductRef = doc(db, "products", formData.articleId);
-                    batch.update(newProductRef, { stock: increment(-qty) });
-                }
-            } else {
-                // NEW: Deduct if active
-                if (formData.articleId && !isNewStatusInactive) {
-                    const productRef = doc(db, "products", formData.articleId);
-                    batch.update(productRef, { stock: increment(-qty) });
-                }
-            }
-
-            // 4. COMMIT
-            await batch.commit();
-
-            // 5. Audit Log & Toast
-            if (order) {
-                // Assuming logAction is defined elsewhere
-                // logAction("Order Updated", `Updated Order ${order.orderNumber} status to ${formData.status}`, { orderId: order.id });
-                toast.success("Order updated");
-            } else {
-                // Assuming logAction is defined elsewhere and orderId/orderNumber are available
-                // from the order creation logic above (orderRef.id and orderNumber)
-                // logAction("Order Created", `Created Order #${orderNumber} for ${formData.clientName}`, { orderId: orderId });
-                toast.success("Order created");
-            }
-            onSave(); // Close modal (passed as empty callback now)
-
-        } catch (err) {
-            console.error("Error saving order:", err);
-            toast.error("Error saving order: " + err.message);
-        } finally {
-            setLoading(false);
+            onSave();
+            onClose();
+        } else {
+            toast.error("Operation failed. Check stock or logs.");
         }
     };
 
-
-
-    // Simple helper removed as we now have explicit city field
 
     if (!isOpen) return null;
 
@@ -359,242 +221,102 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
 
                 <div className="relative">
                     {showCustomerAlert && foundCustomer && (
-                        <div className="absolute top-0 left-0 right-0 z-10 mx-6 mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg shadow-sm">
-                            <div className="flex items-start gap-3">
-                                <UserCheck className="h-5 w-5 text-indigo-600 mt-0.5" />
-                                <div className="flex-1">
-                                    <h4 className="text-sm font-semibold text-indigo-900">Existing Client Found</h4>
-                                    <p className="text-sm text-indigo-700 mt-1">
-                                        This phone number matches <strong>{foundCustomer.name}</strong>.
-                                    </p>
-                                    <div className="mt-3 flex gap-3">
-                                        <Button size="sm" onClick={confirmCustomerLink}>
-                                            Yes, Link to Client
-                                        </Button>
-                                        <Button size="sm" variant="secondary" onClick={ignoreCustomerLink}>
-                                            Ignore
-                                        </Button>
-                                    </div>
-                                </div>
+                        <div className="mx-6 mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg shadow-sm flex justify-between items-center">
+                            <div>
+                                <h4 className="font-semibold text-indigo-900">Existing Client Found: {foundCustomer.name}</h4>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button size="sm" onClick={confirmCustomerLink}>Link Client</Button>
+                                <Button size="sm" variant="secondary" onClick={() => setShowCustomerAlert(false)}>Ignore</Button>
                             </div>
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit} className="p-6 space-y-8">
-                        {/* Section 1: Client Info */}
-                        <div>
-                            <h3 className="text-lg font-medium text-gray-900 mb-4 pb-2 border-b">Client Information</h3>
+                    <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                        {/* 1. Client Info */}
+                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">Client</h3>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <Input
-                                    label="Phone Number"
-                                    required
-                                    type="tel"
-                                    maxLength={10}
-                                    value={formData.clientPhone}
-                                    onChange={(e) => {
-                                        const val = e.target.value.replace(/\D/g, '');
-                                        setFormData({ ...formData, clientPhone: val });
-                                    }}
-                                    onBlur={handlePhoneBlur}
-                                    placeholder="06XXXXXXXX (10 digits)"
-                                />
-                                <Input
-                                    label="Client Name"
-                                    required
-                                    value={formData.clientName}
-                                    onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
-                                />
-                                <Input
-                                    label="Address"
-                                    required
-                                    value={formData.clientAddress}
-                                    onChange={(e) => setFormData({ ...formData, clientAddress: e.target.value })}
-                                />
+                                <Input label="Phone (06...)" value={formData.clientPhone} onChange={e => setFormData({ ...formData, clientPhone: e.target.value })} onBlur={handlePhoneBlur} required placeholder="0600000000" maxLength={10} />
+                                <Input label="Name" value={formData.clientName} onChange={e => setFormData({ ...formData, clientName: e.target.value })} required />
                                 <div className="space-y-1">
                                     <label className="block text-sm font-medium text-gray-700">City</label>
-                                    <input
-                                        list="moroccan-cities"
-                                        type="text"
-                                        required
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                        value={formData.clientCity}
-                                        onChange={(e) => setFormData({ ...formData, clientCity: e.target.value })}
-                                        placeholder="e.g. Casablanca"
-                                    />
-                                    <datalist id="moroccan-cities">
-                                        {MOROCCAN_CITIES.map(city => (
-                                            <option key={city} value={city} />
-                                        ))}
-                                    </datalist>
+                                    <input list="cities" className="w-full px-3 py-2 border rounded-lg" value={formData.clientCity} onChange={e => setFormData({ ...formData, clientCity: e.target.value })} required placeholder="Select City..." />
+                                    <datalist id="cities">{MOROCCAN_CITIES.map(c => <option key={c} value={c} />)}</datalist>
+                                </div>
+                                <div className="md:col-span-3">
+                                    <Input label="Address" value={formData.clientAddress} onChange={e => setFormData({ ...formData, clientAddress: e.target.value })} required />
                                 </div>
                             </div>
                         </div>
 
-                        {/* Section 2: Order Details */}
-                        <div>
-                            <h3 className="text-lg font-medium text-gray-900 mb-4 pb-2 border-b">Order Details</h3>
+                        {/* 2. Order Details */}
+                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">Product & Price</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Article (Product)</label>
-                                    <select
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                        value={formData.articleId}
-                                        onChange={handleProductChange}
-                                    >
-                                        <option value="">-- Select Product --</option>
-                                        {products.map(p => (
-                                            <option key={p.id} value={p.id}>{p.name} ({p.stock})</option>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
+                                    <select className="w-full px-3 py-2 border rounded-lg" value={formData.articleId} onChange={handleProductChange}>
+                                        <option value="">-- Select --</option>
+                                        {products.map(p => <option key={p.id} value={p.id}>{p.name} (Stock: {p.stock})</option>)}
+                                    </select>
+                                </div>
+                                <Input label="Date" type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} required />
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <Input label="Qty" type="number" min="1" value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: e.target.value })} required />
+                                <Input label="Price (DH)" type="number" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} required />
+                                <Input label="Shipping (Client)" type="number" value={formData.shippingCost} onChange={e => setFormData({ ...formData, shippingCost: e.target.value })} />
+                                <Input label="Real Cost (Livreur)" type="number" className="bg-red-50" value={formData.realDeliveryCost} onChange={e => setFormData({ ...formData, realDeliveryCost: e.target.value })} />
+                            </div>
+                        </div>
+
+                        {/* 3. Status & Payment (COD) */}
+                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">Status & Payment</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Order Status</label>
+                                    <select className="w-full px-3 py-2 border rounded-lg font-medium" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
+                                        {Object.values(ORDER_STATUS).map(s => (
+                                            <option key={s} value={s}>{ORDER_STATUS_LABELS[s]?.label || s}</option>
                                         ))}
                                     </select>
                                 </div>
-
-                                <Input
-                                    label="Order Date"
-                                    type="date"
-                                    required
-                                    value={formData.date}
-                                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <Input
-                                    label="Size"
-                                    value={formData.size}
-                                    onChange={(e) => setFormData({ ...formData, size: e.target.value })}
-                                    placeholder="e.g. M"
-                                />
-                                <Input
-                                    label="Color"
-                                    value={formData.color}
-                                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                                    placeholder="e.g. Red"
-                                />
-                                <Input
-                                    label="Quantity"
-                                    type="number"
-                                    min="1"
-                                    required
-                                    value={formData.quantity}
-                                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                                />
-                                <Input
-                                    label="Price (DH)"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    required
-                                    value={formData.price}
-                                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                                />
-                                <Input
-                                    label="Shipping (Client Price)"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={formData.shippingCost}
-                                    onChange={(e) => setFormData({ ...formData, shippingCost: e.target.value })}
-                                />
-                                <Input
-                                    label="Real Delivery Cost (Charge)"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    className="bg-red-50"
-                                    value={formData.realDeliveryCost}
-                                    onChange={(e) => setFormData({ ...formData, realDeliveryCost: e.target.value })}
-                                    placeholder="e.g. 35"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Section 3: Status */}
-                        <div>
-                            <h3 className="text-lg font-medium text-gray-900 mb-4 pb-2 border-b">Status</h3>
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Internal Note</label>
-                                <textarea
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-                                    rows="2"
-                                    placeholder="Door code, specific instructions..."
-                                    value={formData.note}
-                                    onChange={(e) => setFormData({ ...formData, note: e.target.value })}
-                                />
-                            </div>
-
-                            {/* Programmed Follow-up (Visible if 'pas de réponse' or 'reporté') */}
-                            {(formData.status === 'pas de réponse' || formData.status === 'reporté' || formData.status === 'reçu') && (
-                                <div className="md:col-span-2 bg-yellow-50 p-4 rounded-lg border border-yellow-100">
-                                    <h4 className="flex items-center gap-2 text-sm font-bold text-yellow-800 mb-3">
-                                        <AlertCircle className="w-4 h-4" />
-                                        Schedule Follow-up / Reminder
-                                    </h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <Input
-                                            type="datetime-local"
-                                            label="Call Back At"
-                                            value={formData.followUpDate}
-                                            onChange={(e) => setFormData({ ...formData, followUpDate: e.target.value })}
-                                        />
-                                        <Input
-                                            label="Reminder Note"
-                                            placeholder="Ex: Call after lunch..."
-                                            value={formData.followUpNote}
-                                            onChange={(e) => setFormData({ ...formData, followUpNote: e.target.value })}
-                                        />
-                                    </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                                    <select className="w-full px-3 py-2 border rounded-lg" value={formData.paymentMethod} onChange={e => setFormData({ ...formData, paymentMethod: e.target.value })}>
+                                        {Object.values(PAYMENT_METHODS).map(m => (
+                                            <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>
+                                        ))}
+                                    </select>
                                 </div>
-                            )}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Order Status</label>
-                                <select
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                    value={formData.status}
-                                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                                >
-                                    {ORDER_STATUSES.map(status => (
-                                        <option key={status} value={status}>{status.charAt(0).toUpperCase() + status.slice(1)}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        {/* WhatsApp Notification */}
-                        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                            <div className="flex items-center gap-2 mb-2">
-                                <input
-                                    type="checkbox"
-                                    id="notifyClient"
-                                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                                    checked={notifyClient}
-                                    onChange={(e) => setNotifyClient(e.target.checked)}
-                                />
-                                <label htmlFor="notifyClient" className="text-sm font-medium text-green-900">
-                                    Notify Client via WhatsApp
-                                </label>
-                            </div>
-
-                            {notifyClient && (
-                                <div className="mt-2">
-                                    <label className="block text-xs font-medium text-green-800 mb-1">Message Preview:</label>
-                                    <textarea
-                                        className="w-full px-3 py-2 text-sm border border-green-300 rounded-md focus:ring-green-500 focus:border-green-500"
-                                        rows="2"
-                                        value={customWhatsappMessage}
-                                        onChange={(e) => setCustomWhatsappMessage(e.target.value)}
-                                    ></textarea>
+                                <div className="flex items-end pb-2">
+                                    <label className="flex items-center space-x-2 cursor-pointer">
+                                        <input type="checkbox" className="h-5 w-5 text-emerald-600 rounded focus:ring-emerald-500" checked={formData.isPaid} onChange={e => setFormData({ ...formData, isPaid: e.target.checked })} />
+                                        <span className={`font-bold ${formData.isPaid ? 'text-emerald-700' : 'text-gray-500'}`}>
+                                            {formData.isPaid ? 'PAID (Encaissé)' : 'Unpaid (Non Payé)'}
+                                        </span>
+                                    </label>
                                 </div>
-                            )}
+                            </div>
+
+                            <div className="mt-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Note / Instructions</label>
+                                <textarea className="w-full px-3 py-2 border rounded-lg" rows="2" value={formData.note} onChange={e => setFormData({ ...formData, note: e.target.value })} placeholder="Digicode, instructions..."></textarea>
+                            </div>
                         </div>
 
-
-                        <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                            <Button type="button" variant="secondary" onClick={onClose}>
-                                Cancel
-                            </Button>
-                            <Button type="submit" isLoading={loading} icon={Save}>
-                                Save Order
-                            </Button>
+                        <div className="flex justify-between items-center pt-4 border-t border-gray-100">
+                            <div className="text-sm text-gray-500 italic">
+                                {actionError && <span className="text-red-600 font-bold">Error: {actionError}</span>}
+                            </div>
+                            <div className="flex gap-3">
+                                <Button type="button" variant="secondary" onClick={onClose} disabled={actionLoading}>Cancel</Button>
+                                <Button type="submit" isLoading={actionLoading} icon={Save}>
+                                    {order ? 'Update Order' : 'Create Order'}
+                                </Button>
+                            </div>
                         </div>
                     </form>
                 </div>

@@ -12,6 +12,7 @@ import { format } from "date-fns"; // For Audit Dates
 
 import { PLANS, createCheckoutSession, activateSubscriptionMock } from "../lib/stripeService";
 import { DEFAULT_TEMPLATES, DARIJA_TEMPLATES } from "../utils/whatsappTemplates";
+import { reconcileStoreStats } from "../utils/reconcileStats";
 import ShippingSettings from "./ShippingSettings";
 
 
@@ -124,60 +125,7 @@ export default function Settings() {
         setLoading('recalcStore');
         setRecalcMsg("Resetting Stats...");
         try {
-            // 1. Fetch ALL Orders
-            const ordersRef = collection(db, "orders");
-            const q = query(ordersRef, where("storeId", "==", store.id));
-            const snapshot = await getDocs(q);
-            const orders = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
-
-            // 2. Aggregate
-            let realizedRevenue = 0;
-            let realizedCOGS = 0;
-            let realizedDeliveryCost = 0;
-            let count = 0;
-            const statusCounts = {};
-            const daily = {};
-
-            orders.forEach(o => {
-                if (o.deleted) return; // Skip deleted
-
-                // Status Counts
-                statusCounts[o.status] = (statusCounts[o.status] || 0) + 1;
-                count++;
-
-                // Financials (Paid OR Livré)
-                // FORCE 'livré' to count as revenue to fix legacy data
-                if (o.isPaid || o.status === 'livré') {
-                    const qty = parseInt(o.quantity) || 1;
-                    realizedRevenue += (parseFloat(o.price) || 0) * qty;
-                    realizedCOGS += (parseFloat(o.costPrice) || 0) * qty;
-                    realizedDeliveryCost += parseFloat(o.realDeliveryCost || 0);
-                }
-
-                // Daily Sales (Created Revenue, regardless of Paid status - for Trend)
-                if (o.date) {
-                    const dateKey = o.date; // YYYY-MM-DD
-                    if (!daily[dateKey]) daily[dateKey] = { revenue: 0, count: 0 };
-
-                    const qty = parseInt(o.quantity) || 1;
-                    daily[dateKey].revenue += (parseFloat(o.price) || 0) * qty;
-                    daily[dateKey].count += 1;
-                }
-            });
-
-            // 3. Update Store Stats Document
-            const statsRef = doc(db, "stores", store.id, "stats", "sales");
-            await setDoc(statsRef, {
-                totals: {
-                    count,
-                    realizedRevenue,
-                    realizedCOGS,
-                    realizedDeliveryCost
-                },
-                statusCounts,
-                daily
-            });
-
+            await reconcileStoreStats(db, store.id);
             toast.success("Financials Recalculated Successfully!");
             window.location.reload(); // Refresh to see changes
         } catch (err) {
@@ -642,7 +590,7 @@ export default function Settings() {
                                         onClick={async () => {
                                             try {
                                                 await updateDoc(doc(db, "stores", store.id), {
-                                                    whatsappTemplates: store.whatsappTemplates,
+                                                    whatsappTemplates: store.whatsappTemplates || {},
                                                     whatsappLanguage: store.whatsappLanguage || 'fr'
                                                 });
                                                 toast.success(`Saved! Language: ${store.whatsappLanguage === 'darija' ? 'Darija' : 'French'}`);

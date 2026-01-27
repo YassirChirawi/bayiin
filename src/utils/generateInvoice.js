@@ -5,7 +5,7 @@ import autoTable from 'jspdf-autotable';
 const loadImage = (url) => {
     return new Promise((resolve, reject) => {
         const img = new Image();
-        img.crossOrigin = 'Anonymous';
+        img.crossOrigin = 'Anonymous'; // Try anonymous Cross-Origin
         img.src = url;
         img.onload = () => resolve(img);
         img.onerror = (e) => reject(e);
@@ -104,14 +104,14 @@ export const generateInvoice = async (order, store) => {
 
     // Align to right
     const rightX = 140;
-    doc.text("INVOICE", rightX, 30);
+    doc.text("FACTURE", rightX, 30);
     doc.text(`#${order.orderNumber}`, rightX, 35);
     doc.text(`Date: ${order.date}`, rightX, 40);
 
     // Bill To (Below Meta)
     doc.setFontSize(11);
     doc.setTextColor(40, 40, 40);
-    doc.text("Bill To:", rightX, 55);
+    doc.text("Facturé à:", rightX, 55);
     doc.setFontSize(10);
     doc.text(order.clientName || "Customer", rightX, 61);
     if (order.clientPhone) doc.text(order.clientPhone, rightX, 67);
@@ -156,7 +156,7 @@ export const generateInvoice = async (order, store) => {
     const finalY = (doc).lastAutoTable.finalY + 10;
 
     doc.setFontSize(10);
-    doc.text("TOTAL AMOUNT:", 140, finalY);
+    doc.text("TOTAL :", 140, finalY);
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.text(`${grandTotal.toFixed(2)} DH`, 140, finalY + 7);
@@ -165,7 +165,7 @@ export const generateInvoice = async (order, store) => {
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(150, 150, 150);
-    doc.text("Thank you for your business!", 20, finalY + 30);
+    doc.text("Merci pour votre confiance !", 20, finalY + 30);
 
     // Save
     doc.save(`invoice_${order.orderNumber}.pdf`);

@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react";
 import { useStoreData } from "../hooks/useStoreData";
-import { useStoreStats } from "../hooks/useStoreStats"; // New hook
 import { useTenant } from "../context/TenantContext"; // NEW
 import { Navigate } from "react-router-dom"; // NEW
 import { DollarSign, TrendingUp, CreditCard, Activity, Plus, Trash2 } from "lucide-react";
@@ -17,20 +16,7 @@ export default function Finances() {
         return <Navigate to="/dashboard" replace />;
     }
 
-    // 1. Scalable Aggregated Stats (Realized Revenue, Totals, Daily History)
-    const { stats: aggregatedStats, loading: loadingStats } = useStoreStats();
-
-    // 2. Fetch only PENDING orders to calculate Pending Revenue (Scalable because pending list is usually small)
-    // We assume "Active" = received, packing, confirmation, ramassage, livraison.
-    const pendingConstraints = useMemo(() => [
-        where("status", "in", ["reçu", "packing", "confirmation", "ramassage", "livraison"])
-    ], []);
-    const { data: pendingOrders, loading: loadingPending } = useStoreData("orders", pendingConstraints);
-
-    // 3. Expenses (Low volume, safe to fetch all)
-    const { data: expenses, loading: loadingExpenses, error: expensesError, addStoreItem: addExpense, deleteStoreItem: deleteExpense } = useStoreData("expenses");
-
-    // Expense Form State
+    // State
     const [expenseForm, setExpenseForm] = useState({ description: "", amount: "", category: "Other" });
     const [loadingExpense, setLoadingExpense] = useState(false);
     const [dateRange, setDateRange] = useState({
@@ -41,151 +27,166 @@ export default function Finances() {
     const EXPENSE_CATEGORIES = ["Ads", "Shipping", "COGS", "Salaries", "Other"];
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
-    // --- KPIs Calculation ---
+    // 1. Fetch Orders for Selected Date Range (Source of Truth)
+    const orderConstraints = useMemo(() => {
+        const start = dateRange.start;
+        const end = dateRange.end;
+        return [
+            where("date", ">=", start),
+            where("date", "<=", end)
+        ];
+    }, [dateRange.start, dateRange.end]);
+
+    const { data: orders, loading: loadingOrders } = useStoreData("orders", orderConstraints);
+
+    // 2. Fetch Expenses (Source of Truth)
+    // We fetch all and filter client-side or we could add constraints if we have date on expenses (we do)
+    // Expenses volume is low, fetching all is fine for now, or we can constrain match.
+    // Let's constrain for performance.
+    const expenseConstraints = useMemo(() => {
+        return [
+            where("date", ">=", new Date(dateRange.start).toISOString()), // Expenses store ISO strings
+            where("date", "<=", new Date(dateRange.end + "T23:59:59").toISOString())
+        ];
+    }, [dateRange.start, dateRange.end]);
+
+    // Actually, useStoreData uses strict equality for strings if not careful. 
+    // Expenses might have full ISO timestamps. simpler to fetch all `expenses` for now as they are few.
+    const { data: expenses, loading: loadingExpenses, error: expensesError, addStoreItem: addExpense, deleteStoreItem: deleteExpense } = useStoreData("expenses");
+
+
+    // --- Precise KPIs Calculation ---
     const stats = useMemo(() => {
-        // Defaults
         const res = {
-            revenueToday: 0,
-            revenueWeek: 0,
-            revenueMonth: 0,
-            realizedRevenue: 0,
-            pendingRevenue: 0,
+            realizedRevenue: 0, // Cash Collected (isPaid)
+            deliveredRevenue: 0, // Potential from Delivered (status == livré)
             totalCOGS: 0,
+            totalRealDelivery: 0,
             totalExpenses: 0,
+
             netResult: 0,
             margin: "0.0",
-            activeOrdersCount: 0,
-            totalOrders: 0,
+
+            // Advanced
             adsSpend: 0,
             roas: "0.00",
             cac: "0.00",
             shippingRatio: "0.0",
             profitPerOrder: "0.00",
-            deliveredRevenue: 0, // Fix undefined crash
-            realizedRevenue: 0 // Fix undefined crash
+
+            deliveredCount: 0,
+            activeCount: 0
         };
 
-        if (!aggregatedStats) return res;
+        const start = new Date(dateRange.start);
+        const end = new Date(dateRange.end + "T23:59:59");
 
-        const todayStr = new Date().toISOString().split('T')[0];
-        const statusCounts = aggregatedStats.statusCounts || {};
+        // 1. Process Orders
+        orders.forEach(o => {
+            const qty = parseInt(o.quantity) || 1;
+            const price = parseFloat(o.price) || 0;
+            const cost = parseFloat(o.costPrice) || 0;
+            const delivery = parseFloat(o.realDeliveryCost) || 0;
+            const revenue = price * qty;
+            const cogs = cost * qty;
 
-        // 1. Realized Revenue & COGS (Server-side)
-        res.realizedRevenue = aggregatedStats.totals?.realizedRevenue || 0; // Tracks PAID ($)
-        res.deliveredRevenue = aggregatedStats.totals?.deliveredRevenue || 0; // Tracks LIVRÉ
-        res.totalCOGS = aggregatedStats.totals?.realizedCOGS || 0;
-        const totalRealDelivery = aggregatedStats.totals?.realizedDeliveryCost || 0;
-        res.totalOrders = aggregatedStats.totals?.count || 0;
+            // Delivered Potential
+            if (o.status === 'livré') {
+                res.deliveredRevenue += revenue;
+                res.deliveredCount++;
+            }
 
-        // 2. Pending Revenue (From client-side subset)
-        res.pendingRevenue = pendingOrders.reduce((sum, o) => sum + ((parseFloat(o.price) || 0) * (parseInt(o.quantity) || 1)), 0);
-        res.activeOrdersCount = pendingOrders.length;
+            // Active / Pending
+            if (['reçu', 'confirmation', 'packing', 'livraison', 'ramassage'].includes(o.status)) {
+                res.activeCount++;
+            }
 
-        // 3. Date-based Revenues (Approximation using 'daily' map from server)
-        // Note: 'daily' tracks ALL revenue (created), not just realized. 
-        // For 'Trend', this is usually what we want (Sales Velocity).
-        // If we strictly want Realized Trend, we'd need daily.realized. 
-        // For now, using total daily sales is standard for "Revenue Trend".
-        if (aggregatedStats.daily) {
-            const today = new Date();
-            Object.entries(aggregatedStats.daily).forEach(([dateStr, data]) => {
-                const amount = data.revenue || 0;
-                const date = parseISO(dateStr);
+            // Realized Cash (The Gold Standard)
+            if (o.isPaid) {
+                res.realizedRevenue += revenue;
+                res.totalCOGS += cogs;
+                // We count COGS only when we get paid? Or when it leaves? 
+                // For "Cash Net Profit", yes.
+            }
 
-                if (dateStr === todayStr) res.revenueToday = amount;
-                if (isSameWeek(date, today)) res.revenueWeek += amount;
-                if (isSameMonth(date, today)) res.revenueMonth += amount;
-            });
-        }
+            // Delivery Costs (We pay this regardless if we got paid, if the attempt was made)
+            // Assuming 'livré' and 'retour' imply a delivery fee was paid.
+            if (['livré', 'retour'].includes(o.status)) {
+                res.totalRealDelivery += delivery;
+            }
+        });
 
-        // 4. Expenses Filtered by Date
-        const start = startOfDay(parseISO(dateRange.start));
-        const end = endOfDay(parseISO(dateRange.end));
+        // 2. Process Expenses
+        const filteredExpenses = expenses.filter(e => {
+            if (!e.date) return true;
+            const d = new Date(e.date);
+            return d >= start && d <= end;
+        });
 
-        res.totalExpenses = expenses
-            .filter(exp => {
-                const d = exp.date ? parseISO(exp.date) : new Date();
-                return isWithinInterval(d, { start, end });
-            })
-            .reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
+        res.totalExpenses = filteredExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
 
-        // Add Real Delivery Cost to Total Expenses View (implicitly, or explicitly?)
-        // Since Real Delivery Cost is "Realized" (all time?), but Expenses are "Date Range"?
-        // Discrepancy: Realized Stats are Lifetime. Expenses are Date Range.
-        // For accurate Net Profit on this view (which shows Lifetime Realized Revenue?), we should use Lifetime Realized Delivery.
-        // However, Finance page usually mixes Lifetime KPI cards with Date Range charts.
-        // Let's stick to Lifetime for the KPI Cards (Top Row).
+        // Breakdowns
+        res.adsSpend = filteredExpenses
+            .filter(e => e.category === 'Ads')
+            .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
 
-        // 5. Net Profit (Lifetime Realized)
-        // Net = Realized Revenue - Realized COGS - Lifetime Expenses (Wait, expenses filtered by date range above? That's inconsistent).
-        // The previous code filtered expenses by date range but subtracted from Lifetime Realized Revenue? That was a bug/inconsistency.
-        // Let's fix: If using Lifetime Revenue, use Lifetime Expenses.
-        // BUT user range selector suggests they want range data.
-        // Aggregated Stats are LIFETIME. We cannot filter them by date range easily without `daily` breakdown of realized.
-        // COMPROMISE: We show Lifetime Stats in KPI Cards (ignoring date range for Revenue/COGS/Delivery) and Date Range for Charts.
-        // OR: We just say "Net Profit" is based on the visible range? No, we don't have daily realized revenue yet.
-        // Let's follow existing pattern: Use Lifetime Stats for the simplified KPIs for now.
-        // And for expenses, let's use LIFETIME expenses for the Net Result calculation to be consistent with Lifetime Revenue.
+        const nonAdsExpenses = res.totalExpenses - res.adsSpend;
 
-        const lifetimeExpenses = expenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
 
-        // We will store specific delivery costs separately if needed, but for Net Result:
-        res.netResult = res.realizedRevenue - res.totalCOGS - lifetimeExpenses - totalRealDelivery;
+        // 3. Net Result (Crazy Precise)
+        // Cash In (Realized Rev) - Cash Out (COGS of sold + Delivery Fees + Expenses)
+        res.netResult = res.realizedRevenue - res.totalCOGS - res.totalRealDelivery - res.totalExpenses;
+
+        // 4. derivated
         res.margin = res.realizedRevenue > 0 ? ((res.netResult / res.realizedRevenue) * 100).toFixed(1) : "0.0";
-
-        // Expose totalRealDelivery for UI
-        res.totalRealDelivery = totalRealDelivery;
-
-        // 6. Advanced Metrics
-        res.adsSpend = expenses
-            .filter(e => e.category === 'Ads' && isWithinInterval(e.date ? parseISO(e.date) : new Date(), { start, end }))
-            .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
-
-        const shippingSpend = expenses
-            .filter(e => e.category === 'Shipping' && isWithinInterval(e.date ? parseISO(e.date) : new Date(), { start, end }))
-            .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
-
-        // Combine Manual Expense (Shipping) + Auto Real Delivery Cost
-        // Note: Discrepancy again (Range vs Lifetime). Using Lifetime Real Delivery for consistency with Revenue.
-        const totalShippingMetrics = shippingSpend + totalRealDelivery;
-
         res.roas = res.adsSpend > 0 ? (res.realizedRevenue / res.adsSpend).toFixed(2) : "0.00";
-        res.cac = res.activeOrdersCount > 0 ? (res.adsSpend / res.activeOrdersCount).toFixed(2) : "0.00"; // CAC usually using Total New Customers not active orders, but approx ok.
-        res.shippingRatio = res.realizedRevenue > 0 ? ((totalShippingMetrics / res.realizedRevenue) * 100).toFixed(1) : "0.0";
-        // Profit per order: Net Profit / Total Delivered Orders (approx)
-        // We don't have exact "Total Delivered Count" in totals easily unless statusCounts['livré'] is used.
-        const deliveredCount = statusCounts['livré'] || 1;
-        res.profitPerOrder = deliveredCount > 0 ? (res.netResult / deliveredCount).toFixed(2) : "0.00";
+        res.cac = res.deliveredCount > 0 ? (res.adsSpend / res.deliveredCount).toFixed(2) : "0.00"; // Cost per Delivered Order
+
+        const totalShipping = res.totalRealDelivery + filteredExpenses.filter(e => e.category === 'Shipping').reduce((sum, e) => sum + parseFloat(e.amount), 0);
+        res.shippingRatio = res.realizedRevenue > 0 ? ((totalShipping / res.realizedRevenue) * 100).toFixed(1) : "0.0";
+        res.profitPerOrder = res.deliveredCount > 0 ? (res.netResult / res.deliveredCount).toFixed(2) : "0.00";
 
         return res;
-    }, [aggregatedStats, pendingOrders, expenses, dateRange]);
+    }, [orders, expenses, dateRange]);
 
-    // --- Chart Data (From Server Aggregates) ---
+    // --- Chart Data ---
     const chartData = useMemo(() => {
-        if (!aggregatedStats?.daily) return [];
-
-        const data = [];
-        const today = new Date();
-        // Last 7 days
-        for (let i = 6; i >= 0; i--) {
-            const date = subDays(today, i);
-            const dateStr = date.toISOString().split('T')[0];
-            const dateLabel = format(date, 'MMM dd');
-
-            const val = aggregatedStats.daily[dateStr]?.revenue || 0;
-            data.push({ name: dateLabel, revenue: val });
+        const data = {};
+        // Initialize days
+        const start = new Date(dateRange.start);
+        const end = new Date(dateRange.end);
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            data[d.toISOString().split('T')[0]] = 0;
         }
-        return data;
-    }, [aggregatedStats]);
+
+        orders.forEach(o => {
+            if (o.date && data[o.date] !== undefined) {
+                const qty = parseInt(o.quantity) || 1;
+                // Chart shows Volume (Generated Revenue), not just realized, to show activity
+                // OR show Realized? Usually activity.
+                // Let's show "Delivered Revenue" vs "Pending"? 
+                // Simple: Show Total Ordered Value
+                data[o.date] += (parseFloat(o.price) || 0) * qty;
+            }
+        });
+
+        return Object.entries(data).map(([name, revenue]) => ({ name: format(new Date(name), 'MMM dd'), revenue }));
+    }, [orders, dateRange]);
 
     const expenseCategoryData = useMemo(() => {
         const data = {};
+        const start = new Date(dateRange.start);
+        const end = new Date(dateRange.end + "T23:59:59");
+
         expenses.forEach(exp => {
+            const d = new Date(exp.date);
+            if (d < start || d > end) return;
+
             const cat = exp.category || 'Other';
             data[cat] = (data[cat] || 0) + (parseFloat(exp.amount) || 0);
         });
         return Object.entries(data).map(([name, value]) => ({ name, value }));
-    }, [expenses]);
+    }, [expenses, dateRange]);
 
 
     // --- Handlers ---

@@ -7,6 +7,7 @@ import OrderModal from "../components/OrderModal";
 import ImportModal from "../components/ImportModal";
 import QRCode from "react-qr-code";
 import { generateInvoice } from "../utils/generateInvoice";
+import { getWhatsappMessage, getWhatsappLink } from "../utils/whatsappTemplates";
 import { exportToCSV } from "../utils/csvHelper";
 
 import { useTenant } from "../context/TenantContext";
@@ -69,14 +70,7 @@ export default function Orders() {
 
             batch.update(orderRef, { isPaid: newIsPaid });
 
-            // Update Stats
-            batch.set(statsRef, {
-                totals: {
-                    realizedRevenue: increment(revenue * sign),
-                    realizedCOGS: increment(cogs * sign),
-                    realizedDeliveryCost: increment(delivery * sign)
-                }
-            }, { merge: true });
+            batch.update(orderRef, { isPaid: newIsPaid });
 
             await batch.commit();
             toast.success(newIsPaid ? "Payment Marked" : "Payment Cancelled");
@@ -219,15 +213,32 @@ export default function Orders() {
         }
     };
 
+    const handleBulkPaid = async () => {
+        if (!window.confirm(`Mark ${selectedOrders.length} orders as PAiD?`)) return;
+
+        try {
+            const batch = writeBatch(db);
+            selectedOrders.forEach(id => {
+                const order = orders.find(o => o.id === id);
+                if (!order || order.isPaid) return;
+                const orderRef = doc(db, "orders", id);
+                batch.update(orderRef, { isPaid: true });
+            });
+
+            await batch.commit();
+            setSelectedOrders([]);
+            toast.success("Orders marked as Paid");
+        } catch (err) {
+            console.error("Error bulk paying:", err);
+            toast.error("Failed to update payment status");
+        }
+    };
+
     const handleBulkStatus = async (status) => {
         if (!window.confirm(`Mark ${selectedOrders.length} orders as ${status}?`)) return;
 
         try {
             const batch = writeBatch(db);
-            const statsRef = doc(db, "stores", store.id, "stats", "sales");
-            let revenueAdjustment = 0;
-            let cogsAdjustment = 0;
-            let deliveryAdjustment = 0;
 
             selectedOrders.forEach(id => {
                 const order = orders.find(o => o.id === id);
@@ -247,40 +258,19 @@ export default function Orders() {
                     batch.update(productRef, { stock: increment(stockChange) });
                 }
 
-                // 2. Financial Logic
-                const revenue = (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
-                const cogs = (parseFloat(order.costPrice) || 0) * (parseInt(order.quantity) || 1);
-                const delivery = parseFloat(order.realDeliveryCost) || 0;
-
-                // Case A: Moving TO Inactive (Refund/Cancel) AND was Paid -> Unpay & Deduct
+                // 2. Financial Logic - REMOVED (Handled by Cloud Function to avoid double counting)
+                // Case A: Moving TO Inactive (Refund/Cancel) AND was Paid -> Unpay
                 if (isNewStatusInactive && order.isPaid) {
                     updates.isPaid = false;
-                    revenueAdjustment -= revenue;
-                    cogsAdjustment -= cogs;
-                    deliveryAdjustment -= delivery;
                 }
 
-                // Case B: Moving TO 'Livré' (Delivered) AND not Paid -> Auto-Pay & Add
+                // Case B: Moving TO 'Livré' (Delivered) AND not Paid -> Auto-Pay
                 if (status === 'livré' && !order.isPaid) {
                     updates.isPaid = true;
-                    revenueAdjustment += revenue;
-                    cogsAdjustment += cogs;
-                    deliveryAdjustment += delivery;
                 }
 
                 batch.update(orderRef, updates);
             });
-
-            // 3. Apply Aggregated Stats Update
-            if (revenueAdjustment !== 0 || cogsAdjustment !== 0 || deliveryAdjustment !== 0) {
-                batch.set(statsRef, {
-                    totals: {
-                        realizedRevenue: increment(revenueAdjustment),
-                        realizedCOGS: increment(cogsAdjustment),
-                        realizedDeliveryCost: increment(deliveryAdjustment)
-                    }
-                }, { merge: true });
-            }
 
             await batch.commit();
             setSelectedOrders([]);
@@ -362,7 +352,14 @@ export default function Orders() {
                             ) : (
                                 <>
                                     <Button
-                                        onClick={() => handleBulkStatusUpdate('confirmation')}
+                                        onClick={handleBulkPaid}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                        icon={DollarSign}
+                                    >
+                                        Mark Paid
+                                    </Button>
+                                    <Button
+                                        onClick={() => handleBulkStatus('confirmation')}
                                         className="bg-indigo-600 hover:bg-indigo-700 text-white"
                                         icon={Check}
                                     >
@@ -485,8 +482,8 @@ export default function Orders() {
                 </div>
             </div>
 
-            {/* Table */}
-            <div className="bg-white shadow overflow-hidden border-b border-gray-200 sm:rounded-lg overflow-x-auto">
+            {/* Desktop Table */}
+            <div className="hidden md:block bg-white shadow overflow-hidden border-b border-gray-200 sm:rounded-lg overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
@@ -612,15 +609,12 @@ export default function Orders() {
                                                 </>
                                             )}
                                             {/* WhatsApp Notification */}
+                                            {/* WhatsApp Notification */}
                                             <a
-                                                href={`https://wa.me/${order.clientPhone ? order.clientPhone.replace(/\D/g, '') : ''}?text=${encodeURIComponent(
-                                                    (store?.whatsappTemplates?.[order.status] || `Bonjour ${order.clientName}, votre commande #${order.orderNumber} est ${order.status}.`)
-                                                        .replace('[Make]', store?.name || '')
-                                                        .replace('[Client]', order.clientName || '')
-                                                        .replace('[Produit]', order.articleName || '')
-                                                        .replace('[Commande]', order.orderNumber || '')
-                                                        .replace('[Ville]', order.clientCity || '')
-                                                )}`}
+                                                href={getWhatsappLink(
+                                                    order.clientPhone,
+                                                    getWhatsappMessage(order.status, order, store)
+                                                )}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="text-gray-400 hover:text-green-600"
@@ -635,6 +629,111 @@ export default function Orders() {
                         })}
                     </tbody>
                 </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-4">
+                {loading ? (
+                    <div className="text-center py-10 text-gray-500">Loading orders...</div>
+                ) : filteredOrders.length === 0 ? (
+                    <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow p-8">
+                        <p>No orders found matching your filters.</p>
+                    </div>
+                ) : (
+                    filteredOrders.map((order) => {
+                        const isSelected = selectedOrders.includes(order.id);
+                        const waLink = getWhatsappLink(order.clientPhone, getWhatsappMessage(order.status, order, store));
+                        const totalPrice = order.price ? (order.price * order.quantity).toFixed(2) : '-';
+
+                        return (
+                            <div
+                                key={order.id}
+                                className={`bg-white rounded-xl shadow-sm border p-4 transition-all ${isSelected ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-100'}`}
+                            >
+                                {/* Header: Order ID, Date, Selection */}
+                                <div className="flex justify-between items-start mb-3">
+                                    <div className="flex items-center gap-3">
+                                        <button onClick={() => handleSelectOne(order.id)} className="text-gray-400">
+                                            {isSelected ? <CheckSquare className="h-6 w-6 text-indigo-600" /> : <Square className="h-6 w-6" />}
+                                        </button>
+                                        <div>
+                                            <h3 className="font-bold text-gray-900">{order.orderNumber}</h3>
+                                            <p className="text-xs text-gray-500">{order.date}</p>
+                                        </div>
+                                    </div>
+                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${getStatusColor(order.status)}`}>
+                                        {order.status}
+                                    </span>
+                                </div>
+
+                                {/* Body: Client & Product Info */}
+                                <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                                    <div>
+                                        <p className="text-xs text-gray-400 mb-1">Customer</p>
+                                        <p className="font-semibold text-gray-900 truncate">{order.clientName}</p>
+                                        <a href={`tel:${order.clientPhone}`} className="text-indigo-600 text-xs flex items-center gap-1 mt-1">
+                                            {order.clientPhone}
+                                        </a>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-xs text-gray-400 mb-1">Total</p>
+                                        <p className="font-bold text-gray-900 text-base">{totalPrice} <span className="text-xs font-normal">DH</span></p>
+                                        <p className="text-xs text-gray-500 truncate mt-1">{order.articleName} (x{order.quantity})</p>
+                                    </div>
+                                </div>
+
+                                {/* Footer: Actions */}
+                                <div className="flex items-center justify-between border-t border-gray-100 pt-3">
+                                    {/* Left: Payment Toggle */}
+                                    <button
+                                        onClick={() => togglePaid(order)}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${order.isPaid
+                                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                            }`}
+                                    >
+                                        <DollarSign className="h-3.5 w-3.5" />
+                                        {order.isPaid ? "PAID" : "UNPAID"}
+                                    </button>
+
+                                    {/* Right: Actions */}
+                                    <div className="flex items-center gap-3">
+                                        <a
+                                            href={waLink}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="p-2 rounded-full bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                                        >
+                                            <MessageCircle className="h-5 w-5" />
+                                        </a>
+                                        <button
+                                            onClick={() => handleEdit(order)}
+                                            className="p-2 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+                                        >
+                                            <Edit2 className="h-5 w-5" />
+                                        </button>
+                                        {showTrash && (
+                                            <button
+                                                onClick={() => handleRestore(order.id)}
+                                                className="p-2 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100"
+                                            >
+                                                <RotateCcw className="h-5 w-5" />
+                                            </button>
+                                        )}
+                                        {showTrash ? (
+                                            <button
+                                                onClick={() => handleDelete(order.id)}
+                                                className="p-2 rounded-full bg-red-50 text-red-600 hover:bg-red-100"
+                                            >
+                                                <Trash2 className="h-5 w-5" />
+                                            </button>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
             </div>
 
             {/* Pagination / Load More */}
