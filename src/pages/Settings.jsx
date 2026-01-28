@@ -445,12 +445,27 @@ export default function Settings() {
                                     <div className="sm:col-span-3">
                                         <label className="block text-sm font-medium text-gray-700">Currency</label>
                                         <div className="mt-1">
-                                            <input
-                                                type="text"
-                                                disabled
-                                                value={store?.currency || 'USD'}
-                                                className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md bg-gray-50 text-gray-500 p-2 border"
-                                            />
+                                            <select
+                                                value={store?.currency || 'MAD'}
+                                                onChange={async (e) => {
+                                                    const newCurrency = e.target.value;
+                                                    setStore(prev => ({ ...prev, currency: newCurrency }));
+                                                    // Auto-save
+                                                    try {
+                                                        await updateDoc(doc(db, "stores", store.id), { currency: newCurrency });
+                                                        toast.success(`Currency updated to ${newCurrency}`);
+                                                    } catch (err) {
+                                                        toast.error("Failed to update currency");
+                                                    }
+                                                }}
+                                                className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                            >
+                                                <option value="MAD">MAD (Dirham Marocain)</option>
+                                                <option value="DZD" disabled className="text-gray-400 bg-gray-50">DZD (Dinar Algérien) - Coming Soon</option>
+                                                <option value="TND" disabled className="text-gray-400 bg-gray-50">TND (Dinar Tunisien) - Coming Soon</option>
+                                                <option value="EUR" disabled className="text-gray-400 bg-gray-50">EUR (Euro) - Coming Soon</option>
+                                                <option value="USD" disabled className="text-gray-400 bg-gray-50">USD (Dollar) - Coming Soon</option>
+                                            </select>
                                         </div>
                                     </div>
 

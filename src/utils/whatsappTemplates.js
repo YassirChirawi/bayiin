@@ -57,10 +57,11 @@ export const getWhatsappMessage = (status, order, store) => {
         const shipping = parseFloat(orderObj.shippingCost) || 0;
         const total = subtotal + shipping;
         // Ticket language should also adapt? Ideally yes, but let's keep it somewhat standard or localized.
+        const currency = store?.currency || 'MAD';
         if (lang === 'darija') {
-            ticketText = `----------------\n📦 Produit: ${productName}\n💰 Taman: ${subtotal.toFixed(2)} DH\n🚚 Livraison: ${shipping.toFixed(2)} DH\n💵 *TOTAL: ${total.toFixed(2)} DH*\n----------------`;
+            ticketText = `----------------\n📦 Produit: ${productName}\n💰 Taman: ${subtotal.toFixed(2)} ${currency}\n🚚 Livraison: ${shipping.toFixed(2)} ${currency}\n💵 *TOTAL: ${total.toFixed(2)} ${currency}*\n----------------`;
         } else {
-            ticketText = `----------------\n📦 Article: ${productName}\n💰 Sous-total: ${subtotal.toFixed(2)} DH\n🚚 Livraison: ${shipping.toFixed(2)} DH\n💵 *TOTAL: ${total.toFixed(2)} DH*\n----------------`;
+            ticketText = `----------------\n📦 Article: ${productName}\n💰 Sous-total: ${subtotal.toFixed(2)} ${currency}\n🚚 Livraison: ${shipping.toFixed(2)} ${currency}\n💵 *TOTAL: ${total.toFixed(2)} ${currency}*\n----------------`;
         }
     }
 

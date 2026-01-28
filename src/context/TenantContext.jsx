@@ -114,7 +114,7 @@ export const TenantProvider = ({ children }) => {
     };
 
     return (
-        <TenantContext.Provider value={{ store, stores, loading, switchStore }}>
+        <TenantContext.Provider value={{ store, setStore, stores, loading, switchStore }}>
             {children}
         </TenantContext.Provider>
     );

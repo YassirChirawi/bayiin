@@ -263,7 +263,7 @@ export default function Finances() {
                         <div className="ml-5 w-0 flex-1">
                             <dl>
                                 <dt className="text-sm font-medium text-gray-500 truncate">Total Income (Livré)</dt>
-                                <dd className="text-2xl font-semibold text-gray-900">{stats.deliveredRevenue.toLocaleString()} DH</dd>
+                                <dd className="text-2xl font-semibold text-gray-900">{stats.deliveredRevenue.toLocaleString()} {store?.currency || 'MAD'}</dd>
                             </dl>
                         </div>
                     </div>
@@ -279,8 +279,8 @@ export default function Finances() {
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate">Total Paid ($)</dt>
-                                <dd className="text-2xl font-semibold text-gray-900">{stats.realizedRevenue.toLocaleString()} DH</dd>
+                                <dt className="text-sm font-medium text-gray-500 truncate">Total Paid ({store?.currency || 'MAD'})</dt>
+                                <dd className="text-2xl font-semibold text-gray-900">{stats.realizedRevenue.toLocaleString()} {store?.currency || 'MAD'}</dd>
                             </dl>
                         </div>
                     </div>
@@ -297,7 +297,7 @@ export default function Finances() {
                         <div className="ml-5 w-0 flex-1">
                             <dl>
                                 <dt className="text-sm font-medium text-gray-500 truncate">Net Profit (Cash)</dt>
-                                <dd className="text-2xl font-semibold text-gray-900">{stats.netResult.toLocaleString()} DH</dd>
+                                <dd className="text-2xl font-semibold text-gray-900">{stats.netResult.toLocaleString()} {store?.currency || 'MAD'}</dd>
                             </dl>
                         </div>
                     </div>

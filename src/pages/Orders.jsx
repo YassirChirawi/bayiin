@@ -546,7 +546,7 @@ export default function Orders() {
                                         {order.quantity}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
-                                        {order.price ? `${(order.price * order.quantity).toFixed(2)} DH` : '-'}
+                                        {order.price ? `${(order.price * order.quantity).toFixed(2)} ${store?.currency || 'MAD'}` : '-'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <button
@@ -702,7 +702,7 @@ export default function Orders() {
                                     </div>
                                     <div className="text-right">
                                         <p className="text-xs text-gray-400 mb-1">Total</p>
-                                        <p className="font-bold text-gray-900 text-base">{totalPrice} <span className="text-xs font-normal">DH</span></p>
+                                        <p className="font-bold text-gray-900 text-base">{totalPrice} <span className="text-xs font-normal">{store?.currency || 'MAD'}</span></p>
                                         <p className="text-xs text-gray-500 truncate mt-1">{order.articleName} (x{order.quantity})</p>
                                     </div>
                                 </div>
