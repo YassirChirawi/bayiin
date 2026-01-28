@@ -78,11 +78,20 @@ export const getWhatsappMessage = (status, order, store) => {
 
 export const getWhatsappLink = (phone, message) => {
     if (!phone) return "#";
-    // Basic cleaning of phone number
-    let cleanPhone = phone.replace(/\D/g, '');
 
-    // Assume Moroccan numbers if local format (06...)
-    if (cleanPhone.startsWith('0')) {
+    // 1. Remove spaces, dashes, parentheses
+    let cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+
+    // 2. Check if specific country code (starts with +)
+    if (cleanPhone.startsWith('+')) {
+        // Remove the plus, keep the rest
+        cleanPhone = cleanPhone.substring(1);
+    } else if (cleanPhone.startsWith('00')) {
+        // Replace leading 00 with nothing (standard international prefix)
+        cleanPhone = cleanPhone.substring(2);
+    } else if (cleanPhone.startsWith('0') && cleanPhone.length > 9) {
+        // If it looks like a local Moroccan number (06..., 07...), format to 212
+        // Default assumption: If starts with 0 and is not following above rules, treat as local 212
         cleanPhone = '212' + cleanPhone.substring(1);
     }
 
