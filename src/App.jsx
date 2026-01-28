@@ -12,6 +12,7 @@ import Orders from "./pages/Orders";
 import Customers from "./pages/Customers";
 import Settings from "./pages/Settings";
 import Team from "./pages/Team";
+import Help from "./pages/Help"; // NEW
 import ProtectedRoute from "./components/ProtectedRoute";
 import Layout from "./components/Layout";
 import { TenantProvider } from "./context/TenantContext";
@@ -40,94 +41,99 @@ const AnalyticsTracker = () => {
   return null;
 };
 
+import { LanguageProvider } from "./context/LanguageContext"; // NEW
+
 function App() {
   return (
     <HelmetProvider>
-      <AuthContextWrapper>
-        <TenantProvider>
-          <BrowserRouter>
-            <AnalyticsTracker />
-            <Toaster
-              position="top-right"
-              toastOptions={{
-                className: '',
-                style: {
-                  background: '#333',
-                  color: '#fff',
-                },
-                success: {
+      <LanguageProvider>
+        <AuthContextWrapper>
+          <TenantProvider>
+            <BrowserRouter>
+              <AnalyticsTracker />
+              <Toaster
+                position="top-right"
+                toastOptions={{
+                  className: '',
                   style: {
-                    background: 'white',
-                    color: '#15803d', // green-700
-                    border: '1px solid #bbf7d0', // green-200
-                    padding: '16px',
-                    borderRadius: '12px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                    fontWeight: 500,
+                    background: '#333',
+                    color: '#fff',
                   },
-                  iconTheme: {
-                    primary: '#22c55e',
-                    secondary: '#fff',
+                  success: {
+                    style: {
+                      background: 'white',
+                      color: '#15803d', // green-700
+                      border: '1px solid #bbf7d0', // green-200
+                      padding: '16px',
+                      borderRadius: '12px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                      fontWeight: 500,
+                    },
+                    iconTheme: {
+                      primary: '#22c55e',
+                      secondary: '#fff',
+                    },
+                    duration: 4000,
                   },
-                  duration: 4000,
-                },
-                error: {
-                  style: {
-                    background: 'white',
-                    color: '#b91c1c', // red-700
-                    border: '1px solid #fecaca', // red-200
-                    padding: '16px',
-                    borderRadius: '12px',
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', // Stronger shadow for errors
-                    fontWeight: 600,
+                  error: {
+                    style: {
+                      background: 'white',
+                      color: '#b91c1c', // red-700
+                      border: '1px solid #fecaca', // red-200
+                      padding: '16px',
+                      borderRadius: '12px',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', // Stronger shadow for errors
+                      fontWeight: 600,
+                    },
+                    iconTheme: {
+                      primary: '#ef4444',
+                      secondary: '#fff',
+                    },
+                    duration: 5000, // Stay longer
                   },
-                  iconTheme: {
-                    primary: '#ef4444',
-                    secondary: '#fff',
-                  },
-                  duration: 5000, // Stay longer
-                },
-              }}
-            />
-            <Routes>
-              <Route path="/" element={<SmartLanding />} /> {/* Modified */}
-              <Route path="/privacy" element={<Privacy />} />
-              <Route path="/terms" element={<Terms />} />
-              <Route path="/demo" element={<DemoDashboard />} />
-              <Route path="/admin" element={
-                <ProtectedRoute>
-                  <BiometricLock>
-                    <AdminDashboard />
-                  </BiometricLock>
-                </ProtectedRoute>
-              } />
-              <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<Signup />} />
-              <Route path="/onboarding" element={
-                <ProtectedRoute>
-                  <Onboarding />
-                </ProtectedRoute>
-              } />
-              <Route element={
-                <ProtectedRoute>
-                  <BiometricLock> {/* Protected by Lock */}
-                    <Layout />
-                  </BiometricLock>
-                </ProtectedRoute>
-              }>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/finances" element={<Finances />} />
-                <Route path="/products" element={<Products />} />
-                <Route path="/orders" element={<Orders />} />
-                <Route path="/customers" element={<Customers />} />
-                <Route path="/team" element={<Team />} />
-                <Route path="/settings" element={<Settings />} />
-              </Route>
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </BrowserRouter>
-        </TenantProvider>
-      </AuthContextWrapper>
+                }}
+              />
+              <Routes>
+                <Route path="/" element={<SmartLanding />} /> {/* Modified */}
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/demo" element={<DemoDashboard />} />
+                <Route path="/admin" element={
+                  <ProtectedRoute>
+                    <BiometricLock>
+                      <AdminDashboard />
+                    </BiometricLock>
+                  </ProtectedRoute>
+                } />
+                <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<Signup />} />
+                <Route path="/onboarding" element={
+                  <ProtectedRoute>
+                    <Onboarding />
+                  </ProtectedRoute>
+                } />
+                <Route element={
+                  <ProtectedRoute>
+                    <BiometricLock> {/* Protected by Lock */}
+                      <Layout />
+                    </BiometricLock>
+                  </ProtectedRoute>
+                }>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/finances" element={<Finances />} />
+                  <Route path="/products" element={<Products />} />
+                  <Route path="/orders" element={<Orders />} />
+                  <Route path="/customers" element={<Customers />} />
+                  <Route path="/team" element={<Team />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/help" element={<Help />} />
+                </Route>
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </BrowserRouter>
+          </TenantProvider>
+        </AuthContextWrapper>
+      </LanguageProvider>
     </HelmetProvider>
   );
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { useTenant } from "../context/TenantContext";
 import { useAuth } from "../context/AuthContext"; // Import useAuth
+import { useLanguage } from "../context/LanguageContext"; // NEW
 import { db } from "../lib/firebase";
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc } from "firebase/firestore";
 import { Navigate } from "react-router-dom"; // Import Navigate
@@ -12,6 +13,7 @@ import { UserPlus, Trash2, Shield, User } from "lucide-react";
 export default function Team() {
     const { store } = useTenant();
     const { user } = useAuth(); // Get current user
+    const { t } = useLanguage(); // NEW
     const [members, setMembers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [inviteEmail, setInviteEmail] = useState("");
@@ -54,7 +56,7 @@ export default function Team() {
             const snapshot = await getDocs(q);
             if (!snapshot.empty) {
                 if (!snapshot.empty) {
-                    toast.error("User is already a member of this store.");
+                    toast.error(t('msg_member_exists'));
                     setSubmitting(false);
                     return;
                 }
@@ -75,10 +77,10 @@ export default function Team() {
             fetchMembers();
             setInviteName("");
             fetchMembers();
-            toast.success("Member added! Ask them to sign up with this email.");
+            toast.success(t('msg_member_added'));
         } catch (error) {
             console.error(error);
-            toast.error("Failed to add member");
+            toast.error(t('err_add_member'));
         } finally {
             setSubmitting(false);
         }
@@ -86,10 +88,10 @@ export default function Team() {
 
     const handleRemove = async (id, memberEmail) => {
         if (memberEmail === user?.email) {
-            toast.error("You cannot remove yourself.");
+            toast.error(t('msg_cannot_remove_self'));
             return;
         }
-        if (!window.confirm("Are you sure? This user will lose access.")) return;
+        if (!window.confirm(t('confirm_remove_member'))) return;
         try {
             await deleteDoc(doc(db, "allowed_users", id));
             fetchMembers();
@@ -101,9 +103,9 @@ export default function Team() {
     return (
         <div className="max-w-4xl mx-auto space-y-8">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Team Management</h1>
+                <h1 className="text-2xl font-bold text-gray-900">{t('page_title_team')}</h1>
                 <p className="mt-1 text-sm text-gray-500">
-                    Manage access to your store. Add staff members to help you manage orders.
+                    {t('page_subtitle_team')}
                 </p>
             </div>
 
@@ -111,13 +113,13 @@ export default function Team() {
             <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
                     <UserPlus className="h-5 w-5 text-indigo-600" />
-                    Add Team Member
+                    {t('title_add_member')}
                 </h3>
                 <form onSubmit={handleInvite} className="flex flex-col md:flex-row gap-4 items-end">
                     <div className="flex-1 w-full">
                         <Input
-                            label="Name"
-                            placeholder="John Doe"
+                            label={t('label_full_name')}
+                            placeholder={t('placeholder_customer_name')}
                             value={inviteName}
                             onChange={(e) => setInviteName(e.target.value)}
                             required
@@ -125,7 +127,7 @@ export default function Team() {
                     </div>
                     <div className="flex-1 w-full">
                         <Input
-                            label="Email Address"
+                            label={t('label_email')}
                             type="email"
                             placeholder="john@example.com"
                             value={inviteEmail}
@@ -134,18 +136,18 @@ export default function Team() {
                         />
                     </div>
                     <div className="w-full md:w-48">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('label_role')}</label>
                         <select
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                             value={inviteRole}
                             onChange={(e) => setInviteRole(e.target.value)}
                         >
-                            <option value="staff">Staff (Orders Only)</option>
-                            <option value="manager">Manager (Full Access)</option>
+                            <option value="staff">{t('role_staff')}</option>
+                            <option value="manager">{t('role_manager')}</option>
                         </select>
                     </div>
                     <Button type="submit" isLoading={submitting}>
-                        Add Member
+                        {t('btn_add_member')}
                     </Button>
                 </form>
             </div>
@@ -154,15 +156,15 @@ export default function Team() {
             <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
                 <div className="px-4 py-5 sm:px-6 border-b border-gray-100">
                     <h3 className="text-lg leading-6 font-medium text-gray-900">
-                        Current Team ({members.length})
+                        {t('title_current_team', { count: members.length })}
                     </h3>
                 </div>
                 <div className="divide-y divide-gray-100">
                     {loading ? (
-                        <div className="p-4 text-center">Loading...</div>
+                        <div className="p-4 text-center">{t('loading')}...</div>
                     ) : members.length === 0 ? (
                         <div className="p-8 text-center text-gray-500">
-                            No team members yet. Invite someone above!
+                            {t('msg_no_team')}
                         </div>
                     ) : (
                         members.map((member) => (

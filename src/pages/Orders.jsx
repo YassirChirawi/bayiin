@@ -12,6 +12,7 @@ import { getWhatsappMessage, getWhatsappLink } from "../utils/whatsappTemplates"
 import { exportToCSV } from "../utils/csvHelper";
 
 import { useTenant } from "../context/TenantContext";
+import { useLanguage } from "../context/LanguageContext"; // NEW
 import { db } from "../lib/firebase";
 import { doc, updateDoc, increment, getDoc, orderBy, limit, writeBatch, where } from "firebase/firestore";
 
@@ -19,6 +20,7 @@ const INACTIVE_STATUSES = ['retour', 'annulé'];
 
 export default function Orders() {
     const { store } = useTenant();
+    const { t } = useLanguage(); // NEW
 
     // Search State
     const [searchTerm, setSearchTerm] = useState(""); // Input value
@@ -75,10 +77,10 @@ export default function Orders() {
             batch.update(orderRef, { isPaid: newIsPaid });
 
             await batch.commit();
-            toast.success(newIsPaid ? "Payment Marked" : "Payment Cancelled");
+            toast.success(newIsPaid ? t('msg_payment_marked') : t('msg_payment_cancelled'));
         } catch (err) {
             console.error("Error toggling paid:", err);
-            toast.error("Failed to update payment status");
+            toast.error("Failed to update payment status"); // Consider translating errors too if needed
         }
     };
 
@@ -89,7 +91,7 @@ export default function Orders() {
             return;
         }
         setActiveSearch(searchTerm.trim());
-        toast.loading("Searching database...", { duration: 1000 });
+        toast.loading(t('msg_searching'), { duration: 1000 });
     };
 
     const handleKeyDown = (e) => {
@@ -132,16 +134,16 @@ export default function Orders() {
 
     const handleDelete = async (id) => {
         if (showTrash) {
-            if (window.confirm("Are you sure you want to permanently delete this order? This cannot be undone.")) {
+            if (window.confirm(t('confirm_permanent_delete'))) {
                 await permanentDeleteStoreItem(id);
                 setSelectedOrders(prev => prev.filter(oid => oid !== id));
-                toast.success("Order permanently deleted");
+                toast.success(t('msg_order_deleted')); // Actually permanently deleted
             }
         } else {
-            if (window.confirm("Are you sure you want to move this order to trash?")) {
+            if (window.confirm(t('confirm_trash'))) {
                 await deleteStoreItem(id);
                 setSelectedOrders(prev => prev.filter(oid => oid !== id));
-                toast.success("Order moved to trash");
+                toast.success(t('msg_order_deleted'));
             }
         }
     };
@@ -149,7 +151,7 @@ export default function Orders() {
     const handleRestore = async (id) => {
         await restoreStoreItem(id);
         setSelectedOrders(prev => prev.filter(oid => oid !== id));
-        toast.success("Order restored");
+        toast.success(t('msg_order_restored'));
     };
 
     const handleImport = async (data) => {
@@ -176,7 +178,7 @@ export default function Orders() {
         });
 
         await Promise.all(promises);
-        toast.success(`Successfully imported ${importedCount} orders.`);
+        toast.success(t('success_import', { count: importedCount }));
     };
 
     // Bulk Actions
@@ -198,26 +200,26 @@ export default function Orders() {
 
     const handleBulkDelete = async () => {
         const message = showTrash
-            ? `Permanently delete ${selectedOrders.length} orders? This cannot be undone.`
-            : `Move ${selectedOrders.length} orders to trash?`;
+            ? t('confirm_bulk_delete_perm', { count: selectedOrders.length })
+            : t('confirm_bulk_trash', { count: selectedOrders.length });
 
         if (window.confirm(message)) {
             await Promise.all(selectedOrders.map(id => showTrash ? permanentDeleteStoreItem(id) : deleteStoreItem(id)));
             setSelectedOrders([]);
-            toast.success(showTrash ? "Orders deleted permanently" : "Orders moved to trash");
+            toast.success(showTrash ? t('msg_orders_deleted_perm') : t('msg_orders_moved_trash'));
         }
     };
 
     const handleBulkRestore = async () => {
-        if (window.confirm(`Restore ${selectedOrders.length} orders?`)) {
+        if (window.confirm(t('confirm_bulk_restore', { count: selectedOrders.length }))) {
             await Promise.all(selectedOrders.map(id => restoreStoreItem(id)));
             setSelectedOrders([]);
-            toast.success("Orders restored");
+            toast.success(t('msg_orders_restored'));
         }
     };
 
     const handleBulkPaid = async () => {
-        if (!window.confirm(`Mark ${selectedOrders.length} orders as PAiD?`)) return;
+        if (!window.confirm(t('confirm_bulk_pay', { count: selectedOrders.length }))) return;
 
         try {
             const batch = writeBatch(db);
@@ -230,7 +232,7 @@ export default function Orders() {
 
             await batch.commit();
             setSelectedOrders([]);
-            toast.success("Orders marked as Paid");
+            toast.success(t('msg_orders_marked_paid'));
         } catch (err) {
             console.error("Error bulk paying:", err);
             toast.error("Failed to update payment status");
@@ -238,7 +240,7 @@ export default function Orders() {
     };
 
     const handleBulkStatus = async (status) => {
-        if (!window.confirm(`Mark ${selectedOrders.length} orders as ${status}?`)) return;
+        if (!window.confirm(t('confirm_bulk_status', { count: selectedOrders.length, status }))) return;
 
         try {
             const batch = writeBatch(db);
@@ -277,7 +279,7 @@ export default function Orders() {
 
             await batch.commit();
             setSelectedOrders([]);
-            toast.success(`Orders marked as ${status}`);
+            toast.success(t('msg_orders_status_updated', { status }));
         } catch (err) {
             console.error("Error updating statuses:", err);
             toast.error("Failed to update orders.");
@@ -321,9 +323,9 @@ export default function Orders() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+                    <h1 className="text-2xl font-bold text-gray-900">{t('page_title_orders')}</h1>
                     <p className="mt-1 text-sm text-gray-500">
-                        Track and manage customer orders
+                        {t('page_subtitle_orders')}
                     </p>
                 </div>
                 <div className="flex gap-2">
@@ -332,7 +334,7 @@ export default function Orders() {
                         icon={Upload}
                         onClick={() => setIsImportModalOpen(true)}
                     >
-                        Import
+                        {t('btn_import')}
                     </Button>
                     <Button
                         variant="secondary"
@@ -340,7 +342,7 @@ export default function Orders() {
                         onClick={handleExportCSV}
                         disabled={orders.length === 0}
                     >
-                        Export
+                        {t('btn_export')}
                     </Button>
                     {selectedOrders.length > 0 && (
                         <>
@@ -350,7 +352,7 @@ export default function Orders() {
                                     className="bg-blue-600 hover:bg-blue-700 text-white"
                                     icon={RotateCcw}
                                 >
-                                    Restore ({selectedOrders.length})
+                                    {t('btn_restore')} ({selectedOrders.length})
                                 </Button>
                             ) : (
                                 <>
@@ -359,35 +361,35 @@ export default function Orders() {
                                         className="bg-emerald-600 hover:bg-emerald-700 text-white"
                                         icon={DollarSign}
                                     >
-                                        Mark Paid
+                                        {t('btn_mark_paid')}
                                     </Button>
                                     <Button
                                         onClick={() => handleBulkStatus('confirmation')}
                                         className="bg-indigo-600 hover:bg-indigo-700 text-white"
                                         icon={Check}
                                     >
-                                        Mark Confirmed
+                                        {t('btn_mark_confirmed')}
                                     </Button>
                                     <Button
                                         onClick={() => handleBulkStatusUpdate('livré')}
                                         className="bg-green-600 hover:bg-green-700 text-white"
                                         icon={Check}
                                     >
-                                        Mark Delivered
+                                        {t('btn_mark_delivered')}
                                     </Button>
                                     <Button
                                         onClick={() => handleBulkStatusUpdate('reporté')}
                                         className="bg-yellow-600 hover:bg-yellow-700 text-white"
                                         icon={RotateCcw}
                                     >
-                                        Mark Reporté
+                                        {t('btn_mark_postponed')}
                                     </Button>
                                     <Button
                                         onClick={() => handleBulkStatusUpdate('pas de réponse')}
                                         className="bg-orange-600 hover:bg-orange-700 text-white"
                                         icon={AlertCircle}
                                     >
-                                        No Answer
+                                        {t('btn_no_answer')}
                                     </Button>
                                 </>
                             )}
@@ -396,7 +398,7 @@ export default function Orders() {
                                 className="bg-red-600 hover:bg-red-700 text-white"
                                 icon={Trash}
                             >
-                                {showTrash ? 'Delete Permanently' : 'Delete'} ({selectedOrders.length})
+                                {showTrash ? t('btn_delete_permanent') : t('btn_delete')} ({selectedOrders.length})
                             </Button>
                         </>
                     )}
@@ -405,18 +407,18 @@ export default function Orders() {
                             onClick={() => setShowTrash(false)}
                             className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${!showTrash ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                         >
-                            Active
+                            {t('label_active')}
                         </button>
                         <button
                             onClick={() => setShowTrash(true)}
                             className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${showTrash ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                         >
-                            Trash
+                            {t('label_trash')}
                         </button>
                     </div>
                     {!showTrash && (
                         <Button onClick={() => { setEditingOrder(null); setIsModalOpen(true); }} icon={Plus}>
-                            New Order
+                            {t('btn_new_order')}
                         </Button>
                     )}
                 </div>
@@ -432,7 +434,7 @@ export default function Orders() {
                         <input
                             type="text"
                             className={`block w-full pl-10 pr-3 py-2 border rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-150 ease-in-out ${activeSearch ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-300'}`}
-                            placeholder="Search Order # or Phone (Exact)..."
+                            placeholder={t('label_search_placeholder')}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             onKeyDown={handleKeyDown}
@@ -440,11 +442,11 @@ export default function Orders() {
                     </div>
                     {activeSearch ? (
                         <Button onClick={clearSearch} variant="secondary" icon={X}>
-                            Clear
+                            {t('btn_cancel') || "Clear"}
                         </Button>
                     ) : (
                         <Button onClick={handleSearch} icon={Search}>
-                            Search
+                            {t('btn_search') || "Search"}
                         </Button>
                     )}
                 </div>
@@ -455,7 +457,7 @@ export default function Orders() {
                     onChange={(e) => setStatusFilter(e.target.value)}
                     className="block w-full md:w-40 py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 >
-                    <option value="all">All Status</option>
+                    <option value="all">{t('label_all_status')}</option>
                     <option value="reçu">Reçu</option>
                     <option value="confirmation">Confirmation</option>
                     <option value="packing">Packing</option>
@@ -473,14 +475,14 @@ export default function Orders() {
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
                         className="block w-full md:w-auto py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                        placeholder="Start Date"
+                        placeholder={t('label_start_date')}
                     />
                     <input
                         type="date"
                         value={endDate}
                         onChange={(e) => setEndDate(e.target.value)}
                         className="block w-full md:w-auto py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                        placeholder="End Date"
+                        placeholder={t('label_end_date')}
                     />
                 </div>
             </div>
@@ -499,22 +501,22 @@ export default function Orders() {
                                     )}
                                 </button>
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Cmd</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Article</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('th_order_no')}</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('th_date')}</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('th_client')}</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('th_product')}</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('th_qty')}</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('th_total')}</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('th_paid')}</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('th_status')}</th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{t('th_actions')}</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                         {loading ? (
-                            <tr><td colSpan="9" className="px-6 py-4 text-center">Loading...</td></tr>
+                            <tr><td colSpan="9" className="px-6 py-4 text-center">{t('msg_loading_orders')}</td></tr>
                         ) : filteredOrders.length === 0 ? (
-                            <tr><td colSpan="9" className="px-6 py-4 text-center text-gray-500">No orders found.</td></tr>
+                            <tr><td colSpan="9" className="px-6 py-4 text-center text-gray-500">{t('msg_no_orders')}</td></tr>
                         ) : filteredOrders.map((order) => {
                             const isSelected = selectedOrders.includes(order.id);
                             return (
@@ -659,10 +661,10 @@ export default function Orders() {
             {/* Mobile Card View */}
             <div className="md:hidden space-y-4">
                 {loading ? (
-                    <div className="text-center py-10 text-gray-500">Loading orders...</div>
+                    <div className="text-center py-10 text-gray-500">{t('msg_loading_orders')}</div>
                 ) : filteredOrders.length === 0 ? (
                     <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow p-8">
-                        <p>No orders found matching your filters.</p>
+                        <p>{t('msg_no_orders_filter')}</p>
                     </div>
                 ) : (
                     filteredOrders.map((order) => {

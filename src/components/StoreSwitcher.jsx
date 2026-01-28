@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { useTenant } from "../context/TenantContext";
+import { useLanguage } from "../context/LanguageContext"; // NEW
 import { ChevronDown, Check, Store as StoreIcon, User, PlusCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export default function StoreSwitcher() {
     const { store, stores, switchStore } = useTenant();
+    const { t } = useLanguage(); // NEW
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
 
@@ -40,7 +42,7 @@ export default function StoreSwitcher() {
                             {store.name}
                         </span>
                         <span className="text-xs text-gray-500 flex items-center gap-1">
-                            {store.role === 'owner' ? 'Owner' : 'Staff'}
+                            {store.role === 'owner' ? t('role_owner') : t('role_staff_simple')}
                         </span>
                     </div>
                 </div>
@@ -51,7 +53,7 @@ export default function StoreSwitcher() {
                 <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-gray-100 rounded-lg shadow-xl ring-1 ring-black ring-opacity-5 divide-y divide-gray-100">
                     <div className="py-1 max-h-60 overflow-y-auto">
                         <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            My Stores
+                            {t('title_my_stores')}
                         </div>
                         {stores.map((s) => (
                             <button
@@ -75,7 +77,7 @@ export default function StoreSwitcher() {
                                             {s.name}
                                         </span>
                                         <span className="text-xs text-gray-500">
-                                            {s.role === 'owner' ? 'Owner' : 'Staff'}
+                                            {s.role === 'owner' ? t('role_owner') : t('role_staff_simple')}
                                         </span>
                                     </div>
                                 </div>
@@ -91,7 +93,7 @@ export default function StoreSwitcher() {
                             className="w-full flex items-center gap-2 px-4 py-3 text-sm text-indigo-600 hover:bg-indigo-50 transition-colors font-medium"
                         >
                             <PlusCircle className="h-4 w-4" />
-                            Create New Store
+                            {t('action_create_store')}
                         </Link>
                     </div>
                 </div>

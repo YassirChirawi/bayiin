@@ -11,10 +11,12 @@ import { getWhatsappMessage, getWhatsappLink } from "../utils/whatsappTemplates"
 import { MOROCCAN_CITIES } from "../utils/moroccanCities";
 import { ORDER_STATUS, ORDER_STATUS_LABELS, PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "../utils/constants";
 import { useOrderActions } from "../hooks/useOrderActions";
+import { useLanguage } from "../context/LanguageContext"; // NEW
 
 export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
     const { data: products } = useStoreData("products");
     const { store } = useTenant();
+    const { t } = useLanguage(); // NEW
 
     // Custom Hook for Logic
     const { createOrder, updateOrder, loading: actionLoading, error: actionError } = useOrderActions();
@@ -166,7 +168,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
         e.preventDefault();
 
         if (formData.clientPhone && !/^\d{10}$/.test(formData.clientPhone)) {
-            toast.error("Phone number must be exactly 10 digits.");
+            toast.error(t('err_phone_digits'));
             return;
         }
 
@@ -183,11 +185,12 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
         let success = false;
         if (order) {
             success = await updateOrder(order.id, order, payload);
-            if (success) toast.success("Order updated successfully (Stock Adjusted)");
+            if (success) toast.success(t('msg_order_updated'));
         } else {
             success = await createOrder(payload);
-            if (success) toast.success("Order created successfully (Stock Reserved)");
+            if (success) toast.success(t('msg_order_created'));
         }
+
 
         if (success) {
             if (notifyClient) {
@@ -200,7 +203,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
             onSave();
             onClose();
         } else {
-            toast.error("Operation failed. Check stock or logs.");
+            toast.error(t('err_operation_failed'));
         }
     };
 
@@ -212,7 +215,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
             <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl overflow-hidden my-8 md:my-0 relative">
                 <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 sticky top-0 z-10">
                     <h2 className="text-xl font-bold text-gray-900">
-                        {order ? `Edit Order #${order.orderNumber || ''}` : "New Order"}
+                        {order ? `${t('modal_edit_order')} #${order.orderNumber || ''}` : t('modal_new_order')}
                     </h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
                         <X className="h-6 w-6" />
@@ -223,11 +226,11 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                     {showCustomerAlert && foundCustomer && (
                         <div className="mx-6 mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg shadow-sm flex justify-between items-center">
                             <div>
-                                <h4 className="font-semibold text-indigo-900">Existing Client Found: {foundCustomer.name}</h4>
+                                <h4 className="font-semibold text-indigo-900">{t('msg_client_found', { name: foundCustomer.name })}</h4>
                             </div>
                             <div className="flex gap-2">
-                                <Button size="sm" onClick={confirmCustomerLink}>Link Client</Button>
-                                <Button size="sm" variant="secondary" onClick={() => setShowCustomerAlert(false)}>Ignore</Button>
+                                <Button size="sm" onClick={confirmCustomerLink}>{t('btn_link_client')}</Button>
+                                <Button size="sm" variant="secondary" onClick={() => setShowCustomerAlert(false)}>{t('btn_ignore')}</Button>
                             </div>
                         </div>
                     )}
@@ -235,48 +238,48 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                     <form onSubmit={handleSubmit} className="p-6 space-y-6">
                         {/* 1. Client Info */}
                         <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">Client</h3>
+                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">{t('section_client')}</h3>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <Input label="Phone (06...)" value={formData.clientPhone} onChange={e => setFormData({ ...formData, clientPhone: e.target.value })} onBlur={handlePhoneBlur} required placeholder="0600000000" maxLength={10} />
-                                <Input label="Name" value={formData.clientName} onChange={e => setFormData({ ...formData, clientName: e.target.value })} required />
+                                <Input label={t('label_phone')} value={formData.clientPhone} onChange={e => setFormData({ ...formData, clientPhone: e.target.value })} onBlur={handlePhoneBlur} required placeholder="0600000000" maxLength={10} />
+                                <Input label={t('label_name')} value={formData.clientName} onChange={e => setFormData({ ...formData, clientName: e.target.value })} required />
                                 <div className="space-y-1">
-                                    <label className="block text-sm font-medium text-gray-700">City</label>
+                                    <label className="block text-sm font-medium text-gray-700">{t('label_city')}</label>
                                     <input list="cities" className="w-full px-3 py-2 border rounded-lg" value={formData.clientCity} onChange={e => setFormData({ ...formData, clientCity: e.target.value })} required placeholder="Select City..." />
                                     <datalist id="cities">{MOROCCAN_CITIES.map(c => <option key={c} value={c} />)}</datalist>
                                 </div>
                                 <div className="md:col-span-3">
-                                    <Input label="Address" value={formData.clientAddress} onChange={e => setFormData({ ...formData, clientAddress: e.target.value })} required />
+                                    <Input label={t('label_address')} value={formData.clientAddress} onChange={e => setFormData({ ...formData, clientAddress: e.target.value })} required />
                                 </div>
                             </div>
                         </div>
 
                         {/* 2. Order Details */}
                         <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">Product & Price</h3>
+                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">{t('section_product')}</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('label_product')}</label>
                                     <select className="w-full px-3 py-2 border rounded-lg" value={formData.articleId} onChange={handleProductChange}>
                                         <option value="">-- Select --</option>
                                         {products.map(p => <option key={p.id} value={p.id}>{p.name} (Stock: {p.stock})</option>)}
                                     </select>
                                 </div>
-                                <Input label="Date" type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} required />
+                                <Input label={t('label_date')} type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} required />
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <Input label="Qty" type="number" min="1" value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: e.target.value })} required />
-                                <Input label="Price (DH)" type="number" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} required />
-                                <Input label="Shipping (Client)" type="number" value={formData.shippingCost} onChange={e => setFormData({ ...formData, shippingCost: e.target.value })} />
-                                <Input label="Real Cost (Livreur)" type="number" className="bg-red-50" value={formData.realDeliveryCost} onChange={e => setFormData({ ...formData, realDeliveryCost: e.target.value })} />
+                                <Input label={t('label_qty')} type="number" min="1" value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: e.target.value })} required />
+                                <Input label={`${t('label_price')} (${store?.currency || 'DH'})`} type="number" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} required />
+                                <Input label={t('label_shipping')} type="number" value={formData.shippingCost} onChange={e => setFormData({ ...formData, shippingCost: e.target.value })} />
+                                <Input label={t('label_real_cost')} type="number" className="bg-red-50" value={formData.realDeliveryCost} onChange={e => setFormData({ ...formData, realDeliveryCost: e.target.value })} />
                             </div>
                         </div>
 
                         {/* 3. Status & Payment (COD) */}
                         <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">Status & Payment</h3>
+                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">{t('section_status')}</h3>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Order Status</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('label_status')}</label>
                                     <select className="w-full px-3 py-2 border rounded-lg font-medium" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
                                         {Object.values(ORDER_STATUS).map(s => (
                                             <option key={s} value={s}>{ORDER_STATUS_LABELS[s]?.label || s}</option>
@@ -284,7 +287,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('label_payment')}</label>
                                     <select className="w-full px-3 py-2 border rounded-lg" value={formData.paymentMethod} onChange={e => setFormData({ ...formData, paymentMethod: e.target.value })}>
                                         {Object.values(PAYMENT_METHODS).map(m => (
                                             <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>
@@ -302,7 +305,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                             </div>
 
                             <div className="mt-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Note / Instructions</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('label_note')}</label>
                                 <textarea className="w-full px-3 py-2 border rounded-lg" rows="2" value={formData.note} onChange={e => setFormData({ ...formData, note: e.target.value })} placeholder="Digicode, instructions..."></textarea>
                             </div>
                         </div>
@@ -312,9 +315,9 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                 {actionError && <span className="text-red-600 font-bold">Error: {actionError}</span>}
                             </div>
                             <div className="flex gap-3">
-                                <Button type="button" variant="secondary" onClick={onClose} disabled={actionLoading}>Cancel</Button>
+                                <Button type="button" variant="secondary" onClick={onClose} disabled={actionLoading}>{t('btn_cancel')}</Button>
                                 <Button type="submit" isLoading={actionLoading} icon={Save}>
-                                    {order ? 'Update Order' : 'Create Order'}
+                                    {order ? t('btn_update') : t('btn_create')}
                                 </Button>
                             </div>
                         </div>

@@ -1,9 +1,11 @@
 import { useStoreData } from "../hooks/useStoreData";
 import { X, Package, Calendar } from "lucide-react";
 import Button from "./Button";
+import { useLanguage } from "../context/LanguageContext"; // NEW
 
 export default function CustomerDetailModal({ isOpen, onClose, customer }) {
     const { data: allOrders, loading } = useStoreData("orders");
+    const { t } = useLanguage(); // NEW
 
     if (!isOpen || !customer) return null;
 
@@ -20,7 +22,7 @@ export default function CustomerDetailModal({ isOpen, onClose, customer }) {
             <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl overflow-hidden my-8 md:my-0 relative">
                 <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 sticky top-0 z-10">
                     <h2 className="text-xl font-bold text-gray-900">
-                        Customer Profile
+                        {t('title_customer_profile')}
                     </h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
                         <X className="h-6 w-6" />
@@ -33,18 +35,18 @@ export default function CustomerDetailModal({ isOpen, onClose, customer }) {
                         <div>
                             <h3 className="text-2xl font-bold text-gray-900">{customer.name}</h3>
                             <div className="mt-2 text-sm text-gray-500 space-y-1">
-                                <p>Phone: <span className="text-gray-900 font-medium">{customer.phone}</span></p>
-                                <p>Address: <span className="text-gray-900 font-medium">{customer.address}, {customer.city}</span></p>
-                                <p>First Order: <span className="text-gray-900 font-medium">{customer.firstOrderDate || '-'}</span></p>
+                                <p>{t('label_phone')}: <span className="text-gray-900 font-medium">{customer.phone}</span></p>
+                                <p>{t('label_address')}: <span className="text-gray-900 font-medium">{customer.address}, {customer.city}</span></p>
+                                <p>{t('label_first_order')} <span className="text-gray-900 font-medium">{customer.firstOrderDate || '-'}</span></p>
                             </div>
                         </div>
                         <div className="flex gap-4">
                             <div className="bg-indigo-50 p-4 rounded-xl text-center min-w-[120px]">
-                                <p className="text-sm text-indigo-600 font-medium">Lifetime Value</p>
+                                <p className="text-sm text-indigo-600 font-medium">{t('label_ltv')}</p>
                                 <p className="text-2xl font-bold text-indigo-900">{totalSpent.toFixed(2)} DH</p>
                             </div>
                             <div className="bg-green-50 p-4 rounded-xl text-center min-w-[120px]">
-                                <p className="text-sm text-green-600 font-medium">Orders</p>
+                                <p className="text-sm text-green-600 font-medium">{t('table_orders_count')}</p>
                                 <p className="text-2xl font-bold text-green-900">{orderCount}</p>
                             </div>
                         </div>
@@ -54,23 +56,23 @@ export default function CustomerDetailModal({ isOpen, onClose, customer }) {
                     <div>
                         <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                             <Package className="h-5 w-5 text-gray-400" />
-                            Order History
+                            {t('title_order_history')}
                         </h4>
 
                         <div className="bg-gray-50 rounded-lg overflow-x-auto border border-gray-200">
                             {loading ? (
-                                <div className="p-4 text-center text-gray-500">Loading history...</div>
+                                <div className="p-4 text-center text-gray-500">{t('msg_loading_history')}</div>
                             ) : customerOrders.length === 0 ? (
-                                <div className="p-4 text-center text-gray-500">No orders found linked to this profile.</div>
+                                <div className="p-4 text-center text-gray-500">{t('msg_no_history')}</div>
                             ) : (
                                 <table className="min-w-full divide-y divide-gray-200">
                                     <thead className="bg-gray-100">
                                         <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order #</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_date')}</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_th_order_num')}</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_product')}</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_total')}</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_status')}</th>
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">

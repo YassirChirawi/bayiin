@@ -5,6 +5,7 @@ import Button from "./Button";
 import Input from "./Input";
 import { useImageUpload } from "../hooks/useImageUpload";
 import { useTenant } from "../context/TenantContext";
+import { useLanguage } from "../context/LanguageContext"; // NEW
 
 export default function ProductModal({ isOpen, onClose, onSave, product = null }) {
     const [formData, setFormData] = useState({
@@ -24,6 +25,7 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
     const [variants, setVariants] = useState([]); // [{ id: '..', attributes: {Size: 'S'}, price, stock }]
 
     const { store } = useTenant();
+    const { t } = useLanguage(); // NEW
     const [loading, setLoading] = useState(false);
     const { uploadImage, uploading, error: uploadError } = useImageUpload();
 
@@ -156,7 +158,7 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
             onClose();
         } catch (error) {
             console.error("Error saving product:", error);
-            toast.error("Failed to save product");
+            toast.error(t('err_save_product'));
         } finally {
             setLoading(false);
         }
@@ -169,7 +171,7 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
             <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl my-8 flex flex-col max-h-[90vh]">
                 <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10 rounded-t-xl">
                     <h2 className="text-xl font-bold text-gray-900">
-                        {product ? "Edit Product" : "New Product"}
+                        {product ? t('modal_title_edit_product') : t('modal_title_new_product')}
                     </h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
                         <X className="h-6 w-6" />
@@ -182,15 +184,15 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-4">
                             <Input
-                                label="Product Name"
+                                label={t('label_product_name')}
                                 required
                                 value={formData.name}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                placeholder="e.g. Classic T-Shirt"
+                                placeholder={t('placeholder_product_name')}
                             />
                             <div className="grid grid-cols-2 gap-4">
                                 <Input
-                                    label="Base Price (DH)"
+                                    label={t('label_base_price')}
                                     type="number"
                                     required
                                     min="0"
@@ -199,34 +201,34 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                                     onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                                 />
                                 <Input
-                                    label="Cost Price (DH)"
+                                    label={t('label_cost_price_dh')}
                                     type="number"
                                     min="0"
                                     step="0.01"
                                     value={formData.costPrice}
                                     onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
-                                    placeholder="Optional"
+                                    placeholder={t('placeholder_optional')}
                                 />
                             </div>
                             <Input
-                                label="Category"
+                                label={t('label_category')}
                                 value={formData.category}
                                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                placeholder="e.g. Clothing"
+                                placeholder={t('placeholder_category')}
                             />
                         </div>
 
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Product Image
+                                    {t('label_product_image')}
                                 </label>
                                 <div className="mt-1 flex items-center gap-4">
                                     <div className="aspect-video w-32 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
                                         {formData.photoUrl ? (
                                             <img
                                                 src={formData.photoUrl}
-                                                alt="Preview"
+                                                alt={t('msg_preview')}
                                                 className="w-full h-full object-cover"
                                             />
                                         ) : (
@@ -243,19 +245,19 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                                             disabled={uploading}
                                             className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                                         />
-                                        {uploading && <p className="text-xs text-indigo-600 mt-1">Uploading...</p>}
+                                        {uploading && <p className="text-xs text-indigo-600 mt-1">{t('msg_uploading')}</p>}
                                     </div>
                                 </div>
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('label_description')}</label>
                                 <textarea
                                     className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
                                     rows={3}
                                     value={formData.description}
                                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                    placeholder="Product details..."
+                                    placeholder={t('placeholder_product_details')}
                                 />
                             </div>
                         </div>
@@ -266,21 +268,21 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                     {/* Stock & Variants Type Toggle */}
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-medium text-gray-900">Inventory</h3>
+                            <h3 className="text-lg font-medium text-gray-900">{t('title_inventory')}</h3>
                             <div className="flex bg-gray-100 p-1 rounded-lg">
                                 <button
                                     type="button"
                                     onClick={() => setFormData(prev => ({ ...prev, isVariable: false }))}
                                     className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${!formData.isVariable ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
                                 >
-                                    Simple Product
+                                    {t('btn_simple_product')}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setFormData(prev => ({ ...prev, isVariable: true }))}
                                     className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${formData.isVariable ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500'}`}
                                 >
-                                    Product with Variants
+                                    {t('btn_variable_product')}
                                 </button>
                             </div>
                         </div>
@@ -289,7 +291,7 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                             // Simple Stock UI
                             <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <Input
-                                    label="Total Stock"
+                                    label={t('label_total_stock')}
                                     type="number"
                                     required={!formData.isVariable}
                                     min="0"
@@ -297,10 +299,10 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                                     onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
                                 />
                                 <Input
-                                    label="Sizes (Optional, Display only)"
+                                    label={t('label_sizes_optional')}
                                     value={formData.sizes}
                                     onChange={(e) => setFormData({ ...formData, sizes: e.target.value })}
-                                    placeholder="S, M, L..."
+                                    placeholder={t('placeholder_sizes')}
                                 />
                             </div>
                         ) : (
@@ -309,14 +311,14 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                                 {/* 1. Attribute Builder */}
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <label className="block text-sm font-medium text-gray-700">Attributes & Options</label>
+                                        <label className="block text-sm font-medium text-gray-700">{t('title_attributes_options')}</label>
                                     </div>
                                     {attributes.map((attr, idx) => (
                                         <div key={idx} className="flex gap-2 items-start">
                                             <div className="w-1/3">
                                                 <input
                                                     type="text"
-                                                    placeholder="Option Name (e.g. Color)"
+                                                    placeholder={t('placeholder_option_name')}
                                                     value={attr.name}
                                                     onChange={(e) => updateAttributeName(idx, e.target.value)}
                                                     className="block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2 border"
@@ -325,7 +327,7 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                                             <div className="flex-1">
                                                 <input
                                                     type="text"
-                                                    placeholder="Values (e.g. Red, Blue, Green)"
+                                                    placeholder={t('placeholder_option_values')}
                                                     value={attr.options.join(", ")}
                                                     onChange={(e) => updateAttributeOptions(idx, e.target.value)}
                                                     className="block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2 border"
@@ -342,11 +344,11 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                                     ))}
                                     <div className="flex gap-2">
                                         <Button type="button" variant="secondary" onClick={addAttribute} icon={Plus} size="sm">
-                                            Add Option
+                                            {t('btn_add_option')}
                                         </Button>
                                         {attributes.length > 0 && (
                                             <Button type="button" onClick={generateVariants} icon={RefreshCw} size="sm" className="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border-indigo-200">
-                                                Generate Variants
+                                                {t('btn_generate_variants')}
                                             </Button>
                                         )}
                                     </div>
@@ -358,9 +360,9 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                                         <table className="min-w-full divide-y divide-gray-200">
                                             <thead className="bg-gray-50">
                                                 <tr>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Variant</th>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price (DH)</th>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('table_th_variant')}</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('table_th_price_dh')}</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('table_th_stock')}</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="bg-white divide-y divide-gray-200">
@@ -400,10 +402,10 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
 
                     <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                         <Button type="button" variant="secondary" onClick={onClose}>
-                            Cancel
+                            {t('cancel')}
                         </Button>
                         <Button type="submit" isLoading={loading} icon={Save}>
-                            Save Product
+                            {t('btn_save_product')}
                         </Button>
                     </div>
                 </form>

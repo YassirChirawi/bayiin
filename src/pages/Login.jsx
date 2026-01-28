@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext"; // NEW
 import Button from "../components/Button";
 import Input from "../components/Input";
 import { getFriendlyErrorMessage } from "../utils/firebaseErrors";
@@ -12,6 +13,8 @@ export default function Login() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
+
+    const { t } = useLanguage(); // NEW
 
     const { login, loginWithGoogle } = useAuth();
     const navigate = useNavigate();
@@ -74,7 +77,7 @@ export default function Login() {
         try {
             setLoading(true);
             const userCredential = await login(email, password);
-            toast.success("Welcome back!");
+            toast.success(t('welcome_back_toast'));
             // Just go to dashboard, trusting the permissions fix.
             navigate("/dashboard");
         } catch (err) {
@@ -90,19 +93,19 @@ export default function Login() {
             <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg border border-gray-100">
                 <div className="text-center">
                     <Link to="/" className="inline-flex items-center text-sm text-gray-500 hover:text-indigo-600 mb-6 transition-colors">
-                        ← Back to Home
+                        {t('back_to_home')}
                     </Link>
                     <div className="mx-auto h-20 w-20 flex items-center justify-center">
                         <img src="/logo.png" alt="BayIIn Logo" className="h-full w-full object-contain" />
                     </div>
                     <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-                        Sign in to your account
+                        {t('sign_in_title')}
                     </h2>
                 </div>
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
                     <div className="space-y-4">
                         <Input
-                            label="Email address"
+                            label={t('label_email')}
                             type="email"
                             required
                             value={email}
@@ -110,7 +113,7 @@ export default function Login() {
                             placeholder="you@example.com"
                         />
                         <Input
-                            label="Password"
+                            label={t('label_password')}
                             type="password"
                             required
                             value={password}
@@ -126,7 +129,7 @@ export default function Login() {
                             isLoading={loading}
                             variant="primary"
                         >
-                            Sign in
+                            {t('btn_sign_in')}
                         </Button>
                     </div>
 
@@ -135,7 +138,7 @@ export default function Login() {
                             <div className="w-full border-t border-gray-300" />
                         </div>
                         <div className="relative flex justify-center text-sm">
-                            <span className="px-2 bg-white text-gray-500">Or continue with</span>
+                            <span className="px-2 bg-white text-gray-500">{t('or_continue_with')}</span>
                         </div>
                     </div>
 
@@ -146,7 +149,7 @@ export default function Login() {
                                 try {
                                     setLoading(true);
                                     const userCredential = await loginWithGoogle();
-                                    toast.success("Welcome back!");
+                                    toast.success(t('welcome_back_toast'));
                                     navigate("/dashboard");
                                 } catch (err) {
                                     const message = getFriendlyErrorMessage(err);
@@ -177,15 +180,15 @@ export default function Login() {
                                     fill="#EA4335"
                                 />
                             </svg>
-                            Sign in with Google
+                            {t('sign_in_google')}
                         </Button>
                     </div>
                 </form>
                 <div className="text-center">
                     <p className="text-sm text-gray-600">
-                        Don't have an account?{" "}
+                        {t('no_account')}{" "}
                         <Link to="/signup" className="font-medium text-indigo-600 hover:text-indigo-500">
-                            Sign up
+                            {t('btn_sign_up')}
                         </Link>
                     </p>
                 </div>

@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useStoreData } from "../hooks/useStoreData";
 import { useTenant } from "../context/TenantContext"; // NEW
+import { useLanguage } from "../context/LanguageContext"; // NEW
 import { Navigate } from "react-router-dom"; // NEW
 import { DollarSign, TrendingUp, CreditCard, Activity, Plus, Trash2 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -11,6 +12,7 @@ import { where } from "firebase/firestore";
 
 export default function Finances() {
     const { store } = useTenant();
+    const { t } = useLanguage(); // NEW
     // Security: Redirect Staff
     if (store?.role === 'staff') {
         return <Navigate to="/dashboard" replace />;
@@ -210,7 +212,7 @@ export default function Finances() {
     };
 
     const handleDeleteExpense = async (id) => {
-        if (window.confirm("Remove expense?")) {
+        if (window.confirm(t('btn_remove_expense'))) {
             await deleteExpense(id);
         }
     }
@@ -219,13 +221,13 @@ export default function Finances() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Finances & Analytics</h1>
+                    <h1 className="text-2xl font-bold text-gray-900">{t('page_title_finances')}</h1>
                     <p className="mt-1 text-sm text-gray-500">
-                        Track revenue, expenses, and net profit.
+                        {t('page_subtitle_finances')}
                     </p>
                 </div>
                 <div className="flex bg-white p-2 rounded-lg shadow-sm border border-gray-100 gap-2 items-center">
-                    <span className="text-sm text-gray-500 font-medium px-2">Data Range:</span>
+                    <span className="text-sm text-gray-500 font-medium px-2">{t('date_range')}</span>
                     <input
                         type="date"
                         value={dateRange.start}
@@ -244,8 +246,8 @@ export default function Finances() {
 
             {expensesError && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                    <p className="font-bold">Error loading finances:</p>
-                    <p className="text-sm">{expensesError.message} - Check your 'expenses' collection permissions in Firebase Console.</p>
+                    <p className="font-bold">{t('err_loading_finances')}</p>
+                    <p className="text-sm">{expensesError.message} - {t('msg_check_permissions')}</p>
                 </div>
             )}
 
@@ -262,7 +264,7 @@ export default function Finances() {
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate">Total Income (Livré)</dt>
+                                <dt className="text-sm font-medium text-gray-500 truncate">{t('kpi_total_income_delivered')}</dt>
                                 <dd className="text-2xl font-semibold text-gray-900">{stats.deliveredRevenue.toLocaleString()} {store?.currency || 'MAD'}</dd>
                             </dl>
                         </div>
@@ -279,7 +281,7 @@ export default function Finances() {
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate">Total Paid ({store?.currency || 'MAD'})</dt>
+                                <dt className="text-sm font-medium text-gray-500 truncate">{t('kpi_total_paid')}</dt>
                                 <dd className="text-2xl font-semibold text-gray-900">{stats.realizedRevenue.toLocaleString()} {store?.currency || 'MAD'}</dd>
                             </dl>
                         </div>
@@ -296,7 +298,7 @@ export default function Finances() {
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate">Net Profit (Cash)</dt>
+                                <dt className="text-sm font-medium text-gray-500 truncate">{t('kpi_net_profit')}</dt>
                                 <dd className="text-2xl font-semibold text-gray-900">{stats.netResult.toLocaleString()} {store?.currency || 'MAD'}</dd>
                             </dl>
                         </div>
@@ -313,7 +315,7 @@ export default function Finances() {
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate">Net Margin</dt>
+                                <dt className="text-sm font-medium text-gray-500 truncate">{t('kpi_net_margin')}</dt>
                                 <dd className="text-2xl font-semibold text-gray-900">{stats.margin}%</dd>
                             </dl>
                         </div>
@@ -324,37 +326,37 @@ export default function Finances() {
             {/* ADVANCED METRICS SECTION */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">ROAS (Ads Efficiency)</p>
+                    <p className="text-xs text-gray-500 font-medium">{t('metric_roas')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
-                        <span className={`text-xl font-bold ${parseFloat(stats.roas) > 3 ? 'text-green-600' : 'text-gray-900'}`}>
+                        <span className={`text - xl font - bold ${parseFloat(stats.roas) > 3 ? 'text-green-600' : 'text-gray-900'} `}>
                             {stats.roas}x
                         </span>
-                        <span className="text-xs text-gray-400">Target: &gt;3.0</span>
+                        <span className="text-xs text-gray-400">{t('target')}: &gt;3.0</span>
                     </div>
                 </div>
 
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">CAC (Cost Per Order)</p>
+                    <p className="text-xs text-gray-500 font-medium">{t('metric_cac')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
                         <span className="text-xl font-bold text-gray-900">{stats.cac} DH</span>
-                        <span className="text-xs text-gray-400">Ads / Orders</span>
+                        <span className="text-xs text-gray-400">{t('label_ads_spending')}</span>
                     </div>
                 </div>
 
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">Shipping Ratio</p>
+                    <p className="text-xs text-gray-500 font-medium">{t('metric_shipping_ratio')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
-                        <span className={`text-xl font-bold ${parseFloat(stats.shippingRatio) > 15 ? 'text-red-600' : 'text-gray-900'}`}>
+                        <span className={`text - xl font - bold ${parseFloat(stats.shippingRatio) > 15 ? 'text-red-600' : 'text-gray-900'} `}>
                             {stats.shippingRatio}%
                         </span>
-                        <span className="text-xs text-gray-400">Target: &lt;15%</span>
+                        <span className="text-xs text-gray-400">{t('target')}: &lt;15%</span>
                     </div>
                 </div>
 
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">Net Profit / Order</p>
+                    <p className="text-xs text-gray-500 font-medium">{t('metric_profit_per_order')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
-                        <span className={`text-xl font-bold ${parseFloat(stats.profitPerOrder) > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className={`text - xl font - bold ${parseFloat(stats.profitPerOrder) > 0 ? 'text-green-600' : 'text-red-600'} `}>
                             {stats.profitPerOrder} DH
                         </span>
                     </div>
@@ -364,7 +366,7 @@ export default function Finances() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Chart Section */}
                 <div className="bg-white p-6 rounded-lg shadow border border-gray-100">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Revenue Trend (Last 7 Days)</h3>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">{t('chart_revenue')}</h3>
                     <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -386,7 +388,7 @@ export default function Finances() {
 
                 {/* Expenses Breakdown Chart */}
                 <div className="bg-white p-6 rounded-lg shadow border border-gray-100">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Expenses Breakdown</h3>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">{t('chart_expenses')}</h3>
                     <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
@@ -395,13 +397,13 @@ export default function Finances() {
                                     cx="50%"
                                     cy="50%"
                                     labelLine={false}
-                                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}% `}
                                     outerRadius={80}
                                     fill="#8884d8"
                                     dataKey="value"
                                 >
                                     {expenseCategoryData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        <Cell key={`cell - ${index} `} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
                                 <Tooltip formatter={(value) => `${value.toFixed(2)} DH`} />
@@ -414,12 +416,12 @@ export default function Finances() {
 
             {/* Expenses Management */}
             <div className="bg-white p-6 rounded-lg shadow border border-gray-100 lg:col-span-2">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Expenses Management</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">{t('section_expenses')}</h3>
 
                 <form onSubmit={handleAddExpense} className="flex flex-col sm:flex-row gap-2 mb-4">
                     <div className="flex-1">
                         <Input
-                            placeholder="Description (e.g. Ads, Packaging)"
+                            placeholder={t('placeholder_desc')} // "Description (e.g. Ads, Packaging)"
                             value={expenseForm.description}
                             onChange={e => setExpenseForm({ ...expenseForm, description: e.target.value })}
                             required
@@ -432,43 +434,44 @@ export default function Finances() {
                             onChange={e => setExpenseForm({ ...expenseForm, category: e.target.value })}
                         >
                             {EXPENSE_CATEGORIES.map(cat => (
-                                <option key={cat} value={cat}>{cat}</option>
+                                <option key={cat} value={cat}>{t(`cat_${cat.toLowerCase()}`) || cat}</option>
                             ))}
                         </select>
                     </div>
                     <div className="sm:w-32">
                         <Input
                             type="number"
-                            placeholder="Cost"
+                            placeholder={t('placeholder_cost')}
                             value={expenseForm.amount}
                             onChange={e => setExpenseForm({ ...expenseForm, amount: e.target.value })}
                             required
                         />
                     </div>
-                    <Button type="submit" isLoading={loadingExpense} icon={Plus}>Add</Button>
+                    <Button type="submit" isLoading={loadingExpense} icon={Plus}>{t('btn_add_expense')}</Button>
                 </form>
 
                 <div className="overflow-y-auto max-h-64 border-t border-gray-100">
                     {expenses.length === 0 ? (
-                        <p className="py-4 text-center text-sm text-gray-500">No expenses recorded.</p>
+                        <p className="py-4 text-center text-sm text-gray-500">{t('msg_no_expenses')}</p>
                     ) : (
                         <ul className="divide-y divide-gray-100">
                             {expenses.map(exp => (
                                 <li key={exp.id} className="py-3 flex justify-between items-center text-sm">
                                     <div className="flex items-center gap-3">
-                                        <span className={`px-2 py-1 text-xs font-semibold rounded-full 
+                                        <span className={`px - 2 py - 1 text - xs font - semibold rounded - full 
                                                     ${exp.category === 'Ads' ? 'bg-blue-100 text-blue-800' :
                                                 exp.category === 'Shipping' ? 'bg-yellow-100 text-yellow-800' :
                                                     exp.category === 'COGS' ? 'bg-orange-100 text-orange-800' :
                                                         exp.category === 'Salaries' ? 'bg-purple-100 text-purple-800' :
-                                                            'bg-gray-100 text-gray-800'}`}>
-                                            {exp.category || 'Other'}
+                                                            'bg-gray-100 text-gray-800'
+                                            } `}>
+                                            {t(`cat_${(exp.category || 'other').toLowerCase()}`) || exp.category}
                                         </span>
                                         <span className="text-gray-700">{exp.description}</span>
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <span className="font-medium text-red-600">-{parseFloat(exp.amount).toFixed(2)} DH</span>
-                                        <button onClick={() => handleDeleteExpense(exp.id)} className="text-gray-400 hover:text-red-500">
+                                        <button onClick={() => handleDeleteExpense(exp.id)} className="text-gray-400 hover:text-red-500" title={t('delete')}>
                                             <Trash2 className="h-4 w-4" />
                                         </button>
                                     </div>

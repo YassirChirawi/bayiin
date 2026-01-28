@@ -3,6 +3,7 @@ import { toast } from "react-hot-toast";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTenant } from "../context/TenantContext";
+import { useLanguage } from "../context/LanguageContext"; // NEW
 import Button from "../components/Button";
 import Input from "../components/Input";
 import { doc, setDoc } from "firebase/firestore";
@@ -15,6 +16,7 @@ export default function Onboarding() {
     const [loading, setLoading] = useState(false);
     const { user, logout } = useAuth();
     const { setStore, stores } = useTenant();
+    const { t } = useLanguage(); // NEW
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -74,7 +76,7 @@ export default function Onboarding() {
                     className="flex items-center gap-2 text-gray-500 hover:text-red-600 transition-colors px-4 py-2 rounded-lg hover:bg-white/50"
                 >
                     <LogOut className="w-5 h-5" />
-                    <span className="font-medium">Log out</span>
+                    <span className="font-medium">{t('logout')}</span>
                 </button>
             </div>
 
@@ -84,17 +86,17 @@ export default function Onboarding() {
                         <Store className="h-6 w-6 text-indigo-600" />
                     </div>
                     <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-                        Setup your store
+                        {t('setup_store_title')}
                     </h2>
                     <p className="mt-2 text-sm text-gray-600">
-                        Tell us a bit about your business
+                        {t('setup_store_desc')}
                     </p>
                 </div>
 
                 <form className="mt-8 space-y-6" onSubmit={handleCreateStore}>
                     <div className="space-y-4">
                         <Input
-                            label="Store Name"
+                            label={t('label_store_name')}
                             required
                             value={storeName}
                             onChange={(e) => setStoreName(e.target.value)}
@@ -103,7 +105,7 @@ export default function Onboarding() {
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Currency
+                                {t('label_store_currency')}
                             </label>
                             <select
                                 value={currency}
@@ -123,7 +125,7 @@ export default function Onboarding() {
                         className="w-full"
                         isLoading={loading}
                     >
-                        Create Store
+                        {t('btn_create_store')}
                     </Button>
                 </form>
             </div>

@@ -8,8 +8,10 @@ import ImportModal from "../components/ImportModal";
 import Button from "../components/Button";
 import { exportToCSV } from "../utils/csvHelper";
 import { orderBy, limit } from "firebase/firestore";
+import { useLanguage } from "../context/LanguageContext"; // NEW
 
 export default function Customers() {
+    const { t } = useLanguage(); // NEW
     // Limit to 50 active clients for performance
     const customerConstraints = useMemo(() => [
         orderBy("lastOrderDate", "desc"),
@@ -50,14 +52,14 @@ export default function Customers() {
     const handleDelete = async (id, e) => {
         e.stopPropagation();
         if (showTrash) {
-            if (window.confirm("Are you sure you want to permanently delete this customer? This cannot be undone.")) {
+            if (window.confirm(t('confirm_delete_customer_perm'))) {
                 await permanentDeleteStoreItem(id);
-                toast.success("Customer permanently deleted");
+                toast.success(t('msg_customer_deleted_perm'));
             }
         } else {
-            if (window.confirm("Are you sure you want to move this customer to trash?")) {
+            if (window.confirm(t('confirm_move_customer_trash'))) {
                 await deleteStoreItem(id);
-                toast.success("Customer moved to trash");
+                toast.success(t('msg_customer_moved_trash'));
             }
         }
     };
@@ -65,13 +67,13 @@ export default function Customers() {
     const handleRestore = async (id, e) => {
         e.stopPropagation();
         await restoreStoreItem(id);
-        toast.success("Customer restored");
+        toast.success(t('msg_customer_restored'));
     };
 
     const handleSaveCustomer = async (formData) => {
         if (editingCustomer) {
             await updateStoreItem(editingCustomer.id, formData);
-            toast.success("Customer updated");
+            toast.success(t('msg_customer_updated'));
         } else {
             await addStoreItem({
                 ...formData,
@@ -80,7 +82,7 @@ export default function Customers() {
                 firstOrderDate: null,
                 lastOrderDate: null
             });
-            toast.success("Customer added");
+            toast.success(t('msg_customer_added'));
         }
         setIsEditModalOpen(false);
         setEditingCustomer(null);
@@ -89,13 +91,13 @@ export default function Customers() {
     // Generic CSV Export
     const handleExportCSV = () => {
         const dataToExport = customers.map(c => ({
-            Name: c.name,
-            Phone: c.phone || '',
-            City: c.city || '',
-            Address: c.address || '',
-            'Total Orders': c.orderCount || 0,
-            'Total Spent': c.totalSpent || 0,
-            'Last Order': c.lastOrderDate || ''
+            [t('label_full_name')]: c.name,
+            [t('label_phone')]: c.phone || '',
+            [t('label_city')]: c.city || '',
+            [t('label_address')]: c.address || '',
+            [t('table_orders_count')]: c.orderCount || 0,
+            [t('table_spent')]: c.totalSpent || 0,
+            [t('table_last_order')]: c.lastOrderDate || ''
         }));
         exportToCSV(dataToExport, 'customers');
     };
@@ -124,7 +126,8 @@ export default function Customers() {
 
         await Promise.all(promises);
         await Promise.all(promises);
-        toast.success(`Successfully imported ${importedCount} customers.`);
+        await Promise.all(promises);
+        toast.success(t('success_import_customers', { count: importedCount }));
     };
 
     const filteredCustomers = customers
@@ -139,9 +142,9 @@ export default function Customers() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
+                    <h1 className="text-2xl font-bold text-gray-900">{t('page_title_customers')}</h1>
                     <p className="mt-1 text-sm text-gray-500">
-                        View customer profiles, lifetime value, and history.
+                        {t('page_subtitle_customers')}
                     </p>
                 </div>
                 <div className="flex gap-2">
@@ -150,7 +153,7 @@ export default function Customers() {
                         icon={Upload}
                         onClick={() => setIsImportModalOpen(true)}
                     >
-                        Import
+                        {t('import')}
                     </Button>
                     <Button
                         variant="secondary"
@@ -158,25 +161,25 @@ export default function Customers() {
                         onClick={handleExportCSV}
                         disabled={customers.length === 0}
                     >
-                        Export
+                        {t('export')}
                     </Button>
                     <div className="flex bg-gray-100 p-1 rounded-lg self-center sm:self-auto">
                         <button
                             onClick={() => setShowTrash(false)}
                             className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${!showTrash ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                         >
-                            Active
+                            {t('active')}
                         </button>
                         <button
                             onClick={() => setShowTrash(true)}
                             className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${showTrash ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                         >
-                            Trash
+                            {t('trash')}
                         </button>
                     </div>
                     {!showTrash && (
                         <Button onClick={() => { setEditingCustomer(null); setIsEditModalOpen(true); }} icon={Plus}>
-                            New Customer
+                            {t('btn_new_customer')}
                         </Button>
                     )}
                 </div>
@@ -190,7 +193,7 @@ export default function Customers() {
                             <Users className="h-6 w-6" />
                         </div>
                         <div>
-                            <p className="text-sm text-gray-500">Total Clients</p>
+                            <p className="text-sm text-gray-500">{t('kpi_total_clients')}</p>
                             <p className="text-2xl font-bold text-gray-900">{kpiStats.total}</p>
                         </div>
                     </div>
@@ -201,7 +204,7 @@ export default function Customers() {
                             <TrendingUp className="h-6 w-6" />
                         </div>
                         <div>
-                            <p className="text-sm text-gray-500">Avg. Lifetime Value</p>
+                            <p className="text-sm text-gray-500">{t('kpi_ltv')}</p>
                             <p className="text-2xl font-bold text-gray-900">{kpiStats.ltv} DH</p>
                         </div>
                     </div>
@@ -212,7 +215,7 @@ export default function Customers() {
                             <MapPin className="h-6 w-6" />
                         </div>
                         <div>
-                            <p className="text-sm text-gray-500">Top City</p>
+                            <p className="text-sm text-gray-500">{t('kpi_top_city')}</p>
                             <p className="text-2xl font-bold text-gray-900">{kpiStats.topCity}</p>
                         </div>
                     </div>
@@ -228,7 +231,7 @@ export default function Customers() {
                     <input
                         type="text"
                         className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                        placeholder="Search by Name, Phone, or City..."
+                        placeholder={t('search_placeholder')}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -240,20 +243,20 @@ export default function Customers() {
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">City</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Orders</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Spent</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Order</th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_client')}</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_phone')}</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_city')}</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_orders_count')}</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_spent')}</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_last_order')}</th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{t('actions')}</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                         {loading ? (
-                            <tr><td colSpan="7" className="px-6 py-4 text-center">Loading...</td></tr>
+                            <tr><td colSpan="7" className="px-6 py-4 text-center">{t('loading')}</td></tr>
                         ) : filteredCustomers.length === 0 ? (
-                            <tr><td colSpan="7" className="px-6 py-4 text-center text-gray-500">No customers found.</td></tr>
+                            <tr><td colSpan="7" className="px-6 py-4 text-center text-gray-500">{t('no_data')}</td></tr>
                         ) : filteredCustomers.map((customer) => (
                             <tr key={customer.id} className="hover:bg-gray-50">
                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -343,7 +346,7 @@ export default function Customers() {
                 isOpen={isImportModalOpen}
                 onClose={() => setIsImportModalOpen(false)}
                 onImport={handleImport}
-                title="Import Customers"
+                title={`${t('import')} ${t('page_title_customers')}`}
                 templateHeaders={["Name", "Phone"]}
             />
         </div>

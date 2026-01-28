@@ -7,8 +7,10 @@ import ProductModal from "../components/ProductModal";
 import ImportModal from "../components/ImportModal";
 import { exportToCSV } from "../utils/csvHelper";
 import { orderBy, limit } from "firebase/firestore";
+import { useLanguage } from "../context/LanguageContext"; // NEW
 
 export default function Products() {
+    const { t } = useLanguage(); // NEW
     const [limitCount, setLimitCount] = useState(50);
 
     // Limit to 50 products for performance
@@ -28,10 +30,10 @@ export default function Products() {
     const handleSave = async (productData) => {
         if (editingProduct) {
             await updateStoreItem(editingProduct.id, productData);
-            toast.success("Product updated");
+            toast.success(t('msg_product_updated'));
         } else {
             await addStoreItem(productData);
-            toast.success("Product added");
+            toast.success(t('msg_product_added'));
         }
         setIsModalOpen(false);
         setEditingProduct(null);
@@ -44,31 +46,31 @@ export default function Products() {
 
     const handleDelete = async (id) => {
         if (showTrash) {
-            if (window.confirm("Are you sure you want to permanently delete this product? This cannot be undone.")) {
+            if (window.confirm(t('confirm_delete_permanent'))) {
                 await permanentDeleteStoreItem(id);
-                toast.success("Product deleted permanently");
+                toast.success(t('msg_product_deleted_perm'));
             }
         } else {
-            if (window.confirm("Are you sure you want to move this product to trash?")) {
+            if (window.confirm(t('confirm_move_trash'))) {
                 await deleteStoreItem(id);
-                toast.success("Product moved to trash");
+                toast.success(t('msg_product_moved_trash'));
             }
         }
     };
 
     const handleRestore = async (id) => {
         await restoreStoreItem(id);
-        toast.success("Product restored");
+        toast.success(t('msg_product_restored'));
     };
 
     const handleExportCSV = () => {
         const dataToExport = products.map(p => ({
-            Name: p.name,
-            Category: p.category || '',
-            Price: p.price,
-            Stock: p.stock,
-            'Cost Price': p.costPrice || 0,
-            'Is Variable': p.isVariable ? 'Yes' : 'No'
+            [t('label_product_name')]: p.name,
+            [t('label_category')]: p.category || '',
+            [t('table_price')]: p.price,
+            [t('table_stock')]: p.stock,
+            [t('label_cost_price_dh')]: p.costPrice || 0,
+            [t('with_variants')]: p.isVariable ? t('yes') : t('no')
         }));
         exportToCSV(dataToExport, 'products');
     };
@@ -93,7 +95,8 @@ export default function Products() {
 
         await Promise.all(promises);
         await Promise.all(promises);
-        toast.success(`Successfully imported ${importedCount} products.`);
+        await Promise.all(promises);
+        toast.success(t('success_import_products', { count: importedCount }));
     };
 
     const filteredProducts = products
@@ -107,9 +110,9 @@ export default function Products() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Products</h1>
+                    <h1 className="text-2xl font-bold text-gray-900">{t('page_title_products')}</h1>
                     <p className="mt-1 text-sm text-gray-500">
-                        Manage your inventory and catalog
+                        {t('page_subtitle_products')}
                     </p>
                 </div>
                 <div className="flex gap-2">
@@ -118,7 +121,7 @@ export default function Products() {
                         icon={Upload}
                         onClick={() => setIsImportModalOpen(true)}
                     >
-                        Import
+                        {t('import')}
                     </Button>
                     <Button
                         variant="secondary"
@@ -126,25 +129,25 @@ export default function Products() {
                         onClick={handleExportCSV}
                         disabled={products.length === 0}
                     >
-                        Export
+                        {t('export')}
                     </Button>
                     <div className="flex bg-gray-100 p-1 rounded-lg">
                         <button
                             onClick={() => setShowTrash(false)}
                             className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${!showTrash ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                         >
-                            Active
+                            {t('active')}
                         </button>
                         <button
                             onClick={() => setShowTrash(true)}
                             className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${showTrash ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                         >
-                            Trash
+                            {t('trash')}
                         </button>
                     </div>
                     {!showTrash && (
                         <Button onClick={() => { setEditingProduct(null); setIsModalOpen(true); }} icon={Plus}>
-                            Add Product
+                            {t('btn_add_product')}
                         </Button>
                     )}
                 </div>
@@ -159,7 +162,7 @@ export default function Products() {
                     <input
                         type="text"
                         className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-150 ease-in-out"
-                        placeholder="Search products..."
+                        placeholder={t('search_placeholder')}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -170,16 +173,15 @@ export default function Products() {
             {loading ? (
                 <div className="text-center py-12">
                     <Package className="mx-auto h-12 w-12 text-gray-300 animate-pulse" />
-                    <p className="mt-2 text-sm text-gray-500">Loading products...</p>
+                    <p className="mt-2 text-sm text-gray-500">{t('loading')}</p>
                 </div>
             ) : filteredProducts.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-lg border border-gray-200 border-dashed">
                     <Package className="mx-auto h-12 w-12 text-gray-300" />
-                    <h3 className="mt-2 text-sm font-medium text-gray-900">No products</h3>
-                    <p className="mt-1 text-sm text-gray-500">Get started by creating a new product.</p>
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">{t('no_data')}</h3>
                     <div className="mt-6">
                         <Button onClick={() => setIsModalOpen(true)} icon={Plus}>
-                            New Product
+                            {t('btn_add_product')}
                         </Button>
                     </div>
                 </div>
@@ -204,7 +206,7 @@ export default function Products() {
                                                 <p className="text-sm font-medium text-indigo-600 truncate">{product.name}</p>
                                                 {product.isVariable && (
                                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
-                                                        With Variants
+                                                        {t('with_variants')}
                                                     </span>
                                                 )}
                                             </div>
@@ -212,7 +214,7 @@ export default function Products() {
                                                 <span className="truncate">{product.category}</span>
                                                 <span className="mx-2">•</span>
                                                 <span className={parseInt(product.stock) === 0 ? "text-red-600 font-bold" : ""}>
-                                                    {product.stock} in stock
+                                                    {product.stock} {t('table_stock').toLowerCase()}
                                                 </span>
                                             </p>
 
@@ -240,7 +242,7 @@ export default function Products() {
                                             {(parseInt(product.stock) || 0) < 5 && (
                                                 <div className="mt-1 flex items-center gap-1 text-xs text-red-600 font-medium bg-red-50 px-2 py-0.5 rounded w-fit">
                                                     <AlertCircle className="h-3 w-3" />
-                                                    Low Stock
+                                                    {t('low_stock')}
                                                 </div>
                                             )}
                                         </div>
@@ -299,7 +301,7 @@ export default function Products() {
                     onClick={() => setLimitCount(prev => prev + 50)}
                     disabled={loading || products.length < limitCount}
                 >
-                    {loading ? "Loading..." : "Load More"}
+                    {loading ? t('loading') : "Load More"}
                 </Button>
             </div>
 
@@ -314,7 +316,7 @@ export default function Products() {
                 isOpen={isImportModalOpen}
                 onClose={() => setIsImportModalOpen(false)}
                 onImport={handleImport}
-                title="Import Products"
+                title={`${t('import')} ${t('page_title_products')}`}
                 templateHeaders={["Name", "Price"]}
             />
         </div>

@@ -2,12 +2,14 @@ import { useState } from "react";
 import { Upload, X, FileText, Check, AlertCircle } from "lucide-react";
 import Button from "./Button";
 import { parseCSV } from "../utils/csvHelper";
+import { useLanguage } from "../context/LanguageContext"; // NEW
 
 export default function ImportModal({ isOpen, onClose, onImport, title = "Import Data", templateHeaders = [] }) {
     const [file, setFile] = useState(null);
     const [previewData, setPreviewData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const { t } = useLanguage(); // NEW
 
     if (!isOpen) return null;
 
@@ -16,7 +18,7 @@ export default function ImportModal({ isOpen, onClose, onImport, title = "Import
         if (!selectedFile) return;
 
         if (selectedFile.type !== "text/csv" && !selectedFile.name.endsWith(".csv")) {
-            setError("Please upload a valid CSV file.");
+            setError(t('err_invalid_csv'));
             return;
         }
 
@@ -41,7 +43,7 @@ export default function ImportModal({ isOpen, onClose, onImport, title = "Import
                 }
             }
         } catch (err) {
-            setError("Failed to parse CSV file.");
+            setError(t('err_parse_failed'));
             console.error(err);
         } finally {
             setLoading(false);
@@ -83,12 +85,12 @@ export default function ImportModal({ isOpen, onClose, onImport, title = "Import
                                     htmlFor="file-upload"
                                     className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none"
                                 >
-                                    <span>Upload a CSV file</span>
+                                    <span>{t('msg_upload_csv')}</span>
                                     <input id="file-upload" name="file-upload" type="file" className="sr-only" accept=".csv" onChange={handleFileChange} />
                                 </label>
-                                <p className="pl-1">or drag and drop</p>
+                                <p className="pl-1">{t('msg_drag_drop')}</p>
                             </div>
-                            <p className="text-xs text-gray-500 mt-2">CSV files only</p>
+                            <p className="text-xs text-gray-500 mt-2">{t('msg_csv_only')}</p>
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -97,7 +99,7 @@ export default function ImportModal({ isOpen, onClose, onImport, title = "Import
                                     <FileText className="h-8 w-8 text-green-600" />
                                     <div>
                                         <p className="text-sm font-medium text-gray-900">{file.name}</p>
-                                        <p className="text-xs text-gray-500">{previewData.length} records found</p>
+                                        <p className="text-xs text-gray-500">{t('msg_records_found', { count: previewData.length })}</p>
                                     </div>
                                 </div>
                                 <button onClick={() => { setFile(null); setPreviewData([]); setError(null); }} className="text-gray-400 hover:text-red-500">
@@ -161,7 +163,7 @@ export default function ImportModal({ isOpen, onClose, onImport, title = "Import
                         className="text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
                     >
                         <FileText className="h-4 w-4" />
-                        Download Sample CSV
+                        {t('btn_download_sample')}
                     </button>
                 </div>
 
@@ -173,7 +175,7 @@ export default function ImportModal({ isOpen, onClose, onImport, title = "Import
                         isLoading={loading}
                         icon={Check}
                     >
-                        Import {previewData.length > 0 ? `${previewData.length} Items` : ''}
+                        {t('btn_import_action')} {previewData.length > 0 ? `(${previewData.length})` : ''}
                     </Button>
                 </div>
             </div>

@@ -1,4 +1,5 @@
 import { useTenant } from "../context/TenantContext";
+import { useLanguage } from "../context/LanguageContext"; // NEW
 import { User, Store, CreditCard, Check, Zap, Shield, Save, Settings as SettingsIcon, Truck, Users, Lock, Activity } from "lucide-react";
 import { doc, updateDoc, setDoc, collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
 import { db } from "../lib/firebase";
@@ -19,8 +20,9 @@ import ShippingSettings from "./ShippingSettings";
 
 export default function Settings() {
     const { store, setStore } = useTenant();
+    const { t } = useLanguage(); // NEW
 
-    // Security: Redirect Staff
+    // Security: Redirect Staff //
     if (store?.role === 'staff') {
         return <Navigate to="/dashboard" replace />;
     }
@@ -156,11 +158,11 @@ export default function Settings() {
 
 
     const tabs = [
-        { id: "general", label: "General", icon: Store },
-        { id: "shipping", label: "Shipping", icon: Truck },
-        { id: "billing", label: "Plans & Billing", icon: CreditCard },
-        { id: "security", label: "Security", icon: Shield },
-        { id: "activity", label: "Activity Log", icon: Activity }, // NEW
+        { id: "general", label: t('tab_general'), icon: Store },
+        { id: "shipping", label: t('tab_shipping'), icon: Truck },
+        { id: "billing", label: t('tab_billing'), icon: CreditCard },
+        { id: "security", label: t('tab_security'), icon: Shield },
+        { id: "activity", label: t('tab_activity'), icon: Activity }, // NEW
     ];
 
     // Biometric Logic
@@ -201,9 +203,9 @@ export default function Settings() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+                <h1 className="text-2xl font-bold text-gray-900">{t('page_title_settings')}</h1>
                 <p className="mt-1 text-sm text-gray-500">
-                    Manage your store configuration
+                    {t('page_subtitle_settings')}
                 </p>
             </div>
 
@@ -239,12 +241,12 @@ export default function Settings() {
                 {activeTab === "activity" && (
                     <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
                         <div className="px-4 py-5 sm:px-6 border-b border-gray-100">
-                            <h3 className="text-lg leading-6 font-medium text-gray-900">Recent Activity</h3>
-                            <p className="mt-1 text-sm text-gray-500">Audit log of system actions.</p>
+                            <h3 className="text-lg leading-6 font-medium text-gray-900">{t('section_recent_activity')}</h3>
+                            <p className="mt-1 text-sm text-gray-500">{t('activity_log_desc')}</p>
                         </div>
                         <ul className="divide-y divide-gray-200">
                             {logs.length === 0 ? (
-                                <li className="px-4 py-4 text-sm text-gray-500 text-center">No activity recorded yet.</li>
+                                <li className="px-4 py-4 text-sm text-gray-500 text-center">{t('no_activity')}</li>
                             ) : logs.map((log) => (
                                 <li key={log.id} className="px-4 py-4 sm:px-6 hover:bg-gray-50">
                                     <div className="flex items-center justify-between">
@@ -276,7 +278,7 @@ export default function Settings() {
                             <div className="px-4 py-5 sm:p-6">
                                 <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
                                     <CreditCard className="h-5 w-5 text-gray-400" />
-                                    Subscription Plan
+                                    {t('section_subscription_plan')}
                                 </h3>
                                 <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {/* Starter Plan */}
@@ -284,13 +286,13 @@ export default function Settings() {
                                         {store?.plan === 'starter' && (
                                             <div className="absolute top-0 right-0 -mt-2 -mr-2">
                                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-200">
-                                                    Active
+                                                    {t('active')}
                                                 </span>
                                             </div>
                                         )}
                                         <h4 className="text-lg font-bold text-gray-900">Starter</h4>
                                         <p className="mt-2 text-sm text-gray-500 flex-1">
-                                            Perfect for getting started with your business.
+                                            {t('plan_starter_desc')}
                                         </p>
                                         <div className="mt-4 mb-6">
                                             <span className="text-4xl font-extrabold text-gray-900">79 DH</span>
@@ -298,8 +300,8 @@ export default function Settings() {
                                             <p className="text-xs text-green-600 font-semibold mt-1">14 Days Free Trial</p>
                                         </div>
                                         <ul className="space-y-3 mb-6 text-sm text-gray-600">
-                                            <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> Up to 50 Orders/mo</li>
-                                            <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> Basic Analytics</li>
+                                            <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> {t('plan_feature_50_orders')}</li>
+                                            <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> {t('plan_feature_basic_analytics')}</li>
                                         </ul>
                                         <Button
                                             onClick={() => handleUpgrade('starter')}
@@ -307,7 +309,7 @@ export default function Settings() {
                                             disabled={store?.plan === 'starter'}
                                             className={`w-full justify-center ${store?.plan === 'starter' ? 'bg-indigo-200 text-indigo-700 cursor-default' : 'bg-white text-indigo-600 border border-indigo-600 hover:bg-indigo-50'}`}
                                         >
-                                            {store?.plan === 'starter' ? 'Current Plan' : 'Start Trial'}
+                                            {store?.plan === 'starter' ? t('current_plan') : t('start_trial')}
                                         </Button>
                                     </div>
 
@@ -316,13 +318,13 @@ export default function Settings() {
                                         {store?.plan === 'pro' && (
                                             <div className="absolute top-0 right-0 -mt-2 -mr-2">
                                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
-                                                    Active
+                                                    {t('active')}
                                                 </span>
                                             </div>
                                         )}
                                         <h4 className="text-lg font-bold text-gray-900">Pro</h4>
                                         <p className="mt-2 text-sm text-gray-500 flex-1">
-                                            For growing businesses that need more power.
+                                            {t('plan_pro_desc')}
                                         </p>
                                         <div className="mt-4 mb-6">
                                             <span className="text-4xl font-extrabold text-gray-900">179 DH</span>
@@ -330,8 +332,8 @@ export default function Settings() {
                                             <p className="text-xs text-green-600 font-semibold mt-1">14 Days Free Trial</p>
                                         </div>
                                         <ul className="space-y-3 mb-6 text-sm text-gray-600">
-                                            <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> Unlimited Orders</li>
-                                            <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> Advanced Analytics</li>
+                                            <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> {t('plan_feature_unlimited_orders')}</li>
+                                            <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> {t('plan_feature_adv_analytics')}</li>
                                         </ul>
                                         <Button
                                             onClick={() => handleUpgrade('pro')}
@@ -340,7 +342,7 @@ export default function Settings() {
                                             className={`w-full justify-center ${store?.plan === 'pro' ? 'bg-purple-200 text-purple-700 cursor-default' : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-md shadow-indigo-200'}`}
                                             icon={Zap}
                                         >
-                                            {store?.plan === 'pro' ? 'Current Plan' : 'Start Trial'}
+                                            {store?.plan === 'pro' ? t('current_plan') : t('start_trial')}
                                         </Button>
                                     </div>
                                 </div>
@@ -352,7 +354,7 @@ export default function Settings() {
                             <div className="px-4 py-5 sm:p-6">
                                 <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
                                     <Zap className="h-5 w-5 text-yellow-500" />
-                                    Redeem Promo Code
+                                    {t('redeem_promo_code')}
                                 </h3>
                                 <form
                                     onSubmit={async (e) => {
@@ -386,11 +388,11 @@ export default function Settings() {
                                     <input
                                         name="promoCode"
                                         type="text"
-                                        placeholder="Enter Code"
+                                        placeholder={t('enter_code')}
                                         className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
                                     />
                                     <Button type="submit" isLoading={loading === 'promo'}>
-                                        Apply
+                                        {t('apply')}
                                     </Button>
                                 </form>
                             </div>
@@ -404,11 +406,11 @@ export default function Settings() {
                             <div className="px-4 py-5 sm:p-6">
                                 <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
                                     <Store className="h-5 w-5 text-gray-400" />
-                                    Store Information
+                                    {t('section_store_info')}
                                 </h3>
                                 <div className="mt-4 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
                                     <div className="sm:col-span-6">
-                                        <label className="block text-sm font-medium text-gray-700">Store Logo</label>
+                                        <label className="block text-sm font-medium text-gray-700">{t('label_store_logo')}</label>
                                         <div className="mt-1 flex items-center gap-4">
                                             <div className="h-16 w-16 rounded-full overflow-hidden bg-gray-100 border border-gray-200">
                                                 {store?.logoUrl ? (
@@ -432,7 +434,7 @@ export default function Settings() {
                                     </div>
 
                                     <div className="sm:col-span-3">
-                                        <label className="block text-sm font-medium text-gray-700">Store Name</label>
+                                        <label className="block text-sm font-medium text-gray-700">{t('label_store_name')}</label>
                                         <div className="mt-1">
                                             <input
                                                 type="text"
@@ -443,7 +445,7 @@ export default function Settings() {
                                         </div>
                                     </div>
                                     <div className="sm:col-span-3">
-                                        <label className="block text-sm font-medium text-gray-700">Currency</label>
+                                        <label className="block text-sm font-medium text-gray-700">{t('label_store_currency')}</label>
                                         <div className="mt-1">
                                             <select
                                                 value={store?.currency || 'MAD'}
@@ -471,10 +473,10 @@ export default function Settings() {
 
                                     {/* Invoice & Contact Details */}
                                     <div className="sm:col-span-6 border-t border-gray-100 pt-6">
-                                        <h4 className="text-sm font-medium text-gray-900 mb-4">Invoice & Contact Details</h4>
+                                        <h4 className="text-sm font-medium text-gray-900 mb-4">{t('section_invoice_details')}</h4>
                                         <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
                                             <div className="sm:col-span-3">
-                                                <label className="block text-sm font-medium text-gray-700">Company Phone</label>
+                                                <label className="block text-sm font-medium text-gray-700">{t('label_store_phone')}</label>
                                                 <input
                                                     type="text"
                                                     value={store?.phone || ''}
@@ -484,7 +486,7 @@ export default function Settings() {
                                                 />
                                             </div>
                                             <div className="sm:col-span-3">
-                                                <label className="block text-sm font-medium text-gray-700">ICE / Tax ID</label>
+                                                <label className="block text-sm font-medium text-gray-700">{t('label_store_ice')}</label>
                                                 <input
                                                     type="text"
                                                     value={store?.ice || ''}
@@ -494,7 +496,7 @@ export default function Settings() {
                                                 />
                                             </div>
                                             <div className="sm:col-span-6">
-                                                <label className="block text-sm font-medium text-gray-700">Company Address</label>
+                                                <label className="block text-sm font-medium text-gray-700">{t('label_store_address')}</label>
                                                 <textarea
                                                     rows={2}
                                                     value={store?.address || ''}
@@ -520,7 +522,7 @@ export default function Settings() {
                                                     }}
                                                     icon={Save}
                                                 >
-                                                    Save Details
+                                                    {t('btn_save_details')}
                                                 </Button>
                                             </div>
                                         </div>
@@ -534,18 +536,18 @@ export default function Settings() {
                             <div className="px-4 py-5 sm:p-6">
                                 <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
                                     <User className="h-5 w-5 text-gray-400" /> {/* Reusing User icon or import MessageSquare */}
-                                    WhatsApp Templates Configuration
+                                    {t('section_whatsapp_config')}
                                 </h3>
                                 <p className="mt-1 text-sm text-gray-500 mb-6">
-                                    Customize the automatic messages sent to clients (Variables: [Client], [Store], [Ville], [Produit], [Commande], [Ticket])
+                                    {t('whatsapp_config_desc')}
                                 </p>
 
                                 <div className="space-y-6">
                                     {/* Language Selector */}
                                     <div className="bg-indigo-50 p-4 rounded-md border border-indigo-100 flex items-center justify-between">
                                         <div>
-                                            <h4 className="text-sm font-bold text-indigo-900">Message Language / Langue des messages</h4>
-                                            <p className="text-xs text-indigo-700">Choose between Standard French or Moroccan Darija.</p>
+                                            <h4 className="text-sm font-bold text-indigo-900">{t('whatsapp_language_title')}</h4>
+                                            <p className="text-xs text-indigo-700">{t('whatsapp_language_desc')}</p>
                                         </div>
                                         <div className="flex gap-2">
                                             <button
@@ -569,7 +571,7 @@ export default function Settings() {
                                         return (
                                             <div key={status} className="border-b pb-4 last:border-0">
                                                 <label className="block text-sm font-medium text-gray-700 mb-2 capitalize">
-                                                    Status: {status}
+                                                    {t('status')}: {status}
                                                 </label>
                                                 <div className="flex gap-2">
                                                     <textarea
@@ -616,7 +618,7 @@ export default function Settings() {
                                         }}
                                         icon={Save}
                                     >
-                                        Save Configuration
+                                        {t('btn_save_config')}
                                     </Button>
                                 </div>
                             </div>
@@ -625,7 +627,7 @@ export default function Settings() {
                         <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
                             <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
                                 <SettingsIcon className="h-5 w-5 text-gray-500" />
-                                System Maintenance
+                                {t('section_system_maintenance')}
                             </h3>
                             <Button
                                 onClick={handleRecalculateStats}
@@ -633,18 +635,18 @@ export default function Settings() {
                                 variant="secondary"
                                 className="w-full sm:w-auto"
                             >
-                                {recalcMsg || "Recalculate Customer Stats"}
+                                {recalcMsg || t('btn_recalc_stats')}
                             </Button>
 
                             <div className="mt-4 pt-4 border-t border-gray-100">
-                                <p className="text-sm text-gray-500 mb-2">Fix Dashboard Data</p>
+                                <p className="text-sm text-gray-500 mb-2">{t('fix_dashboard_data')}</p>
                                 <Button
                                     onClick={handleRecalculateStoreStats}
                                     isLoading={loading === 'recalcStore'}
                                     variant="secondary"
                                     className="w-full sm:w-auto text-red-600 border-red-200 hover:bg-red-50"
                                 >
-                                    {loading === 'recalcStore' ? recalcMsg : "Fix Financials"}
+                                    {loading === 'recalcStore' ? recalcMsg : t('btn_fix_financials')}
                                 </Button>
                             </div>
                         </div>
@@ -656,19 +658,19 @@ export default function Settings() {
                         <div className="px-4 py-5 sm:p-6">
                             <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
                                 <Shield className="h-5 w-5 text-gray-400" />
-                                App Security
+                                {t('section_app_security')}
                             </h3>
                             <div className="mt-6">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <h4 className="text-base font-medium text-gray-900">Biometric App Lock</h4>
+                                        <h4 className="text-base font-medium text-gray-900">{t('biometric_lock')}</h4>
                                         <p className="text-sm text-gray-500">
-                                            Require FaceID or TouchID when opening the app.
+                                            {t('biometric_lock_desc')}
                                         </p>
                                     </div>
                                     <div className="flex items-center">
                                         {!biometricSupported ? (
-                                            <span className="text-sm text-red-500 bg-red-50 px-2 py-1 rounded">Not Supported on this device</span>
+                                            <span className="text-sm text-red-500 bg-red-50 px-2 py-1 rounded">{t('not_supported')}</span>
                                         ) : (
                                             <button
                                                 onClick={handleToggleBiometric}
@@ -692,11 +694,10 @@ export default function Settings() {
                                     <div className="flex">
                                         <Lock className="h-5 w-5 text-yellow-400" aria-hidden="true" />
                                         <div className="ml-3">
-                                            <h3 className="text-sm font-medium text-yellow-800">Note</h3>
+                                            <h3 className="text-sm font-medium text-yellow-800">{t('note')}</h3>
                                             <div className="mt-2 text-sm text-yellow-700">
                                                 <p>
-                                                    This locks the app interface on this specific device. It does not change your account password.
-                                                    If you clear your browser cache, you may need to re-enable this.
+                                                    {t('security_note_desc')}
                                                 </p>
                                             </div>
                                         </div>

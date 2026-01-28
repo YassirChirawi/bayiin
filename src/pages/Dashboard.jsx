@@ -3,18 +3,20 @@ import { useStoreData } from "../hooks/useStoreData";
 import { useStoreStats } from "../hooks/useStoreStats";
 import { Link } from "react-router-dom";
 import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, RotateCcw, CheckCircle, RefreshCw } from "lucide-react"; // Added RefreshCw
-import { useMemo, useState } from "react"; // Added useState
+import { useMemo, useState } from "react";
 import { format, subDays } from "date-fns";
 import { where, limit, orderBy } from "firebase/firestore";
-import { reconcileStoreStats } from "../utils/reconcileStats"; // New Import
-import { db } from "../lib/firebase"; // New Import
-import { toast } from "react-hot-toast"; // Ensure Toast is available
+import { reconcileStoreStats } from "../utils/reconcileStats";
+import { db } from "../lib/firebase";
+import { toast } from "react-hot-toast";
+import { useLanguage } from "../context/LanguageContext"; // NEW
 
 import TrialAlert from "../components/TrialAlert";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 export default function Dashboard() {
     const { store } = useTenant();
+    const { t } = useLanguage(); // NEW
     const [isRecalculating, setIsRecalculating] = useState(false);
 
     const handleHardRefresh = async () => {
@@ -22,14 +24,15 @@ export default function Dashboard() {
         if (isRecalculating) return;
 
         setIsRecalculating(true);
-        const toastId = toast.loading("Synchonizing data...");
+        const toastId = toast.loading(t('recalculate_sync') + "...");
         try {
             await reconcileStoreStats(db, store.id);
-            toast.success("Dashboard Updated", { id: toastId });
+            await reconcileStoreStats(db, store.id);
+            toast.success(t('msg_dashboard_updated'), { id: toastId });
             // No need to reload page, the hooks will stream the new data automatically via onSnapshot
         } catch (err) {
             console.error(err);
-            toast.error("Sync failed", { id: toastId });
+            toast.error(t('err_sync_failed'), { id: toastId });
         } finally {
             setIsRecalculating(false);
         }
@@ -118,45 +121,45 @@ export default function Dashboard() {
             <div className="flex justify-between items-start">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">
-                        Welcome back, {store?.name}! 👋
+                        {t('welcome_back').replace('{name}', store?.name || 'User')}
                     </h1>
                     <p className="mt-1 text-sm text-gray-500">
-                        Here's what's happening in your store today.
+                        {t('dashboard_subtitle')}
                     </p>
                 </div>
                 <button
                     onClick={handleHardRefresh}
                     disabled={isRecalculating}
                     className={`p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-200 transition-all ${isRecalculating ? 'animate-spin text-indigo-600' : ''}`}
-                    title="Recalculate & Sync Stats"
+                    title={t('btn_recalculate')}
                 >
                     <RefreshCw className="h-5 w-5" />
                 </button>
             </div>
             {!isLoading && recentOrders.length === 0 && (
                 <div className="mt-6 bg-white rounded-lg shadow-sm border border-indigo-100 p-6">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">🚀 Getting Started Checklist</h3>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">{t('getting_started')}</h3>
                     <div className="space-y-4">
                         <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-lg border border-indigo-100">
                             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white font-bold text-sm">1</span>
                             <div className="flex-1">
-                                <h4 className="text-sm font-semibold text-gray-900">Customize Store</h4>
-                                <p className="text-xs text-gray-600">Add your logo and company details in <Link to="/settings" className="text-indigo-600 underline">Settings</Link>.</p>
+                                <h4 className="text-sm font-semibold text-gray-900">{t('step_1_title')}</h4>
+                                <p className="text-xs text-gray-600">{t('step_1_desc')}</p>
                             </div>
                             <div className="h-6 w-6 text-green-500">{store?.logoUrl ? <CheckCircle className="h-6 w-6" /> : <div className="h-6 w-6 border-2 border-gray-300 rounded-full"></div>}</div>
                         </div>
                         <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
                             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-600 font-bold text-sm">2</span>
                             <div className="flex-1">
-                                <h4 className="text-sm font-semibold text-gray-900">Add Products</h4>
-                                <p className="text-xs text-gray-600">Go to <Link to="/products" className="text-indigo-600 underline">Products</Link> and add your inventory.</p>
+                                <h4 className="text-sm font-semibold text-gray-900">{t('step_2_title')}</h4>
+                                <p className="text-xs text-gray-600">{t('step_2_desc')}</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
                             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-600 font-bold text-sm">3</span>
                             <div className="flex-1">
-                                <h4 className="text-sm font-semibold text-gray-900">Create Order</h4>
-                                <p className="text-xs text-gray-600">Manually create a test order in <Link to="/orders" className="text-indigo-600 underline">Orders</Link> to see stats.</p>
+                                <h4 className="text-sm font-semibold text-gray-900">{t('step_3_title')}</h4>
+                                <p className="text-xs text-gray-600">{t('step_3_desc')}</p>
                             </div>
                         </div>
                     </div>
@@ -172,7 +175,7 @@ export default function Dashboard() {
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate">Revenue Today</dt>
+                                <dt className="text-sm font-medium text-gray-500 truncate">{t('kpi_revenue_today')}</dt>
                                 <dd className="text-2xl font-semibold text-gray-900">
                                     {statsLoading ? "..." : (Math.max(0, dashboardData.revenueToday).toFixed(2) || "0.00")} DH
                                 </dd>
@@ -188,7 +191,7 @@ export default function Dashboard() {
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate">Pending Orders</dt>
+                                <dt className="text-sm font-medium text-gray-500 truncate">{t('kpi_pending_orders')}</dt>
                                 <dd className="text-2xl font-semibold text-gray-900">
                                     {statsLoading ? "..." : dashboardData.pendingOrders}
                                 </dd>
@@ -204,7 +207,7 @@ export default function Dashboard() {
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate">Return Rate</dt>
+                                <dt className="text-sm font-medium text-gray-500 truncate">{t('kpi_return_rate')}</dt>
                                 <dd className="text-2xl font-semibold text-gray-900">
                                     {statsLoading ? "..." : dashboardData.returnRate}%
                                 </dd>
@@ -220,19 +223,19 @@ export default function Dashboard() {
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate">Low Stock Alert</dt>
+                                <dt className="text-sm font-medium text-gray-500 truncate">{t('kpi_low_stock')}</dt>
                                 <dd className="text-2xl font-semibold text-gray-900">{lowStockProducts.length}</dd>
                             </dl>
                         </div>
                     </div>
                     {lowStockProducts.length > 0 && (
                         <div className="mt-4 border-t border-gray-100 pt-3">
-                            <p className="text-xs font-medium text-gray-500 mb-2">Items needing restock:</p>
+                            <p className="text-xs font-medium text-gray-500 mb-2">{t('items_needing_restock')}</p>
                             <ul className="space-y-1">
                                 {lowStockProducts.slice(0, 3).map(p => (
                                     <li key={p.id} className="flex justify-between text-xs">
                                         <span className="text-gray-900 truncate">{p.name}</span>
-                                        <span className="text-red-600 font-bold">{p.stock} left</span>
+                                        <span className="text-red-600 font-bold">{t('msg_items_left', { count: p.stock })}</span>
                                     </li>
                                 ))}
                             </ul>
@@ -248,7 +251,7 @@ export default function Dashboard() {
                 <div className="lg:col-span-2 space-y-6">
                     {/* Sales Trend Chart */}
                     <div className="bg-white p-6 rounded-lg shadow border border-gray-100">
-                        <h3 className="text-lg font-bold text-gray-900 mb-4">Sales Trend (Last 7 Days)</h3>
+                        <h3 className="text-lg font-bold text-gray-900 mb-4">{t('chart_sales_trend')}</h3>
                         <div className="h-[300px] w-full">
                             {dashboardData.salesTrend.length > 0 ? (
                                 <ResponsiveContainer width="100%" height="100%">
@@ -258,7 +261,7 @@ export default function Dashboard() {
                                         <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} tickFormatter={(val) => `${val} DH`} />
                                         <Tooltip
                                             contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                            formatter={(value) => [`${value} DH`, 'Revenue']}
+                                            formatter={(value) => [`${value} DH`, t('chart_revenue_tooltip')]}
                                         />
                                         <Line
                                             type="monotone"
@@ -273,7 +276,7 @@ export default function Dashboard() {
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-gray-400">
                                     <AlertTriangle className="h-8 w-8 mb-2 opacity-50" />
-                                    <p>No sales data recorded yet</p>
+                                    <p>{t('msg_no_sales')}</p>
                                 </div>
                             )}
                         </div>
@@ -284,13 +287,13 @@ export default function Dashboard() {
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                                 <CheckCircle className="h-5 w-5 text-yellow-600" />
-                                To-Do List (Follow-ups)
+                                {t('todo_list')}
                             </h3>
-                            <Link to="/orders" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">View All</Link>
+                            <Link to="/orders" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">{t('view_details')}</Link>
                         </div>
 
                         {tasks.length === 0 ? (
-                            <p className="text-sm text-gray-500 italic py-4">No pending calls or tasks.</p>
+                            <p className="text-sm text-gray-500 italic py-4">{t('no_pending_tasks')}</p>
                         ) : (
                             <div className="space-y-3">
                                 {tasks.map(task => (
@@ -298,18 +301,18 @@ export default function Dashboard() {
                                         <div>
                                             <p className="font-semibold text-gray-900 text-sm">{task.clientName}</p>
                                             <p className="text-xs text-yellow-800 mt-1">
-                                                {task.followUpNote || "No note"}
+                                                {task.followUpNote || t('msg_no_note')}
                                             </p>
                                             <p className="text-xs text-gray-500 mt-1">
-                                                Phone: <a href={`tel:${task.clientPhone}`} className="hover:underline">{task.clientPhone}</a>
+                                                {t('label_phone_short')} <a href={`tel:${task.clientPhone}`} className="hover:underline">{task.clientPhone}</a>
                                             </p>
                                         </div>
                                         <div className="text-right">
                                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-white text-gray-800 border border-gray-200 shadow-sm">
-                                                {task.followUpDate ? format(new Date(task.followUpDate), 'MMM dd, HH:mm') : 'Asap'}
+                                                {task.followUpDate ? format(new Date(task.followUpDate), 'MMM dd, HH:mm') : t('label_asap')}
                                             </span>
                                             <Link to={`/orders?search=${task.orderNumber}`} className="block mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium">
-                                                Open Order &rarr;
+                                                {t('link_open_order')} &rarr;
                                             </Link>
                                         </div>
                                     </div>
@@ -323,7 +326,7 @@ export default function Dashboard() {
                 <div className="lg:col-span-1 space-y-6">
                     {/* Status Breakdown (Pie Chart) */}
                     <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
-                        <h3 className="text-lg font-medium text-gray-900 mb-4">Order Statuses</h3>
+                        <h3 className="text-lg font-medium text-gray-900 mb-4">{t('chart_order_status')}</h3>
                         <div className="h-[300px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
@@ -353,32 +356,23 @@ export default function Dashboard() {
                         <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-lg shadow-lg text-white p-6">
                             <div className="flex items-center gap-2 mb-4">
                                 <Lightbulb className="h-6 w-6 text-yellow-300" />
-                                <h3 className="text-lg font-bold">Pro Functional Tips</h3>
+                                <h3 className="text-lg font-bold">{t('pro_tips')}</h3>
                             </div>
                             <p className="text-indigo-100 mb-6 text-sm">
-                                Ready to scale? Here are suggested features for your next upgrade:
+                                {t('msg_ready_to_scale')}
                             </p>
 
                             <div className="space-y-4">
                                 <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
-                                    <h4 className="font-semibold text-sm">📣 Marketing Automation</h4>
-                                    <p className="text-xs text-indigo-200 mt-1">
-                                        Send automatic SMS/Emails to customers when status changes to 'Delivered'.
-                                    </p>
+                                    <h4 className="font-semibold text-sm">📣 {t('tip_marketing')}</h4>
                                 </div>
 
                                 <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
-                                    <h4 className="font-semibold text-sm">🤝 Customer CRM</h4>
-                                    <p className="text-xs text-indigo-200 mt-1">
-                                        Track "Top Spenders" and offer them loyalty discounts automatically.
-                                    </p>
+                                    <h4 className="font-semibold text-sm">🤝 {t('tip_crm')}</h4>
                                 </div>
 
                                 <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
-                                    <h4 className="font-semibold text-sm">📦 Inventory Prediction</h4>
-                                    <p className="text-xs text-indigo-200 mt-1">
-                                        Use AI to predict "Out of Stock" dates based on sales velocity.
-                                    </p>
+                                    <h4 className="font-semibold text-sm">📦 {t('tip_inventory')}</h4>
                                 </div>
                             </div>
                         </div>
