@@ -1,21 +1,32 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTenant } from "../context/TenantContext";
 import Button from "../components/Button";
 import Input from "../components/Input";
-import { doc, setDoc, updateDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Store } from "lucide-react";
+import { Store, LogOut } from "lucide-react";
 
 export default function Onboarding() {
     const [storeName, setStoreName] = useState("");
     const [currency, setCurrency] = useState("USD");
     const [loading, setLoading] = useState(false);
-    const { user } = useAuth();
-    const { setStore } = useTenant();
+    const { user, logout } = useAuth();
+    const { setStore, stores } = useTenant();
     const navigate = useNavigate();
+    const location = useLocation();
+
+    // Auto-redirect if user already has stores AND is not trying to create a new one
+    useEffect(() => {
+        const isCreatingNew = location.state?.createNew;
+
+        if (stores && stores.length > 0 && !isCreatingNew) {
+            toast.success("Redirecting to your stores...");
+            navigate("/dashboard");
+        }
+    }, [stores, navigate, location.state]);
 
     const handleCreateStore = async (e) => {
         e.preventDefault();
@@ -35,21 +46,16 @@ export default function Onboarding() {
             };
 
             // Create store document
-            console.log("Attempting to create store document...", storeId);
             await setDoc(doc(db, "stores", storeId), storeData);
-            console.log("Store document created successfully.");
 
             // Update user document with storeId
-            console.log("Attempting to update user document...", user.uid);
             await setDoc(doc(db, "users", user.uid), {
                 email: user.email,
                 storeId,
                 role: 'owner'
             }, { merge: true });
-            console.log("User document updated successfully.");
 
             setStore({ id: storeId, ...storeData });
-            console.log("Navigating to dashboard...");
             navigate("/dashboard");
         } catch (error) {
             console.error("Error creating store DETAILS:", error);
@@ -60,7 +66,18 @@ export default function Onboarding() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 relative">
+            {/* Logout Button */}
+            <div className="absolute top-4 right-4">
+                <button
+                    onClick={logout}
+                    className="flex items-center gap-2 text-gray-500 hover:text-red-600 transition-colors px-4 py-2 rounded-lg hover:bg-white/50"
+                >
+                    <LogOut className="w-5 h-5" />
+                    <span className="font-medium">Log out</span>
+                </button>
+            </div>
+
             <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg border border-gray-100">
                 <div className="text-center">
                     <div className="mx-auto h-12 w-12 bg-indigo-100 rounded-full flex items-center justify-center">

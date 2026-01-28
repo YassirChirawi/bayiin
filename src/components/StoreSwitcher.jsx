@@ -28,11 +28,11 @@ export default function StoreSwitcher() {
                 className="w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:border-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1"
             >
                 <div className="flex items-center gap-3 overflow-hidden">
-                    <div className="h-8 w-8 rounded bg-indigo-50 flex items-center justify-center flex-shrink-0 border border-indigo-100">
+                    <div className="h-8 w-8 rounded bg-indigo-50 flex items-center justify-center flex-shrink-0 border border-indigo-100 overflow-hidden">
                         {store.logoUrl ? (
-                            <img src={store.logoUrl} alt="" className="h-full w-full object-cover rounded" />
+                            <img src={store.logoUrl} alt="" className="h-full w-full object-cover" />
                         ) : (
-                            <StoreIcon className="h-5 w-5 text-indigo-600" />
+                            <img src="/logo.png" alt="BayIIn" className="h-full w-full object-contain p-1" />
                         )}
                     </div>
                     <div className="flex flex-col items-start truncate">
@@ -86,6 +86,7 @@ export default function StoreSwitcher() {
                     <div className="py-1">
                         <Link
                             to="/onboarding"
+                            state={{ createNew: true }}
                             onClick={() => setIsOpen(false)}
                             className="w-full flex items-center gap-2 px-4 py-3 text-sm text-indigo-600 hover:bg-indigo-50 transition-colors font-medium"
                         >

@@ -50,8 +50,12 @@ export default function Layout() {
                             <ArrowLeft className="h-6 w-6" />
                         </button>
                     ) : (
-                        <div className="h-8 w-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                            <span className="text-white font-bold text-xl">S</span>
+                        <div className="h-8 w-8 bg-white border border-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+                            {store?.logoUrl ? (
+                                <img src={store.logoUrl} alt={store.name} className="h-full w-full object-cover" />
+                            ) : (
+                                <img src="/logo.png" alt="BayIIn" className="h-full w-full object-contain p-1" />
+                            )}
                         </div>
                     )}
                     <span className="font-bold text-gray-900 truncate">
