@@ -99,7 +99,7 @@ export default function Sidebar({ isOpen, onClose }) {
                     </button>
                     <a
                         id="tour-support"
-                        href="https://wa.me/212626156381?text=Hello%20BayIIn%20Support%2C%20I%20have%20a%20question..."
+                        href="https://wa.me/3360574054?text=Hello%20BayIIn%20Support%2C%20I%20have%20a%20question..."
                         target="_blank"
                         rel="noreferrer"
                         className="flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg w-full transition-colors"
