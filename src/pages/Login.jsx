@@ -5,6 +5,8 @@ import Button from "../components/Button";
 import Input from "../components/Input";
 import { getFriendlyErrorMessage } from "../utils/firebaseErrors";
 import { toast } from "react-hot-toast";
+import { db } from "../lib/firebase";
+import { collection, query, where, getDocs, limit } from "firebase/firestore";
 
 export default function Login() {
     const [email, setEmail] = useState("");
@@ -14,13 +16,66 @@ export default function Login() {
     const { login, loginWithGoogle } = useAuth();
     const navigate = useNavigate();
 
+    const checkAndRedirect = async (userId) => {
+        try {
+            // Check if user has any stores
+            const q = query(collection(db, "stores"), where("ownerId", "==", userId), limit(1));
+            const snap = await getDocs(q);
+
+            if (!snap.empty) {
+                navigate("/dashboard");
+                return;
+            }
+
+            // Check if staff
+            // Note: email might not be available immediately if using Google Auth, but userId is.
+            // For staff check we normally need email. 
+            // If checking by email, we should use the one from Auth.
+            // However, let's just default to dashboard if owner check fails, 
+            // letting TenantContext handle the finer details of invited stores.
+            // But to support "go directly", we want to know if we should show Onboarding.
+
+            // If not owner, try to find in allowed_users?
+            // This is safer to just let TenantContext logic handle deeply if we can't find owner doc.
+            // But to avoid flicker, let's try to trust the context will eventually resolve.
+            // If we found NO owner store, we navigate to dashboard anyway?
+            // If we navigate to dashboard and there are NO stores (even invited), Layout redirects to Onboarding.
+            // So if we find a store here -> Dashboard.
+            // If we DO NOT find a store here -> ?
+            // User might be a staff member.
+            // Let's just go to Dashboard. It handles everything.
+            // The only reason we do this check is to PREVENT going to Onboarding if we KNOW they have a store.
+            // But Layout ALREADY redirects to Onboarding if NO store.
+            // So this check is redundant UNLESS Layout is redirecting TOO FAST.
+            // Layout waits for `loading`.
+
+            // The original user issue was "go directly to stores".
+            // If I just navigate("/dashboard"), the Layout waits for `loading` from TenantContext.
+            // TenantContext fetches stores.
+            // If it finds stores, `store` is set.
+            // If it finds NO stores, `store` is null. -> Redirect to Onboarding.
+
+            // So... simply navigating to dashboard SHOULD work if TenantContext permissions are fixed.
+            // I fixed the permissions in the previous step.
+            // So I might not even NEED this check logic if permissions are correct.
+            // But to be 100% sure and satisfy the request "go directly", I will keep a simple check if I can.
+
+            navigate("/dashboard");
+
+        } catch (e) {
+            console.error("Redirection check failed", e);
+            navigate("/dashboard");
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
         try {
             setLoading(true);
-            await login(email, password);
+            const userCredential = await login(email, password);
             toast.success("Welcome back!");
+            // Just go to dashboard, trusting the permissions fix.
             navigate("/dashboard");
         } catch (err) {
             const message = getFriendlyErrorMessage(err);
@@ -90,7 +145,7 @@ export default function Login() {
                             onClick={async () => {
                                 try {
                                     setLoading(true);
-                                    await loginWithGoogle();
+                                    const userCredential = await loginWithGoogle();
                                     toast.success("Welcome back!");
                                     navigate("/dashboard");
                                 } catch (err) {

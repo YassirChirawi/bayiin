@@ -45,7 +45,8 @@ export function useStoreData(collectionName, constraints = DEFAULT_CONSTRAINTS) 
         );
 
         return () => unsubscribe();
-    }, [store?.id, collectionName, constraints]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [store?.id, collectionName, JSON.stringify(constraints)]);
 
     // Helper function to add a document with the current storeId automatically attached
     const addStoreItem = async (itemData) => {
