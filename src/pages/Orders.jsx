@@ -169,6 +169,7 @@ export default function Orders() {
                 articleId: "", // Linked product ID missing in CSV usually, treat as unlinked
                 quantity: parseInt(row.Quantity) || 1,
                 price: parseFloat(row.Price) || 0,
+                costPrice: parseFloat(row['Cost Price'] || row['Cost']) || 0,
                 status: row.Status || "reçu",
                 date: row.Date || new Date().toISOString().split('T')[0]
             }).then(() => { importedCount++; }).catch(e => console.error("Import error", e));
@@ -744,10 +745,10 @@ export default function Orders() {
                                             }}
                                             disabled={!store?.olivraisonApiKey || order.carrier === 'olivraison'}
                                             className={`p-2 rounded-full transition-colors ${!store?.olivraisonApiKey
-                                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                                    : order.carrier === 'olivraison'
-                                                        ? 'bg-green-100 text-green-600 cursor-default'
-                                                        : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                : order.carrier === 'olivraison'
+                                                    ? 'bg-green-100 text-green-600 cursor-default'
+                                                    : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
                                                 }`}
                                             title={
                                                 !store?.olivraisonApiKey ? "Configure O-Livraison in Settings to enable"
@@ -859,7 +860,7 @@ export default function Orders() {
                 onClose={() => setIsImportModalOpen(false)}
                 onImport={handleImport}
                 title="Import Orders"
-                templateHeaders={["Client", "Product"]}
+                templateHeaders={["Client", "Phone", "Address", "City", "Product", "Quantity", "Price", "Cost Price", "Status", "Date"]}
             />
         </div >
     );

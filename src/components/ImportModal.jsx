@@ -143,6 +143,28 @@ export default function ImportModal({ isOpen, onClose, onImport, title = "Import
                     )}
                 </div>
 
+                <div className="px-6 flex justify-end">
+                    <button
+                        onClick={() => {
+                            const headers = templateHeaders.length > 0 ? templateHeaders : ["Client", "Phone", "Product", "Quantity", "Price", "Cost Price", "Status", "Date"];
+                            const csvContent = headers.join(",") + "\n" + headers.map(() => "").join(","); // Empty row example
+                            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                            const link = document.createElement("a");
+                            const url = URL.createObjectURL(blob);
+                            link.setAttribute("href", url);
+                            link.setAttribute("download", "import_template.csv");
+                            link.style.visibility = 'hidden';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                        }}
+                        className="text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
+                    >
+                        <FileText className="h-4 w-4" />
+                        Download Sample CSV
+                    </button>
+                </div>
+
                 <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t border-gray-100">
                     <Button variant="secondary" onClick={onClose}>Cancel</Button>
                     <Button
