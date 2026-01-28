@@ -1,4 +1,4 @@
-import { ArrowRight, BarChart3, Check, ShoppingBag, Package, Users, DollarSign, Settings } from "lucide-react";
+import { ArrowRight, BarChart3, Check, ShoppingBag, Package, Users, DollarSign, Settings, Truck } from "lucide-react";
 import { Link } from "react-router-dom";
 import SEO from "../components/SEO";
 import Newsletter from "../components/Newsletter";
@@ -65,8 +65,8 @@ export default function Landing() {
                 </div>
 
                 <div className="mt-8 flex items-center justify-center gap-2 text-sm text-slate-500">
-                    <span className="flex h-2 w-2 rounded-full bg-indigo-500"></span>
-                    Available on mobile very soon! 📱
+                    <span className="flex h-2 w-2 rounded-full bg-green-500"></span>
+                    Install on iOS & Android 📱
                 </div>
 
                 {/* Hero Image / Dashboard Preview */}
@@ -112,9 +112,9 @@ export default function Landing() {
                                 description: "Stop losing customer numbers. Keep a secure list of your clients and their purchase history."
                             },
                             {
-                                icon: <DollarSign className="w-6 h-6 text-indigo-600" />,
-                                title: "Expense Tracking",
-                                description: "Record your expenses (Ads, Shipping, Stock) alongside your sales to know your real profit."
+                                icon: <Truck className="w-6 h-6 text-indigo-600" />,
+                                title: "Seamless Shipping",
+                                description: "Connect directly with O-Livraison, Amana, and more. Print labels and track packages instantly."
                             },
                             {
                                 icon: <Settings className="w-6 h-6 text-indigo-600" />,

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, Menu, ArrowLeft, RotateCcw } from "lucide-react";
+import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, Menu, ArrowLeft, RotateCcw, Truck, Download } from "lucide-react";
 import { format } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts';
 import DemoTour from "../components/DemoTour";
@@ -96,7 +96,13 @@ export default function DemoDashboard() {
                         </div>
                     ))}
                 </nav>
-                <div className="p-4 border-t border-slate-800">
+                <div className="p-4 border-t border-slate-800 space-y-2">
+                    <button
+                        onClick={() => alert("Takes you to the install guide for iOS & Android!")}
+                        className="flex items-center justify-center gap-2 w-full bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    >
+                        <Download className="w-4 h-4" /> Install App
+                    </button>
                     <Link to="/signup" className="flex items-center justify-center gap-2 w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                         Start Real Trial
                     </Link>
@@ -260,14 +266,28 @@ export default function DemoDashboard() {
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
                                         {recentOrders.map((order) => (
-                                            <tr key={order.id}>
+                                            <tr key={order.id} className="hover:bg-gray-50 group">
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{order.orderNumber}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${order.status === 'livré' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
                                                         {order.status}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500">{order.price} DH</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <span>{order.price} DH</span>
+                                                        <button
+                                                            className="p-1 text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                            title="Send to Carrier (Demo)"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                alert("In the real app, this sends the order to O-Livraison instantly!");
+                                                            }}
+                                                        >
+                                                            <Truck className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>

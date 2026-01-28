@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTenant } from "../context/TenantContext";
 import StoreSwitcher from "./StoreSwitcher"; // Import StoreSwitcher
+import InstallGuide from "./InstallGuide"; // Import InstallGuide
 import {
     LayoutDashboard,
     ShoppingBag,
@@ -12,13 +14,15 @@ import {
     Users,
     X,
     UserPlus,
-    HelpCircle
+    HelpCircle,
+    Download
 } from "lucide-react";
 
 export default function Sidebar({ isOpen, onClose }) {
     const { pathname } = useLocation();
     const { logout } = useAuth();
     const { store } = useTenant();
+    const [showInstallGuide, setShowInstallGuide] = useState(false);
 
     const role = store?.role || 'owner'; // Default to owner/admin if not specified (legacy)
 
@@ -37,6 +41,8 @@ export default function Sidebar({ isOpen, onClose }) {
 
     return (
         <>
+            <InstallGuide isOpen={showInstallGuide} onClose={() => setShowInstallGuide(false)} />
+
             {/* Mobile Backdrop */}
             {isOpen && (
                 <div
@@ -84,6 +90,13 @@ export default function Sidebar({ isOpen, onClose }) {
                 </nav>
 
                 <div className="p-4 border-t border-gray-200 space-y-2">
+                    <button
+                        onClick={() => setShowInstallGuide(true)}
+                        className="flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg w-full transition-colors"
+                    >
+                        <Download className="mr-3 h-5 w-5" />
+                        Install App
+                    </button>
                     <a
                         id="tour-support"
                         href="https://wa.me/212626156381?text=Hello%20BayIIn%20Support%2C%20I%20have%20a%20question..."
