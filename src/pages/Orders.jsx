@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
 import { toast } from "react-hot-toast";
 import { useStoreData } from "../hooks/useStoreData";
-import { Plus, Edit2, Trash2, QrCode, Search, X, FileText, CheckSquare, Square, Check, Trash, RotateCcw, Upload, Download, MessageCircle, DollarSign, AlertCircle } from "lucide-react";
+import { Plus, Edit2, Trash2, QrCode, Search, X, FileText, CheckSquare, Square, Check, Trash, RotateCcw, Upload, Download, MessageCircle, DollarSign, AlertCircle, Truck, Package, Box } from "lucide-react";
 import Button from "../components/Button";
 import OrderModal from "../components/OrderModal";
 import ImportModal from "../components/ImportModal";
+import { useOrderActions } from "../hooks/useOrderActions"; // Hook
 import QRCode from "react-qr-code";
 import { generateInvoice } from "../utils/generateInvoice";
 import { getWhatsappMessage, getWhatsappLink } from "../utils/whatsappTemplates";
@@ -40,6 +41,7 @@ export default function Orders() {
         return [orderBy("date", "desc"), limit(limitCount)];
     }, [activeSearch]);
 
+    const { sendToOlivraison } = useOrderActions();
     const { data: orders, loading, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("orders", orderConstraints);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -588,6 +590,28 @@ export default function Orders() {
                                                         <QrCode className="h-4 w-4" />
                                                     </button>
                                                     <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation(); // Prevent row click
+                                                            if (!store?.olivraisonApiKey) {
+                                                                toast.error("Please configure O-Livraison API Keys in Settings first.");
+                                                                return;
+                                                            }
+                                                            if (window.confirm(`Send Order #${order.orderNumber} to O-Livraison?`)) {
+                                                                sendToOlivraison(order)
+                                                                    .then(() => toast.success("Order sent to O-Livraison!"))
+                                                                    .catch(err => toast.error(err.message));
+                                                            }
+                                                        }}
+                                                        disabled={
+                                                            order.carrier === 'olivraison' // Disable if already sent
+                                                        }
+                                                        className={`text-gray-400 hover:text-blue-600 ${!store?.olivraisonApiKey ? 'opacity-30 cursor-not-allowed' : ''
+                                                            } ${order.carrier === 'olivraison' ? 'text-green-500 hover:text-green-600' : ''}`}
+                                                        title={!store?.olivraisonApiKey ? "Configure O-Livraison keys" : "Send to O-Livraison"}
+                                                    >
+                                                        <Truck className="h-4 w-4" />
+                                                    </button>
+                                                    <button
                                                         onClick={() => generateInvoice(order, store)}
                                                         className="text-gray-400 hover:text-blue-600"
                                                         title="Download Invoice"
@@ -688,16 +712,60 @@ export default function Orders() {
                                     <button
                                         onClick={() => togglePaid(order)}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${order.isPaid
-                                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                                             }`}
                                     >
                                         <DollarSign className="h-3.5 w-3.5" />
                                         {order.isPaid ? "PAID" : "UNPAID"}
                                     </button>
 
-                                    {/* Right: Actions */}
                                     <div className="flex items-center gap-3">
+                                        {/* O-Livraison Action */}
+                                        <button
+                                            onClick={async () => {
+                                                if (!store?.olivraisonApiKey) {
+                                                    toast.error("Please configure O-Livraison API Keys in Settings first.");
+                                                    return;
+                                                }
+                                                if (order.carrier === 'olivraison') return; // Double check
+
+                                                if (window.confirm(`Send Order #${order.orderNumber} to O-Livraison?`)) {
+                                                    try {
+                                                        toast.loading("Sending to Carrier...");
+                                                        await sendToOlivraison(order);
+                                                        toast.dismiss();
+                                                        toast.success("Order sent to O-Livraison!");
+                                                    } catch (err) {
+                                                        toast.dismiss();
+                                                        toast.error(err.message);
+                                                    }
+                                                }
+                                            }}
+                                            disabled={!store?.olivraisonApiKey || order.carrier === 'olivraison'}
+                                            className={`p-2 rounded-full transition-colors ${!store?.olivraisonApiKey
+                                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                    : order.carrier === 'olivraison'
+                                                        ? 'bg-green-100 text-green-600 cursor-default'
+                                                        : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                                                }`}
+                                            title={
+                                                !store?.olivraisonApiKey ? "Configure O-Livraison in Settings to enable"
+                                                    : order.carrier === 'olivraison' ? "Order already sent to O-Livraison"
+                                                        : "Send to O-Livraison"
+                                            }
+                                        >
+                                            <Truck className="h-5 w-5" />
+                                        </button>
+                                        {/* Amana Placeholder */}
+                                        <button disabled className="p-2 rounded-full bg-gray-50 text-gray-300 cursor-not-allowed" title="Amana Integration Coming Soon">
+                                            <Package className="h-5 w-5" />
+                                        </button>
+                                        {/* Cathedis Placeholder */}
+                                        <button disabled className="p-2 rounded-full bg-gray-50 text-gray-300 cursor-not-allowed" title="Cathedis Integration Coming Soon">
+                                            <Box className="h-5 w-5" />
+                                        </button>
+                                        {/* WhatsApp Notification */}
                                         <a
                                             href={waLink}
                                             target="_blank"

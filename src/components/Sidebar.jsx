@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTenant } from "../context/TenantContext";
+import StoreSwitcher from "./StoreSwitcher"; // Import StoreSwitcher
 import {
     LayoutDashboard,
     ShoppingBag,
@@ -50,17 +51,12 @@ export default function Sidebar({ isOpen, onClose }) {
                 md:translate-x-0 md:static md:h-screen md:flex md:flex-col
                 ${isOpen ? 'translate-x-0' : '-translate-x-full'}
             `}>
-                <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-lg flex items-center justify-center overflow-hidden">
-                            <img src="/logo.png" alt="BayIIn Logo" className="h-full w-full object-contain" />
-                        </div>
-                        <span className="font-bold text-gray-900 truncate max-w-[120px]">
-                            {store?.name || 'Loading...'}
-                        </span>
+                <div className="p-4 border-b border-gray-200 flex justify-between items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                        <StoreSwitcher />
                     </div>
                     {/* Close button for mobile */}
-                    <button onClick={onClose} className="md:hidden text-gray-500 hover:text-gray-700">
+                    <button onClick={onClose} className="md:hidden text-gray-500 hover:text-gray-700 mt-2">
                         <X className="h-6 w-6" />
                     </button>
                 </div>

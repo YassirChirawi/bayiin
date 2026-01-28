@@ -4,7 +4,7 @@ import { useTenant } from "../context/TenantContext";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { toast } from "react-hot-toast";
-import { Save, Truck, Info } from "lucide-react";
+import { Save, Truck, Info, Globe } from "lucide-react";
 import Button from "../components/Button";
 import Input from "../components/Input"; // Assuming you have this
 // If Input component doesn't match, I'll use standard input.
@@ -68,85 +68,114 @@ export default function ShippingSettings() {
             <div className="flex items-center gap-3 mb-6">
                 <Truck className="w-8 h-8 text-indigo-600" />
                 <div>
-                    <h2 className="text-xl font-bold text-gray-900">Shipping Integrations</h2>
-                    <p className="text-sm text-gray-500">Connect your local Moroccan carriers to automate labels.</p>
+                    <h2 className="text-xl font-bold text-gray-900">Shipping Settings</h2>
+                    <p className="text-sm text-gray-500">Configure your carriers and shipping rules.</p>
                 </div>
             </div>
 
-            <div className="relative">
-                {/* Overlay Blur */}
-                <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center rounded-lg border border-gray-100">
-                    <div className="text-center p-6 bg-white shadow-xl rounded-2xl border border-indigo-100 transform scale-100 hover:scale-105 transition-transform duration-300">
-                        <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-indigo-100 mb-4">
-                            <Truck className="h-8 w-8 text-indigo-600" />
+            {/* O-Livraison Integration */}
+            <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
+                <div className="px-4 py-5 sm:p-6">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
+                        <Globe className="h-5 w-5 text-indigo-500" />
+                        O-Livraison Integration
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-500 mb-6">
+                        Enter your API keys from partners.olivraison.com to enable direct shipping.
+                    </p>
+
+                    <div className="max-w-xl space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">API Key</label>
+                            <input
+                                type="text"
+                                value={store?.olivraisonApiKey || ''}
+                                onChange={(e) => setStore(prev => ({ ...prev, olivraisonApiKey: e.target.value }))}
+                                className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                placeholder="Enter API Key"
+                            />
                         </div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">Coming Soon</h3>
-                        <p className="text-gray-500 max-w-sm mb-6">
-                            Integration with Amana, Cathedis, and other local carriers will be available in the next major update.
-                        </p>
-                        <span className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-indigo-700 bg-indigo-50 hover:bg-indigo-100 cursor-not-allowed">
-                            Stay Tuned 🚀
-                        </span>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Secret Key</label>
+                            <input
+                                type="password"
+                                value={store?.olivraisonSecretKey || ''}
+                                onChange={(e) => setStore(prev => ({ ...prev, olivraisonSecretKey: e.target.value }))}
+                                className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                placeholder="Enter Secret Key"
+                            />
+                        </div>
+                        <div className="flex justify-end">
+                            <Button
+                                onClick={async () => {
+                                    setLoading(true);
+                                    try {
+                                        await updateDoc(doc(db, "stores", store.id), {
+                                            olivraisonApiKey: store.olivraisonApiKey || "",
+                                            olivraisonSecretKey: store.olivraisonSecretKey || ""
+                                        });
+                                        toast.success("O-Livraison Configuration Saved!");
+                                    } catch (e) {
+                                        console.error(e);
+                                        toast.error("Failed to save.");
+                                    } finally {
+                                        setLoading(false);
+                                    }
+                                }}
+                                isLoading={loading}
+                                icon={Save}
+                            >
+                                Save Keys
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Other Carriers (Coming Soon) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
+                {/* Amana */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-5 relative overflow-hidden">
+                    <div className="absolute top-2 right-2 bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded-full font-medium">Coming Soon</div>
+                    <h3 className="font-semibold text-gray-700 mb-4">Amana (Barid Al Maghrib)</h3>
+                    <div className="space-y-3 pointer-events-none select-none">
+                        <div>
+                            <label className="block text-xs font-medium text-gray-500">Login</label>
+                            <input type="text" disabled className="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm sm:text-sm" placeholder="••••••••" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-gray-500">Password</label>
+                            <input type="password" disabled className="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm sm:text-sm" placeholder="••••••••" />
+                        </div>
                     </div>
                 </div>
 
-                {/* Blurred Content (Disabled) */}
-                <div className="filter blur-sm select-none pointer-events-none opacity-50">
-                    <form className="grid gap-6 md:grid-cols-2">
-                        {/* Amana */}
-                        <ProviderCard
-                            title="Amana (Barid Al Maghrib)"
-                            enabled={true}
-                            onToggle={() => { }}
-                        >
-                            <Input label="Login" value="***********" disabled />
-                            <Input label="Password" value="***********" disabled />
-                            <Input label="Customer ID" value="***********" disabled />
-                        </ProviderCard>
-
-                        {/* Cathedis */}
-                        <ProviderCard
-                            title="Cathedis"
-                            enabled={true}
-                            onToggle={() => { }}
-                        >
-                            <Input label="API Key" value="***********" disabled />
-                            <Input label="Account ID" value="***********" disabled />
-                        </ProviderCard>
-
-                        {/* Tawssil */}
-                        <ProviderCard
-                            title="Tawssil"
-                            enabled={true}
-                            onToggle={() => { }}
-                        >
-                            <Input label="Token / API Key" value="***********" disabled />
-                        </ProviderCard>
-
-                        {/* Olivraison */}
-                        <ProviderCard
-                            title="Olivraison"
-                            enabled={true}
-                            onToggle={() => { }}
-                        >
-                            <Input label="API Token" value="***********" disabled />
-                        </ProviderCard>
-
-                        {/* Sendit */}
-                        <ProviderCard
-                            title="Sendit.ma"
-                            enabled={true}
-                            onToggle={() => { }}
-                        >
-                            <Input label="API Token" value="***********" disabled />
-                        </ProviderCard>
-
-                        <div className="md:col-span-2 flex justify-end">
-                            <Button icon={Save} disabled>
-                                Save Configuration
-                            </Button>
+                {/* Cathedis */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-5 relative overflow-hidden">
+                    <div className="absolute top-2 right-2 bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded-full font-medium">Coming Soon</div>
+                    <h3 className="font-semibold text-gray-700 mb-4">Cathedis</h3>
+                    <div className="space-y-3 pointer-events-none select-none">
+                        <div>
+                            <label className="block text-xs font-medium text-gray-500">API Key</label>
+                            <input type="text" disabled className="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm sm:text-sm" placeholder="••••••••" />
                         </div>
-                    </form>
+                        <div>
+                            <label className="block text-xs font-medium text-gray-500">Account ID</label>
+                            <input type="text" disabled className="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm sm:text-sm" placeholder="••••••••" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Tawssil */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-5 relative overflow-hidden">
+                    <div className="absolute top-2 right-2 bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded-full font-medium">Coming Soon</div>
+                    <h3 className="font-semibold text-gray-700 mb-4">Tawssil</h3>
+                    <div className="space-y-3 pointer-events-none select-none">
+                        <div>
+                            <label className="block text-xs font-medium text-gray-500">Token</label>
+                            <input type="text" disabled className="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm sm:text-sm" placeholder="••••••••" />
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

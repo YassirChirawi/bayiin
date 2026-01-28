@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { db } from '../lib/firebase';
 import { runTransaction, doc, serverTimestamp, increment } from 'firebase/firestore';
 import { ORDER_STATUS } from '../utils/constants';
+import { useTenant } from '../context/TenantContext';
+import { authenticateOlivraison, createOlivraisonPackage } from '../lib/olivraison';
 
 export const useOrderActions = () => {
     const [loading, setLoading] = useState(false);
@@ -114,5 +116,43 @@ export const useOrderActions = () => {
         }
     };
 
-    return { createOrder, updateOrder, loading, error };
+    const { store } = useTenant(); // Needed for API Keys
+
+    const sendToOlivraison = async (order) => {
+        setLoading(true);
+        setError(null);
+        try {
+            if (!store.olivraisonApiKey || !store.olivraisonSecretKey) {
+                throw new Error("O-Livraison API keys not configured in Settings.");
+            }
+
+            // 1. Authenticate
+            const token = await authenticateOlivraison(store.olivraisonApiKey, store.olivraisonSecretKey);
+
+            // 2. Create Package
+            const result = await createOlivraisonPackage(token, order, store);
+
+            // 3. Update Order with Tracking Info
+            await runTransaction(db, async (transaction) => {
+                const orderRef = doc(db, "orders", order.id);
+                transaction.update(orderRef, {
+                    carrier: 'olivraison',
+                    trackingId: result.trackingID || 'PENDING',
+                    carrierStatus: result.status || 'CREATED',
+                    status: 'livraison', // Auto-move to Shipping status
+                    updatedAt: serverTimestamp()
+                });
+            });
+
+            setLoading(false);
+            return result;
+        } catch (err) {
+            console.error("O-Livraison Error:", err);
+            setError(err.message);
+            setLoading(false);
+            throw err;
+        }
+    };
+
+    return { createOrder, updateOrder, sendToOlivraison, loading, error };
 };
