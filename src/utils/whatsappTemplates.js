@@ -1,6 +1,6 @@
 // Default Templates (French)
 export const DEFAULT_TEMPLATES = {
-    'reçu': "Bonjour [Client], [Store] a bien reçu votre commande [Commande] pour [Produit].\n\n📄 *Détails* :\n[Ticket]\n\nVotre commande sera expédiée à [Ville]. Merci !",
+    'reçu': "Bonjour [Client], nous avons bien reçu votre commande chez [Store].\n\n📄 *Détails* :\n[Ticket]\n\nMerci de confirmer votre adresse et disponibilité pour l'expédition. Répondez 'OUI' pour valider. ✅",
     'packing': "Bonjour [Client], votre commande [Commande] est en cours de préparation chez [Store].",
     'ramassage': "Bonjour [Client], votre commande est prête pour le ramassage.",
     'livraison': "Bonjour [Client], votre commande [Commande] est en cours de livraison sur [Ville]. Le livreur vous contactera bientôt.",
@@ -12,7 +12,7 @@ export const DEFAULT_TEMPLATES = {
 
 // Darija Templates
 export const DARIJA_TEMPLATES = {
-    'reçu': "Salam [Client], ra wslatna la commande dialk [Commande] dyal [Produit].\n\n📄 *Tafassil* :\n[Ticket]\n\nGhadi nsiftoha l [Ville]. Chokran !",
+    'reçu': "Salam [Client], wslatna la commande dialk f [Store].\n\n📄 *Tafassil* :\n[Ticket]\n\nBach nsiftoha lik l [Ville], momkin t'akder lina l'adresse o lweqt ? Jawbna b 'OUI' bach nvalidiw. ✅",
     'packing': "Salam [Client], commande dialk [Commande] ra hna kanwjdo fiha daba f [Store].",
     'ramassage': "Salam [Client], commande dialk wjdat bach n3tiwha l livreur.",
     'livraison': "Salam [Client], ra livreur jay 3endk l [Ville], 7di m3a ton tel ghadi i3eyet lik 9rib.",

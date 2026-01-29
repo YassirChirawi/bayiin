@@ -10,6 +10,10 @@
   font-family: 'Outfit', Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 }
 
+.font-arabic {
+  font-family: 'Tajawal', sans-serif;
+}
+
 
 body {
   @apply bg-gray-50 text-gray-900;
@@ -18,7 +22,10 @@ body {
 }
 
 @media screen and (max-width: 768px) {
-  input, select, textarea {
+
+  input,
+  select,
+  textarea {
     font-size: 16px !important;
   }
 }
