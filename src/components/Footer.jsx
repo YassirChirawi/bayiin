@@ -21,7 +21,7 @@ export default function Footer() {
                         </p>
                         <div className="flex gap-4">
                             <SocialIcon icon={Facebook} href="#" />
-                            <SocialIcon icon={Instagram} href="#" />
+                            <SocialIcon icon={Instagram} href="https://www.instagram.com/bayiin_os/" />
                             <SocialIcon icon={Linkedin} href="#" />
                         </div>
                     </div>

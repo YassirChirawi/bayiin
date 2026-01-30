@@ -13,6 +13,7 @@ import Customers from "./pages/Customers";
 import Settings from "./pages/Settings";
 import Team from "./pages/Team";
 import Help from "./pages/Help"; // NEW
+import NotFound from "./pages/NotFound"; // NEW
 import ProtectedRoute from "./components/ProtectedRoute";
 import Layout from "./components/Layout";
 import { TenantProvider } from "./context/TenantContext";
@@ -129,7 +130,7 @@ function App() {
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/help" element={<Help />} />
                 </Route>
-                <Route path="*" element={<Navigate to="/" replace />} />
+                <Route path="*" element={<NotFound />} />
               </Routes>
               <CookieBanner />
             </BrowserRouter>

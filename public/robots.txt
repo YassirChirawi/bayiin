@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://bayiin.com/sitemap.xml
