@@ -1,8 +1,10 @@
 import { ArrowRight, Check, ShoppingBag, Package, Users, DollarSign, Settings, Truck, TrendingUp, ShieldCheck, Phone, PenTool, Smartphone, Zap, Globe } from "lucide-react";
 import { Link } from "react-router-dom";
 import SEO from "../components/SEO";
-import Newsletter from "../components/Newsletter";
+import Carousel from "../components/Carousel";
 import { motion } from "framer-motion";
+import Footer from "../components/Footer";
+import FAQ from "../components/FAQ";
 
 export default function Landing() {
     return (
@@ -93,13 +95,43 @@ export default function Landing() {
                     className="mt-16 relative mx-auto max-w-5xl z-10"
                 >
                     <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-2xl blur opacity-20 animate-pulse"></div>
-                    <div className="relative rounded-2xl border border-slate-200 bg-slate-50/50 p-2 backdrop-blur-sm">
-                        <img
-                            src="/hero-dashboard.png"
-                            alt="BayIIn Dashboard"
-                            className="rounded-xl shadow-2xl border border-slate-200 w-full"
-                        />
-                    </div>
+                    <Carousel slides={[
+                        {
+                            title: "bayiin.com/dashboard",
+                            image: "/screenshots/dashboard.png",
+                            description: "Vue d'ensemble complète de votre activité en temps réel."
+                        },
+                        {
+                            title: "bayiin.com/finances",
+                            image: "/screenshots/finances.png",
+                            description: "Suivez vos revenus, dépenses et bénéfices nets."
+                        },
+                        {
+                            title: "bayiin.com/commandes",
+                            image: "/screenshots/orders.png",
+                            description: "Gestion centralisée des commandes avec statuts colorés."
+                        },
+                        {
+                            title: "bayiin.com/commandes/nouveau",
+                            image: "/screenshots/new_order.png",
+                            description: "Création rapide de commandes pour vore magasin."
+                        },
+                        {
+                            title: "bayiin.com/produits",
+                            image: "/screenshots/products.png",
+                            description: "Gestion simple de l'inventaire et des variantes."
+                        },
+                        {
+                            title: "bayiin.com/clients",
+                            image: "/screenshots/clients.png",
+                            description: "CRM intégré pour suivre vos meilleurs clients."
+                        },
+                        {
+                            title: "bayiin.com/equipe",
+                            image: "/screenshots/team.png",
+                            description: "Gérez l'accès à votre boutique et ajoutez des membres."
+                        }
+                    ]} />
                 </motion.div>
             </section>
 
@@ -121,7 +153,7 @@ export default function Landing() {
                                         <strong className="text-indigo-600">FR:</strong> Finis le cahier. Configurez votre devise (MAD), invitez vos confirmateurs (Staff), et définissez leurs permissions.
                                     </p>
                                     <p className="text-lg text-slate-600 leading-relaxed font-arabic text-right border-r-4 border-indigo-100 pr-4" dir="rtl">
-                                        <strong className="text-indigo-600">AR:</strong> سالينا مع الستيلو والكناش. قاد العملة ديالك وعرض على ليكيب ديالك باش يبداو يتكلفو بليكول.
+                                        <strong className="text-indigo-600">AR:</strong> سالينا مع الستيلو والكناش. قاد العملة ديالك وعرض على ليكيب ديالك باش يبداو يتكلفو بالطلبيات.
                                     </p>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
@@ -390,15 +422,9 @@ export default function Landing() {
                 </div>
             </section>
 
-            {/* Footer */}
-            <footer className="bg-white border-t border-slate-200 py-12">
-                <div className="max-w-7xl mx-auto px-4 text-center">
-                    <p className="text-slate-500 text-sm flex items-center justify-center gap-2">
-                        © {new Date().getFullYear()} BayIIn Commerce SaaS.
-                        <span>Made with ❤️ in Morocco.</span>
-                    </p>
-                </div>
-            </footer>
+            <FAQ />
+
+            <Footer />
         </div>
     );
 }

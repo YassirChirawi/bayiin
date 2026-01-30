@@ -3,6 +3,8 @@ export const translations = {
         // Common
         loading: "Loading...",
         search_placeholder: "Search...",
+        btn_search: "Search",
+        btn_cancel: "Clear",
         actions: "Actions",
         status: "Status",
         cancel: "Cancel",
@@ -468,13 +470,21 @@ export const translations = {
         err_phone_digits: "Phone number must be exactly 10 digits.",
         msg_order_updated: "Order updated successfully (Stock Adjusted)",
         msg_order_created: "Order created successfully (Stock Reserved)",
-        err_operation_failed: "Operation failed. Check stock or logs."
+        err_operation_failed: "Operation failed. Check stock or logs.",
+
+        // Cookie Banner
+        cookie_title: "Respecting your privacy",
+        cookie_text: "This site uses cookies to improve your experience, analyze traffic, and ensure the proper functioning of our platform, in accordance with applicable laws.",
+        cookie_learn_more: "Learn more",
+        cookie_accept: "I Accept"
 
     },
     fr: {
         // Common
         loading: "Chargement...",
         search_placeholder: "Rechercher...",
+        btn_search: "Rechercher",
+        btn_cancel: "Effacer",
         actions: "Actions",
         status: "Statut",
         cancel: "Annuler",
@@ -940,6 +950,12 @@ export const translations = {
         err_phone_digits: "Le numéro de téléphone doit contenir exactement 10 chiffres.",
         msg_order_updated: "Commande mise à jour avec succès (Stock Ajusté)",
         msg_order_created: "Commande créée avec succès (Stock Réservé)",
-        err_operation_failed: "Échec de l'opération. Vérifiez le stock ou les logs."
+        err_operation_failed: "Échec de l'opération. Vérifiez le stock ou les logs.",
+
+        // Cookie Banner
+        cookie_title: "Respect de votre vie privée",
+        cookie_text: "Ce site utilise des cookies pour améliorer votre expérience, analyser le trafic et assurer le bon fonctionnement de notre plateforme, conformément à la loi 09-08.",
+        cookie_learn_more: "En savoir plus",
+        cookie_accept: "J'accepte"
     }
 };

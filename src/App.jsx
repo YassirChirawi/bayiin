@@ -42,6 +42,7 @@ const AnalyticsTracker = () => {
 };
 
 import { LanguageProvider } from "./context/LanguageContext"; // NEW
+import CookieBanner from "./components/CookieBanner"; // NEW
 
 function App() {
   return (
@@ -130,6 +131,7 @@ function App() {
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
+              <CookieBanner />
             </BrowserRouter>
           </TenantProvider>
         </AuthContextWrapper>

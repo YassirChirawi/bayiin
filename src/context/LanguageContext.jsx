@@ -15,8 +15,17 @@ export function LanguageProvider({ children }) {
     }, [language]);
 
     // Translation function
-    const t = (key) => {
-        return translations[language][key] || key;
+    const t = (key, params = {}) => {
+        let text = translations[language][key] || key;
+
+        // Simple interpolation
+        if (params && typeof params === 'object') {
+            Object.keys(params).forEach(param => {
+                text = text.replace(new RegExp(`{${param}}`, 'g'), params[param]);
+            });
+        }
+
+        return text;
     };
 
     return (
