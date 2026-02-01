@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { toast } from "react-hot-toast";
 import { useStoreData } from "../hooks/useStoreData";
-import { Plus, Edit2, Trash2, Package, Search, RotateCcw, AlertCircle, Upload, Download } from "lucide-react";
+import { Plus, Edit2, Trash2, Package, Search, RotateCcw, AlertCircle, Upload, Download, Share2 } from "lucide-react";
 import Button from "../components/Button";
 import ProductModal from "../components/ProductModal";
 import ImportModal from "../components/ImportModal";
@@ -10,6 +10,8 @@ import { orderBy, limit } from "firebase/firestore";
 import { useLanguage } from "../context/LanguageContext"; // NEW
 import { vibrate } from "../utils/haptics";
 import { motion } from "framer-motion";
+import ShareCatalogModal from "../components/ShareCatalogModal"; // NEW
+import { useTenant } from "../context/TenantContext"; // NEW
 
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -39,6 +41,8 @@ export default function Products() {
     const { data: products, loading, error, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("products", productConstraints);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false); // NEW
+    const { store } = useTenant(); // NEW
     const [editingProduct, setEditingProduct] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [showTrash, setShowTrash] = useState(false);
@@ -133,7 +137,15 @@ export default function Products() {
                         {t('page_subtitle_products')}
                     </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
+                    <Button
+                        variant="secondary"
+                        icon={Share2}
+                        className="bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                        onClick={() => setIsShareModalOpen(true)}
+                    >
+                        {t('btn_share_catalog') || "Share Catalog"}
+                    </Button>
                     <Button
                         variant="secondary"
                         icon={Upload}
@@ -428,6 +440,12 @@ export default function Products() {
                 onImport={handleImport}
                 title={`${t('import')} ${t('page_title_products')}`}
                 templateHeaders={["Name", "Price"]}
+            />
+
+            <ShareCatalogModal
+                isOpen={isShareModalOpen}
+                onClose={() => setIsShareModalOpen(false)}
+                storeId={store?.id}
             />
         </div >
     );

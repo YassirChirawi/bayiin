@@ -31,7 +31,7 @@ export default function Customers() {
     const { t } = useLanguage(); // NEW
     // Limit to 50 active clients for performance
     const customerConstraints = useMemo(() => [
-        orderBy("lastOrderDate", "desc"),
+        orderBy("createdAt", "desc"),
         limit(50)
     ], []);
 

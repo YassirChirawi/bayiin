@@ -159,7 +159,15 @@ export const translations = {
         table_th_price_dh: "Price (DH)",
         table_th_stock: "Stock",
         btn_save_product: "Save Product",
+        btn_share_catalog: "Share Catalog", // NEW
         msg_preview: "Preview",
+
+        // Share Catalog Modal
+        title_share_catalog: "Share Catalog",
+        msg_share_catalog_desc: "Your public catalog is ready! Share this link with your customers to let them view your products and order via WhatsApp.",
+        label_catalog_link: "Catalog Link",
+        btn_open_catalog: "Open Catalog",
+        btn_done: "Done",
 
         // Customers
         page_title_customers: "Customers",
@@ -651,7 +659,15 @@ export const translations = {
         table_th_price_dh: "Prix (DH)",
         table_th_stock: "Stock",
         btn_save_product: "Enregistrer Produit",
+        btn_share_catalog: "Partager le Catalogue", // NEW
         msg_preview: "Aperçu",
+
+        // Share Catalog Modal
+        title_share_catalog: "Partager le Catalogue",
+        msg_share_catalog_desc: "Votre catalogue public est prêt ! Partagez ce lien avec vos clients pour qu'ils puissent voir vos produits et commander via WhatsApp.",
+        label_catalog_link: "Lien du Catalogue",
+        btn_open_catalog: "Ouvrir le Catalogue",
+        btn_done: "Terminé",
 
         // Customers
         page_title_customers: "Clients",

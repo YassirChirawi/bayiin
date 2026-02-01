@@ -31,6 +31,7 @@ const SmartLanding = () => {
 import Landing from "./pages/Landing";
 import DemoDashboard from "./pages/DemoDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import PublicCatalog from "./pages/PublicCatalog"; // NEW
 
 import { HelmetProvider } from 'react-helmet-async';
 import { useAnalytics } from './hooks/useAnalytics';
@@ -97,6 +98,9 @@ function App() {
               />
               <Routes>
                 <Route path="/" element={<SmartLanding />} /> {/* Modified */}
+                {/* Public Routes */}
+                <Route path="/catalog/:storeId" element={<PublicCatalog />} /> {/* NEW */}
+
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/demo" element={<DemoDashboard />} />
