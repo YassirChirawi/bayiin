@@ -1,30 +1,52 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useStoreData } from "../hooks/useStoreData";
-import { useTenant } from "../context/TenantContext"; // NEW
-import { useLanguage } from "../context/LanguageContext"; // NEW
-import { Navigate } from "react-router-dom"; // NEW
-import { DollarSign, TrendingUp, CreditCard, Activity, Plus, Trash2 } from "lucide-react";
+import { useTenant } from "../context/TenantContext";
+import { useLanguage } from "../context/LanguageContext";
+import { Navigate } from "react-router-dom";
+import { DollarSign, TrendingUp, CreditCard, Activity, Plus, Trash2, Library, Calendar } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import Button from "../components/Button";
 import Input from "../components/Input";
+import CollectionsManager from "../components/CollectionsManager"; // NEW
 import { format, isSameDay, isSameWeek, isSameMonth, parseISO, startOfMonth, subDays, isWithinInterval, endOfDay, startOfDay } from 'date-fns';
 import { where } from "firebase/firestore";
 
 export default function Finances() {
     const { store } = useTenant();
-    const { t } = useLanguage(); // NEW
+    const { t } = useLanguage();
+
     // Security: Redirect Staff
     if (store?.role === 'staff') {
         return <Navigate to="/dashboard" replace />;
     }
 
     // State
-    const [expenseForm, setExpenseForm] = useState({ description: "", amount: "", category: "Other" });
+    const [expenseForm, setExpenseForm] = useState({ description: "", amount: "", category: "Other", collectionId: "" });
     const [loadingExpense, setLoadingExpense] = useState(false);
+
+    // Collections Mode
+    const [selectedCollection, setSelectedCollection] = useState(null); // null = Global View
+    const [showCollectionsModal, setShowCollectionsModal] = useState(false);
+
+    // Default Date Range
     const [dateRange, setDateRange] = useState({
         start: startOfMonth(new Date()).toISOString().split('T')[0],
         end: new Date().toISOString().split('T')[0]
     });
+
+    // Load Collections for Dropdown
+    const { data: collections } = useStoreData("collections");
+
+    // Effect: Update Date Range when Collection is Selected
+    useEffect(() => {
+        if (selectedCollection) {
+            setDateRange({
+                start: selectedCollection.startDate,
+                end: selectedCollection.endDate
+            });
+        }
+    }, [selectedCollection]);
+
 
     const EXPENSE_CATEGORIES = ["Ads", "Shipping", "COGS", "Salaries", "Other"];
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
@@ -41,19 +63,14 @@ export default function Finances() {
 
     const { data: orders, loading: loadingOrders } = useStoreData("orders", orderConstraints);
 
-    // 2. Fetch Expenses (Source of Truth)
-    // We fetch all and filter client-side or we could add constraints if we have date on expenses (we do)
-    // Expenses volume is low, fetching all is fine for now, or we can constrain match.
-    // Let's constrain for performance.
-    const expenseConstraints = useMemo(() => {
-        return [
-            where("date", ">=", new Date(dateRange.start).toISOString()), // Expenses store ISO strings
-            where("date", "<=", new Date(dateRange.end + "T23:59:59").toISOString())
-        ];
-    }, [dateRange.start, dateRange.end]);
-
-    // Actually, useStoreData uses strict equality for strings if not careful. 
-    // Expenses might have full ISO timestamps. simpler to fetch all `expenses` for now as they are few.
+    // 2. Fetch Expenses
+    // Strategy: Fetch ALL expenses for now to enable effective client-side filtering by both Date AND Collection ID.
+    // If we only fetch data by date valid for the collection, we might miss expenses explicitly linked to the collection but outside the date range (e.g. Pre-launch ads).
+    // Or we continue simple approach: Date Range is King. 
+    // DECISION: If Collection is selected, we include:
+    // a) Expenses with matching collectionId (regardless of date?) -> Yes, strictly speaking.
+    // b) Expenses with NO collectionId BUT within date range (Shared costs).
+    // For simplicity and current scale: Fetch All, Filter Client Side.
     const { data: expenses, loading: loadingExpenses, error: expensesError, addStoreItem: addExpense, deleteStoreItem: deleteExpense } = useStoreData("expenses");
 
 
@@ -83,7 +100,8 @@ export default function Finances() {
         const start = new Date(dateRange.start);
         const end = new Date(dateRange.end + "T23:59:59");
 
-        // 1. Process Orders
+        // 1. Process Orders (Always bound by Date Range, even in Collection Mode)
+        // Note: You could argue a collection might have orders outside the range, but usually the range defines the sales period.
         orders.forEach(o => {
             const qty = parseInt(o.quantity) || 1;
             const price = parseFloat(o.price) || 0;
@@ -107,12 +125,9 @@ export default function Finances() {
             if (o.isPaid) {
                 res.realizedRevenue += revenue;
                 res.totalCOGS += cogs;
-                // We count COGS only when we get paid? Or when it leaves? 
-                // For "Cash Net Profit", yes.
             }
 
             // Delivery Costs (We pay this regardless if we got paid, if the attempt was made)
-            // Assuming 'livré' and 'retour' imply a delivery fee was paid.
             if (['livré', 'retour'].includes(o.status)) {
                 res.totalRealDelivery += delivery;
             }
@@ -120,9 +135,27 @@ export default function Finances() {
 
         // 2. Process Expenses
         const filteredExpenses = expenses.filter(e => {
-            if (!e.date) return true;
-            const d = new Date(e.date);
-            return d >= start && d <= end;
+            // Logic:
+            // If Collection Selected:
+            //   - Include if e.collectionId === selectedCollection.id
+            //   - OR Include if !e.collectionId AND Date is within range (Generic spending attributed to this period)
+            // If Global View (No Collection Selected):
+            //   - Include if Date is within range (Standard view)
+
+            if (selectedCollection) {
+                if (e.collectionId === selectedCollection.id) return true; // Explicit link
+                if (e.collectionId) return false; // Linked to ANOTHER collection
+
+                // Not linked, check date
+                if (!e.date) return false;
+                const d = new Date(e.date);
+                return d >= start && d <= end;
+            } else {
+                // Global View: Pure Date Filtering
+                if (!e.date) return true; // Safety, or hide?
+                const d = new Date(e.date);
+                return d >= start && d <= end;
+            }
         });
 
         res.totalExpenses = filteredExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
@@ -132,29 +165,25 @@ export default function Finances() {
             .filter(e => e.category === 'Ads')
             .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
 
-        const nonAdsExpenses = res.totalExpenses - res.adsSpend;
-
-
-        // 3. Net Result (Crazy Precise)
-        // Cash In (Realized Rev) - Cash Out (COGS of sold + Delivery Fees + Expenses)
+        // 3. Net Result
         res.netResult = res.realizedRevenue - res.totalCOGS - res.totalRealDelivery - res.totalExpenses;
 
         // 4. derivated
         res.margin = res.realizedRevenue > 0 ? ((res.netResult / res.realizedRevenue) * 100).toFixed(1) : "0.0";
         res.roas = res.adsSpend > 0 ? (res.realizedRevenue / res.adsSpend).toFixed(2) : "0.00";
-        res.cac = res.deliveredCount > 0 ? (res.adsSpend / res.deliveredCount).toFixed(2) : "0.00"; // Cost per Delivered Order
+        res.cac = res.deliveredCount > 0 ? (res.adsSpend / res.deliveredCount).toFixed(2) : "0.00";
 
         const totalShipping = res.totalRealDelivery + filteredExpenses.filter(e => e.category === 'Shipping').reduce((sum, e) => sum + parseFloat(e.amount), 0);
         res.shippingRatio = res.realizedRevenue > 0 ? ((totalShipping / res.realizedRevenue) * 100).toFixed(1) : "0.0";
         res.profitPerOrder = res.deliveredCount > 0 ? (res.netResult / res.deliveredCount).toFixed(2) : "0.00";
 
-        return res;
-    }, [orders, expenses, dateRange]);
+        return { res, filteredExpenses }; // Return filtered list for chart/list usage
+    }, [orders, expenses, dateRange, selectedCollection]);
+
 
     // --- Chart Data ---
     const chartData = useMemo(() => {
         const data = {};
-        // Initialize days
         const start = new Date(dateRange.start);
         const end = new Date(dateRange.end);
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
@@ -164,10 +193,6 @@ export default function Finances() {
         orders.forEach(o => {
             if (o.date && data[o.date] !== undefined) {
                 const qty = parseInt(o.quantity) || 1;
-                // Chart shows Volume (Generated Revenue), not just realized, to show activity
-                // OR show Realized? Usually activity.
-                // Let's show "Delivered Revenue" vs "Pending"? 
-                // Simple: Show Total Ordered Value
                 data[o.date] += (parseFloat(o.price) || 0) * qty;
             }
         });
@@ -177,18 +202,12 @@ export default function Finances() {
 
     const expenseCategoryData = useMemo(() => {
         const data = {};
-        const start = new Date(dateRange.start);
-        const end = new Date(dateRange.end + "T23:59:59");
-
-        expenses.forEach(exp => {
-            const d = new Date(exp.date);
-            if (d < start || d > end) return;
-
+        stats.filteredExpenses.forEach(exp => {
             const cat = exp.category || 'Other';
             data[cat] = (data[cat] || 0) + (parseFloat(exp.amount) || 0);
         });
         return Object.entries(data).map(([name, value]) => ({ name, value }));
-    }, [expenses, dateRange]);
+    }, [stats.filteredExpenses]);
 
 
     // --- Handlers ---
@@ -201,9 +220,10 @@ export default function Finances() {
                 description: expenseForm.description,
                 amount: parseFloat(expenseForm.amount),
                 category: expenseForm.category,
+                collectionId: expenseForm.collectionId || (selectedCollection ? selectedCollection.id : null), // Auto-link if in collection logic? Or let user choose. Let's start with explicit or current default.
                 date: new Date().toISOString()
             });
-            setExpenseForm({ description: "", amount: "", category: "Other" });
+            setExpenseForm(prev => ({ ...prev, description: "", amount: "" })); // Keep category/collection sticky? No, reset safely.
         } catch (err) {
             console.error(err);
         } finally {
@@ -219,28 +239,59 @@ export default function Finances() {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            {/* Header & Controls */}
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">{t('page_title_finances')}</h1>
                     <p className="mt-1 text-sm text-gray-500">
-                        {t('page_subtitle_finances')}
+                        {selectedCollection
+                            ? `${t('collections_title')}: ${selectedCollection.name}`
+                            : t('page_subtitle_finances')}
                     </p>
                 </div>
-                <div className="flex bg-white p-2 rounded-lg shadow-sm border border-gray-100 gap-2 items-center">
-                    <span className="text-sm text-gray-500 font-medium px-2">{t('date_range')}</span>
-                    <input
-                        type="date"
-                        value={dateRange.start}
-                        onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                        className="border-gray-300 rounded-md text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    />
-                    <span className="text-gray-400">-</span>
-                    <input
-                        type="date"
-                        value={dateRange.end}
-                        onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                        className="border-gray-300 rounded-md text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    />
+
+                <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                    {/* Collection Selector */}
+                    <div className="relative">
+                        <select
+                            className="appearance-none block w-full sm:w-48 pl-3 pr-10 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white"
+                            value={selectedCollection ? selectedCollection.id : ""}
+                            onChange={(e) => {
+                                const id = e.target.value;
+                                if (!id) setSelectedCollection(null);
+                                else setSelectedCollection(collections.find(c => c.id === id));
+                            }}
+                        >
+                            <option value="">{t('label_global_view')}</option>
+                            {collections.map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                            <Library className="h-4 w-4" />
+                        </div>
+                    </div>
+
+                    <Button variant="secondary" onClick={() => setShowCollectionsModal(true)} icon={Library}>
+                        {t('btn_manage_collections')}
+                    </Button>
+
+                    <div className="flex bg-white p-2 rounded-lg shadow-sm border border-gray-100 gap-2 items-center">
+                        <span className="text-sm text-gray-500 font-medium px-2 hidden sm:block">{t('date_range')}</span>
+                        <input
+                            type="date"
+                            value={dateRange.start}
+                            onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                            className="border-gray-300 rounded-md text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 w-full sm:w-auto"
+                        />
+                        <span className="text-gray-400">-</span>
+                        <input
+                            type="date"
+                            value={dateRange.end}
+                            onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                            className="border-gray-300 rounded-md text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 w-full sm:w-auto"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -253,7 +304,6 @@ export default function Finances() {
 
             {/* KPI Cards */}
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-
                 {/* 1. Total Income (LIVRÉ) */}
                 <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
                     <div className="flex items-center">
@@ -265,7 +315,7 @@ export default function Finances() {
                         <div className="ml-5 w-0 flex-1">
                             <dl>
                                 <dt className="text-sm font-medium text-gray-500 truncate">{t('kpi_total_income_delivered')}</dt>
-                                <dd className="text-2xl font-semibold text-gray-900">{stats.deliveredRevenue.toLocaleString()} {store?.currency || 'MAD'}</dd>
+                                <dd className="text-2xl font-semibold text-gray-900">{stats.res.deliveredRevenue.toLocaleString()} {store?.currency || 'MAD'}</dd>
                             </dl>
                         </div>
                     </div>
@@ -282,7 +332,7 @@ export default function Finances() {
                         <div className="ml-5 w-0 flex-1">
                             <dl>
                                 <dt className="text-sm font-medium text-gray-500 truncate">{t('kpi_total_paid')}</dt>
-                                <dd className="text-2xl font-semibold text-gray-900">{stats.realizedRevenue.toLocaleString()} {store?.currency || 'MAD'}</dd>
+                                <dd className="text-2xl font-semibold text-gray-900">{stats.res.realizedRevenue.toLocaleString()} {store?.currency || 'MAD'}</dd>
                             </dl>
                         </div>
                     </div>
@@ -299,7 +349,7 @@ export default function Finances() {
                         <div className="ml-5 w-0 flex-1">
                             <dl>
                                 <dt className="text-sm font-medium text-gray-500 truncate">{t('kpi_net_profit')}</dt>
-                                <dd className="text-2xl font-semibold text-gray-900">{stats.netResult.toLocaleString()} {store?.currency || 'MAD'}</dd>
+                                <dd className="text-2xl font-semibold text-gray-900">{stats.res.netResult.toLocaleString()} {store?.currency || 'MAD'}</dd>
                             </dl>
                         </div>
                     </div>
@@ -316,7 +366,7 @@ export default function Finances() {
                         <div className="ml-5 w-0 flex-1">
                             <dl>
                                 <dt className="text-sm font-medium text-gray-500 truncate">{t('kpi_net_margin')}</dt>
-                                <dd className="text-2xl font-semibold text-gray-900">{stats.margin}%</dd>
+                                <dd className="text-2xl font-semibold text-gray-900">{stats.res.margin}%</dd>
                             </dl>
                         </div>
                     </div>
@@ -328,8 +378,8 @@ export default function Finances() {
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">{t('metric_roas')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
-                        <span className={`text - xl font - bold ${parseFloat(stats.roas) > 3 ? 'text-green-600' : 'text-gray-900'} `}>
-                            {stats.roas}x
+                        <span className={`text - xl font - bold ${parseFloat(stats.res.roas) > 3 ? 'text-green-600' : 'text-gray-900'} `}>
+                            {stats.res.roas}x
                         </span>
                         <span className="text-xs text-gray-400">{t('target')}: &gt;3.0</span>
                     </div>
@@ -338,7 +388,7 @@ export default function Finances() {
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">{t('metric_cac')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
-                        <span className="text-xl font-bold text-gray-900">{stats.cac} DH</span>
+                        <span className="text-xl font-bold text-gray-900">{stats.res.cac} DH</span>
                         <span className="text-xs text-gray-400">{t('label_ads_spending')}</span>
                     </div>
                 </div>
@@ -346,8 +396,8 @@ export default function Finances() {
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">{t('metric_shipping_ratio')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
-                        <span className={`text - xl font - bold ${parseFloat(stats.shippingRatio) > 15 ? 'text-red-600' : 'text-gray-900'} `}>
-                            {stats.shippingRatio}%
+                        <span className={`text - xl font - bold ${parseFloat(stats.res.shippingRatio) > 15 ? 'text-red-600' : 'text-gray-900'} `}>
+                            {stats.res.shippingRatio}%
                         </span>
                         <span className="text-xs text-gray-400">{t('target')}: &lt;15%</span>
                     </div>
@@ -356,8 +406,8 @@ export default function Finances() {
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">{t('metric_profit_per_order')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
-                        <span className={`text - xl font - bold ${parseFloat(stats.profitPerOrder) > 0 ? 'text-green-600' : 'text-red-600'} `}>
-                            {stats.profitPerOrder} DH
+                        <span className={`text - xl font - bold ${parseFloat(stats.res.profitPerOrder) > 0 ? 'text-green-600' : 'text-red-600'} `}>
+                            {stats.res.profitPerOrder} DH
                         </span>
                     </div>
                 </div>
@@ -418,7 +468,7 @@ export default function Finances() {
             <div className="bg-white p-6 rounded-lg shadow border border-gray-100 lg:col-span-2">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">{t('section_expenses')}</h3>
 
-                <form onSubmit={handleAddExpense} className="flex flex-col sm:flex-row gap-2 mb-4">
+                <form onSubmit={handleAddExpense} className="flex flex-col lg:flex-row gap-2 mb-4">
                     <div className="flex-1">
                         <Input
                             placeholder={t('placeholder_desc')} // "Description (e.g. Ads, Packaging)"
@@ -438,6 +488,20 @@ export default function Finances() {
                             ))}
                         </select>
                     </div>
+                    {/* Collection Linker */}
+                    <div className="sm:w-48">
+                        <select
+                            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-gray-600"
+                            value={expenseForm.collectionId || ""}
+                            onChange={e => setExpenseForm({ ...expenseForm, collectionId: e.target.value })}
+                        >
+                            <option value="">{t('select_collection')}</option>
+                            {collections.map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
                     <div className="sm:w-32">
                         <Input
                             type="number"
@@ -451,36 +515,57 @@ export default function Finances() {
                 </form>
 
                 <div className="overflow-y-auto max-h-64 border-t border-gray-100">
-                    {expenses.length === 0 ? (
+                    {stats.filteredExpenses.length === 0 ? (
                         <p className="py-4 text-center text-sm text-gray-500">{t('msg_no_expenses')}</p>
                     ) : (
                         <ul className="divide-y divide-gray-100">
-                            {expenses.map(exp => (
-                                <li key={exp.id} className="py-3 flex justify-between items-center text-sm">
-                                    <div className="flex items-center gap-3">
-                                        <span className={`px - 2 py - 1 text - xs font - semibold rounded - full 
+                            {stats.filteredExpenses.map(exp => {
+                                const linkedCollection = collections.find(c => c.id === exp.collectionId);
+                                return (
+                                    <li key={exp.id} className="py-3 flex justify-between items-center text-sm">
+                                        <div className="flex items-center gap-3">
+                                            <span className={`px - 2 py - 1 text - xs font - semibold rounded - full 
                                                     ${exp.category === 'Ads' ? 'bg-blue-100 text-blue-800' :
-                                                exp.category === 'Shipping' ? 'bg-yellow-100 text-yellow-800' :
-                                                    exp.category === 'COGS' ? 'bg-orange-100 text-orange-800' :
-                                                        exp.category === 'Salaries' ? 'bg-purple-100 text-purple-800' :
-                                                            'bg-gray-100 text-gray-800'
-                                            } `}>
-                                            {t(`cat_${(exp.category || 'other').toLowerCase()}`) || exp.category}
-                                        </span>
-                                        <span className="text-gray-700">{exp.description}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <span className="font-medium text-red-600">-{parseFloat(exp.amount).toFixed(2)} DH</span>
-                                        <button onClick={() => handleDeleteExpense(exp.id)} className="text-gray-400 hover:text-red-500" title={t('delete')}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </button>
-                                    </div>
-                                </li>
-                            ))}
+                                                    exp.category === 'Shipping' ? 'bg-yellow-100 text-yellow-800' :
+                                                        exp.category === 'COGS' ? 'bg-orange-100 text-orange-800' :
+                                                            exp.category === 'Salaries' ? 'bg-purple-100 text-purple-800' :
+                                                                'bg-gray-100 text-gray-800'
+                                                } `}>
+                                                {t(`cat_${(exp.category || 'other').toLowerCase()}`) || exp.category}
+                                            </span>
+                                            <div className="flex flex-col">
+                                                <span className="text-gray-700 font-medium">{exp.description}</span>
+                                                {linkedCollection && (
+                                                    <span className="text-xs text-indigo-500 flex items-center gap-1">
+                                                        <Library className="w-3 h-3" /> {linkedCollection.name}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="font-medium text-red-600">-{parseFloat(exp.amount).toFixed(2)} DH</span>
+                                            <button onClick={() => handleDeleteExpense(exp.id)} className="text-gray-400 hover:text-red-500" title={t('delete')}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </li>
+                                )
+                            })}
                         </ul>
                     )}
                 </div>
             </div>
+
+            {/* Collections Modal */}
+            {showCollectionsModal && (
+                <CollectionsManager
+                    onClose={() => setShowCollectionsModal(false)}
+                    onSelect={(col) => {
+                        setSelectedCollection(col);
+                        setShowCollectionsModal(false);
+                    }}
+                />
+            )}
         </div>
     );
 }

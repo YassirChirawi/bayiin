@@ -105,6 +105,23 @@ export const useOrderActions = () => {
                     ...newData,
                     updatedAt: serverTimestamp()
                 });
+
+                // 3. Update Customer Profile if linked
+                if (newData.customerId) {
+                    const customerRef = doc(db, "customers", newData.customerId);
+                    // Check if customer exists before updating to avoid errors if customer was deleted
+                    const customerDoc = await transaction.get(customerRef);
+
+                    if (customerDoc.exists()) {
+                        transaction.update(customerRef, {
+                            name: newData.clientName,
+                            phone: newData.clientPhone,
+                            address: newData.clientAddress,
+                            city: newData.clientCity,
+                            updatedAt: serverTimestamp()
+                        });
+                    }
+                }
             });
             setLoading(false);
             return true;

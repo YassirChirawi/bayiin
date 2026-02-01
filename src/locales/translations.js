@@ -476,7 +476,19 @@ export const translations = {
         cookie_title: "Respecting your privacy",
         cookie_text: "This site uses cookies to improve your experience, analyze traffic, and ensure the proper functioning of our platform, in accordance with applicable laws.",
         cookie_learn_more: "Learn more",
-        cookie_accept: "I Accept"
+        cookie_accept: "I Accept",
+
+        // Collections
+        collections_title: "Collections (Launches)",
+        collections_subtitle: "Group your finances by product launches or periods.",
+        btn_manage_collections: "Manage Collections",
+        label_global_view: "Global View (All Time)",
+        collection_name: "Collection Name",
+        btn_create_collection: "Create Collection",
+        msg_collection_created: "Collection created!",
+        msg_collection_deleted: "Collection deleted!",
+        select_collection: "Link to Collection (Optional)",
+        modal_collections: "Manage Collections",
 
     },
     fr: {
@@ -956,6 +968,18 @@ export const translations = {
         cookie_title: "Respect de votre vie privée",
         cookie_text: "Ce site utilise des cookies pour améliorer votre expérience, analyser le trafic et assurer le bon fonctionnement de notre plateforme, conformément à la loi 09-08.",
         cookie_learn_more: "En savoir plus",
-        cookie_accept: "J'accepte"
+        cookie_accept: "J'accepte",
+
+        // Collections
+        collections_title: "Collections (Lancements)",
+        collections_subtitle: "Groupez vos finances par lancements de produits ou périodes.",
+        btn_manage_collections: "Gérer les Collections",
+        label_global_view: "Vue Globale",
+        collection_name: "Nom de la Collection",
+        btn_create_collection: "Créer Collection",
+        msg_collection_created: "Collection créée !",
+        msg_collection_deleted: "Collection supprimée !",
+        select_collection: "Lier à une Collection (Optionnel)",
+        modal_collections: "Gérer les Collections",
     }
 };
