@@ -8,6 +8,23 @@ import ImportModal from "../components/ImportModal";
 import { exportToCSV } from "../utils/csvHelper";
 import { orderBy, limit } from "firebase/firestore";
 import { useLanguage } from "../context/LanguageContext"; // NEW
+import { vibrate } from "../utils/haptics";
+import { motion } from "framer-motion";
+
+const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+        opacity: 1,
+        transition: {
+            staggerChildren: 0.1
+        }
+    }
+};
+
+const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0 }
+};
 
 export default function Products() {
     const { t } = useLanguage(); // NEW
@@ -45,6 +62,7 @@ export default function Products() {
     };
 
     const handleDelete = async (id) => {
+        vibrate('medium');
         if (showTrash) {
             if (window.confirm(t('confirm_delete_permanent'))) {
                 await permanentDeleteStoreItem(id);
@@ -186,112 +204,204 @@ export default function Products() {
                     </div>
                 </div>
             ) : (
-                <div className="bg-white shadow overflow-hidden sm:rounded-md">
-                    <ul className="divide-y divide-gray-200">
-                        {filteredProducts.map((product) => (
-                            <li key={product.id}>
-                                <div className="px-4 py-4 sm:px-6 hover:bg-gray-50 flex items-center justify-between">
-                                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                                        <div className="flex-shrink-0 h-16 w-16 bg-gray-100 rounded-md overflow-hidden border border-gray-200">
-                                            {product.photoUrl ? (
-                                                <img className="h-full w-full object-cover" src={product.photoUrl} alt={product.name} />
-                                            ) : (
-                                                <div className="h-full w-full flex items-center justify-center text-gray-400">
-                                                    <Package className="h-8 w-8" />
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <p className="text-sm font-medium text-indigo-600 truncate">{product.name}</p>
-                                                {product.isVariable && (
-                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
-                                                        {t('with_variants')}
-                                                    </span>
+                <>
+                    {/* Desktop List */}
+                    <div className="hidden md:block bg-white shadow overflow-hidden sm:rounded-md">
+                        <motion.ul
+                            variants={containerVariants}
+                            initial="hidden"
+                            animate="show"
+                            className="divide-y divide-gray-200"
+                        >
+                            {filteredProducts.map((product) => (
+                                <motion.li key={product.id} variants={itemVariants}>
+                                    <div className="px-4 py-4 sm:px-6 hover:bg-gray-50 flex items-center justify-between">
+                                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                                            <div className="flex-shrink-0 h-16 w-16 bg-gray-100 rounded-md overflow-hidden border border-gray-200">
+                                                {product.photoUrl ? (
+                                                    <img className="h-full w-full object-cover" src={product.photoUrl} alt={product.name} />
+                                                ) : (
+                                                    <div className="h-full w-full flex items-center justify-center text-gray-400">
+                                                        <Package className="h-8 w-8" />
+                                                    </div>
                                                 )}
                                             </div>
-                                            <p className="flex items-center text-sm text-gray-500">
-                                                <span className="truncate">{product.category}</span>
-                                                <span className="mx-2">•</span>
-                                                <span className={parseInt(product.stock) === 0 ? "text-red-600 font-bold" : ""}>
-                                                    {product.stock} {t('table_stock').toLowerCase()}
-                                                </span>
-                                            </p>
-
-                                            {/* Attributes/Variants Display */}
-                                            {product.isVariable ? (
-                                                <div className="mt-1 flex flex-wrap gap-1">
-                                                    {product.variants?.length > 0 && (
-                                                        <span className="text-xs text-gray-400">
-                                                            {product.variants.length} combinations ({product.attributes?.map(a => a.name).join(", ")})
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-sm font-medium text-indigo-600 truncate">{product.name}</p>
+                                                    {product.isVariable && (
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                                            {t('with_variants')}
                                                         </span>
                                                     )}
                                                 </div>
-                                            ) : (
-                                                product.sizes && product.sizes.length > 0 && (
-                                                    <div className="mt-1 flex gap-1">
-                                                        {product.sizes.map(size => (
-                                                            <span key={size} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                                                                {size}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                )
-                                            )}
+                                                <p className="flex items-center text-sm text-gray-500">
+                                                    <span className="truncate">{product.category}</span>
+                                                    <span className="mx-2">•</span>
+                                                    <span className={parseInt(product.stock) === 0 ? "text-red-600 font-bold" : ""}>
+                                                        {product.stock} {t('table_stock').toLowerCase()}
+                                                    </span>
+                                                </p>
 
-                                            {(parseInt(product.stock) || 0) < 5 && (
-                                                <div className="mt-1 flex items-center gap-1 text-xs text-red-600 font-medium bg-red-50 px-2 py-0.5 rounded w-fit">
-                                                    <AlertCircle className="h-3 w-3" />
-                                                    {t('low_stock')}
-                                                </div>
-                                            )}
+                                                {/* Attributes/Variants Display */}
+                                                {product.isVariable ? (
+                                                    <div className="mt-1 flex flex-wrap gap-1">
+                                                        {product.variants?.length > 0 && (
+                                                            <span className="text-xs text-gray-400">
+                                                                {product.variants.length} combinations ({product.attributes?.map(a => a.name).join(", ")})
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    product.sizes && product.sizes.length > 0 && (
+                                                        <div className="mt-1 flex gap-1">
+                                                            {product.sizes.map(size => (
+                                                                <span key={size} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                                                    {size}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )
+                                                )}
+
+                                                {(parseInt(product.stock) || 0) < 5 && (
+                                                    <div className="mt-1 flex items-center gap-1 text-xs text-red-600 font-medium bg-red-50 px-2 py-0.5 rounded w-fit">
+                                                        <AlertCircle className="h-3 w-3" />
+                                                        {t('low_stock')}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <div className="text-right hidden sm:block">
+                                                <p className="text-sm font-semibold text-gray-900">{parseFloat(product.price).toFixed(2)} DH</p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {showTrash ? (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleRestore(product.id)}
+                                                            className="p-2 text-gray-400 hover:text-blue-600 rounded-full hover:bg-gray-100 transition-colors"
+                                                            title="Restore"
+                                                        >
+                                                            <RotateCcw className="h-5 w-5" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDelete(product.id)}
+                                                            className="p-2 text-gray-400 hover:text-red-600 rounded-full hover:bg-gray-100 transition-colors"
+                                                            title="Delete Permanently"
+                                                        >
+                                                            <Trash2 className="h-5 w-5" />
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleEdit(product)}
+                                                            className="p-2 text-gray-400 hover:text-indigo-600 rounded-full hover:bg-gray-100 transition-colors"
+                                                        >
+                                                            <Edit2 className="h-5 w-5" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDelete(product.id)}
+                                                            className="p-2 text-gray-400 hover:text-red-600 rounded-full hover:bg-gray-100 transition-colors"
+                                                        >
+                                                            <Trash2 className="h-5 w-5" />
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-4">
-                                        <div className="text-right hidden sm:block">
-                                            <p className="text-sm font-semibold text-gray-900">{parseFloat(product.price).toFixed(2)} DH</p>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            {showTrash ? (
-                                                <>
-                                                    <button
-                                                        onClick={() => handleRestore(product.id)}
-                                                        className="p-2 text-gray-400 hover:text-blue-600 rounded-full hover:bg-gray-100 transition-colors"
-                                                        title="Restore"
-                                                    >
-                                                        <RotateCcw className="h-5 w-5" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDelete(product.id)}
-                                                        className="p-2 text-gray-400 hover:text-red-600 rounded-full hover:bg-gray-100 transition-colors"
-                                                        title="Delete Permanently"
-                                                    >
-                                                        <Trash2 className="h-5 w-5" />
-                                                    </button>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <button
-                                                        onClick={() => handleEdit(product)}
-                                                        className="p-2 text-gray-400 hover:text-indigo-600 rounded-full hover:bg-gray-100 transition-colors"
-                                                    >
-                                                        <Edit2 className="h-5 w-5" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDelete(product.id)}
-                                                        className="p-2 text-gray-400 hover:text-red-600 rounded-full hover:bg-gray-100 transition-colors"
-                                                    >
-                                                        <Trash2 className="h-5 w-5" />
-                                                    </button>
-                                                </>
+                                </motion.li>
+                            ))}
+                        </motion.ul>
+                    </div>
+
+                    {/* Mobile Card View */}
+                    <motion.div
+                        variants={containerVariants}
+                        initial="hidden"
+                        animate="show"
+                        className="md:hidden space-y-4"
+                    >
+                        {filteredProducts.map((product) => (
+                            <motion.div key={product.id} variants={itemVariants} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div className="flex p-4 gap-4">
+                                    {/* Image */}
+                                    <div className="flex-shrink-0 h-24 w-24 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                                        {product.photoUrl ? (
+                                            <img className="h-full w-full object-cover" src={product.photoUrl} alt={product.name} />
+                                        ) : (
+                                            <div className="h-full w-full flex items-center justify-center text-gray-400">
+                                                <Package className="h-8 w-8" />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Content */}
+                                    <div className="flex-1 min-w-0 flex flex-col justify-between">
+                                        <div>
+                                            <div className="flex justify-between items-start">
+                                                <h3 className="text-base font-bold text-gray-900 line-clamp-2">{product.name}</h3>
+                                                <p className="text-indigo-600 font-bold whitespace-nowrap ml-2">
+                                                    {parseFloat(product.price).toFixed(0)} <span className="text-xs">DH</span>
+                                                </p>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-1">{product.category}</p>
+                                            {product.isVariable && (
+                                                <span className="inline-flex mt-1 items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-800">
+                                                    {product.variants?.length || 0} variants
+                                                </span>
                                             )}
+                                        </div>
+
+                                        <div className="flex items-end justify-between mt-2">
+                                            <span className={`text-xs font-medium px-2 py-1 rounded-full ${parseInt(product.stock) === 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                                {product.stock} in stock
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
-                            </li>
+
+                                {/* Actions Footer */}
+                                <div className="bg-gray-50 px-4 py-3 flex justify-between items-center border-t border-gray-100">
+                                    {showTrash ? (
+                                        <div className="flex gap-3 w-full">
+                                            <button
+                                                onClick={() => handleRestore(product.id)}
+                                                className="flex-1 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                                            >
+                                                <RotateCcw className="h-4 w-4" /> Restore
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(product.id)}
+                                                className="flex-1 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                                            >
+                                                <Trash2 className="h-4 w-4" /> Delete
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex gap-3 w-full">
+                                            <button
+                                                onClick={() => handleEdit(product)}
+                                                className="flex-1 py-1.5 bg-white border border-gray-300 shadow-sm text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 flex items-center justify-center gap-2"
+                                            >
+                                                <Edit2 className="h-4 w-4" /> Edit
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(product.id)}
+                                                className="py-1.5 px-3 bg-red-50 text-red-600 rounded-lg"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </motion.div>
                         ))}
-                    </ul>
-                </div>
+                    </motion.div>
+                </>
             )}
 
             {/* Pagination / Load More */}
@@ -319,6 +429,6 @@ export default function Products() {
                 title={`${t('import')} ${t('page_title_products')}`}
                 templateHeaders={["Name", "Price"]}
             />
-        </div>
+        </div >
     );
 }

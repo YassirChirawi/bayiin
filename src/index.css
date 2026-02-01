@@ -1,9 +1,14 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #4F46E5;
-  --color-secondary: #E0E7FF;
-  --color-accent: #FF6B6B;
+  --color-primary: #6366f1;
+  /* Vibrant Indigo/Purple */
+  --color-primary-dark: #4338ca;
+  --color-secondary: #e0e7ff;
+  --color-accent: #f43f5e;
+  /* Rose */
+  --color-surface: #f8fafc;
+  /* Slate 50 */
 }
 
 :root {
@@ -14,9 +19,22 @@
   font-family: 'Tajawal', sans-serif;
 }
 
+/* Glassmorphism Utilities */
+.glass-panel {
+  @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl;
+}
+
+.glass-sidebar {
+  @apply bg-white/80 backdrop-blur-lg border-r border-white/20 shadow-lg;
+}
+
+/* Smooth Scrolling */
+html {
+  scroll-behavior: smooth;
+}
 
 body {
-  @apply bg-gray-50 text-gray-900;
+  @apply bg-surface text-gray-900;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }

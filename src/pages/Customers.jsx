@@ -9,6 +9,23 @@ import Button from "../components/Button";
 import { exportToCSV } from "../utils/csvHelper";
 import { orderBy, limit } from "firebase/firestore";
 import { useLanguage } from "../context/LanguageContext"; // NEW
+import { vibrate } from "../utils/haptics";
+import { motion } from "framer-motion";
+
+const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+        opacity: 1,
+        transition: {
+            staggerChildren: 0.1
+        }
+    }
+};
+
+const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0 }
+};
 
 export default function Customers() {
     const { t } = useLanguage(); // NEW
@@ -51,6 +68,7 @@ export default function Customers() {
 
     const handleDelete = async (id, e) => {
         e.stopPropagation();
+        vibrate('medium');
         if (showTrash) {
             if (window.confirm(t('confirm_delete_customer_perm'))) {
                 await permanentDeleteStoreItem(id);
@@ -238,8 +256,8 @@ export default function Customers() {
                 </div>
             </div>
 
-            {/* Table */}
-            <div className="bg-white shadow border-b border-gray-200 sm:rounded-lg overflow-x-auto">
+            {/* Desktop Table */}
+            <div className="hidden md:block bg-white shadow border-b border-gray-200 sm:rounded-lg overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
@@ -252,13 +270,18 @@ export default function Customers() {
                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{t('actions')}</th>
                         </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <motion.tbody
+                        variants={containerVariants}
+                        initial="hidden"
+                        animate="show"
+                        className="bg-white divide-y divide-gray-200"
+                    >
                         {loading ? (
                             <tr><td colSpan="7" className="px-6 py-4 text-center">{t('loading')}</td></tr>
                         ) : filteredCustomers.length === 0 ? (
                             <tr><td colSpan="7" className="px-6 py-4 text-center text-gray-500">{t('no_data')}</td></tr>
                         ) : filteredCustomers.map((customer) => (
-                            <tr key={customer.id} className="hover:bg-gray-50">
+                            <motion.tr key={customer.id} variants={itemVariants} className="hover:bg-gray-50">
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="text-sm font-medium text-gray-900">{customer.name}</div>
                                 </td>
@@ -323,11 +346,100 @@ export default function Customers() {
                                         )}
                                     </div>
                                 </td>
-                            </tr>
+                            </motion.tr>
                         ))}
-                    </tbody>
+                    </motion.tbody>
                 </table>
             </div>
+
+            {/* Mobile Card View */}
+            <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="show"
+                className="md:hidden space-y-4"
+            >
+                {loading ? (
+                    <div className="text-center py-10 text-gray-500">{t('loading')}</div>
+                ) : filteredCustomers.length === 0 ? (
+                    <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow p-8">
+                        <p>{t('no_data')}</p>
+                    </div>
+                ) : (
+                    filteredCustomers.map((customer) => (
+                        <motion.div key={customer.id} variants={itemVariants} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                    <h3 className="font-bold text-gray-900 text-lg">{customer.name}</h3>
+                                    <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
+                                        <MapPin className="h-3.5 w-3.5" />
+                                        <span>{customer.city || 'No City'}</span>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <span className="block font-bold text-green-600 text-lg">
+                                        {customer.totalSpent ? `${customer.totalSpent.toFixed(0)}` : '0'} <span className="text-xs">DH</span>
+                                    </span>
+                                    <span className="text-xs text-gray-400">{customer.orderCount || 0} Orders</span>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center text-sm text-gray-600 mb-4 bg-gray-50 p-2 rounded-lg">
+                                <span className="font-mono">{customer.phone}</span>
+                            </div>
+
+                            <div className="flex items-center justify-between border-t border-gray-100 pt-3">
+                                <div className="flex gap-2">
+                                    {showTrash ? (
+                                        <>
+                                            <button
+                                                onClick={(e) => handleRestore(customer.id, e)}
+                                                className="p-2 bg-blue-50 text-blue-600 rounded-full"
+                                            >
+                                                <RotateCcw className="h-5 w-5" />
+                                            </button>
+                                            <button
+                                                onClick={(e) => handleDelete(customer.id, e)}
+                                                className="p-2 bg-red-50 text-red-600 rounded-full"
+                                            >
+                                                <Trash2 className="h-5 w-5" />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <a href={`tel:${customer.phone}`} className="p-2 bg-green-50 text-green-600 rounded-full">
+                                                <Users className="h-5 w-5" />
+                                            </a>
+                                            <button
+                                                onClick={() => setSelectedCustomer(customer)}
+                                                className="p-2 bg-gray-100 text-gray-600 rounded-full"
+                                            >
+                                                <Eye className="h-5 w-5" />
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                                {!showTrash && (
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => { setEditingCustomer(customer); setIsEditModalOpen(true); }}
+                                            className="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-sm font-medium rounded-lg"
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            onClick={(e) => handleDelete(customer.id, e)}
+                                            className="p-2 text-red-600 bg-red-50 rounded-lg"
+                                        >
+                                            <Trash2 className="h-5 w-5" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    ))
+                )}
+            </motion.div>
 
             <CustomerDetailModal
                 isOpen={!!selectedCustomer}
@@ -349,6 +461,6 @@ export default function Customers() {
                 title={`${t('import')} ${t('page_title_customers')}`}
                 templateHeaders={["Name", "Phone"]}
             />
-        </div>
+        </div >
     );
 }

@@ -67,7 +67,7 @@ export default function ImportModal({ isOpen, onClose, onImport, title = "Import
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md p-4">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                     <h2 className="text-xl font-bold text-gray-900">{title}</h2>

@@ -4,6 +4,7 @@ import Sidebar from "./Sidebar";
 import { useTenant } from "../context/TenantContext";
 import { Loader2, Menu, ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import PageTransition from "./PageTransition";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 
@@ -83,16 +84,9 @@ export default function Layout() {
                 )}
                 <div className="p-4 md:p-8">
                     <AnimatePresence mode="wait">
-                        <motion.div
-                            key={location.pathname}
-                            initial={{ opacity: 0, x: 10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -10 }}
-                            transition={{ duration: 0.2 }}
-                            className="w-full"
-                        >
+                        <PageTransition key={location.pathname}>
                             <Outlet />
-                        </motion.div>
+                        </PageTransition>
                     </AnimatePresence>
                 </div>
             </main>

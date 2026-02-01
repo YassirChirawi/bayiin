@@ -19,6 +19,7 @@ import {
     Globe
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
+import { vibrate } from "../utils/haptics";
 
 export default function Sidebar({ isOpen, onClose }) {
     const { pathname } = useLocation();
@@ -53,14 +54,17 @@ export default function Sidebar({ isOpen, onClose }) {
             {/* Mobile Backdrop */}
             {isOpen && (
                 <div
-                    className="fixed inset-0 bg-black/50 z-30 md:hidden glass-effect"
-                    onClick={onClose}
+                    className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30 md:hidden"
+                    onClick={() => {
+                        vibrate('soft');
+                        onClose();
+                    }}
                 />
             )}
 
             {/* Sidebar */}
             <div className={`
-                fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ease-in-out
+                fixed inset-y-0 left-0 z-40 w-64 glass-sidebar transform transition-transform duration-200 ease-in-out
                 md:translate-x-0 md:static md:h-screen md:flex md:flex-col
                 ${isOpen ? 'translate-x-0' : '-translate-x-full'}
             `}>

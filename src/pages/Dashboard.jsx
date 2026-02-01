@@ -137,7 +137,7 @@ export default function Dashboard() {
                 </button>
             </div>
             {!isLoading && recentOrders.length === 0 && (
-                <div className="mt-6 bg-white rounded-lg shadow-sm border border-indigo-100 p-6">
+                <div className="mt-6 glass-panel rounded-xl border-indigo-100/50 p-6">
                     <h3 className="text-lg font-medium text-gray-900 mb-4">{t('getting_started')}</h3>
                     <div className="space-y-4">
                         <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-lg border border-indigo-100">
@@ -168,7 +168,7 @@ export default function Dashboard() {
 
             {/* KPI Grid */}
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div className="glass-panel rounded-xl overflow-hidden p-5">
                     <div className="flex items-center">
                         <div className="flex-shrink-0 bg-indigo-50 rounded-md p-3">
                             <DollarSign className="h-6 w-6 text-indigo-600" />
@@ -184,7 +184,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div className="glass-panel rounded-xl overflow-hidden p-5">
                     <div className="flex items-center">
                         <div className="flex-shrink-0 bg-yellow-50 rounded-md p-3">
                             <ShoppingBag className="h-6 w-6 text-yellow-600" />
@@ -200,7 +200,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div className="glass-panel rounded-xl overflow-hidden p-5">
                     <div className="flex items-center">
                         <div className="flex-shrink-0 bg-orange-50 rounded-md p-3">
                             <RotateCcw className="h-6 w-6 text-orange-600" />
@@ -216,7 +216,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div className="glass-panel rounded-xl overflow-hidden p-5">
                     <div className="flex items-center">
                         <div className="flex-shrink-0 bg-red-50 rounded-md p-3">
                             <AlertTriangle className="h-6 w-6 text-red-600" />
@@ -250,7 +250,7 @@ export default function Dashboard() {
                 {/* Left Column (Charts & Tasks) */}
                 <div className="lg:col-span-2 space-y-6">
                     {/* Sales Trend Chart */}
-                    <div className="bg-white p-6 rounded-lg shadow border border-gray-100">
+                    <div className="glass-panel p-6 rounded-xl">
                         <h3 className="text-lg font-bold text-gray-900 mb-4">{t('chart_sales_trend')}</h3>
                         <div className="h-[300px] w-full">
                             {dashboardData.salesTrend.length > 0 ? (
@@ -283,7 +283,7 @@ export default function Dashboard() {
                     </div>
 
                     {/* Pending Tasks (Follow-ups) Widget */}
-                    <div className="bg-white p-6 rounded-lg shadow border border-yellow-100">
+                    <div className="glass-panel p-6 rounded-xl border-yellow-100/50">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                                 <CheckCircle className="h-5 w-5 text-yellow-600" />
@@ -325,7 +325,7 @@ export default function Dashboard() {
                 {/* Right Column (Pie Chart & Orders) */}
                 <div className="lg:col-span-1 space-y-6">
                     {/* Status Breakdown (Pie Chart) */}
-                    <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
+                    <div className="glass-panel rounded-xl p-6">
                         <h3 className="text-lg font-medium text-gray-900 mb-4">{t('chart_order_status')}</h3>
                         <div className="h-[300px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
