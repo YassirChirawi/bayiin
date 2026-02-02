@@ -7,11 +7,13 @@ export function LanguageProvider({ children }) {
     // Default to French if no preference, or detect browser? 
     // User seems to prefer French / mixed. Let's default to 'fr' based on latest request.
     const [language, setLanguage] = useState(() => {
-        return localStorage.getItem("language") || "fr";
+        return localStorage.getItem("language") || "ar";
     });
 
     useEffect(() => {
         localStorage.setItem("language", language);
+        document.documentElement.lang = language;
+        document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
     }, [language]);
 
     // Translation function

@@ -100,15 +100,27 @@ export default function Finances() {
         const start = new Date(dateRange.start);
         const end = new Date(dateRange.end + "T23:59:59");
 
-        // 1. Process Orders (Always bound by Date Range, even in Collection Mode)
-        // Note: You could argue a collection might have orders outside the range, but usually the range defines the sales period.
+        // 1. Process Orders (Always bound by Date Range)
         orders.forEach(o => {
-            const qty = parseInt(o.quantity) || 1;
-            const price = parseFloat(o.price) || 0;
-            const cost = parseFloat(o.costPrice) || 0;
-            const delivery = parseFloat(o.realDeliveryCost) || 0;
+            // Helpers - Mirroring Backend Logic for Consistency
+            const safeFloat = (val) => {
+                const num = parseFloat(val);
+                return isNaN(num) ? 0 : num;
+            };
+            const safeInt = (val) => {
+                const num = parseInt(val);
+                return isNaN(num) ? 1 : num; // Default to 1 if missing/invalid, same as backend
+            };
+
+            const qty = safeInt(o.quantity);
+            const price = safeFloat(o.price);
+            const cost = safeFloat(o.costPrice);
+            const delivery = safeFloat(o.realDeliveryCost);
+
             const revenue = price * qty;
             const cogs = cost * qty;
+
+            const isPaid = o.isPaid === true || o.isPaid === "true"; // Handle potential string legacy
 
             // Delivered Potential
             if (o.status === 'livré') {
@@ -117,18 +129,19 @@ export default function Finances() {
             }
 
             // Active / Pending
-            if (['reçu', 'confirmation', 'packing', 'livraison', 'ramassage'].includes(o.status)) {
+            if (['reçu', 'confirmation', 'packing', 'livraison', 'ramassage', 'reporté'].includes(o.status)) {
                 res.activeCount++;
             }
 
             // Realized Cash (The Gold Standard)
-            if (o.isPaid) {
+            if (isPaid) {
                 res.realizedRevenue += revenue;
                 res.totalCOGS += cogs;
             }
 
-            // Delivery Costs (We pay this regardless if we got paid, if the attempt was made)
-            if (['livré', 'retour'].includes(o.status)) {
+            // Delivery Costs
+            // We count delivery cost if status is 'livré' or 'retour' OR if there is a realDeliveryCost set > 0 (attempt made)
+            if (['livré', 'retour'].includes(o.status) || delivery > 0) {
                 res.totalRealDelivery += delivery;
             }
         });
