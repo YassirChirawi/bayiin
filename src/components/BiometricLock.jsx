@@ -1,11 +1,31 @@
 import { useState, useEffect } from 'react';
 import { useBiometrics } from '../hooks/useBiometrics';
 import Button from './Button'; // Assuming we have a Button component
-import { Shield, Lock } from 'lucide-react';
+import { Shield, Lock, ScanFace, Fingerprint } from 'lucide-react';
 
 export default function BiometricLock({ children }) {
     const [isLocked, setIsLocked] = useState(false);
-    const { verify } = useBiometrics();
+    const { verify, getBiometricType } = useBiometrics();
+    const [biometricType, setBiometricType] = useState('unknown');
+
+    useEffect(() => {
+        setBiometricType(getBiometricType());
+    }, []);
+
+    // ... existing checkLockError logic ...
+
+    // Dynamic UI
+    const getIcon = () => {
+        if (biometricType === 'face') return ScanFace; // Need to import this or use similar
+        if (biometricType === 'fingerprint') return Fingerprint; // Need to import this
+        return Shield;
+    };
+
+    const getLabel = () => {
+        if (biometricType === 'face') return "Face ID";
+        if (biometricType === 'fingerprint') return "Empreinte"; // "Biométrie pouce" based on user req
+        return "Biométrie";
+    }
 
     useEffect(() => {
         const checkLockError = async () => {
@@ -74,14 +94,17 @@ export default function BiometricLock({ children }) {
             <div className="fixed inset-0 z-[100] bg-indigo-900 flex flex-col items-center justify-center p-4">
                 <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center space-y-6">
                     <div className="mx-auto bg-indigo-100 w-20 h-20 rounded-full flex items-center justify-center">
-                        <Lock className="w-10 h-10 text-indigo-600" />
+                        {(() => {
+                            const Icon = getIcon();
+                            return <Icon className="w-10 h-10 text-indigo-600" />;
+                        })()}
                     </div>
                     <div>
                         <h2 className="text-2xl font-bold text-gray-900">App Locked</h2>
-                        <p className="text-gray-500 mt-2">Authentication required to access store.</p>
+                        <p className="text-gray-500 mt-2">Veuillez vous authentifier.</p>
                     </div>
                     <Button onClick={handleUnlock} className="w-full justify-center" size="lg" icon={Shield}>
-                        Unlock with FaceID
+                        Déverrouiller avec {getLabel()}
                     </Button>
                 </div>
             </div>

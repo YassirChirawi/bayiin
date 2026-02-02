@@ -57,5 +57,15 @@ export const useBiometrics = () => {
         }
     };
 
-    return { isAvailable, register, verify };
+    const getBiometricType = () => {
+        const ua = navigator.userAgent.toLowerCase();
+        if (ua.includes('iphone') || ua.includes('ipad')) {
+            return 'face'; // iOS assumes FaceID mostly now (or TouchID but FaceID is standard term)
+        } else if (ua.includes('android')) {
+            return 'fingerprint';
+        }
+        return 'unknown';
+    };
+
+    return { isAvailable, register, verify, getBiometricType };
 };
