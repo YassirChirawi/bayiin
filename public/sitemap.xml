@@ -1,25 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://bayiin.com/</loc>
+    <loc>https://bayiin.shop/</loc>
     <lastmod>2026-01-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://bayiin.com/login</loc>
+    <loc>https://bayiin.shop/login</loc>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://bayiin.com/signup</loc>
+    <loc>https://bayiin.shop/signup</loc>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://bayiin.com/privacy</loc>
+    <loc>https://bayiin.shop/privacy</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://bayiin.com/terms</loc>
+    <loc>https://bayiin.shop/terms</loc>
     <priority>0.5</priority>
   </url>
 </urlset>

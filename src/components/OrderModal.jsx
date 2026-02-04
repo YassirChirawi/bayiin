@@ -146,8 +146,37 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
         }
     };
 
-    const handleProductChange = (e) => {
+    const [stockWarning, setStockWarning] = useState(null); // { show: true, returnCount: 0 }
+
+    const checkPotentialReturns = async (productId) => {
+        try {
+            const ordersRef = collection(db, "orders");
+            const q = query(
+                ordersRef,
+                where("storeId", "==", store.id),
+                where("articleId", "==", productId),
+                where("status", "in", ["retour", "annulé", "reporté"])
+            );
+            const snapshot = await getDocs(q);
+            // Check if date is recent? for now just count all "pending" returns logic if needed.
+            // Actually, "retour" means it IS returned. "annulé" too.
+            // We want to know if there are items that *could* be put back in stock.
+            // But wait, if they are "returned", we usually increment stock automatically when marking them as returned.
+            // So if stock is 0, it means even with returns, we are out.
+            // UNLESS the user forgot to mark them as returned.
+            // User request: "s'il y'a ce produit en retour ça veut dire il reviendra au stock pendant queleques jours"
+            // So we count "retour" status orders.
+            return snapshot.size;
+        } catch (err) {
+            console.error("Error checking returns:", err);
+            return 0;
+        }
+    };
+
+    const handleProductChange = async (e) => {
         const productId = e.target.value;
+        setStockWarning(null); // Reset
+
         if (!productId) {
             setFormData(prev => ({ ...prev, articleId: "", articleName: "", price: "" }));
             return;
@@ -161,6 +190,17 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 price: product.price,
                 costPrice: product.costPrice || 0
             }));
+
+            // Stock Check
+            const currentStock = parseInt(product.stock) || 0;
+            if (currentStock <= 0) {
+                const returnCount = await checkPotentialReturns(product.id);
+                setStockWarning({
+                    show: true,
+                    stock: currentStock,
+                    returnCount
+                });
+            }
         }
     };
 
@@ -223,6 +263,52 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 </div>
 
                 <div className="relative">
+                    {stockWarning && stockWarning.show && (
+                        <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg shadow-sm">
+                            <div className="flex items-start gap-3">
+                                <AlertCircle className="h-6 w-6 text-red-600 mt-1" />
+                                <div>
+                                    <h4 className="font-bold text-red-900 text-lg">⚠️ Stock Épuisé ({stockWarning.stock})</h4>
+                                    <p className="text-red-700 mt-1">
+                                        Impossible de garantir la disponibilité.
+                                    </p>
+                                    {stockWarning.returnCount > 0 ? (
+                                        <div className="mt-2 bg-white p-3 rounded border border-red-100">
+                                            <p className="text-sm font-semibold text-gray-800">
+                                                💡 Indice : Il y a <span className="text-indigo-600 font-bold">{stockWarning.returnCount} commandes</span> en "Retour" ou "Annulé".
+                                            </p>
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                Est-ce qu'un retour est arrivé ? Veuillez vérifier et mettre à jour le stock avant de continuer.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-red-600 mt-1">Aucun retour récent trouvé.</p>
+                                    )}
+                                    <div className="mt-4 flex gap-3">
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            className="bg-red-100 text-red-800 hover:bg-red-200 border-transparent"
+                                            onClick={() => {
+                                                setFormData(prev => ({ ...prev, articleId: "", articleName: "", price: "" }));
+                                                setStockWarning(null);
+                                            }}
+                                        >
+                                            Annuler sélection
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            onClick={() => setStockWarning(null)}
+                                        >
+                                            Forcer la commande (Stock -1)
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {showCustomerAlert && foundCustomer && (
                         <div className="mx-6 mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg shadow-sm flex justify-between items-center">
                             <div>

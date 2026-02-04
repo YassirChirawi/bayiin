@@ -56,7 +56,7 @@ export default function Footer() {
                         <ul className="space-y-4">
                             <li className="flex items-start gap-3">
                                 <Mail className="h-5 w-5 text-indigo-500 mt-0.5" />
-                                <span className="text-sm">support@bayiin.com</span>
+                                <span className="text-sm">support@bayiin.shop</span>
                             </li>
                             <li className="flex items-start gap-3">
                                 <Phone className="h-5 w-5 text-indigo-500 mt-0.5" />

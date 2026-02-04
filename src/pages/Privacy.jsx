@@ -53,7 +53,7 @@ export default function Privacy() {
                         Ce traitement a fait l'objet d'une déclaration auprès de la <strong>CNDP</strong> (Commission Nationale de contrôle de la protection des Données à caractère Personnel).
                     </p>
                     <p className="mt-2">
-                        Pour exercer ces droits, vous pouvez nous contacter à : <a href="mailto:support@bayiin.com" className="text-indigo-600">support@bayiin.com</a>
+                        Pour exercer ces droits, vous pouvez nous contacter à : <a href="mailto:support@bayiin.shop" className="text-indigo-600">support@bayiin.shop</a>
                     </p>
 
                     <h2 className="text-xl font-semibold text-gray-900 mt-6 mb-4">5. Cookies</h2>
