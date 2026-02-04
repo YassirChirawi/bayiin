@@ -11,7 +11,7 @@ import { toast } from "react-hot-toast";
 import { Navigate } from "react-router-dom"; // Security
 import { format } from "date-fns"; // For Audit Dates
 
-import { PLANS, createCheckoutSession, activateSubscriptionMock } from "../lib/stripeService";
+import { PLANS, createCheckoutSession } from "../lib/stripeService";
 import { DEFAULT_TEMPLATES, DARIJA_TEMPLATES } from "../utils/whatsappTemplates";
 import { reconcileStoreStats } from "../utils/reconcileStats";
 import ShippingSettings from "./ShippingSettings";
@@ -32,17 +32,15 @@ export default function Settings() {
     const { uploadImage, uploading, error: uploadError } = useImageUpload();
 
     // Check for Return from Stripe
+    // Check for Return from Stripe
     useEffect(() => {
         const query = new URLSearchParams(window.location.search);
         if (query.get("success")) {
-            if (store?.id) {
-                activateSubscriptionMock(store.id, 'starter'); // Defaulting to starter
-                setStore(prev => ({ ...prev, subscriptionStatus: 'trialing', plan: 'starter' }));
-                toast.success("Payment Successful! Your subscription is active.");
-                window.history.replaceState({}, document.title, window.location.pathname);
-            }
+            toast.success("Payment Received! Your subscription is being activated (this may take a few moments).");
+            window.history.replaceState({}, document.title, window.location.pathname);
+            // Optionally: Poll for status change or encourage user to refresh
         }
-    }, [store?.id]);
+    }, []);
 
     const handleLogoUpload = async (e) => {
         const file = e.target.files[0];

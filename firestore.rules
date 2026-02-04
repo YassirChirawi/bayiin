@@ -79,8 +79,8 @@ service cloud.firestore {
     // Stores collection
     match /stores/{storeId} {
       allow create: if request.auth != null;
+      allow read: if true; // Public access for Catalog Branding
       allow update: if request.auth != null && ((belongsToStore(storeId) && isValidStoreUpdate(request.resource.data)) || isSuperAdmin());
-      allow read: if request.auth != null && (resource.data.ownerId == request.auth.uid || belongsToStore(storeId) || isSuperAdmin());
       allow delete: if request.auth != null && isSuperAdmin();
       
       match /stats/{statId} {
@@ -93,7 +93,7 @@ service cloud.firestore {
 
     // Products
     match /products/{productId} {
-       allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow read: if true; // Public access for Catalog
        allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
        allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
     }

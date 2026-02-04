@@ -36,20 +36,4 @@ export const createCheckoutSession = async (storeId, planId) => {
     return new Promise(() => { });
 };
 
-/**
- * Helper to update store status after "successful" mock payment
- */
-export const activateSubscriptionMock = async (storeId, planId) => {
-    const storeRef = doc(db, "stores", storeId);
 
-    // Calculate trial end date (14 days from now)
-    const trialEndsAt = new Date();
-    trialEndsAt.setDate(trialEndsAt.getDate() + 14);
-
-    await updateDoc(storeRef, {
-        plan: planId,
-        subscriptionStatus: 'trialing',
-        trialEndsAt: trialEndsAt.toISOString(),
-        updatedAt: new Date().toISOString()
-    });
-};
