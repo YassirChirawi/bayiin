@@ -16,7 +16,8 @@ import {
     UserPlus,
     HelpCircle,
     Download,
-    Globe
+    Globe,
+    Calendar
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { vibrate } from "../utils/haptics";
@@ -37,6 +38,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
     const navigation = [
         { name: t('dashboard'), href: '/dashboard', icon: LayoutDashboard },
+        { name: t('planning') || 'Planning', href: '/planning', icon: Calendar },
         { name: t('orders'), href: '/orders', icon: ShoppingBag },
         { name: t('products'), href: '/products', icon: Package },
         { name: t('customers'), href: '/customers', icon: Users },

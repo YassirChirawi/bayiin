@@ -7,7 +7,8 @@ export const DEFAULT_TEMPLATES = {
     'livré': "Bonjour [Client], votre commande a été livrée avec succès. Merci de votre confiance en [Store] !",
     'pas de réponse': "Bonjour [Client], [Store] a tenté de vous joindre concernant votre commande sans succès. Souhaitez-vous toujours recevoir votre commande ?",
     'retour': "Bonjour [Client], votre commande [Commande] nous a été retournée.",
-    'annulé': "Bonjour [Client], votre commande a été annulée."
+    'annulé': "Bonjour [Client], votre commande a été annulée.",
+    'catalog_order': "Bonjour [Store], je souhaite commander :\n\n[Ticket]\n\nMerci de confirmer."
 };
 
 // Darija Templates
@@ -19,7 +20,8 @@ export const DARIJA_TEMPLATES = {
     'livré': "Salam [Client], commande dialk [Commande] wslatek. Chokran hit teqti fina o ntmenaw ikon produit 3ejbek.",
     'pas de réponse': "Salam [Client], livreur 3eyet likom o malqakomch, mazal baghin la commande ? Chokran.",
     'retour': "Salam [Client], commande dialk [Commande] atrje3 lina. Ila mazal baghiha 3eyet lina f aqreb weqt chokran.",
-    'annulé': "Salam [Client], commande dialk tghat (annulée)."
+    'annulé': "Salam [Client], commande dialk tghat (annulée).",
+    'catalog_order': "Salam [Store], bghit ncommandi hadchi :\n\n[Ticket]\n\nChokran."
 };
 
 /**

@@ -1,115 +1,164 @@
-import { useState } from "react";
-import { ChevronDown, ChevronUp, MessageCircle, ExternalLink } from "lucide-react";
-import Button from "../components/Button";
-import { useLanguage } from "../context/LanguageContext"; // NEW
+import { useLanguage } from "../context/LanguageContext";
+import {
+    HelpCircle, LayoutDashboard, ShoppingBag, Package, Users, DollarSign, Settings,
+    Smartphone, Calendar, ExternalLink, ChevronRight
+} from "lucide-react";
+import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
 
 export default function Help() {
-    const [openIndex, setOpenIndex] = useState(null);
-    const { t } = useLanguage(); // NEW
+    const { t } = useLanguage();
+    const location = useLocation();
 
-    const faqs = [
+    // Scroll to section on load if hash exists
+    useEffect(() => {
+        if (location.hash) {
+            const id = location.hash.replace('#', '');
+            const element = document.getElementById(id);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    }, [location]);
+
+    const topics = [
         {
-            category: t('cat_startup'),
-            items: [
-                { question: t('q_dashboard'), answer: t('a_dashboard') },
-                { question: t('q_create_store'), answer: t('a_create_store') }
+            id: "dashboard",
+            icon: LayoutDashboard,
+            color: "text-blue-600 bg-blue-50",
+            title: t('help_cat_dashboard'),
+            content: [
+                t('help_dash_intro'),
+                t('help_dash_kpi'),
+                t('help_dash_agenda')
             ]
         },
         {
-            category: t('cat_orders'),
-            items: [
-                { question: t('q_new_order'), answer: t('a_new_order') },
-                { question: t('q_status'), answer: t('a_status') },
-                { question: t('q_whatsapp'), answer: t('a_whatsapp') }
+            id: "orders",
+            icon: ShoppingBag,
+            color: "text-indigo-600 bg-indigo-50",
+            title: t('help_cat_orders'),
+            content: [
+                t('help_orders_intro'),
+                t('help_orders_create'),
+                t('help_orders_workflow'),
+                t('help_orders_whatsapp')
             ]
         },
         {
-            category: t('cat_finances'),
-            items: [
-                { question: t('q_profit'), answer: t('a_profit') },
-                { question: t('q_expense'), answer: t('a_expense') },
-                { question: t('q_roas'), answer: t('a_roas') },
-                { question: t('q_cac'), answer: t('a_cac') },
-                { question: t('q_margin'), answer: t('a_margin') },
-                { question: t('q_shipping_ratio'), answer: t('a_shipping_ratio') }
+            id: "products",
+            icon: Package,
+            color: "text-purple-600 bg-purple-50",
+            title: t('help_cat_products'),
+            content: [
+                t('help_products_intro'),
+                t('help_products_variants'),
+                t('help_products_catalog')
             ]
         },
         {
-            category: t('cat_settings'),
-            items: [
-                { question: t('q_currency'), answer: t('a_currency') },
-                { question: t('q_team'), answer: t('a_team') }
+            id: "customers",
+            icon: Users,
+            color: "text-green-600 bg-green-50",
+            title: t('help_cat_customers'),
+            content: [
+                t('help_customers_intro'),
+                t('help_customers_profile'),
+                t('help_customers_autofill')
+            ]
+        },
+        {
+            id: "finances",
+            icon: DollarSign,
+            color: "text-yellow-600 bg-yellow-50",
+            title: t('help_cat_finances'),
+            content: [
+                t('help_finances_intro'),
+                t('help_finances_profit'),
+                t('help_finances_kpi')
+            ]
+        },
+        {
+            id: "settings",
+            icon: Settings,
+            color: "text-gray-600 bg-gray-50",
+            title: t('help_cat_settings'),
+            content: [
+                t('help_settings_intro'),
+                t('help_settings_identity'),
+                t('help_settings_whatsapp'),
+                t('help_settings_security'),
+                t('help_settings_team')
+            ]
+        },
+        {
+            id: "mobile",
+            icon: Smartphone,
+            color: "text-pink-600 bg-pink-50",
+            title: t('help_cat_mobile'),
+            content: [
+                "Install App (PWA): Open in Chrome/Safari -> Add to Home Screen.",
+                "Offline Mode: View processed orders even without internet."
             ]
         }
     ];
 
-    const toggleAccordion = (index) => {
-        setOpenIndex(openIndex === index ? null : index);
-    };
-
     return (
-        <div className="max-w-4xl mx-auto space-y-8 pb-12">
-            <div className="space-y-4">
-                <h1 className="text-3xl font-bold text-gray-900">{t('help_center')}</h1>
-                <p className="text-lg text-gray-600">
-                    {t('help_subtitle')}
-                </p>
+        <div className="space-y-8 animate-fadeIn pb-20">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-indigo-700 to-purple-800 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl"></div>
+                <div className="relative z-10">
+                    <h1 className="text-3xl font-bold mb-3">{t('help')}</h1>
+                    <p className="text-indigo-100 max-w-2xl text-lg">
+                        {t('help_subtitle')}
+                    </p>
+                </div>
             </div>
 
-            <div className="space-y-6">
-                {faqs.map((section, sectionIdx) => (
-                    <div key={section.category} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                        <div className="bg-gray-50 px-6 py-4 border-b border-gray-100">
-                            <h2 className="text-lg font-semibold text-gray-900">{section.category}</h2>
+            {/* Topics Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {topics.map((topic) => (
+                    <div
+                        key={topic.id}
+                        id={topic.id}
+                        className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow scroll-mt-24"
+                    >
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className={`p-3 rounded-xl ${topic.color}`}>
+                                <topic.icon className="h-6 w-6" />
+                            </div>
+                            <h2 className="text-xl font-bold text-gray-900">{topic.title}</h2>
                         </div>
-                        <div className="divide-y divide-gray-100">
-                            {section.items.map((item, itemIdx) => {
-                                const index = `${sectionIdx}-${itemIdx}`;
-                                const isOpen = openIndex === index;
-                                return (
-                                    <div key={index} className="bg-white">
-                                        <button
-                                            onClick={() => toggleAccordion(index)}
-                                            className="w-full px-6 py-4 flex items-center justify-between text-left focus:outline-none hover:bg-gray-50 transition-colors"
-                                        >
-                                            <span className="text-sm font-medium text-gray-900">{item.question}</span>
-                                            {isOpen ? (
-                                                <ChevronUp className="h-5 w-5 text-gray-500" />
-                                            ) : (
-                                                <ChevronDown className="h-5 w-5 text-gray-500" />
-                                            )}
-                                        </button>
-                                        {isOpen && (
-                                            <div className="px-6 pb-4 text-sm text-gray-600 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                {item.answer}
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
+
+                        <ul className="space-y-3">
+                            {topic.content.map((item, idx) => (
+                                <li key={idx} className="flex items-start gap-3 text-gray-600">
+                                    <div className="min-w-[6px] h-[6px] rounded-full bg-gray-300 mt-2"></div>
+                                    <span className="text-sm leading-relaxed">{item}</span>
+                                </li>
+                            ))}
+                        </ul>
                     </div>
                 ))}
             </div>
 
-            <div className="bg-indigo-50 rounded-xl p-8 text-center space-y-4">
-                <div className="mx-auto h-12 w-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center">
-                    <MessageCircle className="h-6 w-6" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900">{t('still_questions')}</h3>
-                <p className="text-gray-600 max-w-md mx-auto">
+            {/* Quick Links / Support */}
+            <div className="rounded-2xl bg-indigo-50 border border-indigo-100 p-8 text-center">
+                <h3 className="text-xl font-bold text-indigo-900 mb-2">{t('still_questions')}</h3>
+                <p className="text-indigo-700 mb-6 max-w-lg mx-auto">
                     {t('help_description')}
                 </p>
-                <div className="pt-2">
+                <div className="flex justify-center gap-4">
                     <a
-                        href="https://wa.me/33605741054?text=Bonjour%20Support%20BayIIn%2C%20j'ai%20une%20question..."
+                        href="https://wa.me/212600000000"
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-green-600 hover:bg-green-700 shadow-sm transition-colors"
+                        className="inline-flex items-center px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-medium transition-colors shadow-lg shadow-green-500/20"
                     >
-                        <MessageCircle className="mr-2 h-5 w-5" />
-                        {t('chat_support')}
-                        <ExternalLink className="ml-2 h-4 w-4 opacity-50" />
+                        Chat on WhatsApp
+                        <ExternalLink className="ml-2 h-4 w-4" />
                     </a>
                 </div>
             </div>

@@ -1,10 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { useStoreData } from "../hooks/useStoreData";
-import { Plus, Edit2, Trash2, QrCode, Search, X, FileText, CheckSquare, Square, Check, Trash, RotateCcw, Upload, Download, MessageCircle, DollarSign, AlertCircle, Truck, Package, Box } from "lucide-react";
+import { Plus, Edit2, Trash2, QrCode, Search, X, FileText, CheckSquare, Square, Check, Trash, RotateCcw, Upload, Download, MessageCircle, DollarSign, AlertCircle, Truck, Package, Box, ShoppingCart } from "lucide-react";
 import Button from "../components/Button";
 import OrderModal from "../components/OrderModal";
 import ImportModal from "../components/ImportModal";
+import HelpTooltip from "../components/HelpTooltip";
 import { useOrderActions } from "../hooks/useOrderActions"; // Hook
 import QRCode from "react-qr-code";
 import { generateInvoice } from "../utils/generateInvoice";
@@ -14,7 +15,7 @@ import { exportToCSV } from "../utils/csvHelper";
 import { useTenant } from "../context/TenantContext";
 import { useLanguage } from "../context/LanguageContext"; // NEW
 import { db } from "../lib/firebase";
-import { doc, updateDoc, increment, getDoc, orderBy, limit, writeBatch, where } from "firebase/firestore";
+import { doc, updateDoc, increment, getDoc, orderBy, limit, writeBatch, where, deleteDoc } from "firebase/firestore";
 
 const INACTIVE_STATUSES = ['retour', 'annulé'];
 
@@ -57,6 +58,42 @@ export default function Orders() {
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
 
+    // TAB STATE: 'orders' | 'carts'
+    const [activeTab, setActiveTab] = useState('orders');
+
+    // AUTO-CLEANUP: Delete pending_catalog > 48h
+    useEffect(() => {
+        if (!orders.length) return;
+
+        const cleanupOldCarts = async () => {
+            const now = new Date();
+            const twoDaysAgo = new Date(now.getTime() - (48 * 60 * 60 * 1000));
+
+            // Pending orders older than 48h
+            const oldCarts = orders.filter(o =>
+                o.status === 'pending_catalog' &&
+                o.createdAt &&
+                new Date(o.createdAt.seconds * 1000) < twoDaysAgo
+            );
+
+            if (oldCarts.length > 0) {
+                console.log(`Cleaning up ${oldCarts.length} old carts...`);
+                const batch = writeBatch(db);
+                oldCarts.forEach(cart => {
+                    batch.delete(doc(db, "orders", cart.id));
+                });
+                try {
+                    await batch.commit();
+                    // toast.success(`Cleaned up ${oldCarts.length} expired carts`); // Optional toast
+                } catch (e) {
+                    console.error("Cleanup failed", e);
+                }
+            }
+        };
+
+        cleanupOldCarts();
+    }, [orders]); // Run when orders load/change
+
     const togglePaid = async (order) => {
         if (!store?.id) return;
 
@@ -80,7 +117,7 @@ export default function Orders() {
             toast.success(newIsPaid ? t('msg_payment_marked') : t('msg_payment_cancelled'));
         } catch (err) {
             console.error("Error toggling paid:", err);
-            toast.error("Failed to update payment status"); // Consider translating errors too if needed
+            toast.error(t('err_update_payment'));
         }
     };
 
@@ -300,6 +337,7 @@ export default function Orders() {
 
     // Filter Logic (Client Side Refinement of Server Results)
     const filteredOrders = orders
+        .filter(o => activeTab === 'carts' ? o.status === 'pending_catalog' : o.status !== 'pending_catalog') // TAB SPLIT
         .filter(o => showTrash ? o.deleted : !o.deleted)
         .filter(o => statusFilter === 'all' || o.status === statusFilter)
         .filter(o => !startDate || o.date >= startDate)
@@ -323,7 +361,10 @@ export default function Orders() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">{t('page_title_orders')}</h1>
+                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                        {t('page_title_orders')}
+                        <HelpTooltip topic="orders" />
+                    </h1>
                     <p className="mt-1 text-sm text-gray-500">
                         {t('page_subtitle_orders')}
                     </p>
@@ -422,6 +463,37 @@ export default function Orders() {
                         </Button>
                     )}
                 </div>
+            </div>
+
+            {/* TABS */}
+            <div className="border-b border-gray-200">
+                <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                    <button
+                        onClick={() => setActiveTab('orders')}
+                        className={`${activeTab === 'orders'
+                            ? 'border-indigo-500 text-indigo-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+                    >
+                        <Package className="h-5 w-5" />
+                        {t('tab_orders') || "Orders"}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('carts')}
+                        className={`${activeTab === 'carts'
+                            ? 'border-indigo-500 text-indigo-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+                    >
+                        <ShoppingCart className="h-5 w-5" />
+                        {t('tab_carts') || "Live Carts / Pending"}
+                        {orders.filter(o => o.status === 'pending_catalog').length > 0 && (
+                            <span className="bg-red-100 text-red-600 py-0.5 px-2.5 rounded-full text-xs font-bold">
+                                {orders.filter(o => o.status === 'pending_catalog').length}
+                            </span>
+                        )}
+                    </button>
+                </nav>
             </div>
 
             {/* Filters */}
@@ -548,7 +620,7 @@ export default function Orders() {
                                         {order.quantity}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
-                                        {order.price ? `${(order.price * order.quantity).toFixed(2)} ${store?.currency || 'MAD'}` : '-'}
+                                        {order.price ? `${(order.source === 'public_catalog' ? parseFloat(order.price) : (order.price * order.quantity)).toFixed(2)} ${store?.currency || 'MAD'}` : '-'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <button
@@ -560,13 +632,37 @@ export default function Orders() {
                                         </button>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.status)}`}>
-                                            {order.status}
-                                        </span>
+                                        {activeTab === 'carts' ? (
+                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                                {t('status_pending_action') || "Pending Action"}
+                                            </span>
+                                        ) : (
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.status)}`}>
+                                                {t(`status_${order.status.toLowerCase().replace(/\s+/g, '_')}`) || order.status}
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <div className="flex items-center justify-end gap-2">
-                                            {showTrash ? (
+                                            {activeTab === 'carts' ? (
+                                                <>
+                                                    <button
+                                                        onClick={() => {
+                                                            alert("Opening to modify. Please add client name/phone and change status to 'Reçu'.");
+                                                            handleEdit(order);
+                                                        }}
+                                                        className="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700"
+                                                    >
+                                                        Confirm / Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={() => deleteStoreItem(order.id)} // Soft delete is fine, or permanent
+                                                        className="bg-red-50 text-red-600 px-3 py-1 rounded text-xs hover:bg-red-100 border border-red-200"
+                                                    >
+                                                        Discard
+                                                    </button>
+                                                </>
+                                            ) : showTrash ? (
                                                 <>
                                                     <button
                                                         onClick={() => handleRestore(order.id)}
@@ -670,7 +766,7 @@ export default function Orders() {
                     filteredOrders.map((order) => {
                         const isSelected = selectedOrders.includes(order.id);
                         const waLink = getWhatsappLink(order.clientPhone, getWhatsappMessage(order.status, order, store));
-                        const totalPrice = order.price ? (order.price * order.quantity).toFixed(2) : '-';
+                        const totalPrice = order.price ? (order.source === 'public_catalog' ? parseFloat(order.price).toFixed(2) : (order.price * order.quantity).toFixed(2)) : '-';
 
                         return (
                             <div
@@ -688,8 +784,8 @@ export default function Orders() {
                                             <p className="text-xs text-gray-500">{order.date}</p>
                                         </div>
                                     </div>
-                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${getStatusColor(order.status)}`}>
-                                        {order.status}
+                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${activeTab === 'carts' ? 'bg-yellow-100 text-yellow-800' : getStatusColor(order.status)}`}>
+                                        {activeTab === 'carts' ? 'Pending Action' : order.status}
                                     </span>
                                 </div>
 
@@ -723,83 +819,100 @@ export default function Orders() {
                                         {order.isPaid ? "PAID" : "UNPAID"}
                                     </button>
 
-                                    <div className="flex items-center gap-3">
-                                        {/* O-Livraison Action */}
-                                        <button
-                                            onClick={async () => {
-                                                if (!store?.olivraisonApiKey) {
-                                                    toast.error("Please configure O-Livraison API Keys in Settings first.");
-                                                    return;
-                                                }
-                                                if (order.carrier === 'olivraison') return; // Double check
-
-                                                if (window.confirm(`Send Order #${order.orderNumber} to O-Livraison?`)) {
-                                                    try {
-                                                        toast.loading("Sending to Carrier...");
-                                                        await sendToOlivraison(order);
-                                                        toast.dismiss();
-                                                        toast.success("Order sent to O-Livraison!");
-                                                    } catch (err) {
-                                                        toast.dismiss();
-                                                        toast.error(err.message);
-                                                    }
-                                                }
-                                            }}
-                                            disabled={!store?.olivraisonApiKey || order.carrier === 'olivraison'}
-                                            className={`p-2 rounded-full transition-colors ${!store?.olivraisonApiKey
-                                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                                : order.carrier === 'olivraison'
-                                                    ? 'bg-green-100 text-green-600 cursor-default'
-                                                    : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
-                                                }`}
-                                            title={
-                                                !store?.olivraisonApiKey ? "Configure O-Livraison in Settings to enable"
-                                                    : order.carrier === 'olivraison' ? "Order already sent to O-Livraison"
-                                                        : "Send to O-Livraison"
-                                            }
-                                        >
-                                            <Truck className="h-5 w-5" />
-                                        </button>
-                                        {/* Amana Placeholder */}
-                                        <button disabled className="p-2 rounded-full bg-gray-50 text-gray-300 cursor-not-allowed" title="Amana Integration Coming Soon">
-                                            <Package className="h-5 w-5" />
-                                        </button>
-                                        {/* Cathedis Placeholder */}
-                                        <button disabled className="p-2 rounded-full bg-gray-50 text-gray-300 cursor-not-allowed" title="Cathedis Integration Coming Soon">
-                                            <Box className="h-5 w-5" />
-                                        </button>
-                                        {/* WhatsApp Notification */}
-                                        <a
-                                            href={waLink}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="p-2 rounded-full bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
-                                        >
-                                            <MessageCircle className="h-5 w-5" />
-                                        </a>
-                                        <button
-                                            onClick={() => handleEdit(order)}
-                                            className="p-2 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
-                                        >
-                                            <Edit2 className="h-5 w-5" />
-                                        </button>
-                                        {showTrash && (
+                                    {activeTab === 'carts' ? (
+                                        <>
                                             <button
-                                                onClick={() => handleRestore(order.id)}
-                                                className="p-2 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100"
+                                                onClick={() => handleEdit(order)}
+                                                className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium shadow-sm active:scale-95 transition-transform"
                                             >
-                                                <RotateCcw className="h-5 w-5" />
+                                                Confirm
                                             </button>
-                                        )}
-                                        {showTrash ? (
                                             <button
-                                                onClick={() => handleDelete(order.id)}
-                                                className="p-2 rounded-full bg-red-50 text-red-600 hover:bg-red-100"
+                                                onClick={() => deleteStoreItem(order.id)}
+                                                className="p-2 rounded-full bg-red-50 text-red-600 hover:bg-red-100 border border-red-100"
                                             >
                                                 <Trash2 className="h-5 w-5" />
                                             </button>
-                                        ) : null}
-                                    </div>
+                                        </>
+                                    ) : (
+                                        <div className="flex items-center gap-3">
+                                            {/* O-Livraison Action */}
+                                            <button
+                                                onClick={async () => {
+                                                    if (!store?.olivraisonApiKey) {
+                                                        toast.error("Please configure O-Livraison API Keys in Settings first.");
+                                                        return;
+                                                    }
+                                                    if (order.carrier === 'olivraison') return; // Double check
+
+                                                    if (window.confirm(`Send Order #${order.orderNumber} to O-Livraison?`)) {
+                                                        try {
+                                                            toast.loading("Sending to Carrier...");
+                                                            await sendToOlivraison(order);
+                                                            toast.dismiss();
+                                                            toast.success("Order sent to O-Livraison!");
+                                                        } catch (err) {
+                                                            toast.dismiss();
+                                                            toast.error(err.message);
+                                                        }
+                                                    }
+                                                }}
+                                                disabled={!store?.olivraisonApiKey || order.carrier === 'olivraison'}
+                                                className={`p-2 rounded-full transition-colors ${!store?.olivraisonApiKey
+                                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                    : order.carrier === 'olivraison'
+                                                        ? 'bg-green-100 text-green-600 cursor-default'
+                                                        : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                                                    }`}
+                                                title={
+                                                    !store?.olivraisonApiKey ? "Configure O-Livraison in Settings to enable"
+                                                        : order.carrier === 'olivraison' ? "Order already sent to O-Livraison"
+                                                            : "Send to O-Livraison"
+                                                }
+                                            >
+                                                <Truck className="h-5 w-5" />
+                                            </button>
+                                            {/* Amana Placeholder */}
+                                            <button disabled className="p-2 rounded-full bg-gray-50 text-gray-300 cursor-not-allowed" title="Amana Integration Coming Soon">
+                                                <Package className="h-5 w-5" />
+                                            </button>
+                                            {/* Cathedis Placeholder */}
+                                            <button disabled className="p-2 rounded-full bg-gray-50 text-gray-300 cursor-not-allowed" title="Cathedis Integration Coming Soon">
+                                                <Box className="h-5 w-5" />
+                                            </button>
+                                            {/* WhatsApp Notification */}
+                                            <a
+                                                href={waLink}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="p-2 rounded-full bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                                            >
+                                                <MessageCircle className="h-5 w-5" />
+                                            </a>
+                                            <button
+                                                onClick={() => handleEdit(order)}
+                                                className="p-2 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+                                            >
+                                                <Edit2 className="h-5 w-5" />
+                                            </button>
+                                            {showTrash && (
+                                                <button
+                                                    onClick={() => handleRestore(order.id)}
+                                                    className="p-2 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100"
+                                                >
+                                                    <RotateCcw className="h-5 w-5" />
+                                                </button>
+                                            )}
+                                            {showTrash ? (
+                                                <button
+                                                    onClick={() => handleDelete(order.id)}
+                                                    className="p-2 rounded-full bg-red-50 text-red-600 hover:bg-red-100"
+                                                >
+                                                    <Trash2 className="h-5 w-5" />
+                                                </button>
+                                            ) : null}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         );

@@ -73,6 +73,68 @@ export const translations = {
         msg_ready_to_scale: "Ready to scale?",
         chart_revenue_tooltip: "Revenue",
 
+        // Help Tooltips
+        help_revenue_desc: "Total revenue from delivered orders today.",
+        help_pending_desc: "Orders currently being processed (from received to shipping).",
+        help_return_rate_desc: "Percentage of orders returned or cancelled.",
+        help_orders_page: "Manage, track, and update all your customer orders here.",
+        help_revenue_today: "Total verified revenue for today (delivered orders).",
+        help_active_orders: "Orders currently being processed.",
+
+        // Help Page Content
+        help_guide_orders_title: "How to Create an Order",
+        help_guide_orders_desc: "Click 'New Order' on the Orders page. Fill in the client details (phone acts as ID). Add products and save. You can then mark it as 'Confirmed' via WhatsApp.",
+        help_guide_products_title: "Adding Products",
+        help_guide_products_desc: "Go to Products > Add Product. You can add simple products or products with variants (Size, Color). Manage stock and prices here.",
+        help_guide_delivery_title: "Sending to Delivery",
+        help_guide_delivery_desc: "Once an order is 'Confirmed' or 'Packed', you can send it to your delivery partner directly if integrated (e.g., O-Livraison) or export the Manifest.",
+
+        help_active_orders: "View Details in Help Center",
+
+        // Help Page Content - Categories
+        help_cat_dashboard: "Dashboard",
+        help_cat_orders: "Orders Management",
+        help_cat_products: "Products & Stock",
+        help_cat_customers: "Customers CRM",
+        help_cat_finances: "Finances & Analytics",
+        help_cat_planning: "Planning & Events",
+        help_cat_settings: "Settings & Team",
+        help_cat_mobile: "Mobile App (PWA)",
+
+        // Dashboard Guide
+        help_dash_intro: "The Dashboard is your control center for business health.",
+        help_dash_kpi: "Real-time KPIs: Today's Revenue (Delivered only), Pending Orders, Return Rate, and Low Stock Alerts.",
+        help_dash_agenda: "Agenda Widget: Shows daily tasks and programmed follow-ups from your Planning.",
+
+        // Orders Guide
+        help_orders_intro: "The heart of your operations.",
+        help_orders_create: "Fast Creation: Use the 'New Order' button. Phone number acts as the unique Client ID.",
+        help_orders_workflow: "Status Workflow: Pending -> Confirmed (WhatsApp) -> Shipped -> Delivered (Cash In) OR Return/Cancelled.",
+        help_orders_whatsapp: "WhatsApp Integration: One-click localized messages (FR/darija) for every status change.",
+
+        // Products Guide
+        help_products_intro: "Manage your inventory.",
+        help_products_variants: "Variants: Create products with Size/Color options.",
+        help_products_catalog: "Public Catalog: Share a link with customers to let them order directly via WhatsApp.",
+
+        // Customers Guide
+        help_customers_intro: "Smart customer database.",
+        help_customers_profile: "360° Profile: View full order history, total spent, and LTV.",
+        help_customers_autofill: "Auto-fill: Addresses auto-complete for returning customers during order creation.",
+
+        // Finances Guide
+        help_finances_intro: "For Owners Only.",
+        help_finances_profit: "Net Profit Calculation: Revenue (Delivered) - COGS (Product Cost) - Expenses (Ads/Shipping).",
+        help_finances_kpi: "Key Metrics: ROAS (Ad Return), CAC (Acquisition Cost), Net Margin.",
+
+        // Settings Guide
+        help_settings_intro: "Configure your store.",
+        help_settings_identity: "Identity: Logo, Name, Currency (MAD/USD/EUR).",
+        help_settings_whatsapp: "WhatsApp Config: Choose between Standard French or Moroccan Darija templates.",
+        help_settings_security: "Biometrics: Enable FaceID/TouchID to lock the app on this device.",
+        help_settings_team: "Team Management: Invite Staff (restricted access) or Managers.",
+
+
         // Orders
         page_title_orders: "Orders",
         page_subtitle_orders: "Manage and track your orders.",
@@ -103,7 +165,21 @@ export const translations = {
         label_shipping: "Shipping",
         label_status: "Status",
         label_source: "Source",
+        label_source: "Source",
         label_note: "Note",
+
+        // Statuses
+        status_reçu: "Received",
+        status_confirmation: "Confirmed",
+        status_packing: "Packing",
+        status_livraison: "Shipping",
+        status_livré: "Delivered",
+        status_reporté: "Postponed",
+        status_retour: "Returned",
+        status_annulé: "Cancelled",
+        status_pending_catalog: "Draft (Catalog)",
+        status_pending_action: "Pending Action",
+
 
         // Products
         page_title_products: "Products",
@@ -283,22 +359,41 @@ export const translations = {
         label_store_logo: "Store Logo",
         label_store_name: "Store Name",
         label_store_currency: "Currency",
+        msg_currency_updated: "Currency updated to {currency}",
+        err_currency_update: "Failed to update currency",
+        msg_logo_updated: "Logo updated!",
+        err_logo_update: "Failed to update logo",
+        msg_payment_received: "Payment Received! Your subscription is being activated.",
+        err_upgrade_failed: "Upgrade failed. Please try again.",
+
+        label_store_currency: "Currency",
         section_invoice_details: "Invoice & Contact Details",
         label_store_phone: "Company Phone",
         label_store_ice: "ICE / Tax ID",
         label_store_address: "Company Address",
         btn_save_details: "Save Details",
+        msg_details_saved: "Details saved!",
+        err_save_failed: "Failed to save.",
+
 
         section_whatsapp_config: "WhatsApp Templates Configuration",
         whatsapp_config_desc: "Customize the automatic messages sent to clients (Variables: [Client], [Store], [Ville], [Produit], [Commande], [Ticket])",
         whatsapp_language_title: "Message Language",
         whatsapp_language_desc: "Choose between Standard French or Moroccan Darija.",
         btn_save_config: "Save Configuration",
+        msg_language_saved: "Saved! Language: {lang}",
+        err_save_templates: "Error saving templates.",
+
 
         section_system_maintenance: "System Maintenance",
         btn_recalc_stats: "Recalculate Customer Stats",
         fix_dashboard_data: "Fix Dashboard Data",
         btn_fix_financials: "Fix Financials",
+        msg_stats_fixed: "Fixed stats for {count} customers!",
+        err_recalculate: "Failed to recalculate",
+        msg_financials_recalculated: "Financials Recalculated Successfully!",
+        err_generic: "Failed: ",
+
 
         section_subscription_plan: "Subscription Plan",
         plan_starter_desc: "Perfect for getting started with your business.",
@@ -312,6 +407,10 @@ export const translations = {
         redeem_promo_code: "Redeem Promo Code",
         enter_code: "Enter Code",
         apply: "Apply",
+        msg_code_redeemed: "Code Redeemed! You are now on the PRO plan.",
+        err_code_apply: "Failed to apply code.",
+        err_invalid_code: "Invalid Promo Code",
+
 
         section_recent_activity: "Recent Activity",
         activity_log_desc: "Audit log of system actions.",
@@ -323,6 +422,11 @@ export const translations = {
         not_supported: "Not Supported on this device",
         note: "Note",
         security_note_desc: "This locks the app interface on this specific device. It does not change your account password.",
+        msg_biometric_enabled: "Biometric lock enabled!",
+        msg_biometric_disabled: "Biometric lock disabled.",
+        err_biometric_failed: "Biometric registration failed.",
+        err_user_id_not_found: "Error: User ID not found.",
+
 
         // Shipping
         page_title_shipping: "Shipping Settings",
@@ -339,7 +443,12 @@ export const translations = {
         label_password: "Password",
         label_account_id: "Account ID",
         label_token: "Token",
+        label_token: "Token",
         enable_to_configure: "Enable to configure settings.",
+        msg_shipping_saved: "Shipping configuration saved",
+        msg_olivraison_saved: "O-Livraison Configuration Saved!",
+        err_save_config: "Failed to save configuration",
+
 
         // Help
         help_center: "Help Center",
@@ -381,6 +490,33 @@ export const translations = {
         a_currency: "Yes, in Settings > General > Currency. Currently MAD is fully supported.",
         q_team: "How to add team members?",
         a_team: "Contact support to add new staff accounts to your store.",
+
+        // Planning & Calendar
+        planning: "Planning",
+        planning_title: "Planning & Events",
+        btn_today: "Today",
+        btn_add_event: "Add Event",
+        msg_task_done: "Task marked as done",
+        msg_task_reopened: "Task Reopened",
+        todays_agenda: "Today's Agenda",
+        view_full_planning: "Open Planning",
+        no_pending_tasks_today: "Nothing scheduled for today. Good job!",
+        schedule_event: "Schedule Event",
+
+        // Add Event Modal
+        add_event: "Add Event",
+        label_title: "Title",
+        label_date: "Date",
+        label_time: "Time",
+        label_type: "Type",
+        label_notes: "Notes",
+        type_ramassage: "Pick up",
+        type_livraison: "Delivery",
+        type_confirmation: "Confirmation",
+        type_custom_collection: "New Collection Launch",
+        type_retour: "Return Processing",
+        type_other: "Other",
+        btn_save_event: "Save Event",
 
         // Auth
         back_to_home: "← Back to Home",
@@ -456,6 +592,8 @@ export const translations = {
         confirm_bulk_restore: "Restore {count} orders?",
         confirm_bulk_pay: "Mark {count} orders as PAID?",
         confirm_bulk_status: "Mark {count} orders as {status}?",
+
+        err_update_payment: "Failed to update payment status",
 
         // Import Modal
         modal_import_title: "Import Data",
@@ -659,6 +797,58 @@ export const translations = {
         msg_ready_to_scale: "Prêt à passer à l'échelle ?",
         chart_revenue_tooltip: "Revenu",
 
+        // Help Tooltips
+        help_revenue_desc: "Revenu total des commandes livrées aujourd'hui.",
+        help_pending_desc: "Commandes en cours de traitement (de reçu à expédition).",
+        help_return_rate_desc: "Pourcentage de commandes retournées ou annulées.",
+        help_orders_page: "Gérez, suivez et mettez à jour toutes vos commandes ici.",
+        help_revenue_today: "Revenu total vérifié pour aujourd'hui (commandes livrées).",
+        help_active_orders: "Voir détails dans le Centre d'Aide",
+
+        // Help Page Content - Categories
+        help_cat_dashboard: "Tableau de Bord",
+        help_cat_orders: "Gestion des Commandes",
+        help_cat_products: "Produits & Stock",
+        help_cat_customers: "CRM Clients",
+        help_cat_finances: "Finances & Analytics",
+        help_cat_planning: "Planning & Événements",
+        help_cat_settings: "Paramètres & Équipe",
+        help_cat_mobile: "App Mobile (PWA)",
+
+        // Dashboard Guide
+        help_dash_intro: "Le centre de contrôle pour suivre la santé du business.",
+        help_dash_kpi: "KPIs en direct : Revenu du jour (Livré), Commandes en attente, Taux de retour, Alerte Stock.",
+        help_dash_agenda: "Widget Agenda : Résumé des tâches et suivis du jour.",
+
+        // Orders Guide
+        help_orders_intro: "Le cœur de votre activité.",
+        help_orders_create: "Création Rapide : Le numéro de téléphone sert d'identifiant unique.",
+        help_orders_workflow: "Workflow : En Attente -> Confirmation (WhatsApp) -> Expédié -> Livré (Encaissement) OU Retour.",
+        help_orders_whatsapp: "Intégration WhatsApp : Messages pré-remphis (FR/Darija) pour chaque statut.",
+
+        // Products Guide
+        help_products_intro: "Gestion de l'inventaire.",
+        help_products_variants: "Variantes : Gérez Tailles/Couleurs.",
+        help_products_catalog: "Catalogue Public : Lien boutique simplifié pour commandes WhatsApp.",
+
+        // Customers Guide
+        help_customers_intro: "Base de données intelligente.",
+        help_customers_profile: "Profil 360° : Historique, Total dépensé, LTV.",
+        help_customers_autofill: "Auto-fill : Remplissage automatique pour les clients existants.",
+
+        // Finances Guide
+        help_finances_intro: "Pour les propriétaires (Owners).",
+        help_finances_profit: "Calcul Profit Net : Revenu (Livré) - Coût Produit (COGS) - Dépenses (Pubs/Livraison).",
+        help_finances_kpi: "Métriques : ROAS (Retour sur Pub), CAC (Coût d'acquisition), Marge Nette.",
+
+        // Settings Guide
+        help_settings_intro: "Configuration de la boutique.",
+        help_settings_identity: "Identité : Logo, Nom, Devise.",
+        help_settings_whatsapp: "WhatsApp : Choix de la langue (Français Standard ou Darija).",
+        help_settings_security: "Biométrie : Verrouillage FaceID/TouchID.",
+        help_settings_team: "Équipe : Invitez du Staff (accès restreint) ou Managers.",
+
+
         // Orders
         page_title_orders: "Commandes",
         page_subtitle_orders: "Gérez et suivez vos commandes.",
@@ -689,7 +879,21 @@ export const translations = {
         label_shipping: "Livraison",
         label_status: "Statut",
         label_source: "Source",
+        label_source: "Source",
         label_note: "Note",
+
+        // Statuses
+        status_reçu: "Reçu",
+        status_confirmation: "Confirmé",
+        status_packing: "Emballage",
+        status_livraison: "En Livraison",
+        status_livré: "Livré",
+        status_reporté: "Reporté",
+        status_retour: "Retourné",
+        status_annulé: "Annulé",
+        status_pending_catalog: "Brouillon (Catalogue)",
+        status_pending_action: "Action Requise",
+
 
         // Products
         page_title_products: "Produits",
@@ -801,6 +1005,33 @@ export const translations = {
         cat_salaries: "Salaires",
         cat_other: "Autre",
 
+        // Planning & Calendar
+        planning: "Planning",
+        planning_title: "Planning & Événements",
+        btn_today: "Aujourd'hui",
+        btn_add_event: "Ajouter Événement",
+        msg_task_done: "Tâche marquée comme faite",
+        msg_task_reopened: "Tâche réouverte",
+        todays_agenda: "Agenda du Jour",
+        view_full_planning: "Ouvrir Planning",
+        no_pending_tasks_today: "Rien de prévu pour aujourd'hui. Bien joué !",
+        schedule_event: "Planifier un événement",
+
+        // Add Event Modal
+        add_event: "Ajouter Événement",
+        label_title: "Titre",
+        label_date: "Date",
+        label_time: "Heure",
+        label_type: "Type",
+        label_notes: "Notes",
+        type_ramassage: "Ramassage",
+        type_livraison: "Livraison",
+        type_confirmation: "Confirmation",
+        type_custom_collection: "Nouvelle Collection",
+        type_retour: "Retour",
+        type_other: "Autre",
+        btn_save_event: "Enregistrer",
+
         // Team
         page_title_team: "Gestion d'Équipe",
         page_subtitle_team: "Gérez l'accès à votre boutique. Ajoutez des membres (Staff) pour vous aider.",
@@ -869,22 +1100,41 @@ export const translations = {
         label_store_logo: "Logo Boutique",
         label_store_name: "Nom Boutique",
         label_store_currency: "Devise",
+        msg_currency_updated: "Devise mise à jour en {currency}",
+        err_currency_update: "Échec de mise à jour de la devise",
+        msg_logo_updated: "Logo mis à jour !",
+        err_logo_update: "Échec de mise à jour du logo",
+        msg_payment_received: "Paiement reçu ! Votre abonnement est en cours d'activation.",
+        err_upgrade_failed: "Échec de la mise à niveau. Veuillez réessayer.",
+
+        label_store_currency: "Devise",
         section_invoice_details: "Facturation et Contact",
         label_store_phone: "Tél. Entreprise",
         label_store_ice: "ICE / Identifiant Fiscal",
         label_store_address: "Adresse Entreprise",
         btn_save_details: "Enregistrer Détails",
+        msg_details_saved: "Détails enregistrés !",
+        err_save_failed: "Échec de l'enregistrement.",
+
 
         section_whatsapp_config: "Configuration Templates WhatsApp",
         whatsapp_config_desc: "Personnalisez les messages automatiques envoyés aux clients (Variables: [Client], [Store], [Ville], [Produit], [Commande], [Ticket])",
         whatsapp_language_title: "Langue des Messages",
         whatsapp_language_desc: "Choisir entre Français Standard ou Darija Marocaine.",
         btn_save_config: "Enregistrer Configuration",
+        msg_language_saved: "Enregistré ! Langue : {lang}",
+        err_save_templates: "Erreur d'enregistrement des templates.",
+
 
         section_system_maintenance: "Maintenance Système",
         btn_recalc_stats: "Recalculer Stats Clients",
         fix_dashboard_data: "Réparer Données Dashboard",
         btn_fix_financials: "Réparer Finances",
+        msg_stats_fixed: "Stats réparées pour {count} clients !",
+        err_recalculate: "Échec du recalcul",
+        msg_financials_recalculated: "Finances recalculées avec succès !",
+        err_generic: "Échec : ",
+
 
         section_subscription_plan: "Plan d'Abonnement",
         plan_starter_desc: "Parfait pour démarrer votre activité.",
@@ -898,6 +1148,10 @@ export const translations = {
         redeem_promo_code: "Utiliser un Code Promo",
         enter_code: "Entrer Code",
         apply: "Appliquer",
+        msg_code_redeemed: "Code utilisé ! Vous êtes maintenant sur le plan PRO.",
+        err_code_apply: "Échec de l'utilisation du code.",
+        err_invalid_code: "Code Promo Invalide",
+
 
         section_recent_activity: "Activité Récente",
         activity_log_desc: "Journal d'audit des actions système.",
@@ -909,6 +1163,11 @@ export const translations = {
         not_supported: "Non supporté sur cet appareil",
         note: "Note",
         security_note_desc: "Cela verrouille l'interface de l'application sur cet appareil spécifique. Cela ne change pas le mot de passe de votre compte.",
+        msg_biometric_enabled: "Verrouillage biométrique activé !",
+        msg_biometric_disabled: "Verrouillage biométrique désactivé.",
+        err_biometric_failed: "Échec de l'enregistrement biométrique.",
+        err_user_id_not_found: "Erreur : ID utilisateur non trouvé.",
+
 
         // Shipping
         page_title_shipping: "Paramètres Livraison",
@@ -926,6 +1185,10 @@ export const translations = {
         label_account_id: "ID Compte",
         label_token: "Token",
         enable_to_configure: "Activer pour configurer.",
+        msg_shipping_saved: "Configuration Livraison enregistrée",
+        msg_olivraison_saved: "Configuration O-Livraison enregistrée !",
+        err_save_config: "Échec de l'enregistrement de la configuration",
+
 
         // Help
         help_center: "Centre d'Aide",
@@ -1042,6 +1305,8 @@ export const translations = {
         confirm_bulk_restore: "Restaurer {count} commandes ?",
         confirm_bulk_pay: "Marquer {count} commandes comme PAYÉES ?",
         confirm_bulk_status: "Marquer {count} commandes comme {status} ?",
+
+        err_update_payment: "Échec de la mise à jour du statut de paiement",
 
         // Import Modal
         modal_import_title: "Importer des Données",

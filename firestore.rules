@@ -80,7 +80,7 @@ service cloud.firestore {
     match /stores/{storeId} {
       allow create: if request.auth != null;
       allow read: if true; // Public access for Catalog Branding
-      allow update: if request.auth != null && ((belongsToStore(storeId) && isValidStoreUpdate(request.resource.data)) || isSuperAdmin());
+      allow update: if request.auth != null && (( (belongsToStore(storeId) || resource.data.ownerId == request.auth.uid) && isValidStoreUpdate(request.resource.data)) || isSuperAdmin());
       allow delete: if request.auth != null && isSuperAdmin();
       
       match /stats/{statId} {
@@ -101,7 +101,8 @@ service cloud.firestore {
     // Orders
     match /orders/{orderId} {
        allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
-       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow create: if (request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin()))
+                        || (request.resource.data.status == 'pending_catalog');
        allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
     }
 
@@ -119,15 +120,22 @@ service cloud.firestore {
 
     // Team Management
     match /allowed_users/{userId} {
-       allow read: if request.auth != null && resource.data.email == request.auth.token.email;
-       allow read, write: if request.auth != null && (belongsToStore(resource.data.storeId) || isSuperAdmin());
+       allow read: if request.auth != null && (resource.data.email == request.auth.token.email || belongsToStore(resource.data.storeId) || isStoreOwner(resource.data.storeId) || isSuperAdmin());
+       allow create: if request.auth != null && (belongsToStore(request.resource.data.storeId) || isStoreOwner(request.resource.data.storeId) || isSuperAdmin());
+       allow update, delete: if request.auth != null && (belongsToStore(resource.data.storeId) || isStoreOwner(resource.data.storeId) || isSuperAdmin());
     }
 
     // Public Leads
     match /leads/{leadId} {
        allow create: if true;
-       allow read: if request.auth != null && (belongsToStore(resource.data.storeId) || isSuperAdmin());
+       allow read: if request.auth != null && (belongsToStore(resource.data.storeId) || isStoreOwner(resource.data.storeId) || isSuperAdmin());
     }
+    // Custom Events (Planning)
+    match /events/{eventId} {
+       allow read, write: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
+    }
+
     // System Announcements
     match /system/announcements {
         allow read: if true;

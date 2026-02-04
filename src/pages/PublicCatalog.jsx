@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import { getWhatsappLink } from "../utils/whatsappTemplates";
 import { Package, Search, Filter, ShoppingBag, MapPin, ShoppingCart, X, Plus, Minus, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -15,6 +16,7 @@ export default function PublicCatalog() {
     // Cart State
     const [cart, setCart] = useState([]);
     const [isCartOpen, setIsCartOpen] = useState(false);
+    const [isCheckingOut, setIsCheckingOut] = useState(false);
 
     // Filters
     const [searchTerm, setSearchTerm] = useState("");
@@ -83,17 +85,79 @@ export default function PublicCatalog() {
     const cartTotal = cart.reduce((acc, item) => acc + (parseFloat(item.price) * item.quantity), 0);
     const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
-    const handleCheckout = () => {
+    const handleCheckout = async () => {
         if (!store?.phone) {
             alert("Store phone number is not configured.");
             return;
         }
 
-        const itemsList = cart.map(item => `- ${item.quantity}x ${item.name} (${(parseFloat(item.price) * item.quantity).toFixed(0)} DH)`).join('\n');
-        const message = `Hello ${store.name}, I would like to order:\n\n${itemsList}\n\n*Total: ${cartTotal.toFixed(0)} DH*`;
+        setIsCheckingOut(true);
+        try {
+            // 1. Generate Order Ref
+            const orderRefNum = `CMD-${Math.floor(1000 + Math.random() * 9000)}`;
 
-        const url = `https://wa.me/${store.phone.replace(/\+/g, "").replace(/\s/g, "")}?text=${encodeURIComponent(message)}`;
-        window.open(url, '_blank');
+            // 2. Save Draft Order to Firestore
+            await addDoc(collection(db, "orders"), {
+                storeId: store.id,
+                orderNumber: orderRefNum,
+                status: 'pending_catalog', // Special status for drafts
+                products: cart.map(item => ({
+                    id: item.id,
+                    name: item.name,
+                    quantity: item.quantity,
+                    price: parseFloat(item.price),
+                    photoUrl: item.photoUrl || null
+                })),
+                // Flattened strings for search/display if needed
+                articleName: cart.map(i => `${i.quantity}x ${i.name}`).join(', '),
+                quantity: cartCount,
+                price: cartTotal, // Total Value
+                createdAt: serverTimestamp(),
+                date: new Date().toISOString().split('T')[0], // For filtering
+                source: 'public_catalog'
+            });
+
+
+            // 3. Build WhatsApp Message
+            // We use a temporary order object structure that matches what getWhatsappMessage expects
+            const tempOrderForMsg = {
+                clientName: "Client", // Catalog user is usually anonymous/generic initially
+                clientCity: "",
+                articleName: cart.map(i => `${i.quantity}x ${i.name}`).join(', '),
+                orderNumber: orderRefNum,
+                price: cartTotal, // Pass total as price for single line summary if needed, but we rely on ticket text
+                shippingCost: 0,
+                quantity: 1 // Bundled
+            };
+
+            // Hack: We want the Ticket text to be the list of items. 
+            // The getWhatsappMessage function builds a ticket based on price/quantity. 
+            // We might just want to construct a custom message here using getWhatsappLink directly for better control of the list.
+
+            const currency = store.currency || 'MAD';
+            const itemsList = cart.map(item => `- ${item.quantity}x ${item.name} (${(parseFloat(item.price) * item.quantity).toFixed(2)} ${currency})`).join('\n');
+            const totalLine = `*TOTAL: ${cartTotal.toFixed(2)} ${currency}*`;
+
+            let message = "";
+            if (store.whatsappLanguage === 'darija') {
+                message = `Salam ${store.name}, bghit ncommandi hadchi:\n\n${itemsList}\n\n${totalLine}\nRef: ${orderRefNum}`;
+            } else {
+                message = `Bonjour ${store.name}, je souhaite commander :\n\n${itemsList}\n\n${totalLine}\nRef: ${orderRefNum}`;
+            }
+
+            const url = getWhatsappLink(store.phone, message);
+            window.open(url, '_blank');
+
+            // 4. Clear Cart
+            setCart([]);
+            setIsCartOpen(false);
+
+        } catch (err) {
+            console.error("Checkout Error:", err);
+            alert("Failed to create order. Please try again.");
+        } finally {
+            setIsCheckingOut(false);
+        }
     };
 
     // Derived Data for Filters
@@ -392,10 +456,15 @@ export default function PublicCatalog() {
                                     </div>
                                     <button
                                         onClick={handleCheckout}
-                                        className="w-full flex items-center justify-center rounded-xl border border-transparent bg-green-500 px-6 py-3 text-base font-medium text-white shadow-sm hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-transform active:scale-[0.98]"
+                                        disabled={isCheckingOut}
+                                        className="w-full flex items-center justify-center rounded-xl border border-transparent bg-green-500 px-6 py-3 text-base font-medium text-white shadow-sm hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-transform active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
                                     >
-                                        <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" className="h-5 w-5 mr-2 filter brightness-0 invert" alt="" />
-                                        Order via WhatsApp
+                                        {isCheckingOut ? (
+                                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />
+                                        ) : (
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" className="h-5 w-5 mr-2 filter brightness-0 invert" alt="" />
+                                        )}
+                                        {isCheckingOut ? "Processing..." : "Order via WhatsApp"}
                                     </button>
                                 </div>
                             )}

@@ -32,6 +32,7 @@ import Landing from "./pages/Landing";
 import DemoDashboard from "./pages/DemoDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import PublicCatalog from "./pages/PublicCatalog"; // NEW
+import Planning from "./pages/Planning"; // NEW
 
 import { HelmetProvider } from 'react-helmet-async';
 import { useAnalytics } from './hooks/useAnalytics';
@@ -130,6 +131,7 @@ function App() {
                   <Route path="/products" element={<Products />} />
                   <Route path="/orders" element={<Orders />} />
                   <Route path="/customers" element={<Customers />} />
+                  <Route path="/planning" element={<Planning />} />
                   <Route path="/team" element={<Team />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/help" element={<Help />} />

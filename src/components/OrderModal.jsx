@@ -69,7 +69,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 costPrice: order.costPrice || 0,
                 shippingCost: order.shippingCost || 0,
                 realDeliveryCost: order.realDeliveryCost || 0,
-                status: order.status || ORDER_STATUS.RECEIVED,
+                status: (order.status === 'pending_catalog') ? ORDER_STATUS.RECEIVED : (order.status || ORDER_STATUS.RECEIVED),
                 paymentMethod: order.paymentMethod || PAYMENT_METHODS.COD,
                 isPaid: order.isPaid || false,
                 date: order.date || new Date().toISOString().split('T')[0],

@@ -36,7 +36,7 @@ export default function Settings() {
     useEffect(() => {
         const query = new URLSearchParams(window.location.search);
         if (query.get("success")) {
-            toast.success("Payment Received! Your subscription is being activated (this may take a few moments).");
+            toast.success(t('msg_payment_received'));
             window.history.replaceState({}, document.title, window.location.pathname);
             // Optionally: Poll for status change or encourage user to refresh
         }
@@ -51,10 +51,10 @@ export default function Settings() {
             try {
                 await updateDoc(doc(db, "stores", store.id), { logoUrl: url });
                 setStore(prev => ({ ...prev, logoUrl: url }));
-                toast.success("Logo updated!");
+                toast.success(t('msg_logo_updated'));
             } catch (err) {
                 console.error("Error updating logo:", err);
-                toast.error("Failed to update logo");
+                toast.error(t('err_logo_update'));
             }
         }
     };
@@ -66,7 +66,7 @@ export default function Settings() {
             await createCheckoutSession(store.id, planId);
         } catch (error) {
             console.error("Error upgrading:", error);
-            toast.error("Upgrade failed. Please try again.");
+            toast.error(t('err_upgrade_failed'));
             setLoading(null);
         }
     };
@@ -107,11 +107,11 @@ export default function Settings() {
             });
 
             await Promise.all(updates);
-            toast.success(`Fixed stats for ${updates.length} customers!`);
+            toast.success(t('msg_stats_fixed', { count: updates.length }));
             setRecalcMsg("");
         } catch (err) {
             console.error("Recalc Error:", err);
-            toast.error("Failed to recalculate");
+            toast.error(t('err_recalculate'));
             setRecalcMsg("");
         } finally {
             setLoading(null);
@@ -126,11 +126,11 @@ export default function Settings() {
         setRecalcMsg("Resetting Stats...");
         try {
             await reconcileStoreStats(db, store.id);
-            toast.success("Financials Recalculated Successfully!");
+            toast.success(t('msg_financials_recalculated'));
             window.location.reload(); // Refresh to see changes
         } catch (err) {
             console.error("Store Recalc Error:", err);
-            toast.error("Failed: " + err.message);
+            toast.error(t('err_generic') + err.message);
         } finally {
             setLoading(null);
             setRecalcMsg("");
@@ -177,23 +177,23 @@ export default function Settings() {
         if (!biometricEnabled) {
             // Enable
             if (!store?.ownerId) {
-                toast.error("Error: User ID not found.");
+                toast.error(t('err_user_id_not_found'));
                 return;
             }
             const success = await register(store.ownerId); // Use ownerId/userId as key
             if (success) {
                 localStorage.setItem('biometricEnabled', 'true');
                 setBiometricEnabled(true);
-                toast.success("Biometric lock enabled!");
+                toast.success(t('msg_biometric_enabled'));
             } else {
-                toast.error("Biometric registration failed.");
+                toast.error(t('err_biometric_failed'));
             }
         } else {
             // Disable
             if (window.confirm("Disable biometric lock?")) {
                 localStorage.removeItem('biometricEnabled');
                 setBiometricEnabled(false);
-                toast.success("Biometric lock disabled.");
+                toast.success(t('msg_biometric_disabled'));
             }
         }
     };
@@ -369,16 +369,16 @@ export default function Settings() {
                                                     promoCodeUsed: code
                                                 });
                                                 setStore(prev => ({ ...prev, plan: 'pro', subscriptionStatus: 'active_promo' }));
-                                                toast.success("Code Redeemed! You are now on the PRO plan.");
+                                                toast.success(t('msg_code_redeemed'));
                                                 e.target.reset();
                                             } catch (err) {
                                                 console.error(err);
-                                                toast.error("Failed to apply code.");
+                                                toast.error(t('err_code_apply'));
                                             } finally {
                                                 setLoading(null);
                                             }
                                         } else {
-                                            toast.error("Invalid Promo Code");
+                                            toast.error(t('err_invalid_code'));
                                         }
                                     }}
                                     className="flex gap-2 max-w-md mt-4"
@@ -453,9 +453,9 @@ export default function Settings() {
                                                     // Auto-save
                                                     try {
                                                         await updateDoc(doc(db, "stores", store.id), { currency: newCurrency });
-                                                        toast.success(`Currency updated to ${newCurrency}`);
+                                                        toast.success(t('msg_currency_updated', { currency: newCurrency }));
                                                     } catch (err) {
-                                                        toast.error("Failed to update currency");
+                                                        toast.error(t('err_currency_update'));
                                                     }
                                                 }}
                                                 className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
@@ -512,10 +512,10 @@ export default function Settings() {
                                                                 ice: store.ice || "",
                                                                 address: store.address || ""
                                                             });
-                                                            toast.success("Details saved!");
+                                                            toast.success(t('msg_details_saved'));
                                                         } catch (e) {
                                                             console.error(e);
-                                                            toast.error("Failed to save.");
+                                                            toast.error(t('err_save_failed'));
                                                         }
                                                     }}
                                                     icon={Save}
@@ -608,10 +608,10 @@ export default function Settings() {
                                                     whatsappTemplates: store.whatsappTemplates || {},
                                                     whatsappLanguage: store.whatsappLanguage || 'fr'
                                                 });
-                                                toast.success(`Saved! Language: ${store.whatsappLanguage === 'darija' ? 'Darija' : 'French'}`);
+                                                toast.success(t('msg_language_saved', { lang: store.whatsappLanguage === 'darija' ? 'Darija' : 'Français' }));
                                             } catch (e) {
                                                 console.error(e);
-                                                toast.error("Error saving templates.");
+                                                toast.error(t('err_save_templates'));
                                             }
                                         }}
                                         icon={Save}

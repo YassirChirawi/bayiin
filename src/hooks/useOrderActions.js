@@ -70,6 +70,13 @@ export const useOrderActions = () => {
         try {
             await runTransaction(db, async (transaction) => {
                 const orderRef = doc(db, "orders", orderId);
+                let customerDoc = null;
+                const customerRef = newData.customerId ? doc(db, "customers", newData.customerId) : null;
+
+                // 0. Pre-fetch Customer if needed (READ BEFORE WRITE)
+                if (customerRef) {
+                    customerDoc = await transaction.get(customerRef);
+                }
 
                 // 1. Handle Stock Adjustments
                 if (oldData.articleId && oldData.articleId === newData.articleId) {
@@ -107,20 +114,14 @@ export const useOrderActions = () => {
                 });
 
                 // 3. Update Customer Profile if linked
-                if (newData.customerId) {
-                    const customerRef = doc(db, "customers", newData.customerId);
-                    // Check if customer exists before updating to avoid errors if customer was deleted
-                    const customerDoc = await transaction.get(customerRef);
-
-                    if (customerDoc.exists()) {
-                        transaction.update(customerRef, {
-                            name: newData.clientName,
-                            phone: newData.clientPhone,
-                            address: newData.clientAddress,
-                            city: newData.clientCity,
-                            updatedAt: serverTimestamp()
-                        });
-                    }
+                if (customerDoc && customerDoc.exists()) {
+                    transaction.update(customerRef, {
+                        name: newData.clientName,
+                        phone: newData.clientPhone,
+                        address: newData.clientAddress,
+                        city: newData.clientCity,
+                        updatedAt: serverTimestamp()
+                    });
                 }
             });
             setLoading(false);

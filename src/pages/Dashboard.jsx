@@ -2,7 +2,7 @@ import { useTenant } from "../context/TenantContext";
 import { useStoreData } from "../hooks/useStoreData";
 import { useStoreStats } from "../hooks/useStoreStats";
 import { Link } from "react-router-dom";
-import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, RotateCcw, CheckCircle, RefreshCw } from "lucide-react"; // Added RefreshCw
+import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, RotateCcw, CheckCircle, RefreshCw, Check, X, Calendar, Clock } from "lucide-react"; // Added Calendar, Clock
 import { useMemo, useState } from "react";
 import { format, subDays } from "date-fns";
 import { where, limit, orderBy } from "firebase/firestore";
@@ -12,12 +12,33 @@ import { toast } from "react-hot-toast";
 import { useLanguage } from "../context/LanguageContext"; // NEW
 
 import TrialAlert from "../components/TrialAlert";
+import HelpTooltip from "../components/HelpTooltip";
+import { useOrderActions } from "../hooks/useOrderActions"; // NEW
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 export default function Dashboard() {
     const { store } = useTenant();
     const { t } = useLanguage(); // NEW
+
     const [isRecalculating, setIsRecalculating] = useState(false);
+
+    // NEW handles
+    const { updateOrder } = useOrderActions();
+
+    const handleClearTask = async (task, type) => {
+        const confirmMsg = type === 'done' ? t('msg_confirm_done') : t('msg_confirm_cancel');
+        // Optional: Add confirm dialog? For speed, usually just do it.
+        // Or simple toast "Processing..."
+
+        await updateOrder(task.id, task, {
+            ...task,
+            followUpDate: "",
+            followUpNote: ""
+        });
+
+        if (type === 'done') toast.success(t('msg_task_done') || "Task Completed");
+        else toast.success(t('msg_task_removed') || "Task Removed");
+    };
 
     const handleHardRefresh = async () => {
         if (!store?.id) return;
@@ -175,7 +196,10 @@ export default function Dashboard() {
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate">{t('kpi_revenue_today')}</dt>
+                                <dt className="text-sm font-medium text-gray-500 truncate flex items-center gap-2">
+                                    {t('kpi_revenue_today')}
+                                    <HelpTooltip topic="dashboard" />
+                                </dt>
                                 <dd className="text-2xl font-semibold text-gray-900">
                                     {statsLoading ? "..." : (Math.max(0, dashboardData.revenueToday).toFixed(2) || "0.00")} DH
                                 </dd>
@@ -191,7 +215,10 @@ export default function Dashboard() {
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate">{t('kpi_pending_orders')}</dt>
+                                <dt className="text-sm font-medium text-gray-500 truncate flex items-center gap-2">
+                                    {t('kpi_pending_orders')}
+                                    <HelpTooltip topic="dashboard" />
+                                </dt>
                                 <dd className="text-2xl font-semibold text-gray-900">
                                     {statsLoading ? "..." : dashboardData.pendingOrders}
                                 </dd>
@@ -207,7 +234,10 @@ export default function Dashboard() {
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate">{t('kpi_return_rate')}</dt>
+                                <dt className="text-sm font-medium text-gray-500 truncate flex items-center gap-2">
+                                    {t('kpi_return_rate')}
+                                    <HelpTooltip topic="dashboard" />
+                                </dt>
                                 <dd className="text-2xl font-semibold text-gray-900">
                                     {statsLoading ? "..." : dashboardData.returnRate}%
                                 </dd>
@@ -296,27 +326,52 @@ export default function Dashboard() {
                             <p className="text-sm text-gray-500 italic py-4">{t('no_pending_tasks')}</p>
                         ) : (
                             <div className="space-y-3">
-                                {tasks.map(task => (
-                                    <div key={task.id} className="flex items-start justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                                        <div>
-                                            <p className="font-semibold text-gray-900 text-sm">{task.clientName}</p>
-                                            <p className="text-xs text-yellow-800 mt-1">
-                                                {task.followUpNote || t('msg_no_note')}
-                                            </p>
-                                            <p className="text-xs text-gray-500 mt-1">
-                                                {t('label_phone_short')} <a href={`tel:${task.clientPhone}`} className="hover:underline">{task.clientPhone}</a>
-                                            </p>
+                                {tasks.map(task => {
+                                    const isOverdue = task.followUpDate && new Date(task.followUpDate) < new Date();
+
+                                    return (
+                                        <div key={task.id} className={`flex items-start justify-between p-3 rounded-lg border ${isOverdue ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <p className={`font-semibold text-sm ${isOverdue ? 'text-red-900' : 'text-gray-900'}`}>{task.clientName}</p>
+                                                    {isOverdue && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-600">LATE</span>}
+                                                </div>
+                                                <p className={`text-xs mt-1 ${isOverdue ? 'text-red-800' : 'text-yellow-800'}`}>
+                                                    {task.followUpNote || t('msg_no_note')}
+                                                </p>
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                    {t('label_phone_short')} <a href={`tel:${task.clientPhone}`} className="hover:underline">{task.clientPhone}</a>
+                                                </p>
+                                            </div>
+                                            <div className="text-right flex flex-col items-end gap-2">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-white text-gray-800 border border-gray-200 shadow-sm">
+                                                    {task.followUpDate ? format(new Date(task.followUpDate), 'MMM dd, HH:mm') : t('label_asap')}
+                                                </span>
+
+                                                <div className="flex items-center gap-1">
+                                                    <button
+                                                        onClick={() => handleClearTask(task, 'done')}
+                                                        className="p-1.5 rounded-md bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
+                                                        title={t('btn_done') || "Done"}
+                                                    >
+                                                        <Check className="h-4 w-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleClearTask(task, 'cancel')}
+                                                        className="p-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                                                        title={t('btn_cancel') || "Cancel"}
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+
+                                                <Link to={`/orders?search=${task.orderNumber}`} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                                                    {t('link_open_order')} &rarr;
+                                                </Link>
+                                            </div>
                                         </div>
-                                        <div className="text-right">
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-white text-gray-800 border border-gray-200 shadow-sm">
-                                                {task.followUpDate ? format(new Date(task.followUpDate), 'MMM dd, HH:mm') : t('label_asap')}
-                                            </span>
-                                            <Link to={`/orders?search=${task.orderNumber}`} className="block mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium">
-                                                {t('link_open_order')} &rarr;
-                                            </Link>
-                                        </div>
-                                    </div>
-                                ))}
+                                    )
+                                })}
                             </div>
                         )}
                     </div>

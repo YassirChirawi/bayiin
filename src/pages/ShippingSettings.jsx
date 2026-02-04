@@ -36,10 +36,10 @@ export default function ShippingSettings() {
             await updateDoc(storeRef, {
                 shippingConfig: config
             });
-            toast.success("Shipping configuration saved");
+            toast.success(t('msg_shipping_saved'));
         } catch (err) {
             console.error(err);
-            toast.error("Failed to save configuration");
+            toast.error(t('err_save_config'));
         } finally {
             setLoading(false);
         }
@@ -116,10 +116,10 @@ export default function ShippingSettings() {
                                             olivraisonApiKey: store.olivraisonApiKey || "",
                                             olivraisonSecretKey: store.olivraisonSecretKey || ""
                                         });
-                                        toast.success("O-Livraison Configuration Saved!");
+                                        toast.success(t('msg_olivraison_saved'));
                                     } catch (e) {
                                         console.error(e);
-                                        toast.error("Failed to save.");
+                                        toast.error(t('err_save_failed'));
                                     } finally {
                                         setLoading(false);
                                     }
