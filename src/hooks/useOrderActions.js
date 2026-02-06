@@ -4,10 +4,14 @@ import { runTransaction, doc, serverTimestamp, increment } from 'firebase/firest
 import { ORDER_STATUS } from '../utils/constants';
 import { useTenant } from '../context/TenantContext';
 import { authenticateOlivraison, createOlivraisonPackage } from '../lib/olivraison';
+import { logActivity } from '../utils/logger'; // NEW
+import { useAuth } from '../context/AuthContext'; // NEW
 
 export const useOrderActions = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const { store } = useTenant();
+    const { user } = useAuth();
 
     // Helpers to determine if stock should be adjusted
     const shouldRestock = (oldStatus, newStatus) => {
@@ -134,7 +138,6 @@ export const useOrderActions = () => {
         }
     };
 
-    const { store } = useTenant(); // Needed for API Keys
 
     const sendToOlivraison = async (order) => {
         setLoading(true);

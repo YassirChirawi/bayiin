@@ -211,7 +211,7 @@ export default function Customers() {
                             <Users className="h-6 w-6" />
                         </div>
                         <div>
-                            <p className="text-sm text-gray-500">{t('kpi_total_clients')}</p>
+                            <p className="text-sm text-gray-500">{t('total_clients') || "Total Clients"}</p>
                             <p className="text-2xl font-bold text-gray-900">{kpiStats.total}</p>
                         </div>
                     </div>

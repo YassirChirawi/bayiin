@@ -15,10 +15,13 @@ import TrialAlert from "../components/TrialAlert";
 import HelpTooltip from "../components/HelpTooltip";
 import { useOrderActions } from "../hooks/useOrderActions"; // NEW
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import Button from "../components/Button"; // NEW
 
 export default function Dashboard() {
     const { store } = useTenant();
     const { t } = useLanguage(); // NEW
+
+
 
     const [isRecalculating, setIsRecalculating] = useState(false);
 
@@ -135,6 +138,9 @@ export default function Dashboard() {
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
     const isLoading = statsLoading || ordersLoading;
 
+
+
+
     return (
         <div className="space-y-8">
             <TrialAlert createdAt={store?.createdAt} plan={store?.plan} />
@@ -157,35 +163,40 @@ export default function Dashboard() {
                     <RefreshCw className="h-5 w-5" />
                 </button>
             </div>
-            {!isLoading && recentOrders.length === 0 && (
-                <div className="mt-6 glass-panel rounded-xl border-indigo-100/50 p-6">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">{t('getting_started')}</h3>
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-lg border border-indigo-100">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white font-bold text-sm">1</span>
-                            <div className="flex-1">
-                                <h4 className="text-sm font-semibold text-gray-900">{t('step_1_title')}</h4>
-                                <p className="text-xs text-gray-600">{t('step_1_desc')}</p>
+
+
+
+            {
+                !isLoading && recentOrders.length === 0 && (
+                    <div className="mt-6 glass-panel rounded-xl border-indigo-100/50 p-6">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4">{t('getting_started')}</h3>
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-lg border border-indigo-100">
+                                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white font-bold text-sm">1</span>
+                                <div className="flex-1">
+                                    <h4 className="text-sm font-semibold text-gray-900">{t('step_1_title')}</h4>
+                                    <p className="text-xs text-gray-600">{t('step_1_desc')}</p>
+                                </div>
+                                <div className="h-6 w-6 text-green-500">{store?.logoUrl ? <CheckCircle className="h-6 w-6" /> : <div className="h-6 w-6 border-2 border-gray-300 rounded-full"></div>}</div>
                             </div>
-                            <div className="h-6 w-6 text-green-500">{store?.logoUrl ? <CheckCircle className="h-6 w-6" /> : <div className="h-6 w-6 border-2 border-gray-300 rounded-full"></div>}</div>
-                        </div>
-                        <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-600 font-bold text-sm">2</span>
-                            <div className="flex-1">
-                                <h4 className="text-sm font-semibold text-gray-900">{t('step_2_title')}</h4>
-                                <p className="text-xs text-gray-600">{t('step_2_desc')}</p>
+                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-600 font-bold text-sm">2</span>
+                                <div className="flex-1">
+                                    <h4 className="text-sm font-semibold text-gray-900">{t('step_2_title')}</h4>
+                                    <p className="text-xs text-gray-600">{t('step_2_desc')}</p>
+                                </div>
                             </div>
-                        </div>
-                        <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-600 font-bold text-sm">3</span>
-                            <div className="flex-1">
-                                <h4 className="text-sm font-semibold text-gray-900">{t('step_3_title')}</h4>
-                                <p className="text-xs text-gray-600">{t('step_3_desc')}</p>
+                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-600 font-bold text-sm">3</span>
+                                <div className="flex-1">
+                                    <h4 className="text-sm font-semibold text-gray-900">{t('step_3_title')}</h4>
+                                    <p className="text-xs text-gray-600">{t('step_3_desc')}</p>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* KPI Grid */}
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">

@@ -16,12 +16,15 @@ import { useTenant } from "../context/TenantContext";
 import { useLanguage } from "../context/LanguageContext"; // NEW
 import { db } from "../lib/firebase";
 import { doc, updateDoc, increment, getDoc, orderBy, limit, writeBatch, where, deleteDoc } from "firebase/firestore";
+import { logActivity } from "../utils/logger"; // NEW
+import { useAuth } from "../context/AuthContext"; // NEW
 
 const INACTIVE_STATUSES = ['retour', 'annulé'];
 
 export default function Orders() {
     const { store } = useTenant();
     const { t } = useLanguage(); // NEW
+    const { user } = useAuth(); // NEW
 
     // Search State
     const [searchTerm, setSearchTerm] = useState(""); // Input value
@@ -114,6 +117,13 @@ export default function Orders() {
             batch.update(orderRef, { isPaid: newIsPaid });
 
             await batch.commit();
+
+            // Log Activity
+            logActivity(db, store.id, user, 'PAYMENT_UPDATE',
+                `Order ${order.orderNumber} marked as ${newIsPaid ? 'PAID' : 'UNPAID'}`,
+                { orderId: order.id, orderNumber: order.orderNumber, newIsPaid }
+            );
+
             toast.success(newIsPaid ? t('msg_payment_marked') : t('msg_payment_cancelled'));
         } catch (err) {
             console.error("Error toggling paid:", err);
@@ -180,6 +190,7 @@ export default function Orders() {
             if (window.confirm(t('confirm_trash'))) {
                 await deleteStoreItem(id);
                 setSelectedOrders(prev => prev.filter(oid => oid !== id));
+                logActivity(db, store.id, user, 'ORDER_DELETE', `Order ${id} moved to trash`, { orderId: id });
                 toast.success(t('msg_order_deleted'));
             }
         }
@@ -188,6 +199,7 @@ export default function Orders() {
     const handleRestore = async (id) => {
         await restoreStoreItem(id);
         setSelectedOrders(prev => prev.filter(oid => oid !== id));
+        logActivity(db, store.id, user, 'ORDER_RESTORE', `Order ${id} restored from trash`, { orderId: id });
         toast.success(t('msg_order_restored'));
     };
 

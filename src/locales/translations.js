@@ -147,6 +147,17 @@ export const translations = {
         table_client: "Client",
         table_product: "Product",
         table_total: "Total",
+        msg_dashboard_updated: "Dashboard updated successfully",
+        err_sync_failed: "Sync failed. Try again.",
+        err_analytics_load: "Failed to load analytics data",
+
+        // Analytics
+        show_analytics: "Show Advanced Analytics",
+        hide_analytics: "Hide Analytics",
+        analytics_top_products: "Top Selling Products (Delivered Only)",
+        analytics_city_performance: "Revenue by City (Delivered Only)",
+        analytics_retention_rate: "Customer Retention Rate",
+
         table_status: "Status",
 
         modal_new_order: "New Order",
@@ -817,6 +828,17 @@ export const translations = {
 
         // Dashboard Guide
         help_dash_intro: "Le centre de contrôle pour suivre la santé du business.",
+        msg_dashboard_updated: "Tableau de bord mis à jour avec succès",
+        err_sync_failed: "Échec de la synchronisation. Réessayez.",
+        err_analytics_load: "Échec du chargement des données analytiques",
+
+        // Analytics
+        show_analytics: "Voir Statistiques Avancées",
+        hide_analytics: "Masquer Statistiques",
+        analytics_top_products: "Produits les plus vendus (Livrés uniquement)",
+        analytics_city_performance: "Revenu par Ville (Livré uniquement)",
+        analytics_retention_rate: "Taux de Rétention Client",
+
         help_dash_kpi: "KPIs en direct : Revenu du jour (Livré), Commandes en attente, Taux de retour, Alerte Stock.",
         help_dash_agenda: "Widget Agenda : Résumé des tâches et suivis du jour.",
 

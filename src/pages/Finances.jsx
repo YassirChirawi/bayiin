@@ -10,6 +10,9 @@ import Input from "../components/Input";
 import CollectionsManager from "../components/CollectionsManager"; // NEW
 import { format, isSameDay, isSameWeek, isSameMonth, parseISO, startOfMonth, subDays, isWithinInterval, endOfDay, startOfDay } from 'date-fns';
 import { where } from "firebase/firestore";
+import TopProductsChart from "../components/charts/TopProductsChart"; // NEW
+import CityRevenueChart from "../components/charts/CityRevenueChart"; // NEW
+import { getTopProducts, getCityStats, getHighReturnCities, getRetentionStats } from "../utils/analytics"; // NEW
 
 export default function Finances() {
     const { store } = useTenant();
@@ -222,6 +225,13 @@ export default function Finances() {
         return Object.entries(data).map(([name, value]) => ({ name, value }));
     }, [stats.filteredExpenses]);
 
+    // --- Analytics Calcs (Derived from filtered Orders) ---
+    const topProducts = useMemo(() => getTopProducts(orders), [orders]);
+    const cityStats = useMemo(() => getCityStats(orders), [orders]);
+    const highReturnCities = useMemo(() => getHighReturnCities(orders), [orders]);
+    const retention = useMemo(() => getRetentionStats(orders), [orders]);
+
+
 
     // --- Handlers ---
     const handleAddExpense = async (e) => {
@@ -385,6 +395,30 @@ export default function Finances() {
                     </div>
                 </div>
             </div>
+
+            {/* ANALYTICS SECTION */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                {/* Top Products */}
+                <div className="bg-white p-6 rounded-lg shadow border border-gray-100">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">{t('analytics_top_products')}</h3>
+                    {loadingOrders ? (
+                        <div className="h-64 flex items-center justify-center text-gray-400">Loading...</div>
+                    ) : (
+                        <TopProductsChart data={topProducts} />
+                    )}
+                </div>
+
+                {/* City Revenue & Returns */}
+                <div className="bg-white p-6 rounded-lg shadow border border-gray-100">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">{t('analytics_city_performance')}</h3>
+                    {loadingOrders ? (
+                        <div className="h-64 flex items-center justify-center text-gray-400">Loading...</div>
+                    ) : (
+                        <CityRevenueChart data={cityStats} highReturnCities={highReturnCities} />
+                    )}
+                </div>
+            </div>
+
 
             {/* ADVANCED METRICS SECTION */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

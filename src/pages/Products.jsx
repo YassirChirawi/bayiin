@@ -12,6 +12,8 @@ import { vibrate } from "../utils/haptics";
 import { motion } from "framer-motion";
 import ShareCatalogModal from "../components/ShareCatalogModal"; // NEW
 import { useTenant } from "../context/TenantContext"; // NEW
+import { logActivity } from "../utils/logger"; // NEW
+import { useAuth } from "../context/AuthContext"; // NEW
 
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -43,6 +45,7 @@ export default function Products() {
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isShareModalOpen, setIsShareModalOpen] = useState(false); // NEW
     const { store } = useTenant(); // NEW
+    const { user } = useAuth(); // NEW
     const [editingProduct, setEditingProduct] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [showTrash, setShowTrash] = useState(false);
@@ -51,9 +54,11 @@ export default function Products() {
     const handleSave = async (productData) => {
         if (editingProduct) {
             await updateStoreItem(editingProduct.id, productData);
+            logActivity(db, store.id, user, 'PRODUCT_UPDATE', `Updated Product: ${productData.name}`, { productId: editingProduct.id });
             toast.success(t('msg_product_updated'));
         } else {
-            await addStoreItem(productData);
+            const newId = await addStoreItem(productData);
+            logActivity(db, store.id, user, 'PRODUCT_CREATE', `Created Product: ${productData.name}`, { productId: newId });
             toast.success(t('msg_product_added'));
         }
         setIsModalOpen(false);
@@ -70,11 +75,13 @@ export default function Products() {
         if (showTrash) {
             if (window.confirm(t('confirm_delete_permanent'))) {
                 await permanentDeleteStoreItem(id);
+                logActivity(db, store.id, user, 'PRODUCT_DELETE_PERMANENT', `Permanently deleted product ${id}`, { productId: id });
                 toast.success(t('msg_product_deleted_perm'));
             }
         } else {
             if (window.confirm(t('confirm_move_trash'))) {
                 await deleteStoreItem(id);
+                logActivity(db, store.id, user, 'PRODUCT_TRASH', `Moved product ${id} to trash`, { productId: id });
                 toast.success(t('msg_product_moved_trash'));
             }
         }
@@ -82,6 +89,7 @@ export default function Products() {
 
     const handleRestore = async (id) => {
         await restoreStoreItem(id);
+        logActivity(db, store.id, user, 'PRODUCT_RESTORE', `Restored product ${id}`, { productId: id });
         toast.success(t('msg_product_restored'));
     };
 
