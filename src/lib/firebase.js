@@ -19,13 +19,14 @@ export const googleProvider = new GoogleAuthProvider();
 export const db = getFirestore(app, "comsaas");
 
 // Enable Offline Persistence
-enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code == 'failed-precondition') {
-        console.warn('Persistence failed: Multiple tabs open');
-    } else if (err.code == 'unimplemented') {
-        console.warn('Persistence not supported by browser');
-    }
-});
+// Enable Offline Persistence (Disabled for Dev Stability)
+// enableIndexedDbPersistence(db).catch((err) => {
+//     if (err.code == 'failed-precondition') {
+//         console.warn('Persistence failed: Multiple tabs open');
+//     } else if (err.code == 'unimplemented') {
+//         console.warn('Persistence not supported by browser');
+//     }
+// });
 
 export const storage = getStorage(app);
 export default app;

@@ -216,7 +216,168 @@ exports.onOrderWrite = onDocumentWritten({
         updates[`statusCounts.${oldStatus}`] = FieldValue.increment(-1);
     }
 
+    // 4. STOCK MANAGEMENT
+    const oldProductId = before?.articleId;
+    const newProductId = after?.articleId;
+
+    const getActiveQty = (o) => {
+        if (!o) return 0;
+        // Inactive statuses do not consume stock
+        if (['retour', 'annulé'].includes(o.status)) return 0;
+        return parseInt(o.quantity) || 0;
+    };
+
+    const updateStock = (prodId, delta) => {
+        if (delta === 0) return;
+        const ref = db.collection('products').doc(prodId);
+        batch.update(ref, { stock: FieldValue.increment(delta) });
+    };
+
+    if (oldProductId === newProductId && oldProductId) {
+        // Same Product: Calculate net change
+        const oldQty = getActiveQty(before);
+        const newQty = getActiveQty(after);
+        updateStock(oldProductId, oldQty - newQty);
+    } else {
+        // Product Changed (or Create/Delete)
+        if (oldProductId) {
+            // Restock old product (as if order deleted for that product)
+            updateStock(oldProductId, getActiveQty(before));
+        }
+        if (newProductId) {
+            // Destock new product (as if order created for that product)
+            updateStock(newProductId, -getActiveQty(after));
+        }
+    }
+
     // Execute Update
     console.log("Updates:", JSON.stringify(updates));
-    return statsRef.set(updates, { merge: true });
+    const statsPromise = statsRef.set(updates, { merge: true });
+
+    // Commit batch for Stock (and any other potential batch ops)
+    const batchPromise = batch.commit();
+
+    return Promise.all([statsPromise, batchPromise]);
+});
+
+/**
+ * Sendit Webhook Handler
+ * Updates order status based on Sendit events.
+ * 
+ * URL to Register: https://us-central1-YOUR-PROJECT-ID.cloudfunctions.net/senditWebhook
+ */
+exports.senditWebhook = functions.https.onRequest(async (req, res) => {
+    // Sendit sends JSON body: { code, status, tracking_code, data }
+    const { code, status } = req.body;
+
+    console.log("Sendit Webhook Received:", JSON.stringify(req.body));
+
+    if (!code || !status) {
+        return res.status(400).send("Payload invalide");
+    }
+
+    try {
+        // Find order by trackingId (code)
+        const ordersRef = db.collection('orders');
+        const snapshot = await ordersRef.where('trackingId', '==', code).get();
+
+        if (snapshot.empty) {
+            console.log(`No order found for tracking code: ${code}`);
+            // Always return 200 OK to prevent retries for invalid tracking codes
+            return res.status(200).send("OK (Order not found)");
+        }
+
+        const batch = db.batch();
+        let updatedCount = 0;
+
+        // Status Mapping Logic
+        // Normalizes incoming status to our internal system status
+        const mapSenditStatus = (senditStatus) => {
+            if (!senditStatus) return null;
+            const normalized = senditStatus.toUpperCase();
+
+            // Map: Sendit Status -> App Status (from constants.js: 'livré', 'retour', 'livraison', 'pas de réponse', 'reporté')
+            const statusMap = {
+                // Success
+                'DELIVERED': 'livré',
+                'LIVRE': 'livré',
+                'LIVRÉ': 'livré',
+
+                // Failure / Returns
+                'CANCELED': 'retour',
+                'ANNULE': 'retour',
+                'ANNULÉ': 'retour',
+                'REFUSE': 'retour',
+                'REFUSÉ': 'retour',
+                'REJECTED': 'retour',
+
+                // In Progress
+                'DELIVERING': 'livraison',
+                'EN COURS DE LIVRAISON': 'livraison',
+                'DISTRIBUTED': 'livraison',
+                'DISTRIBUÉ': 'livraison',
+                'EN_LIVRAISON': 'livraison',
+
+                // Issues / Postponed
+                'UNREACHABLE': 'pas de réponse',
+                'INJOIGNABLE': 'pas de réponse',
+                'POSTPONED': 'reporté',
+                'REPORTE': 'reporté',
+                'REPORTÉ': 'reporté',
+
+                // Initial / Pickup (use 'livraison' as carrier has package)
+                'PICKED_UP': 'livraison',
+                'RAMASSE': 'livraison',
+                'RAMASSÉ': 'livraison',
+                'WAREHOUSE': 'livraison',
+                'ENTREPÔT': 'livraison',
+                'TRANSIT': 'livraison',
+                'CREATED': 'confirmed' // Or keep current status if just created
+            };
+            return statusMap[normalized] || null;
+        };
+
+        const newInternalStatus = mapSenditStatus(status);
+
+        snapshot.forEach(doc => {
+            const order = doc.data();
+            const orderRef = db.collection('orders').doc(doc.id);
+
+            // Update Logic
+            const updates = {
+                carrierStatus: status, // Keep raw carrier status for reference
+                lastCarrierUpdate: FieldValue.serverTimestamp()
+            };
+
+            // Only update internal status if mapping exists and it's different
+            if (newInternalStatus && order.status !== newInternalStatus) {
+                updates.status = newInternalStatus;
+
+                // Optional: Auto-pay logic helper
+                // if (newInternalStatus === 'livré' && !order.isPaid) {
+                //    updates.isPaid = true; 
+                // }
+            }
+
+            // Only perform update if something changed (idempotence check handled by Firestore logic somewhat, but good practice)
+            if (order.carrierStatus !== status || (newInternalStatus && order.status !== newInternalStatus)) {
+                batch.update(orderRef, updates);
+                updatedCount++;
+            }
+        });
+
+        if (updatedCount > 0) {
+            await batch.commit();
+            console.log(`Updated ${updatedCount} orders for tracking code ${code}`);
+        } else {
+            console.log(`No updates needed for tracking code ${code}`);
+        }
+
+        res.status(200).send({ success: true, updated: updatedCount });
+
+    } catch (error) {
+        console.error("Error processing Sendit webhook:", error);
+        // Return 500 only for server errors on our side
+        res.status(500).send("Internal Server Error");
+    }
 });

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { useStoreData } from "../hooks/useStoreData";
-import { Plus, Edit2, Trash2, QrCode, Search, X, FileText, CheckSquare, Square, Check, Trash, RotateCcw, Upload, Download, MessageCircle, DollarSign, AlertCircle, Truck, Package, Box, ShoppingCart } from "lucide-react";
+import { Plus, Edit2, Trash2, QrCode, Search, X, FileText, CheckSquare, Square, Check, Trash, RotateCcw, Upload, Download, MessageCircle, DollarSign, AlertCircle, Truck, Package, Box, ShoppingCart, Printer } from "lucide-react";
 import Button from "../components/Button";
 import OrderModal from "../components/OrderModal";
 import ImportModal from "../components/ImportModal";
@@ -18,6 +18,10 @@ import { db } from "../lib/firebase";
 import { doc, updateDoc, increment, getDoc, orderBy, limit, writeBatch, where, deleteDoc } from "firebase/firestore";
 import { logActivity } from "../utils/logger"; // NEW
 import { useAuth } from "../context/AuthContext"; // NEW
+import TrackingTimelineModal from "../components/TrackingTimelineModal"; // NEW
+import { getPackageStatus, requestSenditPickup, authenticateSendit } from "../lib/sendit"; // NEW
+import { authenticateOlivraison, createOlivraisonPackage } from "../lib/olivraison"; // NEW (Ensure consistency)
+import { MapPin } from "lucide-react"; // NEW Icon
 
 const INACTIVE_STATUSES = ['retour', 'annulé'];
 
@@ -47,7 +51,7 @@ export default function Orders() {
         return [orderBy("date", "desc"), limit(limitCount)];
     }, [activeSearch]);
 
-    const { sendToOlivraison } = useOrderActions();
+    const { sendToOlivraison, sendToSendit } = useOrderActions();
     const { data: orders, loading, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("orders", orderConstraints);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -60,6 +64,14 @@ export default function Orders() {
     const [statusFilter, setStatusFilter] = useState("all");
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
+
+    // Tracking Modal State
+    const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+    const [trackingData, setTrackingData] = useState(null);
+    const [trackingProvider, setTrackingProvider] = useState(null);
+
+    // Pickup State
+    const [isPickupLoading, setIsPickupLoading] = useState(false);
 
     // TAB STATE: 'orders' | 'carts'
     const [activeTab, setActiveTab] = useState('orders');
@@ -301,16 +313,9 @@ export default function Orders() {
                 const orderRef = doc(db, "orders", id);
                 const updates = { status };
 
-                // 1. Stock Logic
-                const isNewStatusInactive = INACTIVE_STATUSES.includes(status);
-                const isOldStatusInactive = INACTIVE_STATUSES.includes(order.status);
+                // 1. Stock Logic - MOVED TO CLOUD FUNCTIONS
+                // (client-side removed to prevent double counting)
 
-                if (order.articleId && isNewStatusInactive !== isOldStatusInactive) {
-                    const productRef = doc(db, "products", order.articleId);
-                    const qty = parseInt(order.quantity) || 1;
-                    const stockChange = isNewStatusInactive ? qty : -qty;
-                    batch.update(productRef, { stock: increment(stockChange) });
-                }
 
                 // 2. Financial Logic - REMOVED (Handled by Cloud Function to avoid double counting)
                 // Case A: Moving TO Inactive (Refund/Cancel) AND was Paid -> Unpay
@@ -344,6 +349,82 @@ export default function Orders() {
             case 'livraison': return 'bg-blue-100 text-blue-800';
             case 'reporté': return 'bg-purple-100 text-purple-800';
             default: return 'bg-gray-100 text-gray-800';
+        }
+    };
+
+    // Tracking Logic
+    const handleOpenTracking = async (order) => {
+        if (!order.trackingId) {
+            toast.error("Aucun numéro de suivi disponible.");
+            return;
+        }
+
+        const provider = order.carrier || 'sendit'; // Default to sendit
+        setTrackingProvider(provider);
+        setTrackingData(null); // Clear previous
+        setIsTrackingModalOpen(true);
+
+        try {
+            if (provider === 'sendit') {
+                if (!store.senditPublicKey || !store.senditSecretKey) {
+                    throw new Error("Clés API Sendit manquantes.");
+                }
+                const token = await authenticateSendit(store.senditPublicKey, store.senditSecretKey);
+                const data = await getPackageStatus(token, order.trackingId);
+                setTrackingData(data);
+            } else if (provider === 'olivraison') {
+                // Placeholder for Olivraison tracking logic if/when they provide full history
+                // For now, just show basic info
+                setTrackingData({
+                    code: order.trackingId,
+                    status: order.carrierStatus || 'UNKNOWN',
+                    audits: [] // No audits yet for O-Livraison
+                });
+            }
+        } catch (error) {
+            console.error("Tracking Error:", error);
+            toast.error("Erreur lors de la récupération du suivi.");
+            setIsTrackingModalOpen(false);
+        }
+    };
+
+    // Pickup Logic
+    const handleRequestPickup = async () => {
+        if (selectedOrders.length === 0) {
+            toast.error("Veuillez sélectionner des commandes pour le ramassage.");
+            return;
+        }
+
+        // Filter valid orders (must be Sendit + have tracking ID + not delivered/cancelled?)
+        // Actually Sendit API just wants a list of tracking IDs.
+        // We should probably only send "ready" orders.
+        const ordersToPickup = orders.filter(o => selectedOrders.includes(o.id));
+        const senditOrders = ordersToPickup.filter(o => o.carrier === 'sendit' && o.trackingId);
+
+        if (senditOrders.length === 0) {
+            toast.error("Aucune commande Sendit valide sélectionnée.");
+            return;
+        }
+
+        if (!window.confirm(`Demander le ramassage pour ${senditOrders.length} colis ?`)) return;
+
+        setIsPickupLoading(true);
+        try {
+            if (!store.senditPublicKey || !store.senditSecretKey) {
+                throw new Error("Clés API Sendit manquantes.");
+            }
+            const token = await authenticateSendit(store.senditPublicKey, store.senditSecretKey);
+
+            const trackingIds = senditOrders.map(o => o.trackingId);
+            const result = await requestSenditPickup(token, store, trackingIds);
+
+            toast.success("Demande de ramassage envoyée avec succès !");
+            setSelectedOrders([]); // Clear selection
+        } catch (error) {
+            console.error("Pickup Error:", error);
+            toast.error(error.message || "Erreur de demande de ramassage.");
+        } finally {
+            setIsPickupLoading(false);
         }
     };
 
@@ -469,11 +550,18 @@ export default function Orders() {
                             {t('label_trash')}
                         </button>
                     </div>
-                    {!showTrash && (
-                        <Button onClick={() => { setEditingOrder(null); setIsModalOpen(true); }} icon={Plus}>
-                            {t('btn_new_order')}
-                        </Button>
-                    )}
+                    <Button onClick={() => { setEditingOrder(null); setIsModalOpen(true); }} icon={Plus}>
+                        {t('btn_new_order')}
+                    </Button>
+
+                    <Button
+                        onClick={handleRequestPickup}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                        icon={Truck}
+                        disabled={isPickupLoading || selectedOrders.length === 0}
+                    >
+                        {isPickupLoading ? "Envoi..." : "Demander Ramassage"}
+                    </Button>
                 </div>
             </div>
 
@@ -700,7 +788,18 @@ export default function Orders() {
                                                     >
                                                         <QrCode className="h-4 w-4" />
                                                     </button>
+                                                    {/* Tracking Timeline Button */}
+                                                    {(order.carrier === 'sendit' || order.carrier === 'olivraison') && order.trackingId && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleOpenTracking(order); }}
+                                                            className="text-blue-500 hover:text-blue-700"
+                                                            title="Suivi Colis"
+                                                        >
+                                                            <MapPin className="h-4 w-4" />
+                                                        </button>
+                                                    )}
                                                     <button
+
                                                         onClick={(e) => {
                                                             e.stopPropagation(); // Prevent row click
                                                             if (!store?.olivraisonApiKey) {
@@ -722,6 +821,39 @@ export default function Orders() {
                                                     >
                                                         <Truck className="h-4 w-4" />
                                                     </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (!store?.senditPublicKey) {
+                                                                toast.error("Please configure Sendit API Keys in Settings first.");
+                                                                return;
+                                                            }
+                                                            if (window.confirm(`Send Order #${order.orderNumber} to Sendit?`)) {
+                                                                sendToSendit(order)
+                                                                    .then(() => toast.success("Order sent to Sendit!"))
+                                                                    .catch(err => toast.error(err.message));
+                                                            }
+                                                        }}
+                                                        disabled={
+                                                            order.carrier === 'sendit'
+                                                        }
+                                                        className={`text-gray-400 hover:text-blue-600 ${!store?.senditPublicKey ? 'opacity-30 cursor-not-allowed' : ''
+                                                            } ${order.carrier === 'sendit' ? 'text-green-500 hover:text-green-600' : ''}`}
+                                                        title={!store?.senditPublicKey ? "Configure Sendit keys" : "Send to Sendit"}
+                                                    >
+                                                        <Truck className="h-4 w-4 text-orange-500" />
+                                                    </button>
+                                                    {order.labelUrl && (
+                                                        <a
+                                                            href={order.labelUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-gray-400 hover:text-blue-600"
+                                                            title="Print Shipping Label"
+                                                        >
+                                                            <Printer className="h-4 w-4" />
+                                                        </a>
+                                                    )}
                                                     <button
                                                         onClick={() => generateInvoice(order, store)}
                                                         className="text-gray-400 hover:text-blue-600"
@@ -764,7 +896,18 @@ export default function Orders() {
                         })}
                     </tbody>
                 </table>
-            </div>
+
+            </div >
+
+            {/* Mobile View (Cards) */}
+            {/* Same MapPin generic replacement can be done here if needed, but skipped for brevity in plan */}
+
+            <TrackingTimelineModal
+                isOpen={isTrackingModalOpen}
+                onClose={() => setIsTrackingModalOpen(false)}
+                trackingData={trackingData}
+                provider={trackingProvider}
+            />
 
             {/* Mobile Card View */}
             <div className="md:hidden space-y-4">
@@ -880,6 +1023,41 @@ export default function Orders() {
                                                     !store?.olivraisonApiKey ? "Configure O-Livraison in Settings to enable"
                                                         : order.carrier === 'olivraison' ? "Order already sent to O-Livraison"
                                                             : "Send to O-Livraison"
+                                                }
+                                            >
+                                                <Truck className="h-5 w-5" />
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    if (!store?.senditPublicKey) {
+                                                        toast.error("Please configure Sendit API Keys in Settings first.");
+                                                        return;
+                                                    }
+                                                    if (order.carrier === 'sendit') return;
+
+                                                    if (window.confirm(`Send Order #${order.orderNumber} to Sendit?`)) {
+                                                        try {
+                                                            toast.loading("Sending to Sendit...");
+                                                            await sendToSendit(order);
+                                                            toast.dismiss();
+                                                            toast.success("Order sent to Sendit!");
+                                                        } catch (err) {
+                                                            toast.dismiss();
+                                                            toast.error(err.message);
+                                                        }
+                                                    }
+                                                }}
+                                                disabled={!store?.senditPublicKey || order.carrier === 'sendit'}
+                                                className={`p-2 rounded-full transition-colors ${!store?.senditPublicKey
+                                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                    : order.carrier === 'sendit'
+                                                        ? 'bg-green-100 text-green-600 cursor-default'
+                                                        : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
+                                                    }`}
+                                                title={
+                                                    !store?.senditPublicKey ? "Configure Sendit in Settings to enable"
+                                                        : order.carrier === 'sendit' ? "Order already sent to Sendit"
+                                                            : "Send to Sendit"
                                                 }
                                             >
                                                 <Truck className="h-5 w-5" />

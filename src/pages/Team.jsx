@@ -75,8 +75,6 @@ export default function Team() {
             setInviteEmail("");
             setInviteName("");
             fetchMembers();
-            setInviteName("");
-            fetchMembers();
             toast.success(t('msg_member_added'));
         } catch (error) {
             console.error(error);

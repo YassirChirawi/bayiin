@@ -23,8 +23,6 @@ export default function Onboarding() {
         address: "",
         city: "",
         logoUrl: "",
-        productName: "",
-        productPrice: ""
     });
 
     const { user, logout } = useAuth();
@@ -88,18 +86,6 @@ export default function Onboarding() {
                 role: 'owner'
             }, { merge: true });
 
-            // 3. Create First Product (if provided)
-            if (formData.productName && formData.productPrice) {
-                await addDoc(collection(db, "products"), {
-                    storeId,
-                    name: formData.productName,
-                    price: parseFloat(formData.productPrice),
-                    stock: 10,
-                    category: "General",
-                    createdAt: new Date().toISOString()
-                });
-            }
-
             setStore({ id: storeId, ...storeData });
             toast.success("Store setup complete!");
             navigate("/dashboard");
@@ -124,11 +110,11 @@ export default function Onboarding() {
                 {/* Progress Bar */}
                 <div className="mb-8">
                     <div className="flex justify-between mb-2">
-                        {[1, 2, 3, 4].map(s => (
+                        {[1, 2, 3].map(s => (
                             <div key={s} className={`h-2 flex-1 mx-1 rounded-full ${s <= step ? 'bg-indigo-600' : 'bg-gray-100'}`} />
                         ))}
                     </div>
-                    <p className="text-center text-sm text-gray-500">Step {step} of 4</p>
+                    <p className="text-center text-sm text-gray-500">Step {step} of 3</p>
                 </div>
 
                 {step === 1 && (
@@ -227,42 +213,10 @@ export default function Onboarding() {
 
                         <div className="flex gap-3">
                             <Button onClick={handleBack} variant="secondary" className="flex-1" icon={ChevronLeft}>{t('btn_back')}</Button>
-                            <Button onClick={handleNext} className="flex-1" icon={ChevronRight}>{formData.logoUrl ? t('btn_next') : "Skip"}</Button>
-                        </div>
-                    </div>
-                )}
-
-                {step === 4 && (
-                    <div className="space-y-6 animate-fadeIn">
-                        <div className="text-center">
-                            <Package className="mx-auto h-12 w-12 text-indigo-600" />
-                            <h2 className="mt-4 text-2xl font-bold text-gray-900">Your First Product</h2>
-                            <p className="text-gray-500">Let's get your catalog started.</p>
-                        </div>
-
-                        <Input
-                            label="Product Name"
-                            value={formData.productName}
-                            onChange={e => setFormData({ ...formData, productName: e.target.value })}
-                            placeholder="e.g. Summer T-Shirt"
-                        />
-                        <Input
-                            label="Price"
-                            type="number"
-                            value={formData.productPrice}
-                            onChange={e => setFormData({ ...formData, productPrice: e.target.value })}
-                            placeholder="0.00"
-                        />
-
-                        <div className="flex gap-3">
-                            <Button onClick={handleBack} variant="secondary" className="flex-1" icon={ChevronLeft}>{t('btn_back')}</Button>
                             <Button onClick={handleFinish} className="flex-1" isLoading={loading} icon={Store}>
-                                {t('btn_finish_setup')}
+                                {t('btn_finish_setup') || "Finish Setup"}
                             </Button>
                         </div>
-                        <p className="text-xs text-center text-gray-400 mt-4">
-                            You can configure delivery integrations later in Settings.
-                        </p>
                     </div>
                 )}
             </div>

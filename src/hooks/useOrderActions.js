@@ -4,6 +4,7 @@ import { runTransaction, doc, serverTimestamp, increment } from 'firebase/firest
 import { ORDER_STATUS } from '../utils/constants';
 import { useTenant } from '../context/TenantContext';
 import { authenticateOlivraison, createOlivraisonPackage } from '../lib/olivraison';
+import { authenticateSendit, createSenditPackage } from '../lib/sendit';
 import { logActivity } from '../utils/logger'; // NEW
 import { useAuth } from '../context/AuthContext'; // NEW
 
@@ -31,25 +32,8 @@ export const useOrderActions = () => {
         setError(null);
         try {
             await runTransaction(db, async (transaction) => {
-                // 1. Check Stock if product is linked
-                if (orderData.articleId) {
-                    const productRef = doc(db, "products", orderData.articleId);
-                    const productDoc = await transaction.get(productRef);
-                    if (!productDoc.exists()) throw new Error("Product not found");
-
-                    const product = productDoc.data();
-                    const newStock = (product.stock || 0) - orderData.quantity;
-
-                    if (newStock < 0) {
-                        throw new Error(`Stock insuffisant. Disponible: ${product.stock}`);
-                    }
-
-                    // Deduct Stock
-                    transaction.update(productRef, { stock: newStock });
-                }
-
-                // 2. Create Order
-                const newOrderRef = doc(db, "orders", crypto.randomUUID()); // Client-side ID generation or auto-id
+                // 1. Create Order (Stock handled by Cloud Functions)
+                const newOrderRef = doc(db, "orders", crypto.randomUUID());
                 transaction.set(newOrderRef, {
                     ...orderData,
                     createdAt: serverTimestamp(),
@@ -82,34 +66,8 @@ export const useOrderActions = () => {
                     customerDoc = await transaction.get(customerRef);
                 }
 
-                // 1. Handle Stock Adjustments
-                if (oldData.articleId && oldData.articleId === newData.articleId) {
-                    const productRef = doc(db, "products", oldData.articleId);
+                // 1. Stock Adjustments - MOVED TO CLOUD FUNCTIONS
 
-                    let stockDelta = 0;
-
-                    // Case A: Status Change (Cancel/Return -> Active OR Active -> Cancel/Return)
-                    if (shouldRestock(oldData.status, newData.status)) {
-                        stockDelta += oldData.quantity; // Put back
-                    } else if (shouldDeductStock(oldData.status, newData.status)) {
-                        stockDelta -= newData.quantity; // Take out again
-                    }
-                    // Case B: Quantity Change (Only if Active)
-                    else if (![ORDER_STATUS.CANCELLED, ORDER_STATUS.RETURNED].includes(newData.status)) {
-                        stockDelta -= (newData.quantity - oldData.quantity);
-                    }
-
-                    if (stockDelta !== 0) {
-                        const productDoc = await transaction.get(productRef);
-                        if (!productDoc.exists()) throw new Error("Product not found");
-                        const currentStock = productDoc.data().stock || 0;
-
-                        if (currentStock + stockDelta < 0) {
-                            throw new Error(`Stock insuffisant pour cette modification. Disponible: ${currentStock}`);
-                        }
-                        transaction.update(productRef, { stock: increment(stockDelta) });
-                    }
-                }
 
                 // 2. Update Order
                 transaction.update(orderRef, {
@@ -175,5 +133,42 @@ export const useOrderActions = () => {
         }
     };
 
-    return { createOrder, updateOrder, sendToOlivraison, loading, error };
+    const sendToSendit = async (order) => {
+        setLoading(true);
+        setError(null);
+        try {
+            if (!store.senditPublicKey || !store.senditSecretKey) {
+                throw new Error("Sendit API keys not configured in Settings.");
+            }
+
+            // 1. Authenticate
+            const token = await authenticateSendit(store.senditPublicKey, store.senditSecretKey);
+
+            // 2. Create Package
+            const result = await createSenditPackage(token, order, store);
+
+            // 3. Update Order with Tracking Info
+            await runTransaction(db, async (transaction) => {
+                const orderRef = doc(db, "orders", order.id);
+                transaction.update(orderRef, {
+                    carrier: 'sendit',
+                    trackingId: result.code || 'PENDING',
+                    carrierStatus: result.status || 'PENDING',
+                    labelUrl: result.label_url || "",
+                    status: 'livraison', // Auto-move to Shipping status
+                    updatedAt: serverTimestamp()
+                });
+            });
+
+            setLoading(false);
+            return result;
+        } catch (err) {
+            console.error("Sendit Error:", err);
+            setError(err.message);
+            setLoading(false);
+            throw err;
+        }
+    };
+
+    return { createOrder, updateOrder, sendToOlivraison, sendToSendit, loading, error };
 };
