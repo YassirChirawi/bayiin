@@ -141,6 +141,8 @@ export const translations = {
         btn_new_order: "New Order",
         tab_active: "Active",
         tab_trash: "Trash",
+        tab_orders: "Orders",
+        tab_carts: "Live Carts",
 
         table_order: "Order",
         table_date: "Date",
@@ -883,6 +885,8 @@ export const translations = {
         btn_new_order: "Nouvelle Commande",
         tab_active: "Actives",
         tab_trash: "Corbeille",
+        tab_orders: "Commandes",
+        tab_carts: "Paniers",
 
         table_order: "Commande",
         table_date: "Date",
@@ -1600,6 +1604,8 @@ export const translations = {
         btn_new_order: "طلبية جديدة",
         tab_active: "نشطة",
         tab_trash: "سلة المهملات",
+        tab_orders: "الطلبيات",
+        tab_carts: "العمليات الحالية",
 
         table_order: "الطلبية",
         table_date: "التاريخ",
