@@ -116,6 +116,11 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
         }
     }, [formData.status, formData.clientName, formData.price, formData.quantity, formData.shippingCost, notifyClient, store]);
 
+    useEffect(() => {
+        if (actionError) {
+            toast.error(actionError);
+        }
+    }, [actionError]);
 
     const handlePhoneBlur = async () => {
         if (!formData.clientPhone || formData.customerId) return;
@@ -398,7 +403,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
 
                         <div className="flex justify-between items-center pt-4 border-t border-gray-100">
                             <div className="text-sm text-gray-500 italic">
-                                {actionError && <span className="text-red-600 font-bold">Error: {actionError}</span>}
+                                {/* Status or info text could go here */}
                             </div>
                             <div className="flex gap-3">
                                 <Button type="button" variant="secondary" onClick={onClose} disabled={actionLoading}>{t('btn_cancel')}</Button>

@@ -188,8 +188,14 @@ export const translations = {
         status_reporté: "Postponed",
         status_retour: "Returned",
         status_annulé: "Cancelled",
-        status_pending_catalog: "Draft (Catalog)",
-        status_pending_action: "Pending Action",
+        status_pending_catalog: "Panier (Pas encore commandé)",
+        status_pending_action: "Action Requise",
+
+        // Confirmation Modal
+        confirm_title: "Confirmation",
+        confirm_yes: "Oui, Confirmer",
+        confirm_no: "Annuler",
+
 
 
         // Products
@@ -913,8 +919,14 @@ export const translations = {
         status_reporté: "Reporté",
         status_retour: "Retourné",
         status_annulé: "Annulé",
-        status_pending_catalog: "Brouillon (Catalogue)",
+        status_pending_catalog: "Panier (Pas encore commandé)",
         status_pending_action: "Action Requise",
+
+        // Confirmation Modal
+        confirm_title: "Confirmation",
+        confirm_yes: "Oui, Confirmer",
+        confirm_no: "Annuler",
+
 
 
         // Products
@@ -1634,6 +1646,12 @@ export const translations = {
         status_annulé: "ملغى",
         status_pending_catalog: "مسودة (كتالوج)",
         status_pending_action: "إجراء مطلوب",
+
+        // Confirmation Modal
+        confirm_title: "تأكيد",
+        confirm_yes: "نعم، تأكيد",
+        confirm_no: "إلغاء",
+
 
 
         // Products

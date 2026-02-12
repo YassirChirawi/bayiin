@@ -4,6 +4,7 @@ import { useStoreData } from "../hooks/useStoreData";
 import { Plus, Edit2, Trash2, QrCode, Search, X, FileText, CheckSquare, Square, Check, Trash, RotateCcw, Upload, Download, MessageCircle, DollarSign, AlertCircle, Truck, Package, Box, ShoppingCart, Printer } from "lucide-react";
 import Button from "../components/Button";
 import OrderModal from "../components/OrderModal";
+import ConfirmationModal from "../components/ConfirmationModal"; // NEW
 import ImportModal from "../components/ImportModal";
 import HelpTooltip from "../components/HelpTooltip";
 import { useOrderActions } from "../hooks/useOrderActions"; // Hook
@@ -72,6 +73,25 @@ export default function Orders() {
 
     // Pickup State
     const [isPickupLoading, setIsPickupLoading] = useState(false);
+
+    // Confirmation Modal State
+    const [confirmationModal, setConfirmationModal] = useState({
+        isOpen: false,
+        title: "",
+        message: "",
+        onConfirm: () => { },
+        confirmText: "",
+        cancelText: "",
+        isDestructive: false
+    });
+
+    const openConfirmation = (options) => {
+        setConfirmationModal({ ...options, isOpen: true });
+    };
+
+    const closeConfirmation = () => {
+        setConfirmationModal(prev => ({ ...prev, isOpen: false }));
+    };
 
     // TAB STATE: 'orders' | 'carts'
     const [activeTab, setActiveTab] = useState('orders');
@@ -193,18 +213,28 @@ export default function Orders() {
 
     const handleDelete = async (id) => {
         if (showTrash) {
-            if (window.confirm(t('confirm_permanent_delete'))) {
-                await permanentDeleteStoreItem(id);
-                setSelectedOrders(prev => prev.filter(oid => oid !== id));
-                toast.success(t('msg_order_deleted')); // Actually permanently deleted
-            }
+            openConfirmation({
+                title: t('confirm_permanent_delete'),
+                message: t('confirm_permanent_delete'),
+                isDestructive: true,
+                onConfirm: async () => {
+                    await permanentDeleteStoreItem(id);
+                    setSelectedOrders(prev => prev.filter(oid => oid !== id));
+                    toast.success(t('msg_order_deleted'));
+                }
+            });
         } else {
-            if (window.confirm(t('confirm_trash'))) {
-                await deleteStoreItem(id);
-                setSelectedOrders(prev => prev.filter(oid => oid !== id));
-                logActivity(db, store.id, user, 'ORDER_DELETE', `Order ${id} moved to trash`, { orderId: id });
-                toast.success(t('msg_order_deleted'));
-            }
+            openConfirmation({
+                title: t('confirm_trash'),
+                message: t('confirm_trash'),
+                isDestructive: true,
+                onConfirm: async () => {
+                    await deleteStoreItem(id);
+                    setSelectedOrders(prev => prev.filter(oid => oid !== id));
+                    logActivity(db, store.id, user, 'ORDER_DELETE', `Order ${id} moved to trash`, { orderId: id });
+                    toast.success(t('msg_order_deleted'));
+                }
+            });
         }
     };
 
@@ -264,80 +294,97 @@ export default function Orders() {
             ? t('confirm_bulk_delete_perm', { count: selectedOrders.length })
             : t('confirm_bulk_trash', { count: selectedOrders.length });
 
-        if (window.confirm(message)) {
-            await Promise.all(selectedOrders.map(id => showTrash ? permanentDeleteStoreItem(id) : deleteStoreItem(id)));
-            setSelectedOrders([]);
-            toast.success(showTrash ? t('msg_orders_deleted_perm') : t('msg_orders_moved_trash'));
-        }
+        openConfirmation({
+            title: showTrash ? "Suppression Définitive" : "Corbeille",
+            message: message,
+            isDestructive: true,
+            onConfirm: async () => {
+                await Promise.all(selectedOrders.map(id => showTrash ? permanentDeleteStoreItem(id) : deleteStoreItem(id)));
+                setSelectedOrders([]);
+                toast.success(showTrash ? t('msg_orders_deleted_perm') : t('msg_orders_moved_trash'));
+            }
+        });
     };
 
     const handleBulkRestore = async () => {
-        if (window.confirm(t('confirm_bulk_restore', { count: selectedOrders.length }))) {
-            await Promise.all(selectedOrders.map(id => restoreStoreItem(id)));
-            setSelectedOrders([]);
-            toast.success(t('msg_orders_restored'));
-        }
+        openConfirmation({
+            title: "Restaurer",
+            message: t('confirm_bulk_restore', { count: selectedOrders.length }),
+            onConfirm: async () => {
+                await Promise.all(selectedOrders.map(id => restoreStoreItem(id)));
+                setSelectedOrders([]);
+                toast.success(t('msg_orders_restored'));
+            }
+        });
     };
 
     const handleBulkPaid = async () => {
-        if (!window.confirm(t('confirm_bulk_pay', { count: selectedOrders.length }))) return;
+        openConfirmation({
+            title: "Marquer comme Payé",
+            message: t('confirm_bulk_pay', { count: selectedOrders.length }),
+            onConfirm: async () => {
+                try {
+                    const batch = writeBatch(db);
+                    selectedOrders.forEach(id => {
+                        const order = orders.find(o => o.id === id);
+                        if (!order || order.isPaid) return;
+                        const orderRef = doc(db, "orders", id);
+                        batch.update(orderRef, { isPaid: true });
+                    });
 
-        try {
-            const batch = writeBatch(db);
-            selectedOrders.forEach(id => {
-                const order = orders.find(o => o.id === id);
-                if (!order || order.isPaid) return;
-                const orderRef = doc(db, "orders", id);
-                batch.update(orderRef, { isPaid: true });
-            });
-
-            await batch.commit();
-            setSelectedOrders([]);
-            toast.success(t('msg_orders_marked_paid'));
-        } catch (err) {
-            console.error("Error bulk paying:", err);
-            toast.error("Failed to update payment status");
-        }
+                    await batch.commit();
+                    setSelectedOrders([]);
+                    toast.success(t('msg_orders_marked_paid'));
+                } catch (err) {
+                    console.error("Error bulk paying:", err);
+                    toast.error("Failed to update payment status");
+                }
+            }
+        });
     };
 
     const handleBulkStatus = async (status) => {
-        if (!window.confirm(t('confirm_bulk_status', { count: selectedOrders.length, status }))) return;
+        openConfirmation({
+            title: "Changer Statut",
+            message: t('confirm_bulk_status', { count: selectedOrders.length, status }),
+            onConfirm: async () => {
+                try {
+                    const batch = writeBatch(db);
 
-        try {
-            const batch = writeBatch(db);
+                    selectedOrders.forEach(id => {
+                        const order = orders.find(o => o.id === id);
+                        if (!order) return;
 
-            selectedOrders.forEach(id => {
-                const order = orders.find(o => o.id === id);
-                if (!order) return;
+                        const orderRef = doc(db, "orders", id);
+                        const updates = { status };
 
-                const orderRef = doc(db, "orders", id);
-                const updates = { status };
-
-                // 1. Stock Logic - MOVED TO CLOUD FUNCTIONS
-                // (client-side removed to prevent double counting)
+                        // 1. Stock Logic - MOVED TO CLOUD FUNCTIONS
+                        // (client-side removed to prevent double counting)
 
 
-                // 2. Financial Logic - REMOVED (Handled by Cloud Function to avoid double counting)
-                // Case A: Moving TO Inactive (Refund/Cancel) AND was Paid -> Unpay
-                if (isNewStatusInactive && order.isPaid) {
-                    updates.isPaid = false;
+                        // 2. Financial Logic - REMOVED (Handled by Cloud Function to avoid double counting)
+                        // Case A: Moving TO Inactive (Refund/Cancel) AND was Paid -> Unpay
+                        if (INACTIVE_STATUSES.includes(status) && order.isPaid) {
+                            updates.isPaid = false;
+                        }
+
+                        // Case B: Moving TO 'Livré' (Delivered) AND not Paid -> Auto-Pay
+                        if (status === 'livré' && !order.isPaid) {
+                            updates.isPaid = true;
+                        }
+
+                        batch.update(orderRef, updates);
+                    });
+
+                    await batch.commit();
+                    setSelectedOrders([]);
+                    toast.success(t('msg_orders_status_updated', { status }));
+                } catch (err) {
+                    console.error("Error updating statuses:", err);
+                    toast.error("Failed to update orders.");
                 }
-
-                // Case B: Moving TO 'Livré' (Delivered) AND not Paid -> Auto-Pay
-                if (status === 'livré' && !order.isPaid) {
-                    updates.isPaid = true;
-                }
-
-                batch.update(orderRef, updates);
-            });
-
-            await batch.commit();
-            setSelectedOrders([]);
-            toast.success(t('msg_orders_status_updated', { status }));
-        } catch (err) {
-            console.error("Error updating statuses:", err);
-            toast.error("Failed to update orders.");
-        }
+            }
+        });
     };
 
     const getStatusColor = (status) => {
@@ -406,26 +453,30 @@ export default function Orders() {
             return;
         }
 
-        if (!window.confirm(`Demander le ramassage pour ${senditOrders.length} colis ?`)) return;
+        openConfirmation({
+            title: "Confirmer Ramassage",
+            message: `Demander le ramassage pour ${senditOrders.length} colis ?`,
+            onConfirm: async () => {
+                setIsPickupLoading(true);
+                try {
+                    if (!store.senditPublicKey || !store.senditSecretKey) {
+                        throw new Error("Clés API Sendit manquantes.");
+                    }
+                    const token = await authenticateSendit(store.senditPublicKey, store.senditSecretKey);
 
-        setIsPickupLoading(true);
-        try {
-            if (!store.senditPublicKey || !store.senditSecretKey) {
-                throw new Error("Clés API Sendit manquantes.");
+                    const trackingIds = senditOrders.map(o => o.trackingId);
+                    const result = await requestSenditPickup(token, store, trackingIds);
+
+                    toast.success("Demande de ramassage envoyée avec succès !");
+                    setSelectedOrders([]); // Clear selection
+                } catch (error) {
+                    console.error("Pickup Error:", error);
+                    toast.error(error.message || "Erreur de demande de ramassage.");
+                } finally {
+                    setIsPickupLoading(false);
+                }
             }
-            const token = await authenticateSendit(store.senditPublicKey, store.senditSecretKey);
-
-            const trackingIds = senditOrders.map(o => o.trackingId);
-            const result = await requestSenditPickup(token, store, trackingIds);
-
-            toast.success("Demande de ramassage envoyée avec succès !");
-            setSelectedOrders([]); // Clear selection
-        } catch (error) {
-            console.error("Pickup Error:", error);
-            toast.error(error.message || "Erreur de demande de ramassage.");
-        } finally {
-            setIsPickupLoading(false);
-        }
+        });
     };
 
     // Filter Logic (Client Side Refinement of Server Results)
@@ -748,7 +799,12 @@ export default function Orders() {
                                                 <>
                                                     <button
                                                         onClick={() => {
-                                                            alert("Opening to modify. Please add client name/phone and change status to 'Reçu'.");
+                                                            toast((t) => (
+                                                                <span>
+                                                                    Opening to modify. Please add client name/phone and change status to 'Reçu'.
+                                                                    <button onClick={() => toast.dismiss(t.id)} className="ml-2 border border-black rounded px-1">Dismiss</button>
+                                                                </span>
+                                                            ), { duration: 5000 });
                                                             handleEdit(order);
                                                         }}
                                                         className="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700"
@@ -806,11 +862,15 @@ export default function Orders() {
                                                                 toast.error("Please configure O-Livraison API Keys in Settings first.");
                                                                 return;
                                                             }
-                                                            if (window.confirm(`Send Order #${order.orderNumber} to O-Livraison?`)) {
-                                                                sendToOlivraison(order)
-                                                                    .then(() => toast.success("Order sent to O-Livraison!"))
-                                                                    .catch(err => toast.error(err.message));
-                                                            }
+                                                            openConfirmation({
+                                                                title: "Send to O-Livraison",
+                                                                message: `Send Order #${order.orderNumber} to O-Livraison?`,
+                                                                onConfirm: () => {
+                                                                    sendToOlivraison(order)
+                                                                        .then(() => toast.success("Order sent to O-Livraison!"))
+                                                                        .catch(err => toast.error(err.message));
+                                                                }
+                                                            });
                                                         }}
                                                         disabled={
                                                             order.carrier === 'olivraison' // Disable if already sent
@@ -828,11 +888,15 @@ export default function Orders() {
                                                                 toast.error("Please configure Sendit API Keys in Settings first.");
                                                                 return;
                                                             }
-                                                            if (window.confirm(`Send Order #${order.orderNumber} to Sendit?`)) {
-                                                                sendToSendit(order)
-                                                                    .then(() => toast.success("Order sent to Sendit!"))
-                                                                    .catch(err => toast.error(err.message));
-                                                            }
+                                                            openConfirmation({
+                                                                title: "Send to Sendit",
+                                                                message: `Send Order #${order.orderNumber} to Sendit?`,
+                                                                onConfirm: () => {
+                                                                    sendToSendit(order)
+                                                                        .then(() => toast.success("Order sent to Sendit!"))
+                                                                        .catch(err => toast.error(err.message));
+                                                                }
+                                                            });
                                                         }}
                                                         disabled={
                                                             order.carrier === 'sendit'
@@ -1000,17 +1064,21 @@ export default function Orders() {
                                                     }
                                                     if (order.carrier === 'olivraison') return; // Double check
 
-                                                    if (window.confirm(`Send Order #${order.orderNumber} to O-Livraison?`)) {
-                                                        try {
-                                                            toast.loading("Sending to Carrier...");
-                                                            await sendToOlivraison(order);
-                                                            toast.dismiss();
-                                                            toast.success("Order sent to O-Livraison!");
-                                                        } catch (err) {
-                                                            toast.dismiss();
-                                                            toast.error(err.message);
+                                                    openConfirmation({
+                                                        title: "Send to O-Livraison",
+                                                        message: `Send Order #${order.orderNumber} to O-Livraison?`,
+                                                        onConfirm: async () => {
+                                                            try {
+                                                                toast.loading("Sending to Carrier...");
+                                                                await sendToOlivraison(order);
+                                                                toast.dismiss();
+                                                                toast.success("Order sent to O-Livraison!");
+                                                            } catch (err) {
+                                                                toast.dismiss();
+                                                                toast.error(err.message);
+                                                            }
                                                         }
-                                                    }
+                                                    });
                                                 }}
                                                 disabled={!store?.olivraisonApiKey || order.carrier === 'olivraison'}
                                                 className={`p-2 rounded-full transition-colors ${!store?.olivraisonApiKey
@@ -1035,17 +1103,21 @@ export default function Orders() {
                                                     }
                                                     if (order.carrier === 'sendit') return;
 
-                                                    if (window.confirm(`Send Order #${order.orderNumber} to Sendit?`)) {
-                                                        try {
-                                                            toast.loading("Sending to Sendit...");
-                                                            await sendToSendit(order);
-                                                            toast.dismiss();
-                                                            toast.success("Order sent to Sendit!");
-                                                        } catch (err) {
-                                                            toast.dismiss();
-                                                            toast.error(err.message);
+                                                    openConfirmation({
+                                                        title: "Send to Sendit",
+                                                        message: `Send Order #${order.orderNumber} to Sendit?`,
+                                                        onConfirm: async () => {
+                                                            try {
+                                                                toast.loading("Sending to Sendit...");
+                                                                await sendToSendit(order);
+                                                                toast.dismiss();
+                                                                toast.success("Order sent to Sendit!");
+                                                            } catch (err) {
+                                                                toast.dismiss();
+                                                                toast.error(err.message);
+                                                            }
                                                         }
-                                                    }
+                                                    });
                                                 }}
                                                 disabled={!store?.senditPublicKey || order.carrier === 'sendit'}
                                                 className={`p-2 rounded-full transition-colors ${!store?.senditPublicKey
@@ -1126,6 +1198,15 @@ export default function Orders() {
                 onClose={() => { setIsModalOpen(false); setEditingOrder(null); }}
                 onSave={handleSave}
                 order={editingOrder}
+            />
+
+            <ConfirmationModal
+                isOpen={confirmationModal.isOpen}
+                onClose={closeConfirmation}
+                onConfirm={confirmationModal.onConfirm}
+                title={confirmationModal.title}
+                message={confirmationModal.message}
+                isDestructive={confirmationModal.isDestructive}
             />
 
             {/* QR Code Modal */}

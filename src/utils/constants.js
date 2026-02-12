@@ -8,7 +8,8 @@ export const ORDER_STATUS = {
     CANCELLED: 'annulé',
     RETURNED: 'retour',
     NO_ANSWER: 'pas de réponse',
-    POSTPONED: 'reporté'
+    POSTPONED: 'reporté',
+    PENDING_CATALOG: 'pending_catalog'
 };
 
 export const ORDER_STATUS_LABELS = {
@@ -21,7 +22,8 @@ export const ORDER_STATUS_LABELS = {
     [ORDER_STATUS.CANCELLED]: { label: 'Annulé', color: 'bg-red-100 text-red-800' },
     [ORDER_STATUS.RETURNED]: { label: 'Retour', color: 'bg-orange-100 text-orange-800' },
     [ORDER_STATUS.NO_ANSWER]: { label: 'Pas de réponse', color: 'bg-gray-400 text-white' },
-    [ORDER_STATUS.POSTPONED]: { label: 'Reporté', color: 'bg-indigo-100 text-indigo-800' }
+    [ORDER_STATUS.POSTPONED]: { label: 'Reporté', color: 'bg-indigo-100 text-indigo-800' },
+    [ORDER_STATUS.PENDING_CATALOG]: { label: 'Panier (Clients)', color: 'bg-yellow-100 text-yellow-800' }
 };
 
 export const PAYMENT_METHODS = {
