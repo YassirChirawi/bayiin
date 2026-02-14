@@ -141,7 +141,7 @@ export const useOrderActions = () => {
                 throw new Error("Sendit API keys not configured in Settings.");
             }
 
-            // 1. Authenticate
+            // 1. Authenticate (Benefit from caching inside senditService)
             const token = await authenticateSendit(store.senditPublicKey, store.senditSecretKey);
 
             // 2. Create Package
