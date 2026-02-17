@@ -8,6 +8,7 @@ import PageTransition from "./PageTransition";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Copilot from "./Copilot";
+import NotificationBell from "./NotificationBell";
 
 export default function Layout() {
     const { store, loading } = useTenant();
@@ -64,12 +65,15 @@ export default function Layout() {
                         {store?.name}
                     </span>
                 </div>
-                <button
-                    onClick={() => setIsMobileMenuOpen(true)}
-                    className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                >
-                    <Menu className="h-6 w-6" />
-                </button>
+                <div className="flex gap-2">
+                    <NotificationBell />
+                    <button
+                        onClick={() => setIsMobileMenuOpen(true)}
+                        className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                    >
+                        <Menu className="h-6 w-6" />
+                    </button>
+                </div>
             </div>
 
             <Sidebar
@@ -77,7 +81,15 @@ export default function Layout() {
                 onClose={() => setIsMobileMenuOpen(false)}
             />
 
-            <main className="flex-1 overflow-auto h-[calc(100vh-65px)] md:h-screen w-full">
+            <main className="flex-1 overflow-auto h-[calc(100vh-65px)] md:h-screen w-full relative">
+                {/* Desktop Header for Notifications & Search (Hidden on Mobile) */}
+                <div className="hidden md:flex justify-end items-center p-4 bg-white border-b border-gray-200 sticky top-0 z-20">
+                    <div className="flex items-center gap-4">
+                        <NotificationBell />
+                        {/* Could add Profile Dropdown here later */}
+                    </div>
+                </div>
+
                 {announcement && (
                     <div className={`w-full px-4 py-3 text-white text-center shadow-sm ${announcement.type === 'warning' ? 'bg-orange-600' : 'bg-indigo-600'}`}>
                         <p className="font-medium text-sm md:text-base">{announcement.message}</p>

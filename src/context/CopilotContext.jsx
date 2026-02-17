@@ -26,17 +26,21 @@ export const CopilotProvider = ({ children }) => {
 
     // Initialize AI with key from store settings or env
     // In a real app, this should be reactive to settings changes
-    // Initialize AI with key from store settings or env
-    // In a real app, this should be reactive to settings changes
     useEffect(() => {
-        // Try to get key from environment first, then maybe store settings (not yet implemented there)
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        // 1. Try Store Settings (User defined)
+        let apiKey = store?.geminiApiKey;
+
+        // 2. Fallback to Env (Dev/Global)
+        if (!apiKey) {
+            apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        }
+
         if (apiKey) {
             initializeAI(apiKey);
         } else {
             console.warn("Gemini API Key missing. Copilot will be limited.");
         }
-    }, []);
+    }, [store?.geminiApiKey]); // Re-run when store updates
 
     const { createOrder } = useOrderActions(); // Hook for actions
 

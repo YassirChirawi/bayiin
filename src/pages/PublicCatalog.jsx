@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { doc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { getWhatsappLink } from "../utils/whatsappTemplates";
+import { createRawWhatsAppLink } from "../utils/whatsappTemplates";
 import { Package, Search, Filter, ShoppingBag, MapPin, ShoppingCart, X, Plus, Minus, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -145,7 +145,7 @@ export default function PublicCatalog() {
                 message = `Bonjour ${store.name}, je souhaite commander :\n\n${itemsList}\n\n${totalLine}\nRef: ${orderRefNum}`;
             }
 
-            const url = getWhatsappLink(store.phone, message);
+            const url = createRawWhatsAppLink(store.phone, message);
             window.open(url, '_blank');
 
             // 4. Clear Cart

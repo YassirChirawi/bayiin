@@ -58,7 +58,7 @@ export const generateAIResponse = async (prompt) => {
         return response.text();
     } catch (error) {
         console.error("Gemini Error:", error);
-        return "Aïe, j'ai un petit mal de tête... 🤕 Peux-tu reformuler ? (Erreur API)";
+        return `Aïe, j'ai un petit mal de tête... 🤕 (Erreur: ${error.message || error})`;
     }
 };
 
@@ -227,4 +227,35 @@ export const detectFinancialLeaks = (orders, cac = 0) => {
         negativeMargins,
         summary: `Détection terminée : ${ghostOrders.length} commandes fantômes et ${negativeMargins.length} marges négatives.`
     };
+};
+
+/**
+ * Analyzes a financial scenario from the CFO Simulator
+ * @param {object} baseStats - Current actual stats
+ * @param {object} scenario - Slider values {adSpend, price, cogs}
+ * @param {object} projections - Projected stats {revenue, profit, margin}
+ */
+export const analyzeFinancialScenario = async (baseStats, scenario, projections) => {
+    const prompt = `
+    Agis comme un Directeur Financier (CFO) expert pour un E-commerce. Analyse ce scénario simulé :
+    
+    SCÉNARIO:
+    - Budget Pub: ${scenario.adSpend > 0 ? '+' : ''}${scenario.adSpend}%
+    - Prix de Vente: ${scenario.price > 0 ? '+' : ''}${scenario.price}%
+    - Coût Produit (COGS): ${scenario.cogs > 0 ? '+' : ''}${scenario.cogs}%
+
+    RÉSULTATS PROJETÉS:
+    - Chiffre d'affaires: ${projections.revenue.toFixed(0)} DH (vs ${baseStats.realizedRevenue} DH)
+    - Profit Net: ${projections.profit.toFixed(0)} DH (vs ${baseStats.netResult} DH)
+    - Marge Nette: ${projections.margin.toFixed(1)}% (vs ${baseStats.margin}%)
+
+    TA MISSION:
+    1. Donne un verdict immédiat (Risqué, Rentable, ou Prudent).
+    2. Explique pourquoi en 1 phrase simple.
+    3. Donne un conseil stratégique pour sécuriser ce plan.
+
+    Réponds en français, ton amical et professionnel (style Beya3).
+    `;
+
+    return await generateAIResponse(prompt);
 };

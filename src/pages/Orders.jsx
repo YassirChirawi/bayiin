@@ -10,7 +10,7 @@ import HelpTooltip from "../components/HelpTooltip";
 import { useOrderActions } from "../hooks/useOrderActions"; // Hook
 import QRCode from "react-qr-code";
 import { generateInvoice } from "../utils/generateInvoice";
-import { getWhatsappMessage, getWhatsappLink } from "../utils/whatsappTemplates";
+import { getWhatsappMessage, createRawWhatsAppLink } from "../utils/whatsappTemplates";
 import { exportToCSV } from "../utils/csvHelper";
 
 import { useTenant } from "../context/TenantContext";
@@ -942,7 +942,7 @@ export default function Orders() {
                                             {/* WhatsApp Notification */}
                                             {/* WhatsApp Notification */}
                                             <a
-                                                href={getWhatsappLink(
+                                                href={createRawWhatsAppLink(
                                                     order.clientPhone,
                                                     getWhatsappMessage(order.status, order, store)
                                                 )}
@@ -984,7 +984,7 @@ export default function Orders() {
                 ) : (
                     filteredOrders.map((order) => {
                         const isSelected = selectedOrders.includes(order.id);
-                        const waLink = getWhatsappLink(order.clientPhone, getWhatsappMessage(order.status, order, store));
+                        const waLink = createRawWhatsAppLink(order.clientPhone, getWhatsappMessage(order.status, order, store));
                         const totalPrice = order.price ? (order.source === 'public_catalog' ? parseFloat(order.price).toFixed(2) : (order.price * order.quantity).toFixed(2)) : '-';
 
                         return (

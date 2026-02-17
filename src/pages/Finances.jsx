@@ -14,9 +14,10 @@ import TopProductsChart from "../components/charts/TopProductsChart"; // NEW
 import CityRevenueChart from "../components/charts/CityRevenueChart"; // NEW
 import { motion } from "framer-motion"; // NEW
 import { getTopProducts, getCityStats, getHighReturnCities, getRetentionStats } from "../utils/analytics"; // NEW
-import { generateFinancialInsight, detectFinancialLeaks } from "../services/aiService"; // NEW
+import { generateFinancialInsight, detectFinancialLeaks, analyzeFinancialScenario } from "../services/aiService"; // NEW
 import { calculateFinancialStats } from "../utils/financials"; // NEW
 import { getSenditInvoices } from "../lib/sendit"; // NEW
+import CFOSimulator from "../components/CFOSimulator"; // NEW
 
 export default function Finances() {
     const { store } = useTenant();
@@ -512,6 +513,19 @@ export default function Finances() {
                             {stats.res.profitPerOrder} DH
                         </span>
                     </div>
+                </div>
+
+                {/* CFO Simulator Section */}
+                <div className="mb-8">
+                    <CFOSimulator
+                        currentStats={stats.res}
+                        onAiAnalysis={async (scenario, projections) => {
+                            const analysis = await analyzeFinancialScenario(stats.res, scenario, projections);
+                            setInsight(analysis); // Utilize the existing insight box to show the result
+                            // Scroll to insight box
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                    />
                 </div>
             </div>
 

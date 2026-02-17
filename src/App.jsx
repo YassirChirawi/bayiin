@@ -47,6 +47,7 @@ const AnalyticsTracker = () => {
 import { LanguageProvider } from "./context/LanguageContext"; // NEW
 import CookieBanner from "./components/CookieBanner"; // NEW
 import { CopilotProvider } from "./context/CopilotContext"; // NEW
+import { NotificationProvider } from "./context/NotificationContext"; // NEW
 import SupportAI from "./pages/SupportAI"; // NEW
 
 function App() {
@@ -56,94 +57,96 @@ function App() {
         <AuthContextWrapper>
           <TenantProvider>
             <CopilotProvider>
-              <BrowserRouter>
-                <AnalyticsTracker />
-                <Toaster
-                  position="top-right"
-                  toastOptions={{
-                    className: '',
-                    style: {
-                      background: '#333',
-                      color: '#fff',
-                    },
-                    success: {
+              <NotificationProvider>
+                <BrowserRouter>
+                  <AnalyticsTracker />
+                  <Toaster
+                    position="top-right"
+                    toastOptions={{
+                      className: '',
                       style: {
-                        background: 'white',
-                        color: '#15803d', // green-700
-                        border: '1px solid #bbf7d0', // green-200
-                        padding: '16px',
-                        borderRadius: '12px',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                        fontWeight: 500,
+                        background: '#333',
+                        color: '#fff',
                       },
-                      iconTheme: {
-                        primary: '#22c55e',
-                        secondary: '#fff',
+                      success: {
+                        style: {
+                          background: 'white',
+                          color: '#15803d', // green-700
+                          border: '1px solid #bbf7d0', // green-200
+                          padding: '16px',
+                          borderRadius: '12px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                          fontWeight: 500,
+                        },
+                        iconTheme: {
+                          primary: '#22c55e',
+                          secondary: '#fff',
+                        },
+                        duration: 4000,
                       },
-                      duration: 4000,
-                    },
-                    error: {
-                      style: {
-                        background: 'white',
-                        color: '#b91c1c', // red-700
-                        border: '1px solid #fecaca', // red-200
-                        padding: '16px',
-                        borderRadius: '12px',
-                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', // Stronger shadow for errors
-                        fontWeight: 600,
+                      error: {
+                        style: {
+                          background: 'white',
+                          color: '#b91c1c', // red-700
+                          border: '1px solid #fecaca', // red-200
+                          padding: '16px',
+                          borderRadius: '12px',
+                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', // Stronger shadow for errors
+                          fontWeight: 600,
+                        },
+                        iconTheme: {
+                          primary: '#ef4444',
+                          secondary: '#fff',
+                        },
+                        duration: 5000, // Stay longer
                       },
-                      iconTheme: {
-                        primary: '#ef4444',
-                        secondary: '#fff',
-                      },
-                      duration: 5000, // Stay longer
-                    },
-                  }}
-                />
-                <Routes>
-                  <Route path="/" element={<SmartLanding />} /> {/* Modified */}
-                  {/* Public Routes */}
-                  <Route path="/catalog/:storeId" element={<PublicCatalog />} /> {/* NEW */}
+                    }}
+                  />
+                  <Routes>
+                    <Route path="/" element={<SmartLanding />} /> {/* Modified */}
+                    {/* Public Routes */}
+                    <Route path="/catalog/:storeId" element={<PublicCatalog />} /> {/* NEW */}
 
-                  <Route path="/privacy" element={<Privacy />} />
-                  <Route path="/terms" element={<Terms />} />
-                  <Route path="/demo" element={<DemoDashboard />} />
-                  <Route path="/admin" element={
-                    <ProtectedRoute>
-                      <BiometricLock>
-                        <AdminDashboard />
-                      </BiometricLock>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/signup" element={<Signup />} />
-                  <Route path="/onboarding" element={
-                    <ProtectedRoute>
-                      <Onboarding />
-                    </ProtectedRoute>
-                  } />
-                  <Route element={
-                    <ProtectedRoute>
-                      <BiometricLock> {/* Protected by Lock */}
-                        <Layout />
-                      </BiometricLock>
-                    </ProtectedRoute>
-                  }>
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/finances" element={<Finances />} />
-                    <Route path="/products" element={<Products />} />
-                    <Route path="/orders" element={<Orders />} />
-                    <Route path="/customers" element={<Customers />} />
-                    <Route path="/planning" element={<Planning />} />
-                    <Route path="/team" element={<Team />} />
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="/help" element={<Help />} />
-                    <Route path="/support-ai" element={<SupportAI />} /> {/* NEW */}
-                  </Route>
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-                <CookieBanner />
-              </BrowserRouter>
+                    <Route path="/privacy" element={<Privacy />} />
+                    <Route path="/terms" element={<Terms />} />
+                    <Route path="/demo" element={<DemoDashboard />} />
+                    <Route path="/admin" element={
+                      <ProtectedRoute>
+                        <BiometricLock>
+                          <AdminDashboard />
+                        </BiometricLock>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/signup" element={<Signup />} />
+                    <Route path="/onboarding" element={
+                      <ProtectedRoute>
+                        <Onboarding />
+                      </ProtectedRoute>
+                    } />
+                    <Route element={
+                      <ProtectedRoute>
+                        <BiometricLock> {/* Protected by Lock */}
+                          <Layout />
+                        </BiometricLock>
+                      </ProtectedRoute>
+                    }>
+                      <Route path="/dashboard" element={<Dashboard />} />
+                      <Route path="/finances" element={<Finances />} />
+                      <Route path="/products" element={<Products />} />
+                      <Route path="/orders" element={<Orders />} />
+                      <Route path="/customers" element={<Customers />} />
+                      <Route path="/planning" element={<Planning />} />
+                      <Route path="/team" element={<Team />} />
+                      <Route path="/settings" element={<Settings />} />
+                      <Route path="/help" element={<Help />} />
+                      <Route path="/support-ai" element={<SupportAI />} /> {/* NEW */}
+                    </Route>
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                  <CookieBanner />
+                </BrowserRouter>
+              </NotificationProvider>
             </CopilotProvider>
           </TenantProvider>
         </AuthContextWrapper>

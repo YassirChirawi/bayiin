@@ -1,138 +1,124 @@
-// Default Templates (French)
-export const DEFAULT_TEMPLATES = {
-    'reçu': "Bonjour [Client], nous avons bien reçu votre commande chez [Store].\n\n📄 *Détails* :\n[Ticket]\n\nMerci de confirmer votre adresse et disponibilité pour l'expédition. Répondez 'OUI' pour valider. ✅",
-    'packing': "Bonjour [Client], votre commande [Commande] est en cours de préparation chez [Store].",
-    'ramassage': "Bonjour [Client], votre commande est prête pour le ramassage.",
-    'livraison': "Bonjour [Client], votre commande [Commande] est en cours de livraison sur [Ville]. Le livreur vous contactera bientôt.",
-    'livré': "Bonjour [Client], votre commande a été livrée avec succès. Merci de votre confiance en [Store] !",
-    'pas de réponse': "Bonjour [Client], [Store] a tenté de vous joindre concernant votre commande sans succès. Souhaitez-vous toujours recevoir votre commande ?",
-    'retour': "Bonjour [Client], votre commande [Commande] nous a été retournée.",
-    'annulé': "Bonjour [Client], votre commande a été annulée.",
-    'catalog_order': "Bonjour [Store], je souhaite commander :\n\n[Ticket]\n\nMerci de confirmer.",
-    // AI Segments
-    'welcome': "Bienvenue [Client] chez [Store] ! 🎁 Voici un code promo pour votre prochaine commande : WELCOME10.",
-    'vip_offer': "Bonjour [Client] ! En tant que client VIP 🏆 chez [Store], profitez de -20% sur tout le site cette semaine !",
-    'vip_comeback': "Bonjour [Client] ! Ça fait longtemps... Une surprise vous attend chez [Store]. Revenez vite ! 🎁",
-    'comeback': "Bonjour [Client], vous nous manquez chez [Store] ! Voici une offre spéciale juste pour vous.",
-    'loyalty_reward': "Merci [Client] pour votre fidélité ! ⭐ Voici un petit cadeau pour votre prochaine commande.",
-    'winback': "Bonjour [Client], nous avons de nouvelles collections chez [Store] qui pourraient vous plaire. Jetez un œil ! 👀",
-    'standard_promo': "Bonjour [Client], découvrez nos nouveautés de la semaine chez [Store] !"
-};
 
-// Darija Templates
-export const DARIJA_TEMPLATES = {
-    'reçu': "Salam [Client], wslatna la commande dialk f [Store].\n\n📄 *Tafassil* :\n[Ticket]\n\nBach nsiftoha lik l [Ville], momkin t'akder lina l'adresse o lweqt ? Jawbna b 'OUI' bach nvalidiw. ✅",
-    'packing': "Salam [Client], commande dialk [Commande] ra hna kanwjdo fiha daba f [Store].",
-    'ramassage': "Salam [Client], commande dialk wjdat bach n3tiwha l livreur.",
-    'livraison': "Salam [Client], ra livreur jay 3endk l [Ville], 7di m3a ton tel ghadi i3eyet lik 9rib.",
-    'livré': "Salam [Client], commande dialk [Commande] wslatek. Chokran hit teqti fina o ntmenaw ikon produit 3ejbek.",
-    'pas de réponse': "Salam [Client], livreur 3eyet likom o malqakomch, mazal baghin la commande ? Chokran.",
-    'retour': "Salam [Client], commande dialk [Commande] atrje3 lina. Ila mazal baghiha 3eyet lina f aqreb weqt chokran.",
-    'annulé': "Salam [Client], commande dialk tghat (annulée).",
-    'catalog_order': "Salam [Store], bghit ncommandi hadchi :\n\n[Ticket]\n\nChokran.",
-    // AI Segments (Darija)
-    'welcome': "Merhba bik [Client] f [Store] ! 🎁 Ha wahed code promo lik : WELCOME10.",
-    'vip_offer': "Salam [Client] ! Hit nta min a3az lclients 🏆, 3endek -20% f [Store] had simana !",
-    'vip_comeback': "Salam [Client] ! Ghabarti 3lina... Kayna surprise katsanaka f [Store]. Merhba ! 🎁",
-    'comeback': "Salam [Client], twahechnak f [Store] ! Ha wahed l3ard special lik.",
-    'loyalty_reward': "Chokran [Client] 3la lwafaa dyalk ! ⭐ Ha wahed cadeau sghir la commande jayya.",
-    'winback': "Salam [Client], dkhel chouf jdid f [Store], kayn chi hwayj zwinin ! 👀",
-    'standard_promo': "Salam [Client], chouf jdid dial had simana f [Store] !"
+/**
+ * WhatsApp Message Templates for Customer Segments
+ * Keys must match the 'messageKey' returned by aiSegmentation.js
+ */
+export const WHATSAPP_TEMPLATES = {
+    fr: {
+        vip_offer: "Bonjour {name} ! 🌟 Merci d'être l'un de nos meilleurs clients. Pour vous remercier, voici -20% sur votre prochaine commande avec le code VIP20 !",
+        vip_comeback: "Bonjour {name}, nos nouveautés vous attendent ! 🏆 En tant que VIP, on ne veut pas vous perdre. Revenez vite voir la nouvelle collection.",
+        loyalty_reward: "Salut {name} ! ⭐ Merci pour votre fidélité. Saviez-vous que vous avez la livraison offerte sur votre prochaine commande ?",
+        comeback: "Bonjour {name}, ça fait longtemps ! 👋 Vous nous manquez. Voici un petit cadeau pour votre retour : -10% avec le code WELCOMEBACK.",
+        winback: "Toc toc {name} ? 💤 On n'a plus de nouvelles... Profitez de nos soldes exclusives pour vous faire plaisir !",
+        welcome: "Bienvenue {name} ! 🌱 Merci pour votre première commande. N'hésitez pas si vous avez des questions.",
+        standard_promo: "Bonjour {name}, découvrez nos offres de la semaine sur le site ! À très vite."
+    },
+    en: {
+        vip_offer: "Hi {name}! 🌟 Thanks for being a top customer. Here is 20% OFF your next order with code VIP20!",
+        vip_comeback: "Hi {name}! 🏆 We miss our VIPs! Come check out our new collection.",
+        loyalty_reward: "Hello {name}! ⭐ Thanks for your loyalty. Free shipping on your next order!",
+        comeback: "Hi {name}, long time no see! 👋 Here is 10% OFF with code WELCOMEBACK.",
+        winback: "Knock knock {name}? 💤 We miss you! Check out our exclusive sales.",
+        welcome: "Welcome {name}! 🌱 Thanks for your first order.",
+        standard_promo: "Hi {name}, check out our weekly offers! See you soon."
+    }
 };
 
 /**
- * Generates the WhatsApp message content
- * @param {string} status 
- * @param {object} order - Full order object
- * @param {object} store - Store object containing name and templates
+ * Generates a WhatsApp link with pre-filled message
+ * @param {string} phone - Customer phone number
+ * @param {string} name - Customer name
+ * @param {string} key - Template key (e.g. 'vip_offer')
+ * @param {string} lang - Language code ('fr' or 'en')
  */
-export const getWhatsappMessage = (status, order, store) => {
-    const lang = store?.whatsappLanguage || 'fr'; // 'fr' or 'darija'
-    const defaults = lang === 'darija' ? DARIJA_TEMPLATES : DEFAULT_TEMPLATES;
+export const getWhatsAppLink = (phone, name, key, lang = 'fr') => {
+    if (!phone) return '#';
 
-    // 1. Get the template: Custom > Default > Fallback
-    const customTemplates = store?.whatsappTemplates || {};
-    // Note: customTemplates currently doesn't distinction language separate keys likely.
-    // If user customizes, it overrides everything.
-    // But defaults should switch based on language.
-    const rawTemplate = customTemplates[status] || defaults[status] || "Bonjour [Client], mise à jour concernant votre commande.";
+    // Clean phone number (remove spaces, ensure international format if needed)
+    // Assuming Input is roughly correct or local format. 
+    // Ideally user inputs 06... for Morocco, we transform to 2126...
+    let cleanPhone = phone.replace(/[^0-9]/g, '');
+    if (cleanPhone.startsWith('0')) cleanPhone = '212' + cleanPhone.substring(1); // Default to Morocco if 0 start
 
-    // 2. Prepare Data
-    // Handle legacy case where order might be just a name? No, we enforcing object now.
-    // Safety check just in case
-    const orderObj = (typeof order === 'object') ? order : { clientName: order };
+    const templates = WHATSAPP_TEMPLATES[lang] || WHATSAPP_TEMPLATES['fr'];
+    let message = templates[key] || templates['standard_promo'];
 
-    const clientName = orderObj.clientName || "Client";
-    const storeName = store?.name || "Notre Boutique";
-    const cityName = orderObj.clientCity || orderObj.city || "";
-    const productName = orderObj.articleName || "Article";
-    const orderNumber = orderObj.orderNumber || "";
-
-    // 3. Build Ticket Text
-    let ticketText = "";
-    if (true) {
-        const subtotal = (parseFloat(orderObj.price) || 0) * (parseInt(orderObj.quantity) || 1);
-        const shipping = parseFloat(orderObj.shippingCost) || 0;
-        const total = subtotal + shipping;
-        // Ticket language should also adapt? Ideally yes, but let's keep it somewhat standard or localized.
-        const currency = store?.currency || 'MAD';
-        if (lang === 'darija') {
-            ticketText = `----------------\n📦 Produit: ${productName}\n💰 Taman: ${subtotal.toFixed(2)} ${currency}\n🚚 Livraison: ${shipping.toFixed(2)} ${currency}\n💵 *TOTAL: ${total.toFixed(2)} ${currency}*\n----------------`;
-        } else {
-            ticketText = `----------------\n📦 Article: ${productName}\n💰 Sous-total: ${subtotal.toFixed(2)} ${currency}\n🚚 Livraison: ${shipping.toFixed(2)} ${currency}\n💵 *TOTAL: ${total.toFixed(2)} ${currency}*\n----------------`;
-        }
-    }
-
-    // 4. Replace Placeholders
-    let message = rawTemplate
-        .replace(/\[Client\]/g, clientName)
-        .replace(/\[Store\]/g, storeName)
-        .replace(/\[Ville\]/g, cityName)
-        .replace(/\[Produit\]/g, productName)
-        .replace(/\[Commande\]/g, orderNumber)
-        .replace(/\[Ticket\]/g, ticketText);
-
-    return message;
-};
-
-export const getWhatsappLink = (phone, message) => {
-    if (!phone) return "#";
-
-    // 1. Remove spaces, dashes, parentheses
-    let cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
-
-    // 2. Check if specific country code (starts with +)
-    if (cleanPhone.startsWith('+')) {
-        // Remove the plus, keep the rest
-        cleanPhone = cleanPhone.substring(1);
-    } else if (cleanPhone.startsWith('00')) {
-        // Replace leading 00 with nothing (standard international prefix)
-        cleanPhone = cleanPhone.substring(2);
-    } else if (cleanPhone.startsWith('0') && cleanPhone.length > 9) {
-        // If it looks like a local Moroccan number (06..., 07...), format to 212
-        // Default assumption: If starts with 0 and is not following above rules, treat as local 212
-        cleanPhone = '212' + cleanPhone.substring(1);
-    }
+    // Personalize
+    message = message.replace('{name}', name || 'Client');
 
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
 };
 
 /**
- * Gets a specific AI segment message
+ * Creates a WhatsApp link with a raw message
+ * @param {string} phone 
+ * @param {string} message 
  */
-export const getWhatsappMessageForSegment = (segmentKey, customer, store) => {
-    // We reuse the main function logic partially, or simplistic version
-    // Ideally we should refactor getWhatsappMessage to handle arbitrary keys if they exist in templates
+export const createRawWhatsAppLink = (phone, message) => {
+    if (!phone) return '#';
+    let cleanPhone = phone.replace(/[^0-9]/g, '');
+    if (cleanPhone.startsWith('0')) cleanPhone = '212' + cleanPhone.substring(1);
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+};
 
-    // Quick fix: re-use logic by calling getWhatsappMessage with the segmentKey as 'status'
-    // This works because we added the keys to the DEFAULT_TEMPLATES/DARIJA_TEMPLATES objects!
+/**
+ * Generates specific order status messages
+ * @param {string} status - Order status
+ * @param {object} order - Order object
+ * @param {object} store - Store object
+ */
+export const getWhatsappMessage = (status, order, store) => {
+    const storeName = store?.name || 'Notre Boutique';
+    const clientName = order?.clientName || 'Client';
+    const product = order?.articleName || 'votre commande';
+    const price = order?.price || '';
 
-    // We treat 'customer' object as 'order' object for the purpose of name replacement
-    const mockOrder = {
-        clientName: customer.name,
-        clientCity: customer.city,
-        // No product details for generic re-engagement
-    };
+    // Status keys from constants.js: 'reçu', 'confirmation', 'livraison', 'livré', 'annulé', etc.
+    switch (status) {
+        case 'reçu':
+        case 'pending_catalog':
+            return `Bonjour ${clientName}, nous avons bien reçu votre commande pour ${product}. Nous vous contacterons bientôt pour confirmer. - ${storeName}`;
+        case 'confirmation':
+            return `Bonjour ${clientName}, votre commande ${product} est confirmée à ${price} DH. Merci de votre confiance ! - ${storeName}`;
+        case 'livraison':
+            return `Bonjour ${clientName}, bonne nouvelle ! Votre commande ${product} a été expédiée. Vous la recevrez très bientôt. - ${storeName}`;
+        case 'livré':
+            return `Bonjour ${clientName}, votre commande ${product} est livrée. Nous espérons qu'elle vous plaît ! - ${storeName}`;
+        case 'annulé':
+            return `Bonjour ${clientName}, votre commande ${product} a été annulée. N'hésitez pas à nous contacter si besoin. - ${storeName}`;
+        case 'reporté':
+            return `Bonjour ${clientName}, comme convenu, la livraison de votre commande ${product} a été reportée. À bientôt ! - ${storeName}`;
+        case 'pas de réponse':
+            return `Bonjour ${clientName}, nous avons essayé de vous joindre pour votre commande ${product}. Quand êtes-vous disponible ? - ${storeName}`;
+        default:
+            return `Bonjour ${clientName}, concernant votre commande ${product} chez ${storeName}...`;
+    }
+};
 
-    return getWhatsappMessage(segmentKey, mockOrder, store);
+/**
+ * Default French Templates for Settings
+ */
+export const DEFAULT_TEMPLATES = {
+    'reçu': "Bonjour, nous avons bien reçu votre commande. Nous vous contacterons bientôt pour confirmer.",
+    'confirmation': "Bonjour, votre commande est confirmée. Merci de votre confiance !",
+    'livraison': "Bonjour, bonne nouvelle ! Votre commande a été expédiée. Vous la recevrez très bientôt.",
+    'livré': "Bonjour, votre commande est livrée. Nous espérons qu'elle vous plaît !",
+    'annulé': "Bonjour, votre commande a été annulée. N'hésitez pas à nous contacter si besoin.",
+    'retour': "Bonjour, nous avons bien reçu votre retour.",
+    'pas de réponse': "Bonjour, nous avons essayé de vous joindre pour votre commande. Quand êtes-vous disponible ?",
+    'reporté': "Bonjour, comme convenu, la livraison de votre commande a été reportée."
+};
+
+/**
+ * Default Darija Templates for Settings
+ */
+export const DARIJA_TEMPLATES = {
+    'reçu': "Salam, wselna talab dyalk. Ghadi ntaslo bik qrib bach nawkdo.",
+    'confirmation': "Salam, talab dyalk tkonfirma. Chokran 3la tiqa dyalk !",
+    'livraison': "Salam, khbar zwina ! Talab dyalk rah f triq, ghadi iwslk qrib.",
+    'livré': "Salam, talab dyalk wsel. Ntamnaw i3jbkom !",
+    'annulé': "Salam, talab dyalk tlagha. Ila htajiti chi haja hna mojodin.",
+    'retour': "Salam, wslna retour dyalk.",
+    'pas de réponse': "Salam, hawlna ntaslo bik 3la qbal talab dyalk walakin ma jawbtich. Waqtach nqdro nhdro m3ak ?",
+    'reporté': "Salam, kima tfahmna, la livraison dyal talab dyalk t2ajlat."
 };

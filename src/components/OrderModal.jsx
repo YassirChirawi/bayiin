@@ -7,7 +7,7 @@ import { useStoreData } from "../hooks/useStoreData";
 import { collection, query, where, getDocs, doc } from "firebase/firestore"; // Minimized imports
 import { db } from "../lib/firebase";
 import { useTenant } from "../context/TenantContext";
-import { getWhatsappMessage, getWhatsappLink } from "../utils/whatsappTemplates";
+import { getWhatsappMessage, createRawWhatsAppLink } from "../utils/whatsappTemplates";
 import { MOROCCAN_CITIES } from "../utils/moroccanCities";
 import { ORDER_STATUS, ORDER_STATUS_LABELS, PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "../utils/constants";
 import { useOrderActions } from "../hooks/useOrderActions";
@@ -241,7 +241,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
             if (notifyClient) {
                 // Generate fresh message to be sure (using latest formData)
                 const message = getWhatsappMessage(formData.status, formData, store);
-                const link = getWhatsappLink(formData.clientPhone, message);
+                const link = createRawWhatsAppLink(formData.clientPhone, message);
                 window.open(link, '_blank');
             }
 

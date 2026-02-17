@@ -1,6 +1,6 @@
 import { useTenant } from "../context/TenantContext";
 import { useLanguage } from "../context/LanguageContext"; // NEW
-import { User, Store, CreditCard, Check, Zap, Shield, Save, Settings as SettingsIcon, Truck, Users, Lock, Activity } from "lucide-react";
+import { User, Store, CreditCard, Check, Zap, Shield, Save, Settings as SettingsIcon, Truck, Users, Lock, Activity, Sparkles } from "lucide-react";
 import { doc, updateDoc, setDoc, collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Button from "../components/Button";
@@ -622,6 +622,52 @@ export default function Settings() {
                             </div>
                         </div>
 
+                        {/* AI Configuration Section */}
+                        {/* AI Configuration Section */}
+                        <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
+                            <div className="px-4 py-5 sm:p-6">
+                                <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
+                                    <Sparkles className="h-5 w-5 text-indigo-500" />
+                                    {t('section_ai_config') || 'AI Configuration'}
+                                </h3>
+                                <div className="mt-4 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+                                    <div className="sm:col-span-6">
+                                        <label className="block text-sm font-medium text-gray-700">Gemini API Key</label>
+                                        <div className="mt-1 flex gap-2">
+                                            <input
+                                                type="password"
+                                                value={store?.geminiApiKey || ''}
+                                                onChange={(e) => setStore(prev => ({ ...prev, geminiApiKey: e.target.value }))}
+                                                placeholder="AIza..."
+                                                className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                            />
+                                            <Button
+                                                onClick={async () => {
+                                                    try {
+                                                        await updateDoc(doc(db, "stores", store.id), {
+                                                            geminiApiKey: store.geminiApiKey || ""
+                                                        });
+                                                        toast.success("API Key saved!");
+                                                        // Force reload to apply key instantly if needed, or context updates
+                                                        window.location.reload();
+                                                    } catch (e) {
+                                                        console.error(e);
+                                                        toast.error("Error saving key");
+                                                    }
+                                                }}
+                                                icon={Save}
+                                            >
+                                                {t('btn_save') || 'Save'}
+                                            </Button>
+                                        </div>
+                                        <p className="mt-2 text-xs text-gray-500">
+                                            Required for Beya3 (Copilot). Get it from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">Google AI Studio</a>.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
                             <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
                                 <SettingsIcon className="h-5 w-5 text-gray-500" />
@@ -649,63 +695,66 @@ export default function Settings() {
                             </div>
                         </div>
                     </div>
-                )}
+                )
+                }
 
-                {activeTab === "security" && (
-                    <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
-                        <div className="px-4 py-5 sm:p-6">
-                            <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
-                                <Shield className="h-5 w-5 text-gray-400" />
-                                {t('section_app_security')}
-                            </h3>
-                            <div className="mt-6">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <h4 className="text-base font-medium text-gray-900">{t('biometric_lock')}</h4>
-                                        <p className="text-sm text-gray-500">
-                                            {t('biometric_lock_desc')}
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center">
-                                        {!biometricSupported ? (
-                                            <span className="text-sm text-red-500 bg-red-50 px-2 py-1 rounded">{t('not_supported')}</span>
-                                        ) : (
-                                            <button
-                                                onClick={handleToggleBiometric}
-                                                className={`
+                {
+                    activeTab === "security" && (
+                        <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
+                            <div className="px-4 py-5 sm:p-6">
+                                <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
+                                    <Shield className="h-5 w-5 text-gray-400" />
+                                    {t('section_app_security')}
+                                </h3>
+                                <div className="mt-6">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h4 className="text-base font-medium text-gray-900">{t('biometric_lock')}</h4>
+                                            <p className="text-sm text-gray-500">
+                                                {t('biometric_lock_desc')}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center">
+                                            {!biometricSupported ? (
+                                                <span className="text-sm text-red-500 bg-red-50 px-2 py-1 rounded">{t('not_supported')}</span>
+                                            ) : (
+                                                <button
+                                                    onClick={handleToggleBiometric}
+                                                    className={`
                                                     relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500
                                                     ${biometricEnabled ? 'bg-indigo-600' : 'bg-gray-200'}
                                                 `}
-                                            >
-                                                <span
-                                                    aria-hidden="true"
-                                                    className={`
+                                                >
+                                                    <span
+                                                        aria-hidden="true"
+                                                        className={`
                                                         pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200
                                                         ${biometricEnabled ? 'translate-x-5' : 'translate-x-0'}
                                                     `}
-                                                />
-                                            </button>
-                                        )}
+                                                    />
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="mt-4 bg-yellow-50 p-4 rounded-md border border-yellow-100">
-                                    <div className="flex">
-                                        <Lock className="h-5 w-5 text-yellow-400" aria-hidden="true" />
-                                        <div className="ml-3">
-                                            <h3 className="text-sm font-medium text-yellow-800">{t('note')}</h3>
-                                            <div className="mt-2 text-sm text-yellow-700">
-                                                <p>
-                                                    {t('security_note_desc')}
-                                                </p>
+                                    <div className="mt-4 bg-yellow-50 p-4 rounded-md border border-yellow-100">
+                                        <div className="flex">
+                                            <Lock className="h-5 w-5 text-yellow-400" aria-hidden="true" />
+                                            <div className="ml-3">
+                                                <h3 className="text-sm font-medium text-yellow-800">{t('note')}</h3>
+                                                <div className="mt-2 text-sm text-yellow-700">
+                                                    <p>
+                                                        {t('security_note_desc')}
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                )}
-            </div>
+                    )
+                }
+            </div >
         </div >
     );
 }

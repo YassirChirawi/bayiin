@@ -5,7 +5,7 @@ import Button from "./Button";
 import Input from "./Input";
 import { useLanguage } from "../context/LanguageContext"; // NEW
 import { getCustomerSegment } from "../utils/aiSegmentation";
-import { getWhatsappLink, getWhatsappMessageForSegment } from "../utils/whatsappTemplates";
+import { getWhatsAppLink } from "../utils/whatsappTemplates";
 import { MessageCircle } from "lucide-react";
 
 export default function CustomerModal({ isOpen, onClose, onSave, customer = null }) {
@@ -115,8 +115,8 @@ export default function CustomerModal({ isOpen, onClose, onSave, customer = null
                                 className="text-green-600 border-green-200 hover:bg-green-50"
                                 onClick={() => {
                                     const segment = getCustomerSegment(customer, customer.orders || []);
-                                    const message = getWhatsappMessageForSegment(segment.messageKey, customer);
-                                    const link = getWhatsappLink(customer.phone, message);
+                                    // Use the template-based link generator
+                                    const link = getWhatsAppLink(customer.phone, customer.name, segment.messageKey, 'fr');
                                     window.open(link, '_blank');
                                 }}
                             >
