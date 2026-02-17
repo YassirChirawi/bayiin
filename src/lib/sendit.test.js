@@ -122,4 +122,41 @@ describe('senditService', () => {
             );
         });
     });
+
+    describe('getInvoices', () => {
+        it('should return a list of invoices', async () => {
+            const mockInvoices = [
+                { id: 1, reference: 'INV-001', amount: 1000, status: 'PAID' },
+                { id: 2, reference: 'INV-002', amount: 500, status: 'PENDING' }
+            ];
+
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: async () => ({ data: mockInvoices })
+            });
+
+            const invoices = await senditService.getInvoices(mockToken, { startDate: '2023-01-01', endDate: '2023-01-31' });
+
+            expect(invoices).toHaveLength(2);
+            expect(invoices[0].reference).toBe('INV-001');
+
+            expect(global.fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/invoices?startDate=2023-01-01&endDate=2023-01-31'),
+                expect.objectContaining({
+                    method: 'GET',
+                    headers: expect.objectContaining({ Authorization: `Bearer ${mockToken}` })
+                })
+            );
+        });
+
+        it('should throw an error if fetching invoices fails', async () => {
+            global.fetch.mockResolvedValue({
+                ok: false,
+                status: 500,
+                json: async () => ({ message: 'Internal Server Error' })
+            });
+
+            await expect(senditService.getInvoices(mockToken)).rejects.toThrow('Internal Server Error');
+        });
+    });
 });

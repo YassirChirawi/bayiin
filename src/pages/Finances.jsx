@@ -3,7 +3,7 @@ import { useStoreData } from "../hooks/useStoreData";
 import { useTenant } from "../context/TenantContext";
 import { useLanguage } from "../context/LanguageContext";
 import { Navigate } from "react-router-dom";
-import { DollarSign, TrendingUp, CreditCard, Activity, Plus, Trash2, Library, Calendar } from "lucide-react";
+import { DollarSign, TrendingUp, CreditCard, Activity, Plus, Trash2, Library, Calendar, Sparkles, MessageSquare } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import Button from "../components/Button";
 import Input from "../components/Input";
@@ -12,7 +12,11 @@ import { format, isSameDay, isSameWeek, isSameMonth, parseISO, startOfMonth, sub
 import { where } from "firebase/firestore";
 import TopProductsChart from "../components/charts/TopProductsChart"; // NEW
 import CityRevenueChart from "../components/charts/CityRevenueChart"; // NEW
+import { motion } from "framer-motion"; // NEW
 import { getTopProducts, getCityStats, getHighReturnCities, getRetentionStats } from "../utils/analytics"; // NEW
+import { generateFinancialInsight, detectFinancialLeaks } from "../services/aiService"; // NEW
+import { calculateFinancialStats } from "../utils/financials"; // NEW
+import { getSenditInvoices } from "../lib/sendit"; // NEW
 
 export default function Finances() {
     const { store } = useTenant();
@@ -79,121 +83,7 @@ export default function Finances() {
 
     // --- Precise KPIs Calculation ---
     const stats = useMemo(() => {
-        const res = {
-            realizedRevenue: 0, // Cash Collected (isPaid)
-            deliveredRevenue: 0, // Potential from Delivered (status == livré)
-            totalCOGS: 0,
-            totalRealDelivery: 0,
-            totalExpenses: 0,
-
-            netResult: 0,
-            margin: "0.0",
-
-            // Advanced
-            adsSpend: 0,
-            roas: "0.00",
-            cac: "0.00",
-            shippingRatio: "0.0",
-            profitPerOrder: "0.00",
-
-            deliveredCount: 0,
-            activeCount: 0
-        };
-
-        const start = new Date(dateRange.start);
-        const end = new Date(dateRange.end + "T23:59:59");
-
-        // 1. Process Orders (Always bound by Date Range)
-        orders.forEach(o => {
-            // Helpers - Mirroring Backend Logic for Consistency
-            const safeFloat = (val) => {
-                const num = parseFloat(val);
-                return isNaN(num) ? 0 : num;
-            };
-            const safeInt = (val) => {
-                const num = parseInt(val);
-                return isNaN(num) ? 1 : num; // Default to 1 if missing/invalid, same as backend
-            };
-
-            const qty = safeInt(o.quantity);
-            const price = safeFloat(o.price);
-            const cost = safeFloat(o.costPrice);
-            const delivery = safeFloat(o.realDeliveryCost);
-
-            const revenue = price * qty;
-            const cogs = cost * qty;
-
-            const isPaid = o.isPaid === true || o.isPaid === "true"; // Handle potential string legacy
-
-            // Delivered Potential
-            if (o.status === 'livré') {
-                res.deliveredRevenue += revenue;
-                res.deliveredCount++;
-            }
-
-            // Active / Pending
-            if (['reçu', 'confirmation', 'packing', 'livraison', 'ramassage', 'reporté'].includes(o.status)) {
-                res.activeCount++;
-            }
-
-            // Realized Cash (The Gold Standard)
-            if (isPaid) {
-                res.realizedRevenue += revenue;
-                res.totalCOGS += cogs;
-            }
-
-            // Delivery Costs
-            // We count delivery cost if status is 'livré' or 'retour' OR if there is a realDeliveryCost set > 0 (attempt made)
-            if (['livré', 'retour'].includes(o.status) || delivery > 0) {
-                res.totalRealDelivery += delivery;
-            }
-        });
-
-        // 2. Process Expenses
-        const filteredExpenses = expenses.filter(e => {
-            // Logic:
-            // If Collection Selected:
-            //   - Include if e.collectionId === selectedCollection.id
-            //   - OR Include if !e.collectionId AND Date is within range (Generic spending attributed to this period)
-            // If Global View (No Collection Selected):
-            //   - Include if Date is within range (Standard view)
-
-            if (selectedCollection) {
-                if (e.collectionId === selectedCollection.id) return true; // Explicit link
-                if (e.collectionId) return false; // Linked to ANOTHER collection
-
-                // Not linked, check date
-                if (!e.date) return false;
-                const d = new Date(e.date);
-                return d >= start && d <= end;
-            } else {
-                // Global View: Pure Date Filtering
-                if (!e.date) return true; // Safety, or hide?
-                const d = new Date(e.date);
-                return d >= start && d <= end;
-            }
-        });
-
-        res.totalExpenses = filteredExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
-
-        // Breakdowns
-        res.adsSpend = filteredExpenses
-            .filter(e => e.category === 'Ads')
-            .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
-
-        // 3. Net Result
-        res.netResult = res.realizedRevenue - res.totalCOGS - res.totalRealDelivery - res.totalExpenses;
-
-        // 4. derivated
-        res.margin = res.realizedRevenue > 0 ? ((res.netResult / res.realizedRevenue) * 100).toFixed(1) : "0.0";
-        res.roas = res.adsSpend > 0 ? (res.realizedRevenue / res.adsSpend).toFixed(2) : "0.00";
-        res.cac = res.deliveredCount > 0 ? (res.adsSpend / res.deliveredCount).toFixed(2) : "0.00";
-
-        const totalShipping = res.totalRealDelivery + filteredExpenses.filter(e => e.category === 'Shipping').reduce((sum, e) => sum + parseFloat(e.amount), 0);
-        res.shippingRatio = res.realizedRevenue > 0 ? ((totalShipping / res.realizedRevenue) * 100).toFixed(1) : "0.0";
-        res.profitPerOrder = res.deliveredCount > 0 ? (res.netResult / res.deliveredCount).toFixed(2) : "0.00";
-
-        return { res, filteredExpenses }; // Return filtered list for chart/list usage
+        return calculateFinancialStats(orders, expenses, dateRange, selectedCollection ? selectedCollection.id : null);
     }, [orders, expenses, dateRange, selectedCollection]);
 
 
@@ -260,6 +150,68 @@ export default function Finances() {
         }
     }
 
+    // --- AI Insight ---
+    const [insight, setInsight] = useState(null);
+    const [loadingInsight, setLoadingInsight] = useState(false);
+
+    const askMervat = async () => {
+        setLoadingInsight(true);
+        setInsight(null);
+        try {
+            const result = await generateFinancialInsight(stats.res);
+            setInsight(result);
+        } catch (error) {
+            console.error(error);
+            setInsight("Oups, je n'arrive pas à analyser les chiffres pour le moment.");
+        } finally {
+            setLoadingInsight(false);
+        }
+    };
+    // --- Sendit Invoices ---
+    const [invoices, setInvoices] = useState([]);
+    const [loadingInvoices, setLoadingInvoices] = useState(false);
+
+    const fetchInvoices = async () => {
+        if (!store?.senditPublicKey || !store?.senditSecretKey) return;
+        setLoadingInvoices(true);
+        try {
+            // NOTE: In a real app, never expose keys here. This is for the demo/existing pattern.
+            // Ideally call a backend endpoint.
+            const token = await import("../lib/sendit").then(m => m.authenticateSendit(store.senditPublicKey, store.senditSecretKey));
+
+            const data = await getSenditInvoices(token, {
+                startDate: dateRange.start,
+                endDate: dateRange.end
+            });
+            setInvoices(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error("Failed to fetch invoices", error);
+        } finally {
+            setLoadingInvoices(false);
+        }
+    };
+
+    // Auto-fetch on date change if keys exist
+    useEffect(() => {
+        if (store?.senditPublicKey) {
+            fetchInvoices();
+        }
+    }, [dateRange, store]); // removed fetchInvoices from dependency to avoid loop if not memoized
+
+    // --- AI Leak Detection ---
+    const [leaks, setLeaks] = useState(null);
+    const [loadingLeaks, setLoadingLeaks] = useState(false);
+
+    const handleAudit = () => {
+        setLoadingLeaks(true);
+        // Simulate a small delay for "Analysis" feel
+        setTimeout(() => {
+            const result = detectFinancialLeaks(orders, stats.res.cac);
+            setLeaks(result);
+            setLoadingLeaks(false);
+        }, 1500);
+    };
+
     return (
         <div className="space-y-6">
             {/* Header & Controls */}
@@ -318,12 +270,115 @@ export default function Finances() {
                 </div>
             </div>
 
+            {/* AI Guardian Alert Block */}
+            {leaks && leaks.hasLeaks && (
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm"
+                >
+                    <div className="flex justify-between items-start">
+                        <div className="flex gap-3">
+                            <div className="flex-shrink-0">
+                                <Activity className="h-6 w-6 text-red-500" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-red-800">Financial Bodyguard : Alertes Détectées 🛡️</h3>
+                                <p className="text-sm text-red-700 mt-1">{leaks.summary}</p>
+
+                                <div className="mt-3 space-y-2">
+                                    {leaks.ghostOrders.length > 0 && (
+                                        <div className="text-sm text-red-800">
+                                            <strong>👻 {leaks.ghostOrders.length} Commandes Fantômes</strong> (Livrées &gt; 15j non payées)
+                                            <ul className="list-disc pl-5 mt-1 text-xs opacity-80">
+                                                {leaks.ghostOrders.slice(0, 3).map(o => (
+                                                    <li key={o.id}>Ref: {o.reference} ({o.amount} DH) - {o.date}</li>
+                                                ))}
+                                                {leaks.ghostOrders.length > 3 && <li>...</li>}
+                                            </ul>
+                                        </div>
+                                    )}
+                                    {leaks.negativeMargins.length > 0 && (
+                                        <div className="text-sm text-red-800">
+                                            <strong>💸 {leaks.negativeMargins.length} Marges Négatives</strong> (Perte sèche)
+                                            <ul className="list-disc pl-5 mt-1 text-xs opacity-80">
+                                                {leaks.negativeMargins.slice(0, 3).map(o => (
+                                                    <li key={o.id}>Ref: {o.reference} (Perte: {o.loss} DH)</li>
+                                                ))}
+                                                {leaks.negativeMargins.length > 3 && <li>...</li>}
+                                            </ul>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <button onClick={() => setLeaks(null)} className="text-red-400 hover:text-red-500">
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    </div>
+                </motion.div>
+            )}
+
             {expensesError && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
                     <p className="font-bold">{t('err_loading_finances')}</p>
                     <p className="text-sm">{expensesError.message} - {t('msg_check_permissions')}</p>
                 </div>
             )}
+
+            {/* AI Insight Block */}
+            <div className="bg-gradient-to-r from-rose-50 to-white border border-rose-100 p-6 rounded-lg shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <Sparkles className="w-24 h-24 text-rose-500" />
+                </div>
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10 w-full">
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <Sparkles className="w-5 h-5 text-rose-500" />
+                            L'avis de Beya3 (AI)
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-1">Demande une analyse instantanée de tes performances financières.</p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                        <Button
+                            onClick={handleAudit}
+                            isLoading={loadingLeaks}
+                            variant="secondary"
+                            className="bg-white border-rose-200 text-rose-600 hover:bg-rose-50 w-full sm:w-auto justify-center"
+                            icon={Activity}
+                        >
+                            Lancer Audit 🛡️
+                        </Button>
+                        <Button
+                            onClick={askMervat}
+                            isLoading={loadingInsight}
+                            icon={MessageSquare}
+                            className="bg-rose-500 hover:bg-rose-600 text-white border-none shadow-md w-full sm:w-auto justify-center"
+                        >
+                            Analyser ma rentabilité
+                        </Button>
+                    </div>
+                </div>
+
+                {insight && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="mt-6 p-4 bg-white rounded-lg border border-rose-100 text-gray-800 text-sm leading-relaxed shadow-sm"
+                    >
+                        <div className="flex gap-3">
+                            <img
+                                src="https://api.dicebear.com/9.x/avataaars/svg?seed=Beya3&style=circle&eyebrows=defaultNatural&eyes=default&mouth=smile"
+                                alt="Beya3"
+                                className="w-10 h-10 rounded-full bg-gray-50 border border-gray-200"
+                            />
+                            <div className="flex-1 whitespace-pre-wrap">
+                                {insight}
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </div>
 
             {/* KPI Cards */}
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -460,6 +515,63 @@ export default function Finances() {
                 </div>
             </div>
 
+            {/* Sendit Reconciliation Section */}
+            <div className="bg-white p-4 sm:p-6 rounded-lg shadow border border-gray-100 lg:col-span-2 mb-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+                    <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                        <CreditCard className="w-5 h-5 text-indigo-500" />
+                        Rapprochement Sendit (Factures)
+                    </h3>
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => fetchInvoices()}
+                        disabled={loadingInvoices}
+                        className="w-full sm:w-auto justify-center"
+                    >
+                        {loadingInvoices ? 'Chargement...' : 'Actualiser'}
+                    </Button>
+                </div>
+
+                {invoices.length === 0 ? (
+                    <div className="text-center py-6 text-gray-500 text-sm">
+                        Aucune facture trouvée pour cette période.
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead>
+                                <tr>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {invoices.map((inv) => (
+                                    <tr key={inv.id || inv.code}>
+                                        <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">{inv.code || inv.reference}</td>
+                                        <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">{inv.created_at?.substring(0, 10)}</td>
+                                        <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 font-bold">{parseFloat(inv.total_amount || inv.amount).toFixed(2)} DH</td>
+                                        <td className="px-3 py-2 whitespace-nowrap">
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                                ${inv.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                                {inv.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-3 py-2 whitespace-nowrap text-right text-sm font-medium">
+                                            <button className="text-indigo-600 hover:text-indigo-900">Détails</button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Chart Section */}
                 <div className="bg-white p-6 rounded-lg shadow border border-gray-100">
@@ -512,19 +624,20 @@ export default function Finances() {
             </div>
 
             {/* Expenses Management */}
-            <div className="bg-white p-6 rounded-lg shadow border border-gray-100 lg:col-span-2">
+            <div className="bg-white p-4 sm:p-6 rounded-lg shadow border border-gray-100 lg:col-span-2">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">{t('section_expenses')}</h3>
 
                 <form onSubmit={handleAddExpense} className="flex flex-col lg:flex-row gap-2 mb-4">
-                    <div className="flex-1">
+                    <div className="flex-1 w-full">
                         <Input
                             placeholder={t('placeholder_desc')} // "Description (e.g. Ads, Packaging)"
                             value={expenseForm.description}
                             onChange={e => setExpenseForm({ ...expenseForm, description: e.target.value })}
                             required
+                            className="w-full"
                         />
                     </div>
-                    <div className="sm:w-40">
+                    <div className="w-full sm:w-40">
                         <select
                             className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                             value={expenseForm.category}
@@ -536,7 +649,7 @@ export default function Finances() {
                         </select>
                     </div>
                     {/* Collection Linker */}
-                    <div className="sm:w-48">
+                    <div className="w-full sm:w-48">
                         <select
                             className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-gray-600"
                             value={expenseForm.collectionId || ""}
@@ -549,16 +662,19 @@ export default function Finances() {
                         </select>
                     </div>
 
-                    <div className="sm:w-32">
+                    <div className="w-full sm:w-32">
                         <Input
                             type="number"
                             placeholder={t('placeholder_cost')}
                             value={expenseForm.amount}
                             onChange={e => setExpenseForm({ ...expenseForm, amount: e.target.value })}
                             required
+                            className="w-full"
                         />
                     </div>
-                    <Button type="submit" isLoading={loadingExpense} icon={Plus}>{t('btn_add_expense')}</Button>
+                    <Button type="submit" isLoading={loadingExpense} icon={Plus} className="w-full lg:w-auto justify-center">
+                        {t('btn_add_expense')}
+                    </Button>
                 </form>
 
                 <div className="overflow-y-auto max-h-64 border-t border-gray-100">

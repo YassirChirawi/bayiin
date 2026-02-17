@@ -8,7 +8,15 @@ export const DEFAULT_TEMPLATES = {
     'pas de réponse': "Bonjour [Client], [Store] a tenté de vous joindre concernant votre commande sans succès. Souhaitez-vous toujours recevoir votre commande ?",
     'retour': "Bonjour [Client], votre commande [Commande] nous a été retournée.",
     'annulé': "Bonjour [Client], votre commande a été annulée.",
-    'catalog_order': "Bonjour [Store], je souhaite commander :\n\n[Ticket]\n\nMerci de confirmer."
+    'catalog_order': "Bonjour [Store], je souhaite commander :\n\n[Ticket]\n\nMerci de confirmer.",
+    // AI Segments
+    'welcome': "Bienvenue [Client] chez [Store] ! 🎁 Voici un code promo pour votre prochaine commande : WELCOME10.",
+    'vip_offer': "Bonjour [Client] ! En tant que client VIP 🏆 chez [Store], profitez de -20% sur tout le site cette semaine !",
+    'vip_comeback': "Bonjour [Client] ! Ça fait longtemps... Une surprise vous attend chez [Store]. Revenez vite ! 🎁",
+    'comeback': "Bonjour [Client], vous nous manquez chez [Store] ! Voici une offre spéciale juste pour vous.",
+    'loyalty_reward': "Merci [Client] pour votre fidélité ! ⭐ Voici un petit cadeau pour votre prochaine commande.",
+    'winback': "Bonjour [Client], nous avons de nouvelles collections chez [Store] qui pourraient vous plaire. Jetez un œil ! 👀",
+    'standard_promo': "Bonjour [Client], découvrez nos nouveautés de la semaine chez [Store] !"
 };
 
 // Darija Templates
@@ -21,7 +29,15 @@ export const DARIJA_TEMPLATES = {
     'pas de réponse': "Salam [Client], livreur 3eyet likom o malqakomch, mazal baghin la commande ? Chokran.",
     'retour': "Salam [Client], commande dialk [Commande] atrje3 lina. Ila mazal baghiha 3eyet lina f aqreb weqt chokran.",
     'annulé': "Salam [Client], commande dialk tghat (annulée).",
-    'catalog_order': "Salam [Store], bghit ncommandi hadchi :\n\n[Ticket]\n\nChokran."
+    'catalog_order': "Salam [Store], bghit ncommandi hadchi :\n\n[Ticket]\n\nChokran.",
+    // AI Segments (Darija)
+    'welcome': "Merhba bik [Client] f [Store] ! 🎁 Ha wahed code promo lik : WELCOME10.",
+    'vip_offer': "Salam [Client] ! Hit nta min a3az lclients 🏆, 3endek -20% f [Store] had simana !",
+    'vip_comeback': "Salam [Client] ! Ghabarti 3lina... Kayna surprise katsanaka f [Store]. Merhba ! 🎁",
+    'comeback': "Salam [Client], twahechnak f [Store] ! Ha wahed l3ard special lik.",
+    'loyalty_reward': "Chokran [Client] 3la lwafaa dyalk ! ⭐ Ha wahed cadeau sghir la commande jayya.",
+    'winback': "Salam [Client], dkhel chouf jdid f [Store], kayn chi hwayj zwinin ! 👀",
+    'standard_promo': "Salam [Client], chouf jdid dial had simana f [Store] !"
 };
 
 /**
@@ -99,4 +115,24 @@ export const getWhatsappLink = (phone, message) => {
     }
 
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+};
+
+/**
+ * Gets a specific AI segment message
+ */
+export const getWhatsappMessageForSegment = (segmentKey, customer, store) => {
+    // We reuse the main function logic partially, or simplistic version
+    // Ideally we should refactor getWhatsappMessage to handle arbitrary keys if they exist in templates
+
+    // Quick fix: re-use logic by calling getWhatsappMessage with the segmentKey as 'status'
+    // This works because we added the keys to the DEFAULT_TEMPLATES/DARIJA_TEMPLATES objects!
+
+    // We treat 'customer' object as 'order' object for the purpose of name replacement
+    const mockOrder = {
+        clientName: customer.name,
+        clientCity: customer.city,
+        // No product details for generic re-engagement
+    };
+
+    return getWhatsappMessage(segmentKey, mockOrder, store);
 };

@@ -1,0 +1,230 @@
+// src/services/aiService.js
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { SYSTEM_PERSONA_INSTRUCTIONS, SHIPPING_INFO, SALES_SCRIPTS, FAQ, GROWTH_MODULES } from './knowledge';
+
+// Initialize Gemini API
+// NOTE: Ideally, the API key should be fetched from backend/server function to keep it secure.
+// For this frontend implementation, we'll try to use an environment variable or a user-provided setting.
+let genAI = null;
+let model = null;
+
+export const initializeAI = (apiKey) => {
+    if (!apiKey) return;
+    try {
+        genAI = new GoogleGenerativeAI(apiKey);
+        model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    } catch (error) {
+        console.error("Failed to initialize AI:", error);
+    }
+};
+
+// Lite RAG: Construct context from knowledge base
+const constructContext = (userMsg) => {
+    let context = "";
+    const lowerMsg = userMsg.toLowerCase();
+
+    // Check for keywords to inject specific knowledge
+    if (lowerMsg.includes("livraison") || lowerMsg.includes("frais") || lowerMsg.includes("expédition")) {
+        context += `\n[INFO LOGISTIQUE]: ${JSON.stringify(SHIPPING_INFO)}`;
+    }
+
+    if (lowerMsg.includes("client") || lowerMsg.includes("message") || lowerMsg.includes("sms") || lowerMsg.includes("whatsapp")) {
+        context += `\n[SCRIPTS DE VENTE]: ${JSON.stringify(SALES_SCRIPTS)}`;
+    }
+
+    if (lowerMsg.includes("roas") || lowerMsg.includes("pub") || lowerMsg.includes("facebook") || lowerMsg.includes("instagram")) {
+        context += `\n[MODULE GROWTH]: ${GROWTH_MODULES.META_ADS}`;
+    }
+
+    // Add FAQ context if relevant (simple keyword match for now)
+    FAQ.forEach(item => {
+        if (lowerMsg.includes(item.q.toLowerCase()) || lowerMsg.includes(item.a.toLowerCase())) {
+            context += `\n[FAQ SIMILAIRE]: Q: ${item.q} R: ${item.a}`;
+        }
+    });
+
+    return context;
+};
+
+export const generateAIResponse = async (prompt) => {
+    if (!model) {
+        // Fallback if no API key is configured yet
+        return "Oups ! Je n'ai pas encore ma clé API pour réfléchir. 🗝️ Peux-tu la configurer dans les paramètres ? (Tu peux la trouver sur Google AI Studio)";
+    }
+
+    try {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        return response.text();
+    } catch (error) {
+        console.error("Gemini Error:", error);
+        return "Aïe, j'ai un petit mal de tête... 🤕 Peux-tu reformuler ? (Erreur API)";
+    }
+};
+
+/**
+ * Main Copilot Function
+ * @param {string} msg - User message
+ * @param {Array} history - Previous chat history
+ * @param {Object} productContext - Optional: List of products or store context
+ */
+export const generateCopilotResponse = async (msg, history = [], productContext = null) => {
+    // 1. Build System Prompt with Persona
+    let fullPrompt = `${SYSTEM_PERSONA_INSTRUCTIONS}\n`;
+
+    // 2. Add Context (RAG-lite)
+    const knowledgeContext = constructContext(msg);
+    if (knowledgeContext) {
+        fullPrompt += `\nUTILISE CES INFORMATIONS SI PERTIENT:\n${knowledgeContext}\n`;
+    }
+
+    // 3. Add Product Context if available
+    if (productContext && productContext.length > 0) {
+        const snippet = productContext.slice(0, 10).map(p => `${p.name} (${p.price} DH)`).join(", ");
+        fullPrompt += `\n[CONTEXTE PRODUITS (Magasin)]:\nVoici quelques produits: ${snippet}...\n`;
+    }
+
+    // NEW: Action Capabilities
+    fullPrompt += `
+    [CAPACITÉS D'ACTION]:
+    Tu peux créer des commandes si l'utilisateur te le demande explicitement avec les détails (Nom, Tel, Ville, Produit, Prix).
+    Si tu as toutes les infos, génère un bloc JSON unique à la fin de ta réponse (invisible pour l'utilisateur) sous ce format :
+    
+    \`\`\`json
+    {
+      "action": "CREATE_ORDER",
+      "data": {
+        "clientName": "Nom Client",
+        "clientPhone": "06XXXXXXXX",
+        "clientCity": "Ville",
+        "clientAddress": "Adresse (ou Ville par défaut)",
+        "articleName": "Nom Produit",
+        "price": 123,
+        "quantity": 1,
+        "note": "Mentionne si c'est pour Sendit ou une info spéciale"
+      }
+    }
+    \`\`\`
+
+    Règle pour la note :
+    - Si l'utilisateur mentionne "Sendit", commence la note par "Via Sendit".
+    - Sinon, utilise le format standard.
+    `;
+
+    // 4. Add Conversation History (Last 5 messages)
+    const recentHistory = history.slice(-5);
+    if (recentHistory.length > 0) {
+        fullPrompt += `\n[HISTORIQUE RECENT]:\n${recentHistory.map(m => `${m.role === 'user' ? 'Utilisateur' : 'Beya3'}: ${m.content}`).join("\n")}\n`;
+    }
+
+    // 5. Add User Message
+    fullPrompt += `\nUtilisateur: ${msg}\nBeya3:`;
+
+    // 6. Call API
+    return await generateAIResponse(fullPrompt);
+};
+
+// Algorithme de Scoring (Anti-Retour) - Rules-based for now, could be AI-enhanced later
+export const evaluateOrderRisk = (order) => {
+    let score = 0;
+    let reasons = [];
+
+    // Rule 1: High Value
+    if (order.total > 1000) {
+        score += 20;
+        reasons.push("Montant élevé (> 1000 DH)");
+    }
+
+    // Rule 2: Incomplete Address (heuristic)
+    if (!order.address || order.address.length < 10) {
+        score += 30;
+        reasons.push("Adresse courte ou incomplète");
+    }
+
+    // Rule 3: City Check (Example: Specific cities might have higher return rates - hypothetical)
+    if (["Casablanca", "Rabat"].includes(order.city)) {
+        // usually safer, maybe minus risk?
+        score -= 10;
+    } else {
+        // remote areas might have higher risk
+        score += 10;
+        reasons.push("Zone éloignée");
+    }
+
+    let riskLevel = "Faible";
+    if (score > 50) riskLevel = "Élevé";
+    else if (score > 20) riskLevel = "Moyen";
+
+    return { score, riskLevel, reasons };
+};
+
+export const generateFinancialInsight = async (stats) => {
+    // Construct a prompt summarizing the stats
+    const prompt = `
+    Agis comme Beya3, Head of Growth. Analyse ces chiffres financiers pour la période sélectionnée :
+    - Chiffre d'affaires Livré : ${stats.deliveredRevenue} DH
+    - Chiffre d'affaires Encaissé : ${stats.realizedRevenue} DH
+    - Dépenses Totales : ${stats.totalExpenses} DH
+    - Marge Nette : ${stats.margin}%
+    - ROAS : ${stats.roas}
+    - CAC : ${stats.cac} DH
+    
+    Donne-moi 3 points clés (Top, Flop, Opportunité) et un conseil actionnable pour améliorer la rentabilité. Sois bref et percutant.
+    `;
+
+    return await generateAIResponse(prompt);
+};
+
+/**
+ * AI Guardian - Leak Detection
+ * Scans orders for financial anomalies:
+ * 1. Ghost Orders: Delivered > 15 days ago but NOT Paid.
+ * 2. Negative Margin: (Cost + Delivery + CAC) > Price.
+ */
+export const detectFinancialLeaks = (orders, cac = 0) => {
+    const ghostOrders = [];
+    const negativeMargins = [];
+    const now = new Date();
+    const fifteenDaysAgo = new Date(now.setDate(now.getDate() - 15));
+
+    orders.forEach(order => {
+        // 1. Ghost Order Check
+        if (order.status === 'livré' && (!order.isPaid || order.isPaid === "false")) {
+            const deliveryDate = order.deliveryDate ? new Date(order.deliveryDate) : (order.date ? new Date(order.date) : null);
+            // Fallback: note that 'date' is usually order creation date. If no delivery date, we assume delivery happened reasonably after creation?
+            // Strict check: if creation date > 15 days ago and status is Delivered, it's likely a ghost if not paid.
+            if (deliveryDate && deliveryDate < fifteenDaysAgo) {
+                ghostOrders.push({
+                    id: order.id,
+                    reference: order.orderNumber || order.id.substring(0, 6),
+                    amount: parseFloat(order.price) * (parseInt(order.quantity) || 1),
+                    date: order.date
+                });
+            }
+        }
+
+        // 2. Negative Margin Check
+        const price = parseFloat(order.price) * (parseInt(order.quantity) || 1);
+        const cost = parseFloat(order.costPrice) * (parseInt(order.quantity) || 1);
+        const delivery = parseFloat(order.realDeliveryCost || 0); // Only real cost
+        const globalCAC = parseFloat(cac);
+
+        const totalCost = cost + delivery + globalCAC;
+
+        if (totalCost > price) {
+            negativeMargins.push({
+                id: order.id,
+                reference: order.orderNumber || order.id.substring(0, 6),
+                loss: (totalCost - price).toFixed(2),
+                details: `Prix: ${price}, Coût: ${cost}, Livr: ${delivery}, CAC: ${globalCAC}`
+            });
+        }
+    });
+
+    return {
+        hasLeaks: ghostOrders.length > 0 || negativeMargins.length > 0,
+        ghostOrders,
+        negativeMargins,
+        summary: `Détection terminée : ${ghostOrders.length} commandes fantômes et ${negativeMargins.length} marges négatives.`
+    };
+};

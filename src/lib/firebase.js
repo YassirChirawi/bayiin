@@ -3,15 +3,22 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
+// TEMP FIX: Hardcoded config while .env is debugged
 const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID,
-    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+    apiKey: "AIzaSyBf3CLMhx_jCzteE5h7KWOW2_68yZD34h0",
+    authDomain: "commerce-saas-62f32.firebaseapp.com",
+    projectId: "commerce-saas-62f32",
+    storageBucket: "commerce-saas-62f32.firebasestorage.app",
+    messagingSenderId: "754392533406",
+    appId: "1:754392533406:web:65605ce76a6809ff43ee8f",
+    measurementId: "G-XHX0NHQXN5"
 };
+
+console.log("Firebase Config Loaded:", {
+    apiKey: firebaseConfig.apiKey ? "Present (" + firebaseConfig.apiKey.substring(0, 5) + "...)" : "MISSING",
+    projectId: firebaseConfig.projectId,
+    authDomain: firebaseConfig.authDomain
+});
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);

@@ -336,6 +336,42 @@ const senditService = {
             console.error("Sendit Labels Error:", error);
             throw error;
         }
+    },
+
+    /**
+     * Get Invoices (Remittances)
+     * Options: page, startDate (YYYY-MM-DD), endDate (YYYY-MM-DD), querystring
+     */
+    getInvoices: async (token, options = {}) => {
+        try {
+            const params = new URLSearchParams();
+            if (options.page) params.append('page', options.page);
+            if (options.startDate) params.append('startDate', options.startDate);
+            if (options.endDate) params.append('endDate', options.endDate);
+            if (options.querystring) params.append('querystring', options.querystring);
+
+            const queryString = params.toString();
+            const url = `${API_BASE}/invoices${queryString ? `?${queryString}` : ''}`;
+
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.message || `Erreur lors de la récupération des factures (${response.status})`);
+            }
+
+            // Normalizing response: API might return { data: [...] } or just [...]
+            return result.data || result;
+        } catch (error) {
+            console.error("Sendit Invoices Error:", error);
+            throw error;
+        }
     }
 };
 
@@ -366,6 +402,10 @@ export const requestSenditPickup = async (token, store, trackingIds, note) => {
         note: note,
         deliveries: trackingIds
     });
+};
+
+export const getSenditInvoices = async (token, options) => {
+    return await senditService.getInvoices(token, options);
 };
 
 export default senditService;

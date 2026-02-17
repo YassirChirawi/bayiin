@@ -4,6 +4,9 @@ import { X, Save } from "lucide-react";
 import Button from "./Button";
 import Input from "./Input";
 import { useLanguage } from "../context/LanguageContext"; // NEW
+import { getCustomerSegment } from "../utils/aiSegmentation";
+import { getWhatsappLink, getWhatsappMessageForSegment } from "../utils/whatsappTemplates";
+import { MessageCircle } from "lucide-react";
 
 export default function CustomerModal({ isOpen, onClose, onSave, customer = null }) {
     const { t } = useLanguage(); // NEW
@@ -59,9 +62,16 @@ export default function CustomerModal({ isOpen, onClose, onSave, customer = null
                     <h2 className="text-xl font-bold text-gray-900">
                         {customer ? t('modal_title_edit_customer') : t('modal_title_new_customer')}
                     </h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
-                        <X className="h-6 w-6" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {customer && (
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 ${getCustomerSegment(customer, customer.orders || []).color}`}>
+                                {getCustomerSegment(customer, customer.orders || []).icon} {getCustomerSegment(customer, customer.orders || []).label}
+                            </span>
+                        )}
+                        <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
+                            <X className="h-6 w-6" />
+                        </button>
+                    </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -96,13 +106,31 @@ export default function CustomerModal({ isOpen, onClose, onSave, customer = null
                         placeholder={t('placeholder_address')}
                     />
 
-                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                        <Button type="button" variant="secondary" onClick={onClose}>
-                            {t('cancel')}
-                        </Button>
-                        <Button type="submit" isLoading={loading} icon={Save}>
-                            {t('btn_save_customer')}
-                        </Button>
+                    <div className="flex justify-between items-center pt-4 border-t border-gray-100">
+                        {customer && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                icon={MessageCircle}
+                                className="text-green-600 border-green-200 hover:bg-green-50"
+                                onClick={() => {
+                                    const segment = getCustomerSegment(customer, customer.orders || []);
+                                    const message = getWhatsappMessageForSegment(segment.messageKey, customer);
+                                    const link = getWhatsappLink(customer.phone, message);
+                                    window.open(link, '_blank');
+                                }}
+                            >
+                                {t('btn_ai_reengage') || "Relancer (IA)"}
+                            </Button>
+                        )}
+                        <div className="flex gap-3">
+                            <Button type="button" variant="secondary" onClick={onClose}>
+                                {t('cancel')}
+                            </Button>
+                            <Button type="submit" isLoading={loading} icon={Save}>
+                                {t('btn_save_customer')}
+                            </Button>
+                        </div>
                     </div>
                 </form>
             </div>

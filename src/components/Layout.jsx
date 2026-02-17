@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import PageTransition from "./PageTransition";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import Copilot from "./Copilot";
 
 export default function Layout() {
     const { store, loading } = useTenant();
@@ -89,6 +90,7 @@ export default function Layout() {
                         </PageTransition>
                     </AnimatePresence>
                 </div>
+                <Copilot />
             </main>
         </div>
     );
