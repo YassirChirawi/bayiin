@@ -1,6 +1,6 @@
 // src/services/aiService.js
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { SYSTEM_PERSONA_INSTRUCTIONS, SHIPPING_INFO, SALES_SCRIPTS, FAQ, GROWTH_MODULES } from './knowledge';
+import { SYSTEM_PERSONA_INSTRUCTIONS, SHIPPING_INFO, SALES_SCRIPTS, FAQ, GROWTH_MODULES } from './knowledge.js';
 
 // Initialize Gemini API
 // NOTE: Ideally, the API key should be fetched from backend/server function to keep it secure.
@@ -12,7 +12,7 @@ export const initializeAI = (apiKey) => {
     if (!apiKey) return;
     try {
         genAI = new GoogleGenerativeAI(apiKey);
-        model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
     } catch (error) {
         console.error("Failed to initialize AI:", error);
     }
