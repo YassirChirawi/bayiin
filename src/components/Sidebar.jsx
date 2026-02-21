@@ -17,7 +17,8 @@ import {
     HelpCircle,
     Download,
     Globe,
-    Calendar
+    Calendar,
+    Workflow
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { vibrate } from "../utils/haptics";
@@ -42,6 +43,7 @@ export default function Sidebar({ isOpen, onClose }) {
         { name: t('orders'), href: '/orders', icon: ShoppingBag },
         { name: t('products'), href: '/products', icon: Package },
         { name: t('customers'), href: '/customers', icon: Users },
+        { name: t('automations') || 'Automations', href: '/automations', icon: Workflow },
         ...(role !== 'staff' ? [
             { name: t('finances'), href: '/finances', icon: DollarSign },
             { name: t('team'), href: '/team', icon: UserPlus },

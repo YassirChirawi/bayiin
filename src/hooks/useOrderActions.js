@@ -7,6 +7,7 @@ import { authenticateOlivraison, createOlivraisonPackage } from '../lib/olivrais
 import { authenticateSendit, createSenditPackage } from '../lib/sendit';
 import { logActivity } from '../utils/logger'; // NEW
 import { useAuth } from '../context/AuthContext'; // NEW
+import { runAutomations } from '../utils/automationEngine'; // NEW
 
 export const useOrderActions = () => {
     const [loading, setLoading] = useState(false);
@@ -42,6 +43,8 @@ export const useOrderActions = () => {
                     paymentMethod: 'cod' // Default
                 });
             });
+            // Fire automation AFTER successful transaction
+            runAutomations('order_created', { ...orderData, status: ORDER_STATUS.RECEIVED }, store).catch(console.error);
             setLoading(false);
             return true;
         } catch (err) {
@@ -86,6 +89,12 @@ export const useOrderActions = () => {
                     });
                 }
             });
+
+            // If status changed, trigger automation
+            if (oldData.status !== newData.status) {
+                runAutomations('order_updated', { ...newData, id: orderId }, store).catch(console.error);
+            }
+
             setLoading(false);
             return true;
         } catch (err) {

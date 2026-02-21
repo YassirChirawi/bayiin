@@ -12,6 +12,7 @@ import Orders from "./pages/Orders";
 import Customers from "./pages/Customers";
 import Settings from "./pages/Settings";
 import Team from "./pages/Team";
+import Automations from "./pages/Automations"; // NEW
 import Help from "./pages/Help"; // NEW
 import NotFound from "./pages/NotFound"; // NEW
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -141,6 +142,7 @@ function App() {
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/help" element={<Help />} />
                       <Route path="/support-ai" element={<SupportAI />} /> {/* NEW */}
+                      <Route path="/automations" element={<Automations />} /> {/* NEW */}
                     </Route>
                     <Route path="*" element={<NotFound />} />
                   </Routes>

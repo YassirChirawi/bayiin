@@ -259,3 +259,35 @@ export const analyzeFinancialScenario = async (baseStats, scenario, projections)
 
     return await generateAIResponse(prompt);
 };
+
+/**
+ * Generates a custom WhatsApp message template using AI based on user instructions.
+ * @param {string} instructions - The user's prompt (e.g. "Un message de relance poli")
+ * @param {string} language - 'fr' or 'darija'
+ */
+export const generateWhatsAppTemplate = async (instructions, language = 'fr') => {
+    const langInstructions = language === 'darija'
+        ? "Réponds EXCLUSIVEMENT en Darija marocaine (en caractères latins/français)."
+        : "Réponds EXCLUSIVEMENT en Français professionnel et chaleureux.";
+
+    const prompt = `
+    Tu es un expert en e-commerce et relation client. Ton but est d'écrire UN SEUL message WhatsApp parfait pour une automatisation.
+
+    INSTRUCTIONS DU CLIENT: "${instructions}"
+
+    CONSIGNES STRICTES:
+    1. ${langInstructions}
+    2. Utilise les variables dynamiques suivantes là où c'est pertinent :
+       - {name} : Nom du client
+       - {product} : Nom du produit acheté
+       - {city} : Ville de livraison
+       - {total} : Montant de la commande
+       - {payment_method} : Méthode de paiement
+       - {store_name} : Nom de la boutique (pour signer le message)
+       - {tracking} : Lien de suivi de livraison (si pertinent)
+    3. Le message doit être direct, clair, utiliser quelques emojis, et prêt à être envoyé.
+    4. Retourne UNIQUEMENT le texte du message, sans guillemets, sans commentaires avant ou après. Ne dis pas "Voici le message", donne juste le message.
+    `;
+
+    return await generateAIResponse(prompt);
+};
