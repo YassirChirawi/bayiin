@@ -223,6 +223,8 @@ exports.onOrderWrite = onDocumentWritten({
     const getActiveQty = (o) => {
         if (!o) return 0;
         // Inactive statuses do not consume stock
+        // NOTE: 'retour en cours' still consumes stock (driver is returning to store, not yet restocked)
+        // Stock is only released once the driver confirms drop-off and the status becomes 'retour'
         if (['retour', 'annulé'].includes(o.status)) return 0;
         return parseInt(o.quantity) || 0;
     };

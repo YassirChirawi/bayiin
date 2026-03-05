@@ -5,6 +5,7 @@ import { useStoreData } from '../hooks/useStoreData';
 import { detectFinancialLeaks } from '../services/aiService';
 import { getSenditInvoices } from '../lib/sendit';
 import { useTenant } from './TenantContext';
+import { useAuth } from './AuthContext';
 
 const NotificationContext = createContext();
 
@@ -14,6 +15,7 @@ export const useNotifications = () => {
 
 export const NotificationProvider = ({ children }) => {
     const { store } = useTenant();
+    const { user } = useAuth();
     const [alerts, setAlerts] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [loading, setLoading] = useState(false);
@@ -24,7 +26,7 @@ export const NotificationProvider = ({ children }) => {
     // Optimization: Audit runs only on mount or manual trigger to save reads.
 
     const runAudit = async () => {
-        if (!store?.id) return;
+        if (!store?.id || !user) return;
         setLoading(true);
         const newAlerts = [];
 
@@ -95,7 +97,7 @@ export const NotificationProvider = ({ children }) => {
     // Auto-run audit on mount (once per session/reload)
     useEffect(() => {
         runAudit();
-    }, [store?.id]);
+    }, [store?.id, user?.uid]);
 
     const value = {
         alerts,

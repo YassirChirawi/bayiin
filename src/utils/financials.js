@@ -61,7 +61,7 @@ export const calculateFinancialStats = (orders, expenses, dateRange = null, coll
         const revenue = price * qty;
         const cogs = cost * qty;
 
-        const isPaid = o.isPaid === true || o.isPaid === "true";
+        const isPaid = o.isPaid === true || o.isPaid === "true" || o.paymentStatus === 'remitted';
 
         // Delivered Potential
         if (o.status === 'livré') {

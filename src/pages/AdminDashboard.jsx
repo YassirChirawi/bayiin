@@ -6,7 +6,7 @@ import Button from "../components/Button";
 import Input from "../components/Input";
 import toast from "react-hot-toast";
 import { useAdminData } from "../hooks/useAdminData";
-import { doc, updateDoc, deleteDoc, setDoc } from "firebase/firestore";
+import { doc, updateDoc, deleteDoc, setDoc, addDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { RevenueChart, PlanDistributionChart } from "../components/admin/AdminCharts";
 
@@ -17,7 +17,57 @@ export default function AdminDashboard() {
     const [searchTerm, setSearchTerm] = useState("");
 
     // Custom Hook
-    const { stats, stores, usersList, broadcastData, loading, refreshData, setStores, setUsersList } = useAdminData(user);
+    const { stats, stores, usersList, franchises, broadcastData, loading, refreshData, setStores, setUsersList } = useAdminData(user);
+
+    // Franchise Modal State
+    const [isFranchiseModalOpen, setIsFranchiseModalOpen] = useState(false);
+    const [newFranchiseName, setNewFranchiseName] = useState("");
+    const [newFranchiseAdminEmail, setNewFranchiseAdminEmail] = useState("");
+
+    const handleCreateFranchise = async (e) => {
+        e.preventDefault();
+        if (!newFranchiseName || !newFranchiseAdminEmail) return toast.error("All fields required");
+        try {
+            // Check if user exists first
+            const userQ = query(collection(db, "users"), where("email", "==", newFranchiseAdminEmail.trim()));
+            const userSnap = await getDocs(userQ);
+
+            if (userSnap.empty) {
+                return toast.error("User not found. Admin must sign up first.");
+            }
+
+            // Create franchise
+            const franchiseRef = await addDoc(collection(db, "franchises"), {
+                name: newFranchiseName,
+                createdAt: new Date(),
+            });
+
+            // Update user
+            const targetUser = userSnap.docs[0];
+            await updateDoc(doc(db, "users", targetUser.id), {
+                role: "franchise_admin",
+                franchiseId: franchiseRef.id
+            });
+
+            // Attach user's existing stores to this new franchise
+            const storesQ = query(collection(db, "stores"), where("ownerId", "==", targetUser.id));
+            const storesSnap = await getDocs(storesQ);
+
+            const storePromises = storesSnap.docs.map(storeDoc =>
+                updateDoc(doc(db, "stores", storeDoc.id), { franchiseId: franchiseRef.id })
+            );
+            await Promise.all(storePromises);
+
+            toast.success("Franchise created and Admin assigned!");
+            setIsFranchiseModalOpen(false);
+            setNewFranchiseName("");
+            setNewFranchiseAdminEmail("");
+            refreshData();
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to create franchise");
+        }
+    };
 
     // Local Broadcast State (syncs with data on load)
     const [broadcastMsg, setBroadcastMsg] = useState(broadcastData.message);
@@ -61,6 +111,10 @@ export default function AdminDashboard() {
     const filteredUsers = usersList.filter(u =>
         u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         u.name?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const filteredFranchises = (franchises || []).filter(f =>
+        f.name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     if (loading) return (
@@ -167,7 +221,7 @@ export default function AdminDashboard() {
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 min-h-[500px]">
                     <div className="border-b border-gray-100 px-6 pt-6 bg-white rounded-t-2xl sticky top-0 z-10">
                         <nav className="-mb-px flex space-x-8">
-                            {['stores', 'users', 'broadcast'].map((tab) => (
+                            {['stores', 'users', 'franchises', 'broadcast'].map((tab) => (
                                 <button
                                     key={tab}
                                     onClick={() => setActiveTab(tab)}
@@ -198,7 +252,9 @@ export default function AdminDashboard() {
                                     />
                                 </div>
                                 <div className="flex gap-2">
-                                    {/* Placeholders for future filters */}
+                                    {activeTab === 'franchises' && (
+                                        <Button onClick={() => setIsFranchiseModalOpen(true)}>Create Franchise</Button>
+                                    )}
                                     <Button variant="ghost" size="sm">Filter</Button>
                                     <Button variant="ghost" size="sm">Export</Button>
                                 </div>
@@ -233,8 +289,8 @@ export default function AdminDashboard() {
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${store.plan === 'pro'
-                                                            ? 'bg-indigo-100 text-indigo-800'
-                                                            : 'bg-gray-100 text-gray-800'
+                                                        ? 'bg-indigo-100 text-indigo-800'
+                                                        : 'bg-gray-100 text-gray-800'
                                                         }`}>
                                                         {store.plan === 'pro' && <CheckCircle className="w-3 h-3 mr-1" />}
                                                         {store.plan?.toUpperCase() || 'FREE'}
@@ -339,7 +395,55 @@ export default function AdminDashboard() {
                             </div>
                         )}
 
+                        {/* FRANCHISES TAB */}
+                        {activeTab === 'franchises' && (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-100">
+                                    <thead>
+                                        <tr className="bg-gray-50/50">
+                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider rounded-l-lg">Franchise Details</th>
+                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Stores Count</th>
+                                            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider rounded-r-lg">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {filteredFranchises.map(franchise => (
+                                            <tr key={franchise.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center">
+                                                        <div className="h-10 w-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600 font-bold mr-4">
+                                                            <Building2 className="w-5 h-5" />
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-semibold text-gray-900">{franchise.name}</div>
+                                                            <div className="text-xs text-gray-400 font-mono">{franchise.id}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                                        {stores.filter(s => s.franchiseId === franchise.id).length} Stores
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={async () => {
+                                                        if (!confirm("Delete this franchise?")) return;
+                                                        await deleteDoc(doc(db, "franchises", franchise.id));
+                                                        refreshData();
+                                                    }}>Delete</Button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                {filteredFranchises.length === 0 && (
+                                    <div className="p-12 text-center text-gray-500">No franchises found.</div>
+                                )}
+                            </div>
+                        )}
+
                         {/* BROADCAST TAB */}
+
                         {activeTab === 'broadcast' && (
                             <div className="max-w-2xl mx-auto py-8">
                                 <div className="bg-gradient-to-br from-indigo-50 to-white p-8 rounded-2xl border border-indigo-100 text-center mb-8">
@@ -392,6 +496,47 @@ export default function AdminDashboard() {
                     </div>
                 </div>
             </div>
+
+            {/* Franchise Creation Modal */}
+            {isFranchiseModalOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl">
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                            <h2 className="text-xl font-bold flex items-center gap-2">
+                                <Building2 className="w-5 h-5 text-indigo-600" />
+                                Create Franchise
+                            </h2>
+                            <button onClick={() => setIsFranchiseModalOpen(false)} className="text-gray-400 hover:text-gray-600">&times;</button>
+                        </div>
+                        <form onSubmit={handleCreateFranchise} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Franchise Name</label>
+                                <Input
+                                    placeholder="e.g. Kuos Cosmetics Global"
+                                    value={newFranchiseName}
+                                    onChange={e => setNewFranchiseName(e.target.value)}
+                                    required autoFocus
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Franchise Admin Email</label>
+                                <p className="text-xs text-gray-500 mb-2">User must have already signed up with this email.</p>
+                                <Input
+                                    type="email"
+                                    placeholder="admin@franchise.com"
+                                    value={newFranchiseAdminEmail}
+                                    onChange={e => setNewFranchiseAdminEmail(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            <div className="pt-4 flex justify-end gap-3">
+                                <Button type="button" variant="ghost" onClick={() => setIsFranchiseModalOpen(false)}>Cancel</Button>
+                                <Button type="submit">Create Franchise</Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

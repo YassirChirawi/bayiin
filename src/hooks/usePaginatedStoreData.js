@@ -51,7 +51,7 @@ export function usePaginatedStoreData(collectionName, pageSize = 20, initialCons
         } finally {
             setLoading(false);
         }
-    }, [store?.id, collectionName, pageSize, JSON.stringify(initialConstraints)]);
+    }, [store?.id, collectionName, pageSize, initialConstraints]);
 
     // Load More
     const loadMore = useCallback(async () => {
@@ -80,7 +80,7 @@ export function usePaginatedStoreData(collectionName, pageSize = 20, initialCons
         } finally {
             setLoadingMore(false);
         }
-    }, [store?.id, collectionName, pageSize, lastDoc, hasMore, loadingMore, JSON.stringify(initialConstraints)]);
+    }, [store?.id, collectionName, pageSize, lastDoc, hasMore, loadingMore, initialConstraints]);
 
     useEffect(() => {
         loadData();

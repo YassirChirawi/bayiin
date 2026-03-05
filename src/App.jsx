@@ -34,6 +34,10 @@ import DemoDashboard from "./pages/DemoDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import PublicCatalog from "./pages/PublicCatalog"; // NEW
 import Planning from "./pages/Planning"; // NEW
+import FranchiseDashboard from "./pages/FranchiseDashboard"; // NEW
+import DeliveryApp from "./pages/DeliveryApp"; // NEW
+import Drivers from "./pages/Drivers"; // NEW
+import DriverApplication from "./pages/DriverApplication"; // NEW
 
 import { HelmetProvider } from 'react-helmet-async';
 import { useAnalytics } from './hooks/useAnalytics';
@@ -107,6 +111,8 @@ function App() {
                     <Route path="/" element={<SmartLanding />} /> {/* Modified */}
                     {/* Public Routes */}
                     <Route path="/catalog/:storeId" element={<PublicCatalog />} /> {/* NEW */}
+                    <Route path="/delivery/:token" element={<DeliveryApp />} /> {/* NEW — no auth */}
+                    <Route path="/apply/driver/:storeId" element={<DriverApplication />} /> {/* NEW — public */}
 
                     <Route path="/privacy" element={<Privacy />} />
                     <Route path="/terms" element={<Terms />} />
@@ -118,6 +124,13 @@ function App() {
                         </BiometricLock>
                       </ProtectedRoute>
                     } />
+                    <Route path="/franchise" element={
+                      <ProtectedRoute>
+                        <BiometricLock>
+                          <FranchiseDashboard />
+                        </BiometricLock>
+                      </ProtectedRoute>
+                    } /> {/* NEW */}
                     <Route path="/login" element={<Login />} />
                     <Route path="/signup" element={<Signup />} />
                     <Route path="/onboarding" element={
@@ -143,6 +156,7 @@ function App() {
                       <Route path="/help" element={<Help />} />
                       <Route path="/support-ai" element={<SupportAI />} /> {/* NEW */}
                       <Route path="/automations" element={<Automations />} /> {/* NEW */}
+                      <Route path="/drivers" element={<Drivers />} /> {/* NEW */}
                     </Route>
                     <Route path="*" element={<NotFound />} />
                   </Routes>

@@ -2,7 +2,7 @@ import { useTenant } from "../context/TenantContext";
 import { useStoreData } from "../hooks/useStoreData";
 import { useStoreStats } from "../hooks/useStoreStats";
 import { Link } from "react-router-dom";
-import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, RotateCcw, CheckCircle, RefreshCw, Check, X, Calendar, Clock } from "lucide-react"; // Added Calendar, Clock
+import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, RotateCcw, CheckCircle, RefreshCw, Check, X, Calendar, Clock, Truck } from "lucide-react"; // Added Calendar, Clock, Truck
 import { useMemo, useState } from "react";
 import { format, subDays } from "date-fns";
 import { where, limit, orderBy } from "firebase/firestore";
@@ -123,12 +123,22 @@ export default function Dashboard() {
             value
         }));
 
+        // New Financial Metrics
+        const expectedRevenue = aggregatedStats.totals?.expectedRevenue || 0;
+        const unremittedRevenue = aggregatedStats.totals?.unremittedRevenue || 0;
+        const remittedRevenue = aggregatedStats.totals?.remittedRevenue || 0;
+        const totalDelivered = aggregatedStats.totals?.deliveredRevenue || 0;
+
         return {
             revenueToday,
             pendingOrders,
             returnRate,
             salesTrend,
-            statusDistribution
+            statusDistribution,
+            expectedRevenue,
+            unremittedRevenue,
+            remittedRevenue,
+            totalDelivered
         };
     }, [aggregatedStats]);
 
@@ -285,6 +295,56 @@ export default function Dashboard() {
                 </div>
             </div>
 
+            {/* NEW: Financial Reconciliation (COD) */}
+            <div className="glass-panel rounded-xl overflow-hidden p-6 mb-8 border-t-4 border-indigo-500">
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <DollarSign className="h-5 w-5 text-indigo-600" />
+                            Réconciliation Financière (COD)
+                        </h2>
+                        <p className="text-sm text-gray-500 mt-1">
+                            Suivez votre trésorerie globale. Assurez-vous que l'argent livré finit bien sur votre compte bancaire.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Expected */}
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 relative overflow-hidden">
+                        <div className="absolute right-0 top-0 w-16 h-16 bg-gray-200 rounded-bl-full opacity-50"></div>
+                        <Truck className="h-6 w-6 text-gray-400 mb-2" />
+                        <h3 className="text-sm font-medium text-gray-600">Argent en Transit</h3>
+                        <p className="text-xs text-gray-400 mb-2">Commandes en cours de livraison</p>
+                        <div className="text-2xl font-bold text-gray-900">
+                            {statsLoading ? "..." : (Math.max(0, dashboardData.expectedRevenue).toFixed(2) || "0.00")} <span className="text-sm font-normal text-gray-500">DH</span>
+                        </div>
+                    </div>
+
+                    {/* Unremitted (Dû par Livreurs) */}
+                    <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-100 relative overflow-hidden">
+                        <div className="absolute right-0 top-0 w-16 h-16 bg-yellow-200 rounded-bl-full opacity-50"></div>
+                        <AlertTriangle className="h-6 w-6 text-yellow-500 mb-2" />
+                        <h3 className="text-sm font-bold text-yellow-900">Dû par les livreurs</h3>
+                        <p className="text-xs text-yellow-700 mb-2">Commandes livrées, mais argent en attente</p>
+                        <div className="text-2xl font-bold text-yellow-900">
+                            {statsLoading ? "..." : (Math.max(0, dashboardData.unremittedRevenue).toFixed(2) || "0.00")} <span className="text-sm font-normal text-yellow-700">DH</span>
+                        </div>
+                    </div>
+
+                    {/* Remitted (En banque) */}
+                    <div className="bg-green-50 p-4 rounded-lg border border-green-100 relative overflow-hidden">
+                        <div className="absolute right-0 top-0 w-16 h-16 bg-green-200 rounded-bl-full opacity-50"></div>
+                        <CheckCircle className="h-6 w-6 text-green-500 mb-2" />
+                        <h3 className="text-sm font-bold text-green-900">Argent Encaissé</h3>
+                        <p className="text-xs text-green-700 mb-2">Fonds virés sur votre compte bancaire</p>
+                        <div className="text-2xl font-bold text-green-900">
+                            {statsLoading ? "..." : (Math.max(0, dashboardData.remittedRevenue).toFixed(2) || "0.00")} <span className="text-sm font-normal text-green-700">DH</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Dashboard 2-column Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -393,8 +453,8 @@ export default function Dashboard() {
                     {/* Status Breakdown (Pie Chart) */}
                     <div className="glass-panel rounded-xl p-6">
                         <h3 className="text-lg font-medium text-gray-900 mb-4">{t('chart_order_status')}</h3>
-                        <div className="h-[300px] w-full">
-                            <ResponsiveContainer width="100%" height="100%">
+                        <div className="w-full flex justify-center" style={{ minHeight: '300px' }}>
+                            <ResponsiveContainer width="100%" height={300} minHeight={300}>
                                 <PieChart>
                                     <Pie
                                         data={dashboardData.statusDistribution}

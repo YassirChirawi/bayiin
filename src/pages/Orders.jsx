@@ -12,6 +12,7 @@ import QRCode from "react-qr-code";
 import { generateInvoice } from "../utils/generateInvoice";
 import { getWhatsappMessage, createRawWhatsAppLink } from "../utils/whatsappTemplates";
 import { exportToCSV } from "../utils/csvHelper";
+import { PAYMENT_STATUS } from "../utils/constants";
 
 import { useTenant } from "../context/TenantContext";
 import { useLanguage } from "../context/LanguageContext"; // NEW
@@ -73,6 +74,8 @@ export default function Orders() {
 
     // Pickup State
     const [isPickupLoading, setIsPickupLoading] = useState(false);
+    const [isInternalPickupModalOpen, setIsInternalPickupModalOpen] = useState(false);
+    const [internalDriverToken, setInternalDriverToken] = useState("");
 
     // Confirmation Modal State
     const [confirmationModal, setConfirmationModal] = useState({
@@ -160,6 +163,30 @@ export default function Orders() {
         } catch (err) {
             console.error("Error toggling paid:", err);
             toast.error(t('err_update_payment'));
+        }
+    };
+
+    const togglePaymentStatus = async (order) => {
+        if (!store?.id) return;
+        try {
+            const currentStatus = order.paymentStatus || PAYMENT_STATUS.PENDING;
+            const newStatus = currentStatus === PAYMENT_STATUS.PENDING ? PAYMENT_STATUS.REMITTED : PAYMENT_STATUS.PENDING;
+
+            const orderRef = doc(db, "orders", order.id);
+            await updateDoc(orderRef, {
+                paymentStatus: newStatus,
+                isPaid: newStatus === PAYMENT_STATUS.REMITTED
+            });
+
+            logActivity(db, store.id, user, 'REMITTANCE_UPDATE',
+                `Order ${order.orderNumber} remittance status marked as ${newStatus}`,
+                { orderId: order.id, orderNumber: order.orderNumber, newPaymentStatus: newStatus }
+            );
+
+            toast.success(newStatus === PAYMENT_STATUS.REMITTED ? "Fonds marqués comme encaissés !" : "Fonds remis en attente.");
+        } catch (err) {
+            console.error("Error toggling payment status:", err);
+            toast.error("Erreur lors de la mise à jour du reversement.");
         }
     };
 
@@ -343,6 +370,31 @@ export default function Orders() {
         });
     };
 
+    const handleBulkRemitted = async () => {
+        openConfirmation({
+            title: "Marquer comme Encaissé (COD)",
+            message: `Marquer ${selectedOrders.length} commandes comme encaissées (fonds reçus du livreur) ?`,
+            onConfirm: async () => {
+                try {
+                    const batch = writeBatch(db);
+                    selectedOrders.forEach(id => {
+                        const orderRef = doc(db, "orders", id);
+                        batch.update(orderRef, {
+                            paymentStatus: PAYMENT_STATUS.REMITTED,
+                            isPaid: true
+                        });
+                    });
+                    await batch.commit();
+                    setSelectedOrders([]);
+                    toast.success("Commandes marquées comme encaissées !");
+                } catch (err) {
+                    console.error("Error bulk remitting:", err);
+                    toast.error("Échec de la mise à jour.");
+                }
+            }
+        });
+    };
+
     const handleBulkStatus = async (status) => {
         openConfirmation({
             title: "Changer Statut",
@@ -391,6 +443,7 @@ export default function Orders() {
         switch (status) {
             case 'livré': return 'bg-green-100 text-green-800';
             case 'retour': return 'bg-red-100 text-red-800';
+            case 'retour en cours': return 'bg-rose-100 text-rose-700';
             case 'annulé': return 'bg-gray-100 text-gray-400 line-through';
             case 'packing': return 'bg-yellow-100 text-yellow-800';
             case 'livraison': return 'bg-blue-100 text-blue-800';
@@ -406,10 +459,15 @@ export default function Orders() {
             return;
         }
 
-        const provider = order.carrier || 'sendit'; // Default to sendit
+        const provider = order.carrier || (order.livreurToken ? 'internal' : 'sendit');
         setTrackingProvider(provider);
         setTrackingData(null); // Clear previous
         setIsTrackingModalOpen(true);
+
+        if (provider === 'internal') {
+            setTrackingData(order);
+            return;
+        }
 
         try {
             if (provider === 'sendit') {
@@ -477,6 +535,39 @@ export default function Orders() {
                 }
             }
         });
+    };
+
+    const handleInternalPickup = async (e) => {
+        e.preventDefault();
+        const token = internalDriverToken.trim();
+        if (!token) {
+            toast.error("Veuillez entrer un ID livreur.");
+            return;
+        }
+
+        setIsPickupLoading(true);
+        try {
+            const batch = writeBatch(db);
+            selectedOrders.forEach(id => {
+                const orderRef = doc(db, "orders", id);
+                batch.update(orderRef, {
+                    status: 'ramassage',
+                    livreurToken: token,
+                    [`statusHistory.ramassage`]: new Date().toISOString()
+                });
+            });
+            await batch.commit();
+            setSelectedOrders([]);
+            setIsInternalPickupModalOpen(false);
+            setInternalDriverToken("");
+            toast.success(`Assigné au livreur: ${token}`);
+            logActivity(db, store.id, user, 'INTERNAL_DELIVERY_ASSIGNED', `Assigned ${selectedOrders.length} orders to ${token}`);
+        } catch (error) {
+            console.error("Assign error", error);
+            toast.error("Erreur d'assignation.");
+        } finally {
+            setIsPickupLoading(false);
+        }
     };
 
     // Filter Logic (Client Side Refinement of Server Results)
@@ -576,6 +667,13 @@ export default function Orders() {
                                     >
                                         {t('btn_no_answer')}
                                     </Button>
+                                    <Button
+                                        onClick={handleBulkRemitted}
+                                        className="bg-teal-600 hover:bg-teal-700 text-white"
+                                        icon={CheckSquare}
+                                    >
+                                        Encaisser (COD)
+                                    </Button>
                                 </>
                             )}
                             <Button
@@ -605,14 +703,26 @@ export default function Orders() {
                         {t('btn_new_order')}
                     </Button>
 
-                    <Button
-                        onClick={handleRequestPickup}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                        icon={Truck}
-                        disabled={isPickupLoading || selectedOrders.length === 0}
-                    >
-                        {isPickupLoading ? "Envoi..." : "Demander Ramassage"}
-                    </Button>
+                    <div className="flex bg-indigo-50 p-1 rounded-lg ml-2">
+                        <Button
+                            onClick={handleRequestPickup}
+                            className="bg-transparent text-indigo-700 hover:bg-indigo-100"
+                            icon={Truck}
+                            disabled={isPickupLoading || selectedOrders.length === 0}
+                            title="Ramassage Sendit"
+                        >
+                            Sendit
+                        </Button>
+                        <Button
+                            onClick={() => setIsInternalPickupModalOpen(true)}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white ml-1"
+                            icon={Truck}
+                            disabled={selectedOrders.length === 0}
+                            title="Assigner Livreur Interne"
+                        >
+                            Interne
+                        </Button>
+                    </div>
                 </div>
             </div>
 
@@ -684,6 +794,7 @@ export default function Orders() {
                     <option value="reçu">Reçu</option>
                     <option value="confirmation">Confirmation</option>
                     <option value="packing">Packing</option>
+                    <option value="ramassage">Ramassage</option>
                     <option value="livraison">Livraison</option>
                     <option value="livré">Livré</option>
                     <option value="reporté">Reporté</option>
@@ -730,7 +841,7 @@ export default function Orders() {
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('th_product')}</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('th_qty')}</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('th_total')}</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('th_paid')}</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('th_paid_remitted') || "Paiement / Reversement"}</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('th_status')}</th>
                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{t('th_actions')}</th>
                         </tr>
@@ -762,6 +873,11 @@ export default function Orders() {
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                         <div className="font-medium">{order.clientName}</div>
                                         <div className="text-gray-500 text-xs">{order.clientPhone}</div>
+                                        {order.driverNote && (
+                                            <div className="mt-1 flex items-center gap-1 text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded px-1.5 py-0.5 max-w-[180px]" title={order.driverNote}>
+                                                💬 <span className="truncate">{order.driverNote}</span>
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         <div>{order.articleName}</div>
@@ -774,13 +890,28 @@ export default function Orders() {
                                         {order.price ? `${(order.source === 'public_catalog' ? parseFloat(order.price) : (order.price * order.quantity)).toFixed(2)} ${store?.currency || 'MAD'}` : '-'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <button
-                                            onClick={() => togglePaid(order)}
-                                            className={`p-1 rounded-full ${order.isPaid ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}
-                                            title={order.isPaid ? "Mark Unpaid" : "Mark Paid"}
-                                        >
-                                            <DollarSign className="h-5 w-5" />
-                                        </button>
+                                        <div className="flex flex-col gap-2">
+                                            <button
+                                                onClick={() => togglePaid(order)}
+                                                className={`p-1 w-fit rounded-full flex items-center justify-center ${order.isPaid ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}
+                                                title={order.isPaid ? "Mark Unpaid" : "Mark Paid"}
+                                            >
+                                                <DollarSign className="h-4 w-4" />
+                                            </button>
+
+                                            {order.status === 'livré' && (
+                                                <button
+                                                    onClick={() => togglePaymentStatus(order)}
+                                                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors ${(order.paymentStatus === PAYMENT_STATUS.REMITTED)
+                                                        ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                                                        : 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'
+                                                        }`}
+                                                    title="Marquer comme encaissé par le livreur"
+                                                >
+                                                    {(order.paymentStatus === PAYMENT_STATUS.REMITTED) ? 'Encaissé' : 'Dû par livreur'}
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         {activeTab === 'carts' ? (
@@ -845,7 +976,7 @@ export default function Orders() {
                                                         <QrCode className="h-4 w-4" />
                                                     </button>
                                                     {/* Tracking Timeline Button */}
-                                                    {(order.carrier === 'sendit' || order.carrier === 'olivraison') && order.trackingId && (
+                                                    {(order.carrier || order.livreurToken) && (
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); handleOpenTracking(order); }}
                                                             className="text-blue-500 hover:text-blue-700"
@@ -1016,6 +1147,11 @@ export default function Orders() {
                                         <a href={`tel:${order.clientPhone}`} className="text-indigo-600 text-xs flex items-center gap-1 mt-1">
                                             {order.clientPhone}
                                         </a>
+                                        {order.driverNote && (
+                                            <div className="mt-2 text-[10px] text-rose-700 bg-rose-50 border border-rose-100 rounded px-1.5 py-0.5 leading-tight">
+                                                💬 {order.driverNote}
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="text-right">
                                         <p className="text-xs text-gray-400 mb-1">Total</p>
@@ -1134,6 +1270,16 @@ export default function Orders() {
                                             >
                                                 <Truck className="h-5 w-5" />
                                             </button>
+                                            {/* Tracking Timeline (Internal or Carrier) */}
+                                            {(order.carrier || order.livreurToken) && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleOpenTracking(order); }}
+                                                    className="p-2 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                                                    title="Suivi / Historique"
+                                                >
+                                                    <MapPin className="h-5 w-5" />
+                                                </button>
+                                            )}
                                             {/* Amana Placeholder */}
                                             <button disabled className="p-2 rounded-full bg-gray-50 text-gray-300 cursor-not-allowed" title="Amana Integration Coming Soon">
                                                 <Package className="h-5 w-5" />
@@ -1248,6 +1394,37 @@ export default function Orders() {
                 title="Import Orders"
                 templateHeaders={["Client", "Phone", "Address", "City", "Product", "Quantity", "Price", "Cost Price", "Status", "Date"]}
             />
+
+            {/* Internal Pickup Assignment Modal */}
+            {isInternalPickupModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full relative">
+                        <button
+                            onClick={() => setIsInternalPickupModalOpen(false)}
+                            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                        >
+                            <X className="h-6 w-6" />
+                        </button>
+                        <h3 className="text-lg font-bold text-gray-900 mb-2">Assigner Livreur ({selectedOrders.length})</h3>
+                        <p className="text-sm text-gray-500 mb-4">
+                            Entrez le token ou l'identifiant du livreur. La commande passera en statut "À ramasser".
+                        </p>
+                        <form onSubmit={handleInternalPickup}>
+                            <input
+                                type="text"
+                                value={internalDriverToken}
+                                onChange={(e) => setInternalDriverToken(e.target.value)}
+                                placeholder="Token Livreur (ex: L-123)"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-xl mb-4 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                required
+                            />
+                            <Button type="submit" className="w-full justify-center bg-indigo-600 text-white" disabled={isPickupLoading}>
+                                {isPickupLoading ? "Assignation..." : "Assigner & Demander Ramassage"}
+                            </Button>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div >
     );
 }

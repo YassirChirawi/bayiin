@@ -30,8 +30,8 @@ export default function CityRevenueChart({ data, highReturnCities = [] }) {
                 </div>
             )}
 
-            <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
+            <div className="w-full" style={{ height: "256px" }}>
+                <ResponsiveContainer width="100%" height={256} minHeight={256}>
                     <BarChart
                         data={chartData}
                         margin={{ top: 5, right: 10, left: 10, bottom: 0 }}

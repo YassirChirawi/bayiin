@@ -23,7 +23,10 @@ export const reconcileStoreStats = async (db, storeId) => {
                 realizedRevenue: 0,
                 realizedCOGS: 0,
                 realizedDeliveryCost: 0,
-                deliveredRevenue: 0 // Specific tracked metric
+                deliveredRevenue: 0, // Specific tracked metric
+                expectedRevenue: 0,
+                unremittedRevenue: 0,
+                remittedRevenue: 0
             },
             statusCounts: {},
             daily: {} // date -> { revenue, count }
@@ -46,8 +49,17 @@ export const reconcileStoreStats = async (db, storeId) => {
                 stats.totals.realizedDeliveryCost += deliveryCost;
             }
 
+            if (order.status === 'livraison' || order.status === 'ramassage') {
+                stats.totals.expectedRevenue += orderVal;
+            }
+
             if (order.status === 'livré') {
                 stats.totals.deliveredRevenue += orderVal;
+                if (order.paymentStatus === 'remitted') {
+                    stats.totals.remittedRevenue += orderVal;
+                } else {
+                    stats.totals.unremittedRevenue += orderVal;
+                }
             }
 
             // 2. Status Counts

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useAuth } from "./AuthContext";
 import { db } from "../lib/firebase";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
@@ -9,112 +9,135 @@ export const useTenant = () => useContext(TenantContext);
 
 export const TenantProvider = ({ children }) => {
     const { user } = useAuth();
-    const [store, setStore] = useState(null); // Currently active store
-    const [stores, setStores] = useState([]); // All available stores
+    const [store, setStore] = useState(null);       // Currently active store
+    const [stores, setStores] = useState([]);        // All available stores (owned/staff)
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        async function loadStores() {
-            setLoading(true);
-            if (!user) {
-                setStore(null);
-                setStores([]);
-                setLoading(false);
-                return;
-            }
+    // --- Franchise state ---
+    const [isFranchiseAdmin, setIsFranchiseAdmin] = useState(false);
+    const [franchise, setFranchise] = useState(null);          // Franchise doc data
+    const [franchiseStores, setFranchiseStores] = useState([]); // All stores in the franchise
 
-            try {
-                const availableStores = [];
-                const storeIds = new Set(); // Prevent duplicates
-
-                // 1. Fetch Owned Stores
-                const ownedQuery = query(collection(db, "stores"), where("ownerId", "==", user.uid));
-                const ownedSnapshot = await getDocs(ownedQuery);
-
-                ownedSnapshot.forEach(doc => {
-                    if (!storeIds.has(doc.id)) {
-                        availableStores.push({ id: doc.id, ...doc.data(), role: 'owner' });
-                        storeIds.add(doc.id);
-                    }
-                });
-
-                // 2. Fetch Invited Stores (Staff)
-                const invitedQuery = query(collection(db, "allowed_users"), where("email", "==", user.email));
-                const invitedSnapshot = await getDocs(invitedQuery);
-
-                // Process invites in parallel
-                const invitePromises = invitedSnapshot.docs.map(async (inviteDoc) => {
-                    const inviteData = inviteDoc.data();
-                    if (inviteData.storeId && !storeIds.has(inviteData.storeId)) {
-                        try {
-                            const storeDoc = await getDoc(doc(db, "stores", inviteData.storeId));
-                            if (storeDoc.exists()) {
-                                return {
-                                    id: storeDoc.id,
-                                    ...storeDoc.data(),
-                                    role: inviteData.role || 'staff'
-                                };
-                            }
-                        } catch (err) {
-                            console.error("Failed to load invited store", inviteData.storeId, err);
-                        }
-                    }
-                    return null;
-                });
-
-                const invitedStores = (await Promise.all(invitePromises)).filter(s => s !== null);
-
-                // Add unique invited stores
-                invitedStores.forEach(s => {
-                    if (!storeIds.has(s.id)) {
-                        availableStores.push(s);
-                        storeIds.add(s.id);
-                    }
-                });
-
-                setStores(availableStores);
-
-                // 3. Select Active Store
-                // Priority: Last Selected (LocalStorage) -> First Available
-                if (availableStores.length > 0) {
-                    const lastStoreId = localStorage.getItem('lastStoreId');
-                    const foundLast = availableStores.find(s => s.id === lastStoreId);
-
-                    if (foundLast) {
-                        setStore(foundLast);
-                    } else {
-                        // Default to first
-                        setStore(availableStores[0]);
-                        localStorage.setItem('lastStoreId', availableStores[0].id);
-                    }
-                } else {
-                    setStore(null);
-                }
-
-            } catch (error) {
-                console.error("Error loading stores:", error);
-            } finally {
-                setLoading(false);
-            }
+    const loadStores = useCallback(async () => {
+        setLoading(true);
+        if (!user) {
+            setStore(null);
+            setStores([]);
+            setIsFranchiseAdmin(false);
+            setFranchise(null);
+            setFranchiseStores([]);
+            setLoading(false);
+            return;
         }
 
-        loadStores();
+        try {
+            const availableStores = [];
+            const storeIds = new Set();
+
+            // 1. Fetch user document to check role
+            let userData = null;
+            try {
+                const userDoc = await getDoc(doc(db, "users", user.uid));
+                if (userDoc.exists()) userData = userDoc.data();
+            } catch (_) { /* user doc may not exist yet */ }
+
+            // 2. Fetch Owned Stores
+            const ownedQuery = query(collection(db, "stores"), where("ownerId", "==", user.uid));
+            const ownedSnapshot = await getDocs(ownedQuery);
+            ownedSnapshot.forEach(d => {
+                if (!storeIds.has(d.id)) {
+                    availableStores.push({ id: d.id, ...d.data(), role: 'owner' });
+                    storeIds.add(d.id);
+                }
+            });
+
+            // 3. Fetch Invited Stores (Staff)
+            const invitedQuery = query(collection(db, "allowed_users"), where("email", "==", user.email));
+            const invitedSnapshot = await getDocs(invitedQuery);
+            const invitePromises = invitedSnapshot.docs.map(async (inviteDoc) => {
+                const inviteData = inviteDoc.data();
+                if (inviteData.storeId && !storeIds.has(inviteData.storeId)) {
+                    try {
+                        const storeDoc = await getDoc(doc(db, "stores", inviteData.storeId));
+                        if (storeDoc.exists()) {
+                            return { id: storeDoc.id, ...storeDoc.data(), role: inviteData.role || 'staff' };
+                        }
+                    } catch (err) {
+                        console.error("Failed to load invited store", inviteData.storeId, err);
+                    }
+                }
+                return null;
+            });
+            const invitedStores = (await Promise.all(invitePromises)).filter(Boolean);
+            invitedStores.forEach(s => {
+                if (!storeIds.has(s.id)) {
+                    availableStores.push(s);
+                    storeIds.add(s.id);
+                }
+            });
+
+            setStores(availableStores);
+
+            // 4. Select Active Store (Priority: localStorage -> first)
+            if (availableStores.length > 0) {
+                const lastStoreId = localStorage.getItem('lastStoreId');
+                const foundLast = availableStores.find(s => s.id === lastStoreId);
+                const activeStore = foundLast || availableStores[0];
+                setStore(activeStore);
+                if (!foundLast) localStorage.setItem('lastStoreId', activeStore.id);
+            } else {
+                setStore(null);
+            }
+
+            // 5. Franchise Admin — load all franchise stores
+            if (userData?.role === 'franchise_admin' && userData?.franchiseId) {
+                setIsFranchiseAdmin(true);
+
+                // Load franchise document
+                try {
+                    const franchiseDoc = await getDoc(doc(db, "franchises", userData.franchiseId));
+                    if (franchiseDoc.exists()) setFranchise({ id: franchiseDoc.id, ...franchiseDoc.data() });
+                } catch (_) { }
+
+                // Load all stores beloning to this franchise
+                const fStoresQuery = query(
+                    collection(db, "stores"),
+                    where("franchiseId", "==", userData.franchiseId)
+                );
+                const fStoresSnap = await getDocs(fStoresQuery);
+                const fStores = fStoresSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                setFranchiseStores(fStores);
+            } else {
+                setIsFranchiseAdmin(false);
+                setFranchise(null);
+                setFranchiseStores([]);
+            }
+
+        } catch (error) {
+            console.error("Error loading stores:", error);
+        } finally {
+            setLoading(false);
+        }
     }, [user]);
 
-    // Function to switch store
+    useEffect(() => {
+        loadStores();
+    }, [loadStores]);
+
     const switchStore = (storeId) => {
         const target = stores.find(s => s.id === storeId);
         if (target) {
-            console.log("Switching to store:", target.name);
             setStore(target);
             localStorage.setItem('lastStoreId', target.id);
-            // Optional: Reload window to clear strict cached queries if necessary, 
-            // but Context should trigger re-renders naturally.
         }
     };
 
     return (
-        <TenantContext.Provider value={{ store, setStore, stores, loading, switchStore }}>
+        <TenantContext.Provider value={{
+            store, setStore, stores, loading, switchStore, refreshStores: loadStores,
+            // Franchise
+            isFranchiseAdmin, franchise, franchiseStores,
+        }}>
             {children}
         </TenantContext.Provider>
     );

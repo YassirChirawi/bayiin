@@ -18,7 +18,9 @@ import {
     Download,
     Globe,
     Calendar,
-    Workflow
+    Workflow,
+    Building2,
+    Truck
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { vibrate } from "../utils/haptics";
@@ -26,7 +28,7 @@ import { vibrate } from "../utils/haptics";
 export default function Sidebar({ isOpen, onClose }) {
     const { pathname } = useLocation();
     const { logout } = useAuth();
-    const { store } = useTenant();
+    const { store, isFranchiseAdmin } = useTenant();
     const { t, language, setLanguage } = useLanguage(); // NEW
     const [showInstallGuide, setShowInstallGuide] = useState(false);
 
@@ -38,12 +40,17 @@ export default function Sidebar({ isOpen, onClose }) {
     };
 
     const navigation = [
+        // ── Franchise Hub (franchise_admin only) ──
+        ...(isFranchiseAdmin ? [
+            { name: 'Franchise Hub', href: '/franchise', icon: Building2, special: true },
+        ] : []),
         { name: t('dashboard'), href: '/dashboard', icon: LayoutDashboard },
         { name: t('planning') || 'Planning', href: '/planning', icon: Calendar },
         { name: t('orders'), href: '/orders', icon: ShoppingBag },
         { name: t('products'), href: '/products', icon: Package },
         { name: t('customers'), href: '/customers', icon: Users },
         { name: t('automations') || 'Automations', href: '/automations', icon: Workflow },
+        { name: 'Livreurs', href: '/drivers', icon: Truck },
         ...(role !== 'staff' ? [
             { name: t('finances'), href: '/finances', icon: DollarSign },
             { name: t('team'), href: '/team', icon: UserPlus },
@@ -98,9 +105,26 @@ export default function Sidebar({ isOpen, onClose }) {
                 <nav id="tour-nav" className="flex-1 p-4 space-y-1 overflow-y-auto">
                     {navigation.map((item) => {
                         const isActive = pathname.startsWith(item.href);
-                        return (
+                        return item.special ? (
+                            // Franchise Hub — special gradient style
                             <Link
-                                key={item.href} // Changed key to href as name changes with lang
+                                key={item.href}
+                                to={item.href}
+                                onClick={() => onClose && onClose()}
+                                className={`
+                    flex items-center px-4 py-2 text-sm font-semibold rounded-lg transition-all mb-2
+                    ${isActive
+                                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md'
+                                        : 'bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 hover:from-indigo-100 hover:to-purple-100 border border-indigo-100'}
+                  `}
+                            >
+                                <item.icon className="mr-3 h-5 w-5" />
+                                {item.name}
+                                {!isActive && <span className="ml-auto text-xs bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full">HQ</span>}
+                            </Link>
+                        ) : (
+                            <Link
+                                key={item.href}
                                 to={item.href}
                                 onClick={() => onClose && onClose()}
                                 className={`

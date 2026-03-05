@@ -57,6 +57,24 @@ const executeAction = async (actionNode, payload, store) => {
                 // In a real app, connect to WhatsApp Business API or webhook
                 console.log(`Automation: WhatsApp message triggered for phone ${payload.clientPhone}`);
                 console.log(`Message Content:\n${message}`);
+
+                // Open WhatsApp Web/App with pre-filled message
+                if (payload.clientPhone) {
+                    const cleanPhone = payload.clientPhone.replace(/[^\d+]/g, '');
+                    const encodedMessage = encodeURIComponent(message);
+
+                    // Note: This relies on front-end browser context. 
+                    // If executeAction is called in the background it might not open a window.
+                    // Assuming this is tied to user action (e.g. changing status) for now.
+                    try {
+                        window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
+                        toast?.success("Redirection WhatsApp...");
+                    } catch (e) {
+                        console.warn("Could not open WhatsApp window (maybe blocked by popup blocker):", e);
+                    }
+                } else {
+                    console.warn("WhatsApp action triggered but clientPhone is missing.");
+                }
                 break;
             }
 

@@ -69,7 +69,7 @@ export default function Finances() {
         ];
     }, [dateRange.start, dateRange.end]);
 
-    const { data: orders, loading: loadingOrders } = useStoreData("orders", orderConstraints);
+    const { data: orders, loading: loadingOrders, error: ordersError } = useStoreData("orders", orderConstraints);
 
     // 2. Fetch Expenses
     // Strategy: Fetch ALL expenses for now to enable effective client-side filtering by both Date AND Collection ID.
@@ -324,6 +324,18 @@ export default function Finances() {
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
                     <p className="font-bold">{t('err_loading_finances')}</p>
                     <p className="text-sm">{expensesError.message} - {t('msg_check_permissions')}</p>
+                </div>
+            )}
+
+            {ordersError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                    <p className="font-bold">Error loading Orders</p>
+                    <p className="text-sm">{ordersError.message}</p>
+                </div>
+            )}
+            {orders.length === 0 && !loadingOrders && (
+                <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg text-sm">
+                    <strong>DEBUG:</strong> 0 commandes trouvées pour cette période ({dateRange.start} au {dateRange.end}).
                 </div>
             )}
 

@@ -399,6 +399,16 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('label_note')}</label>
                                 <textarea className="w-full px-3 py-2 border rounded-lg" rows="2" value={formData.note} onChange={e => setFormData({ ...formData, note: e.target.value })} placeholder="Digicode, instructions..."></textarea>
                             </div>
+
+                            {order?.driverNote && (
+                                <div className="mt-3 p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2">
+                                    <span className="text-lg">💬</span>
+                                    <div>
+                                        <p className="text-xs font-bold text-rose-700 uppercase tracking-wide mb-0.5">Remarque du Livreur</p>
+                                        <p className="text-sm text-rose-800">{order.driverNote}</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex justify-between items-center pt-4 border-t border-gray-100">

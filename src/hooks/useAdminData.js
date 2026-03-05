@@ -7,6 +7,7 @@ export function useAdminData(user) {
     const [stats, setStats] = useState({ stores: 0, mrr: 0, users: 0, proStores: 0, activeStores: 0 });
     const [stores, setStores] = useState([]);
     const [usersList, setUsersList] = useState([]);
+    const [franchises, setFranchises] = useState([]);
     const [loading, setLoading] = useState(true);
     const [broadcastData, setBroadcastData] = useState({ message: "", active: false });
 
@@ -31,6 +32,14 @@ export function useAdminData(user) {
                 usersData = usersCtx.docs.map(d => ({ id: d.id, ...d.data() }));
             } catch (e) {
                 console.warn("Failed to fetch users", e);
+            }
+
+            try {
+                const franchisesCtx = await getDocs(collection(db, "franchises"));
+                const franchisesData = franchisesCtx.docs.map(d => ({ id: d.id, ...d.data() }));
+                setFranchises(franchisesData);
+            } catch (e) {
+                console.warn("Failed to fetch franchises", e);
             }
 
             try {
@@ -76,5 +85,5 @@ export function useAdminData(user) {
     // Exposed refresh function
     const refreshData = fetchData;
 
-    return { stats, stores, usersList, broadcastData, loading, refreshData, setStores, setUsersList }; // setStores/setUsersList exposed for optimistic updates
+    return { stats, stores, usersList, franchises, broadcastData, loading, refreshData, setStores, setUsersList, setFranchises }; // exposed for optimistic updates
 }

@@ -51,10 +51,29 @@ const STATUS_COLORS = {
 export default function TrackingTimelineModal({ isOpen, onClose, trackingData, provider }) {
     if (!isOpen || !trackingData) return null;
 
-    // Sendit specific data extraction
-    const audits = trackingData.audits || (trackingData.data && trackingData.data.audits) || [];
+    // Sendit/Carrier specific data extraction
+    let audits = trackingData.audits || (trackingData.data && trackingData.data.audits) || [];
     const currentStatus = trackingData.status || (trackingData.data && trackingData.data.status);
-    const trackingCode = trackingData.code || (trackingData.data && trackingData.data.code);
+    const trackingCode = trackingData.code || (trackingData.data && trackingData.data.code) || (provider === 'internal' ? trackingData.orderNumber : null);
+
+    // Support for internal delivery history
+    if (provider === 'internal' && !audits.length) {
+        // Map statusHistory and remarksHistory to audits
+        const statusEvents = Object.entries(trackingData.statusHistory || {}).map(([status, date]) => ({
+            status: status.replace(/_/g, ' ').toUpperCase(),
+            date,
+            note: null
+        }));
+
+        const remarkEvents = (trackingData.remarksHistory || []).map(r => ({
+            status: r.status.replace(/_/g, ' ').toUpperCase(),
+            date: r.date,
+            note: r.text
+        }));
+
+        // Merge and deduplicate status/remark events by date (or just keep all)
+        audits = [...statusEvents, ...remarkEvents];
+    }
 
     // Sort audits by date descending (newest first)
     // Assuming 'created_at' or similar timestamp in audit
@@ -129,7 +148,7 @@ export default function TrackingTimelineModal({ isOpen, onClose, trackingData, p
                                     </div>
                                     <div className="mt-3 text-center sm:mt-5">
                                         <Dialog.Title as="h3" className="text-base font-semibold leading-6 text-gray-900">
-                                            Suivi de Colis {provider === 'sendit' ? 'Sendit' : 'Olivraison'}
+                                            {provider === 'internal' ? 'Historique de Livraison Interne' : `Suivi de Colis ${provider === 'sendit' ? 'Sendit' : 'Olivraison'}`}
                                         </Dialog.Title>
                                         <div className="mt-2 flex justify-center items-center gap-2">
                                             <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono text-gray-700">

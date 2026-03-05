@@ -2,8 +2,8 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 export function RevenueChart({ data }) {
     return (
-        <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
+        <div className="w-full flex justify-center" style={{ height: "256px" }}>
+            <ResponsiveContainer width="100%" height={256} minHeight={256}>
                 <AreaChart data={data}>
                     <defs>
                         <linearGradient id="colorMrr" x1="0" y1="0" x2="0" y2="1">
@@ -26,8 +26,8 @@ export function PlanDistributionChart({ data }) {
     const COLORS = ['#4f46e5', '#e5e7eb']; // Indigo for Pro, Gray for Free
 
     return (
-        <div className="h-64 w-full flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
+        <div className="w-full flex items-center justify-center" style={{ height: "256px" }}>
+            <ResponsiveContainer width="100%" height={256} minHeight={256}>
                 <PieChart>
                     <Pie
                         data={data}

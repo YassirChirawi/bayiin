@@ -2,17 +2,19 @@ import { useEffect, useState } from 'react';
 import { collection, query, where, onSnapshot, addDoc, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useTenant } from '../context/TenantContext';
+import { useAuth } from '../context/AuthContext';
 
 const DEFAULT_CONSTRAINTS = [];
 
 export function useStoreData(collectionName, constraints = DEFAULT_CONSTRAINTS) {
     const { store } = useTenant();
+    const { user } = useAuth();
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        if (!store?.id) {
+        if (!store?.id || !user) {
             setData([]);
             setLoading(false);
             return;
@@ -38,15 +40,18 @@ export function useStoreData(collectionName, constraints = DEFAULT_CONSTRAINTS) 
                 setLoading(false);
             },
             (err) => {
-                console.error("Error fetching store data:", err);
+                console.error(`Error fetching store data for collection '${collectionName}':`, err);
                 setError(err);
                 setLoading(false);
             }
         );
 
-        return () => unsubscribe();
+        // Wrap in setTimeout to avoid the fast unmount bug in Firebase v11
+        return () => {
+            setTimeout(() => unsubscribe(), 0);
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [store?.id, collectionName, JSON.stringify(constraints)]);
+    }, [store?.id, user?.uid, collectionName, constraints]);
 
     // Helper function to add a document with the current storeId automatically attached
     const addStoreItem = async (itemData) => {

@@ -1,4 +1,4 @@
-import { ArrowRight, Check, ShoppingBag, Package, Users, DollarSign, Settings, Truck, TrendingUp, ShieldCheck, Phone, PenTool, Smartphone, Zap, Globe, Star, Quote, LayoutDashboard, BarChart3, Lock, ShoppingCart, CreditCard } from "lucide-react";
+import { ArrowRight, Check, ShoppingBag, Package, Users, DollarSign, Settings, Truck, TrendingUp, ShieldCheck, Phone, PenTool, Smartphone, Zap, Globe, Star, Quote, LayoutDashboard, BarChart3, Lock, ShoppingCart, CreditCard, Building2, Link as LinkIcon, UserPlus, QrCode } from "lucide-react";
 import { Link } from "react-router-dom";
 import SEO from "../components/SEO";
 import { motion } from "framer-motion";
@@ -428,6 +428,138 @@ export default function Landing() {
             </section>
 
             <FAQ />
+
+            {/* ── FRANCHISE SECTION ── */}
+            <section className="py-24 bg-white border-t border-slate-100" id="franchise">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="text-center mb-16">
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-50 text-indigo-700 text-sm font-semibold mb-4 border border-indigo-100">
+                            <Building2 className="w-4 h-4" /> Franchise & Multi-Magasins
+                        </div>
+                        <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-4">
+                            Gérez plusieurs magasins
+                            <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">depuis un seul tableau de bord</span>
+                        </h2>
+                        <p className="text-xl text-slate-500 max-w-2xl mx-auto">
+                            Bayiin est la plateforme idéale pour les franchises et les réseaux multi-points de vente. Consolidez vos données en temps réel.
+                        </p>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-6">
+                        {[
+                            {
+                                icon: Building2,
+                                color: 'bg-indigo-50 text-indigo-600',
+                                title: 'Dashboard Franchise',
+                                desc: 'Tableau de bord consolidé avec les ventes, stocks et performances de chaque magasin de votre réseau.'
+                            },
+                            {
+                                icon: BarChart3,
+                                color: 'bg-purple-50 text-purple-600',
+                                title: 'KPIs en temps réel',
+                                desc: "Comparez les performances entre magasins, identifiez les meilleurs et ceux qui nécessitent de l'attention."
+                            },
+                            {
+                                icon: Users,
+                                color: 'bg-emerald-50 text-emerald-600',
+                                title: 'Équipes indépendantes',
+                                desc: 'Chaque magasin gère son propre stock, ses commandes et son équipe — avec le contrôle centralisé du franchiseur.'
+                            }
+                        ].map((card, i) => (
+                            <div key={i} className="bg-slate-50 rounded-2xl p-6 border border-slate-100 hover:border-indigo-200 hover:shadow-lg transition-all group">
+                                <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl ${card.color} mb-4`}>
+                                    <card.icon className="w-6 h-6" />
+                                </div>
+                                <h3 className="font-bold text-lg text-slate-900 mb-2">{card.title}</h3>
+                                <p className="text-slate-500 text-sm leading-relaxed">{card.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="mt-12 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-8 md:p-12 text-white text-center">
+                        <p className="text-2xl md:text-3xl font-extrabold mb-2">Vous gérez une franchise ?</p>
+                        <p className="text-indigo-200 mb-8 max-w-xl mx-auto">Contactez-nous pour un accès Franchise personnalisé avec configuration de vos magasins et accompagnement dédié.</p>
+                        <Link to="/signup" className="inline-flex items-center gap-2 bg-white text-indigo-700 hover:bg-indigo-50 px-8 py-4 rounded-2xl font-bold transition-all shadow-lg">
+                            Créer mon réseau Franchise <ArrowRight className="w-5 h-5" />
+                        </Link>
+                    </div>
+                </div>
+            </section>
+
+            {/* ── INTERNAL DELIVERY SECTION ── */}
+            <section className="py-24 bg-slate-900 text-white" id="livraison">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex flex-col md:flex-row items-center gap-16">
+                        <div className="flex-1 space-y-6">
+                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/20 text-indigo-300 text-sm font-semibold border border-indigo-500/30">
+                                <Truck className="w-4 h-4" /> Système de Livraison Interne
+                            </div>
+                            <h2 className="text-4xl md:text-5xl font-extrabold leading-tight">
+                                Vos livreurs,
+                                <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">pilotés par Bayiin</span>
+                            </h2>
+                            <p className="text-slate-400 text-lg leading-relaxed">
+                                Recrutez, validez et tracez vos livreurs internes depuis votre dashboard. Chaque livreur reçoit une app mobile dédiée avec ses commandes du jour, la navigation GPS et un canal de support direct.
+                            </p>
+                            <ul className="space-y-3">
+                                {[
+                                    { icon: UserPlus, text: 'Formulaire de candidature public branded' },
+                                    { icon: Check, text: 'Validation & attribution de token automatique' },
+                                    { icon: Truck, text: 'App livreur mobile avec ramassage, livraison, retours' },
+                                    { icon: BarChart3, text: 'Scores et taux de livraison par livreur' },
+                                    { icon: ShieldCheck, text: 'Stock mis à jour uniquement à confirmation de retour' }
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-center gap-3 text-slate-300">
+                                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                                            <item.icon className="w-3.5 h-3.5 text-indigo-400" />
+                                        </div>
+                                        {item.text}
+                                    </li>
+                                ))}
+                            </ul>
+                            <Link to="/signup" className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-2xl font-bold transition-all shadow-lg shadow-indigo-900/50">
+                                Activer la Livraison Interne <ArrowRight className="w-5 h-5" />
+                            </Link>
+                        </div>
+
+                        {/* Driver App Preview Card */}
+                        <div className="flex-1 flex justify-center">
+                            <div className="bg-slate-800 rounded-3xl p-6 border border-slate-700 max-w-sm w-full space-y-4 shadow-2xl">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center">
+                                        <Truck className="w-5 h-5 text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-white">App Livreur</p>
+                                        <p className="text-xs text-slate-400">Kuos Cosmetics</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 text-xs">
+                                    {['8 livrées', '2 en cours', '1,240 DH COD'].map(s => (
+                                        <div key={s} className="bg-slate-700/60 rounded-lg px-2.5 py-1.5 text-slate-300">{s}</div>
+                                    ))}
+                                </div>
+                                {[
+                                    { status: '🟠 Ramassage', name: 'Fatima Zahra', city: 'Casablanca', price: '290 DH', active: true },
+                                    { status: '🔵 En livraison', name: 'Karim El Fassi', city: 'Rabat', price: '450 DH', active: false },
+                                    { status: '🟢 Livré', name: 'Yasmine B.', city: 'Marrakech', price: '180 DH', active: false },
+                                ].map((order, i) => (
+                                    <div key={i} className={`rounded-xl p-3 border ${order.active ? 'bg-slate-700 border-indigo-500/50' : 'bg-slate-800/60 border-slate-700/50'}`}>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <p className="text-xs text-slate-400 mb-0.5">{order.status}</p>
+                                                <p className="font-semibold text-white text-sm">{order.name}</p>
+                                                <p className="text-xs text-slate-500">{order.city}</p>
+                                            </div>
+                                            <span className="font-bold text-indigo-400 text-sm">{order.price}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
             <div className="bg-slate-900 border-t border-slate-800">
                 <Footer />

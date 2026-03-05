@@ -7,9 +7,10 @@ import { useLanguage } from "../context/LanguageContext";
 import { useImageUpload } from "../hooks/useImageUpload";
 import Button from "../components/Button";
 import Input from "../components/Input";
-import { doc, setDoc, addDoc, collection } from "firebase/firestore";
+import { doc, setDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { Store, LogOut, ChevronRight, ChevronLeft, Phone, MapPin, Package, Upload } from "lucide-react";
+import { defaultAutomations } from "../utils/defaultAutomations";
 
 export default function Onboarding() {
     const [step, setStep] = useState(1);
@@ -78,6 +79,24 @@ export default function Onboarding() {
                 subscriptionStatus: 'active'
             };
             await setDoc(doc(db, "stores", storeId), storeData);
+
+            // 1.5 Inject Default Automations
+            try {
+                const autoCollection = collection(db, `stores/${storeId}/automations`);
+                const autoPromises = defaultAutomations.map(auto => {
+                    return addDoc(autoCollection, {
+                        ...auto,
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp(),
+                        lastRun: null
+                    });
+                });
+                await Promise.all(autoPromises);
+                console.log("Default automations injected successfully.");
+            } catch (autoErr) {
+                console.error("Failed to inject default automations:", autoErr);
+                // We keep going even if it fails to not break onboarding
+            }
 
             // 2. Update User
             await setDoc(doc(db, "users", user.uid), {

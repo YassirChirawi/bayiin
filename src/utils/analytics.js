@@ -115,3 +115,42 @@ export const getRetentionStats = (orders) => {
         rate: total > 0 ? (returningCustomers / total) * 100 : 0
     };
 };
+
+/*
+ * Calculates Financial Reconciliation Stats for Cash On Delivery (COD).
+ * Breaks down revenue into Expected (shipping), Unremitted (delivered but not paid out), and Remitted (cash received).
+ */
+export const getFinancialReconciliationStats = (orders) => {
+    let expected = 0; // En cours de livraison
+    let unremitted = 0; // Livré mais argent pas encore reçu
+    let remitted = 0; // Livré et argent encaissé
+
+    if (!orders || !orders.length) return { expected, unremitted, remitted };
+
+    orders.forEach(order => {
+        const qty = parseInt(order.quantity) || 1;
+        const totalAmount = parseFloat(order.price) * qty || 0;
+
+        // Is it out for delivery? (Expected money)
+        if (order.status === ORDER_STATUS.SHIPPING || order.status === 'ramassage') {
+            expected += totalAmount;
+        }
+
+        // Is it delivered? (Actual revenue to reconcile)
+        else if (order.status === ORDER_STATUS.DELIVERED) {
+            if (order.paymentStatus === 'remitted') {
+                remitted += totalAmount;
+            } else {
+                // 'pending' or undefined means we are waiting for the cash
+                unremitted += totalAmount;
+            }
+        }
+    });
+
+    return {
+        expected,
+        unremitted,
+        remitted,
+        totalRecognized: unremitted + remitted // Total CA Deliveré
+    };
+};
