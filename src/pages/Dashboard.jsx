@@ -5,11 +5,12 @@ import { Link } from "react-router-dom";
 import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, RotateCcw, CheckCircle, RefreshCw, Check, X, Calendar, Clock, Truck } from "lucide-react"; // Added Calendar, Clock, Truck
 import { useMemo, useState } from "react";
 import { format, subDays } from "date-fns";
-import { where, limit, orderBy } from "firebase/firestore";
+import { where, limit, orderBy, doc, updateDoc } from "firebase/firestore";
 import { reconcileStoreStats } from "../utils/reconcileStats";
 import { db } from "../lib/firebase";
 import { toast } from "react-hot-toast";
 import { useLanguage } from "../context/LanguageContext"; // NEW
+import { useReconciliation } from "../hooks/useReconciliation";
 
 import TrialAlert from "../components/TrialAlert";
 import HelpTooltip from "../components/HelpTooltip";
@@ -23,43 +24,40 @@ export default function Dashboard() {
 
 
 
-    const [isRecalculating, setIsRecalculating] = useState(false);
 
     // NEW handles
     const { updateOrder } = useOrderActions();
 
     const handleClearTask = async (task, type) => {
-        const confirmMsg = type === 'done' ? t('msg_confirm_done') : t('msg_confirm_cancel');
-        // Optional: Add confirm dialog? For speed, usually just do it.
-        // Or simple toast "Processing..."
+        const isEvent = !task.clientName; // Simple check if it's an event or order
 
-        await updateOrder(task.id, task, {
-            ...task,
-            followUpDate: "",
-            followUpNote: ""
-        });
+        if (isEvent) {
+            // It's a custom event
+            try {
+                const eventRef = doc(db, "events", task.id);
+                await updateDoc(eventRef, { isTaskDone: true });
+                toast.success(t('msg_task_done') || "Task Completed");
+            } catch (err) {
+                console.error("Error completing event:", err);
+                toast.error(t('err_update_failed') || "Update Failed");
+            }
+        } else {
+            // It's an order follow-up
+            await updateOrder(task.id, task, {
+                ...task,
+                followUpDate: "",
+                followUpNote: ""
+            });
 
-        if (type === 'done') toast.success(t('msg_task_done') || "Task Completed");
-        else toast.success(t('msg_task_removed') || "Task Removed");
+            if (type === 'done') toast.success(t('msg_task_done') || "Task Completed");
+            else toast.success(t('msg_task_removed') || "Task Removed");
+        }
     };
 
-    const handleHardRefresh = async () => {
-        if (!store?.id) return;
-        if (isRecalculating) return;
+    const { runReconciliation, isRecalculating } = useReconciliation(store?.id);
 
-        setIsRecalculating(true);
-        const toastId = toast.loading(t('recalculate_sync') + "...");
-        try {
-            await reconcileStoreStats(db, store.id);
-            await reconcileStoreStats(db, store.id);
-            toast.success(t('msg_dashboard_updated'), { id: toastId });
-            // No need to reload page, the hooks will stream the new data automatically via onSnapshot
-        } catch (err) {
-            console.error(err);
-            toast.error(t('err_sync_failed'), { id: toastId });
-        } finally {
-            setIsRecalculating(false);
-        }
+    const handleHardRefresh = () => {
+        runReconciliation();
     };
 
     // 1. SCALABLE STATS (Server-Side Aggregation)
@@ -69,13 +67,44 @@ export default function Dashboard() {
     const recentOrdersConstraints = useMemo(() => [orderBy("date", "desc"), limit(20)], []);
     const { data: recentOrders, loading: ordersLoading } = useStoreData("orders", recentOrdersConstraints);
 
-    // 3. Programmed / Follow-up Orders
+    // 3. Programmed / Follow-up Orders + Custom Events
     const tasksConstraints = useMemo(() => [
         where("followUpDate", ">", ""),
         orderBy("followUpDate", "asc"),
         limit(10)
     ], []);
-    const { data: tasks, loading: loadingTasks } = useStoreData("orders", tasksConstraints);
+    const { data: orderTasks, loading: loadingOrderTasks } = useStoreData("orders", tasksConstraints);
+    const { data: customEvents, loading: loadingEvents } = useStoreData("events");
+
+    // Merge and Memoize All Tasks
+    const allTasks = useMemo(() => {
+        const tasks = [
+            ...(orderTasks || []).map(o => ({
+                id: o.id,
+                type: 'order',
+                title: o.clientName,
+                note: o.followUpNote,
+                date: o.followUpDate,
+                phone: o.clientPhone,
+                orderNumber: o.orderNumber,
+                status: o.status,
+                rawData: o
+            })),
+            ...(customEvents || []).map(e => ({
+                id: e.id,
+                type: 'event',
+                title: e.title,
+                note: e.description || '',
+                date: e.date + (e.time ? `T${e.time}` : ''),
+                rawData: e
+            }))
+        ];
+
+        return tasks
+            .filter(t => !t.rawData?.isTaskDone) // Filter out completed
+            .sort((a, b) => new Date(a.date) - new Date(b.date))
+            .slice(0, 10);
+    }, [orderTasks, customEvents]);
 
     // 4. Low Stock
     const lowStockConstraints = useMemo(() => [where("stock", "<", 5), limit(20)], []);
@@ -146,7 +175,7 @@ export default function Dashboard() {
     if (!store) return null;
 
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
-    const isLoading = statsLoading || ordersLoading;
+    const isLoading = statsLoading || ordersLoading || loadingOrderTasks || loadingEvents;
 
 
 
@@ -301,10 +330,10 @@ export default function Dashboard() {
                     <div>
                         <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                             <DollarSign className="h-5 w-5 text-indigo-600" />
-                            Réconciliation Financière (COD)
+                            {t('title_financial_reconciliation')}
                         </h2>
                         <p className="text-sm text-gray-500 mt-1">
-                            Suivez votre trésorerie globale. Assurez-vous que l'argent livré finit bien sur votre compte bancaire.
+                            {t('desc_financial_reconciliation')}
                         </p>
                     </div>
                 </div>
@@ -314,10 +343,10 @@ export default function Dashboard() {
                     <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 relative overflow-hidden">
                         <div className="absolute right-0 top-0 w-16 h-16 bg-gray-200 rounded-bl-full opacity-50"></div>
                         <Truck className="h-6 w-6 text-gray-400 mb-2" />
-                        <h3 className="text-sm font-medium text-gray-600">Argent en Transit</h3>
-                        <p className="text-xs text-gray-400 mb-2">Commandes en cours de livraison</p>
+                        <h3 className="text-sm font-medium text-gray-600">{t('label_transit_money')}</h3>
+                        <p className="text-xs text-gray-400 mb-2">{t('desc_transit_money')}</p>
                         <div className="text-2xl font-bold text-gray-900">
-                            {statsLoading ? "..." : (Math.max(0, dashboardData.expectedRevenue).toFixed(2) || "0.00")} <span className="text-sm font-normal text-gray-500">DH</span>
+                            {statsLoading ? "..." : (Math.max(0, dashboardData.expectedRevenue).toFixed(2) || "0.00")} <span className="text-sm font-normal text-gray-500">{store?.currency || 'DH'}</span>
                         </div>
                     </div>
 
@@ -325,10 +354,10 @@ export default function Dashboard() {
                     <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-100 relative overflow-hidden">
                         <div className="absolute right-0 top-0 w-16 h-16 bg-yellow-200 rounded-bl-full opacity-50"></div>
                         <AlertTriangle className="h-6 w-6 text-yellow-500 mb-2" />
-                        <h3 className="text-sm font-bold text-yellow-900">Dû par les livreurs</h3>
-                        <p className="text-xs text-yellow-700 mb-2">Commandes livrées, mais argent en attente</p>
+                        <h3 className="text-sm font-bold text-yellow-900">{t('label_due_by_drivers')}</h3>
+                        <p className="text-xs text-yellow-700 mb-2">{t('desc_due_by_drivers')}</p>
                         <div className="text-2xl font-bold text-yellow-900">
-                            {statsLoading ? "..." : (Math.max(0, dashboardData.unremittedRevenue).toFixed(2) || "0.00")} <span className="text-sm font-normal text-yellow-700">DH</span>
+                            {statsLoading ? "..." : (Math.max(0, dashboardData.unremittedRevenue).toFixed(2) || "0.00")} <span className="text-sm font-normal text-yellow-700">{store?.currency || 'DH'}</span>
                         </div>
                     </div>
 
@@ -336,10 +365,10 @@ export default function Dashboard() {
                     <div className="bg-green-50 p-4 rounded-lg border border-green-100 relative overflow-hidden">
                         <div className="absolute right-0 top-0 w-16 h-16 bg-green-200 rounded-bl-full opacity-50"></div>
                         <CheckCircle className="h-6 w-6 text-green-500 mb-2" />
-                        <h3 className="text-sm font-bold text-green-900">Argent Encaissé</h3>
-                        <p className="text-xs text-green-700 mb-2">Fonds virés sur votre compte bancaire</p>
+                        <h3 className="text-sm font-bold text-green-900">{t('label_cashed_money')}</h3>
+                        <p className="text-xs text-green-700 mb-2">{t('desc_cashed_money')}</p>
                         <div className="text-2xl font-bold text-green-900">
-                            {statsLoading ? "..." : (Math.max(0, dashboardData.remittedRevenue).toFixed(2) || "0.00")} <span className="text-sm font-normal text-green-700">DH</span>
+                            {statsLoading ? "..." : (Math.max(0, dashboardData.remittedRevenue).toFixed(2) || "0.00")} <span className="text-sm font-normal text-green-700">{store?.currency || 'DH'}</span>
                         </div>
                     </div>
                 </div>
@@ -393,52 +422,51 @@ export default function Dashboard() {
                             <Link to="/orders" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">{t('view_details')}</Link>
                         </div>
 
-                        {tasks.length === 0 ? (
+                        {allTasks.length === 0 ? (
                             <p className="text-sm text-gray-500 italic py-4">{t('no_pending_tasks')}</p>
                         ) : (
                             <div className="space-y-3">
-                                {tasks.map(task => {
-                                    const isOverdue = task.followUpDate && new Date(task.followUpDate) < new Date();
+                                {allTasks.map(task => {
+                                    const isOverdue = task.date && new Date(task.date) < new Date();
+                                    const isEvent = task.type === 'event';
 
                                     return (
-                                        <div key={task.id} className={`flex items-start justify-between p-3 rounded-lg border ${isOverdue ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'}`}>
-                                            <div>
+                                        <div key={task.id} className={`flex items-start justify-between p-3 rounded-lg border ${isOverdue ? 'bg-red-50 border-red-200' : isEvent ? 'bg-indigo-50 border-indigo-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                                            <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <p className={`font-semibold text-sm ${isOverdue ? 'text-red-900' : 'text-gray-900'}`}>{task.clientName}</p>
-                                                    {isOverdue && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-600">LATE</span>}
+                                                    {isEvent && <Calendar className="h-3 w-3 text-indigo-600" />}
+                                                    <p className={`font-semibold text-sm truncate ${isOverdue ? 'text-red-900' : isEvent ? 'text-indigo-900' : 'text-gray-900'}`}>{task.title}</p>
+                                                    {isOverdue && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-600">{t('label_late')}</span>}
                                                 </div>
-                                                <p className={`text-xs mt-1 ${isOverdue ? 'text-red-800' : 'text-yellow-800'}`}>
-                                                    {task.followUpNote || t('msg_no_note')}
+                                                <p className={`text-xs mt-1 truncate ${isOverdue ? 'text-red-800' : isEvent ? 'text-indigo-700' : 'text-yellow-800'}`}>
+                                                    {task.note || t('msg_no_note')}
                                                 </p>
-                                                <p className="text-xs text-gray-500 mt-1">
-                                                    {t('label_phone_short')} <a href={`tel:${task.clientPhone}`} className="hover:underline">{task.clientPhone}</a>
-                                                </p>
+                                                {!isEvent && task.phone && (
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        {t('label_phone_short')} <a href={`tel:${task.phone}`} className="hover:underline">{task.phone}</a>
+                                                    </p>
+                                                )}
                                             </div>
-                                            <div className="text-right flex flex-col items-end gap-2">
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-white text-gray-800 border border-gray-200 shadow-sm">
-                                                    {task.followUpDate ? format(new Date(task.followUpDate), 'MMM dd, HH:mm') : t('label_asap')}
+                                            <div className="text-right flex flex-col items-end gap-2 ml-3">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-white text-gray-800 border border-gray-200 shadow-sm whitespace-nowrap">
+                                                    {task.date ? format(new Date(task.date), 'MMM dd, HH:mm') : t('label_asap')}
                                                 </span>
 
                                                 <div className="flex items-center gap-1">
                                                     <button
-                                                        onClick={() => handleClearTask(task, 'done')}
-                                                        className="p-1.5 rounded-md bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
+                                                        onClick={() => handleClearTask(task.rawData, 'done')}
+                                                        className="p-1 rounded-md bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
                                                         title={t('btn_done') || "Done"}
                                                     >
                                                         <Check className="h-4 w-4" />
                                                     </button>
-                                                    <button
-                                                        onClick={() => handleClearTask(task, 'cancel')}
-                                                        className="p-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
-                                                        title={t('btn_cancel') || "Cancel"}
-                                                    >
-                                                        <X className="h-4 w-4" />
-                                                    </button>
                                                 </div>
 
-                                                <Link to={`/orders?search=${task.orderNumber}`} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
-                                                    {t('link_open_order')} &rarr;
-                                                </Link>
+                                                {!isEvent && task.orderNumber && (
+                                                    <Link to={`/orders?search=${task.orderNumber}`} className="text-[10px] text-indigo-600 hover:text-indigo-800 font-medium whitespace-nowrap">
+                                                        {t('link_open_order')} &rarr;
+                                                    </Link>
+                                                )}
                                             </div>
                                         </div>
                                     )

@@ -14,6 +14,7 @@ import ShareCatalogModal from "../components/ShareCatalogModal"; // NEW
 import { useTenant } from "../context/TenantContext"; // NEW
 import { logActivity } from "../utils/logger"; // NEW
 import { useAuth } from "../context/AuthContext"; // NEW
+import { db } from "../lib/firebase"; // NEW
 
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -268,7 +269,7 @@ export default function Products() {
                                                     <div className="mt-1 flex flex-wrap gap-1">
                                                         {product.variants?.length > 0 && (
                                                             <span className="text-xs text-gray-400">
-                                                                {product.variants.length} combinations ({product.attributes?.map(a => a.name).join(", ")})
+                                                                {product.variants.length} {t('combinations')} ({product.attributes?.map(a => a.name).join(", ")})
                                                             </span>
                                                         )}
                                                     </div>
@@ -302,14 +303,14 @@ export default function Products() {
                                                         <button
                                                             onClick={() => handleRestore(product.id)}
                                                             className="p-2 text-gray-400 hover:text-blue-600 rounded-full hover:bg-gray-100 transition-colors"
-                                                            title="Restore"
+                                                            title={t('restore')}
                                                         >
                                                             <RotateCcw className="h-5 w-5" />
                                                         </button>
                                                         <button
                                                             onClick={() => handleDelete(product.id)}
                                                             className="p-2 text-gray-400 hover:text-red-600 rounded-full hover:bg-gray-100 transition-colors"
-                                                            title="Delete Permanently"
+                                                            title={t('delete_permanently')}
                                                         >
                                                             <Trash2 className="h-5 w-5" />
                                                         </button>
@@ -378,7 +379,7 @@ export default function Products() {
 
                                         <div className="flex items-end justify-between mt-2">
                                             <span className={`text-xs font-medium px-2 py-1 rounded-full ${parseInt(product.stock) === 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                                                {product.stock} in stock
+                                                {product.stock} {t('in_stock')}
                                             </span>
                                         </div>
                                     </div>
@@ -392,13 +393,13 @@ export default function Products() {
                                                 onClick={() => handleRestore(product.id)}
                                                 className="flex-1 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
                                             >
-                                                <RotateCcw className="h-4 w-4" /> Restore
+                                                <RotateCcw className="h-4 w-4" /> {t('restore')}
                                             </button>
                                             <button
                                                 onClick={() => handleDelete(product.id)}
                                                 className="flex-1 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
                                             >
-                                                <Trash2 className="h-4 w-4" /> Delete
+                                                <Trash2 className="h-4 w-4" /> {t('delete')}
                                             </button>
                                         </div>
                                     ) : (
@@ -407,7 +408,7 @@ export default function Products() {
                                                 onClick={() => handleEdit(product)}
                                                 className="flex-1 py-1.5 bg-white border border-gray-300 shadow-sm text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 flex items-center justify-center gap-2"
                                             >
-                                                <Edit2 className="h-4 w-4" /> Edit
+                                                <Edit2 className="h-4 w-4" /> {t('edit')}
                                             </button>
                                             <button
                                                 onClick={() => handleDelete(product.id)}
@@ -431,7 +432,7 @@ export default function Products() {
                     onClick={() => setLimitCount(prev => prev + 50)}
                     disabled={loading || products.length < limitCount}
                 >
-                    {loading ? t('loading') : "Load More"}
+                    {loading ? t('loading') : t('load_more')}
                 </Button>
             </div>
 

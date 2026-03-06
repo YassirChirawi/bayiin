@@ -18,6 +18,7 @@ export function useFranchiseData() {
     const { franchiseStores, isFranchiseAdmin } = useTenant();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [storeStats, setStoreStats] = useState([]); // FIXME: Ajout de l'état manquant
     const [topProducts, setTopProducts] = useState([]);
 
     const storeIds = useMemo(() => franchiseStores.map(s => s.id), [franchiseStores]);
@@ -32,6 +33,7 @@ export function useFranchiseData() {
         }
 
         setLoading(true);
+        let cancelled = false;
 
         try {
             // ── 1. Load pre-aggregated stats for each store (stores/<id>/stats/sales) ──
@@ -73,7 +75,7 @@ export function useFranchiseData() {
                         const key = productName.toLowerCase();
                         if (productMap.has(key)) {
                             productMap.get(key).qty += qty;
-                            productMap.get(key).storeCount = new Set([...productMap.get(key).stores, order.storeId]);
+                            productMap.get(key).stores.add(order.storeId);
                         } else {
                             productMap.set(key, { name: productName, qty, stores: new Set([order.storeId]) });
                         }

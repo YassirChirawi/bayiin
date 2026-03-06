@@ -16,6 +16,7 @@ import Automations from "./pages/Automations"; // NEW
 import Help from "./pages/Help"; // NEW
 import NotFound from "./pages/NotFound"; // NEW
 import ProtectedRoute from "./components/ProtectedRoute";
+import RoleProtectedRoute from "./components/RoleProtectedRoute"; // NEW
 import Layout from "./components/Layout";
 import { TenantProvider } from "./context/TenantContext";
 import BiometricLock from "./components/BiometricLock"; // NEW
@@ -54,6 +55,7 @@ import CookieBanner from "./components/CookieBanner"; // NEW
 import { CopilotProvider } from "./context/CopilotContext"; // NEW
 import { NotificationProvider } from "./context/NotificationContext"; // NEW
 import SupportAI from "./pages/SupportAI"; // NEW
+import ErrorBoundary from "./components/ErrorBoundary"; // NEW
 
 function App() {
   return (
@@ -107,59 +109,61 @@ function App() {
                       },
                     }}
                   />
-                  <Routes>
-                    <Route path="/" element={<SmartLanding />} /> {/* Modified */}
-                    {/* Public Routes */}
-                    <Route path="/catalog/:storeId" element={<PublicCatalog />} /> {/* NEW */}
-                    <Route path="/delivery/:token" element={<DeliveryApp />} /> {/* NEW — no auth */}
-                    <Route path="/apply/driver/:storeId" element={<DriverApplication />} /> {/* NEW — public */}
+                  <ErrorBoundary>
+                    <Routes>
+                      <Route path="/" element={<SmartLanding />} /> {/* Modified */}
+                      {/* Public Routes */}
+                      <Route path="/catalog/:storeId" element={<PublicCatalog />} /> {/* NEW */}
+                      <Route path="/delivery/:token" element={<DeliveryApp />} /> {/* NEW — no auth */}
+                      <Route path="/apply/driver/:storeId" element={<DriverApplication />} /> {/* NEW — public */}
 
-                    <Route path="/privacy" element={<Privacy />} />
-                    <Route path="/terms" element={<Terms />} />
-                    <Route path="/demo" element={<DemoDashboard />} />
-                    <Route path="/admin" element={
-                      <ProtectedRoute>
-                        <BiometricLock>
-                          <AdminDashboard />
-                        </BiometricLock>
-                      </ProtectedRoute>
-                    } />
-                    <Route path="/franchise" element={
-                      <ProtectedRoute>
-                        <BiometricLock>
-                          <FranchiseDashboard />
-                        </BiometricLock>
-                      </ProtectedRoute>
-                    } /> {/* NEW */}
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/signup" element={<Signup />} />
-                    <Route path="/onboarding" element={
-                      <ProtectedRoute>
-                        <Onboarding />
-                      </ProtectedRoute>
-                    } />
-                    <Route element={
-                      <ProtectedRoute>
-                        <BiometricLock> {/* Protected by Lock */}
-                          <Layout />
-                        </BiometricLock>
-                      </ProtectedRoute>
-                    }>
-                      <Route path="/dashboard" element={<Dashboard />} />
-                      <Route path="/finances" element={<Finances />} />
-                      <Route path="/products" element={<Products />} />
-                      <Route path="/orders" element={<Orders />} />
-                      <Route path="/customers" element={<Customers />} />
-                      <Route path="/planning" element={<Planning />} />
-                      <Route path="/team" element={<Team />} />
-                      <Route path="/settings" element={<Settings />} />
-                      <Route path="/help" element={<Help />} />
-                      <Route path="/support-ai" element={<SupportAI />} /> {/* NEW */}
-                      <Route path="/automations" element={<Automations />} /> {/* NEW */}
-                      <Route path="/drivers" element={<Drivers />} /> {/* NEW */}
-                    </Route>
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
+                      <Route path="/privacy" element={<Privacy />} />
+                      <Route path="/terms" element={<Terms />} />
+                      <Route path="/demo" element={<DemoDashboard />} />
+                      <Route path="/admin" element={
+                        <RoleProtectedRoute allowedRoles={['super_admin']}>
+                          <BiometricLock>
+                            <AdminDashboard />
+                          </BiometricLock>
+                        </RoleProtectedRoute>
+                      } />
+                      <Route path="/franchise" element={
+                        <RoleProtectedRoute allowedRoles={['super_admin', 'franchise_admin']}>
+                          <BiometricLock>
+                            <FranchiseDashboard />
+                          </BiometricLock>
+                        </RoleProtectedRoute>
+                      } /> {/* NEW */}
+                      <Route path="/login" element={<Login />} />
+                      <Route path="/signup" element={<Signup />} />
+                      <Route path="/onboarding" element={
+                        <ProtectedRoute>
+                          <Onboarding />
+                        </ProtectedRoute>
+                      } />
+                      <Route element={
+                        <ProtectedRoute>
+                          <BiometricLock> {/* Protected by Lock */}
+                            <Layout />
+                          </BiometricLock>
+                        </ProtectedRoute>
+                      }>
+                        <Route path="/dashboard" element={<Dashboard />} />
+                        <Route path="/finances" element={<Finances />} />
+                        <Route path="/products" element={<Products />} />
+                        <Route path="/orders" element={<Orders />} />
+                        <Route path="/customers" element={<Customers />} />
+                        <Route path="/planning" element={<Planning />} />
+                        <Route path="/team" element={<Team />} />
+                        <Route path="/settings" element={<Settings />} />
+                        <Route path="/help" element={<Help />} />
+                        <Route path="/support-ai" element={<SupportAI />} /> {/* NEW */}
+                        <Route path="/automations" element={<Automations />} /> {/* NEW */}
+                        <Route path="/drivers" element={<Drivers />} /> {/* NEW */}
+                      </Route>
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </ErrorBoundary>
                   <CookieBanner />
                 </BrowserRouter>
               </NotificationProvider>

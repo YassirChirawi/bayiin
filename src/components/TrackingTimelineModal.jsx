@@ -14,39 +14,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
-const STATUS_ICONS = {
-    'DELIVERED': CheckCircle,
-    'LIVRÉ': CheckCircle,
-    'CANCELED': AlertCircle,
-    'ANNULÉ': AlertCircle,
-    'REFUSE': AlertCircle,
-    'REFUSÉ': AlertCircle,
-    'DELIVERING': Truck,
-    'EN COURS DE LIVRAISON': Truck,
-    'PICKED_UP': Package,
-    'RAMASSÉ': Package,
-    'WAREHOUSE': Home,
-    'ENTREPÔT': Home,
-    'CREATED': Clock,
-    'PENDING': Clock
-};
-
-const STATUS_COLORS = {
-    'DELIVERED': 'text-green-500 bg-green-50',
-    'LIVRÉ': 'text-green-500 bg-green-50',
-    'CANCELED': 'text-red-500 bg-red-50',
-    'ANNULÉ': 'text-red-500 bg-red-50',
-    'REFUSE': 'text-red-500 bg-red-50',
-    'REFUSÉ': 'text-red-500 bg-red-50',
-    'DELIVERING': 'text-blue-500 bg-blue-50',
-    'EN COURS DE LIVRAISON': 'text-blue-500 bg-blue-50',
-    'PICKED_UP': 'text-purple-500 bg-purple-50',
-    'RAMASSÉ': 'text-purple-500 bg-purple-50',
-    'WAREHOUSE': 'text-indigo-500 bg-indigo-50',
-    'ENTREPÔT': 'text-indigo-500 bg-indigo-50',
-    'CREATED': 'text-gray-500 bg-gray-50',
-    'PENDING': 'text-gray-500 bg-gray-50'
-};
+import { getTrackingStatusConfig } from '../utils/statusConfig';
 
 export default function TrackingTimelineModal({ isOpen, onClose, trackingData, provider }) {
     if (!isOpen || !trackingData) return null;
@@ -101,8 +69,9 @@ export default function TrackingTimelineModal({ isOpen, onClose, trackingData, p
         }).format(date);
     };
 
-    const getIcon = (status) => STATUS_ICONS[status] || MapPin;
-    const getColorClass = (status) => STATUS_COLORS[status] || 'text-gray-500 bg-gray-50';
+    const config = getTrackingStatusConfig(status);
+    const Icon = config.icon;
+    const colorClass = config.color;
 
     return (
         <Transition.Root show={isOpen} as={Fragment}>
@@ -168,8 +137,9 @@ export default function TrackingTimelineModal({ isOpen, onClose, trackingData, p
                                         <ul role="list" className="-mb-8">
                                             {sortedAudits.map((event, eventIdx) => {
                                                 const status = event.status || (event.data && event.data.status);
-                                                const Icon = getIcon(status);
-                                                const colorClass = getColorClass(status);
+                                                const config = getTrackingStatusConfig(status);
+                                                const Icon = config.icon;
+                                                const colorClass = config.color;
                                                 const date = formatDate(event.created_at || event.date);
                                                 const note = event.note || (event.data && event.data.note) || (event.data && event.data.comment);
 

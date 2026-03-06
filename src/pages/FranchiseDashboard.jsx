@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTenant } from "../context/TenantContext";
 import { useFranchiseData } from "../hooks/useFranchiseData";
 import { useAuth } from "../context/AuthContext";
@@ -14,7 +14,7 @@ import {
 import Button from "../components/Button";
 import Input from "../components/Input";
 import toast from "react-hot-toast";
-import { addDoc, collection, getDocs, doc, setDoc } from "firebase/firestore";
+import { addDoc, collection, getDocs, doc, setDoc, query, where } from "firebase/firestore";
 import { db } from "../lib/firebase";
 
 // ── Color palette for per-store bars ──
@@ -84,7 +84,8 @@ export default function FranchiseDashboard() {
             // 2. Clone Catalog if requested
             if (cloneSourceId) {
                 const toastId = toast.loading("Duplication du catalogue...");
-                const productsSnap = await getDocs(collection(db, "stores", cloneSourceId, "products"));
+                const productsQuery = query(collection(db, "products"), where("storeId", "==", cloneSourceId));
+                const productsSnap = await getDocs(productsQuery);
 
                 let clonedCount = 0;
                 const batchPromises = productsSnap.docs.map(async (productDoc) => {
@@ -93,8 +94,9 @@ export default function FranchiseDashboard() {
                     delete data.createdAt;
                     delete data.updatedAt;
 
-                    await addDoc(collection(db, "stores", storeRef.id, "products"), {
+                    await addDoc(collection(db, "products"), {
                         ...data,
+                        storeId: storeRef.id,
                         createdAt: new Date()
                     });
                     clonedCount++;

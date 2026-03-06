@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { db } from '../lib/firebase';
-import { runTransaction, doc, serverTimestamp, increment } from 'firebase/firestore';
+import { runTransaction, doc, serverTimestamp, increment, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { ORDER_STATUS } from '../utils/constants';
 import { useTenant } from '../context/TenantContext';
 import { authenticateOlivraison, createOlivraisonPackage } from '../lib/olivraison';
@@ -23,8 +23,8 @@ export const useOrderActions = () => {
     };
 
     const shouldDeductStock = (oldStatus, newStatus) => {
-        const wasCancelledOrReturned = [ORDER_STATUS.CANCELLED, ORDER_STATUS.RETURNED, ORDER_STATUS.NO_ANSWER].includes(oldStatus);
-        const isActive = ![ORDER_STATUS.CANCELLED, ORDER_STATUS.RETURNED, ORDER_STATUS.NO_ANSWER].includes(newStatus);
+        const wasCancelledOrReturned = [ORDER_STATUS.CANCELLED, ORDER_STATUS.RETURNED, ORDER_STATUS.NO_ANSWER, 'pending_catalog'].includes(oldStatus);
+        const isActive = ![ORDER_STATUS.CANCELLED, ORDER_STATUS.RETURNED, ORDER_STATUS.NO_ANSWER, 'pending_catalog'].includes(newStatus);
         return wasCancelledOrReturned && isActive;
     };
 
@@ -33,14 +33,89 @@ export const useOrderActions = () => {
         setError(null);
         try {
             await runTransaction(db, async (transaction) => {
-                // 1. Create Order (Stock handled by Cloud Functions)
+                // 1. Handle Customer (Find by phone OR Create)
+                let customerId = orderData.customerId;
+                if (!customerId && orderData.clientPhone) {
+                    const customersQ = query(
+                        collection(db, "customers"),
+                        where("storeId", "==", store.id),
+                        where("phone", "==", orderData.clientPhone),
+                        limit(1)
+                    );
+                    const customerSnap = await getDocs(customersQ);
+
+                    if (!customerSnap.empty) {
+                        customerId = customerSnap.docs[0].id;
+                        // Update existing customer stats
+                        transaction.update(doc(db, "customers", customerId), {
+                            lastOrderDate: new Date().toISOString().split('T')[0],
+                            totalSpent: increment(parseFloat(orderData.price) || 0),
+                            orderCount: increment(1),
+                            updatedAt: serverTimestamp()
+                        });
+                    } else if (orderData.clientName) {
+                        // Create new customer
+                        const newCustomerRef = doc(collection(db, "customers"));
+                        customerId = newCustomerRef.id;
+                        transaction.set(newCustomerRef, {
+                            storeId: store.id,
+                            name: orderData.clientName,
+                            phone: orderData.clientPhone,
+                            address: orderData.clientAddress || "",
+                            city: orderData.clientCity || "",
+                            totalSpent: parseFloat(orderData.price) || 0,
+                            orderCount: 1,
+                            firstOrderDate: new Date().toISOString().split('T')[0],
+                            lastOrderDate: new Date().toISOString().split('T')[0],
+                            createdAt: serverTimestamp(),
+                            updatedAt: serverTimestamp()
+                        });
+                    }
+                }
+
+                // 2. Handle Stock Deduction
+                const deductStockForProduct = async (articleId, variantId, quantity) => {
+                    const productRef = doc(db, "products", articleId);
+                    const productSnap = await transaction.get(productRef);
+
+                    if (productSnap.exists()) {
+                        const product = productSnap.data();
+                        const qty = parseInt(quantity) || 1;
+
+                        if (product.isVariable && variantId) {
+                            const newVariants = (product.variants || []).map(v => {
+                                if (v.id === variantId) {
+                                    return { ...v, stock: (parseInt(v.stock) || 0) - qty };
+                                }
+                                return v;
+                            });
+                            transaction.update(productRef, {
+                                variants: newVariants,
+                                stock: increment(-qty)
+                            });
+                        } else {
+                            transaction.update(productRef, { stock: increment(-qty) });
+                        }
+                    }
+                };
+
+                if (orderData.articleId) {
+                    await deductStockForProduct(orderData.articleId, orderData.variantId, orderData.quantity);
+                } else if (orderData.products && Array.isArray(orderData.products)) {
+                    for (const item of orderData.products) {
+                        await deductStockForProduct(item.id, item.variantId, item.quantity);
+                    }
+                }
+
+                // 3. Create Order
                 const newOrderRef = doc(db, "orders", crypto.randomUUID());
                 transaction.set(newOrderRef, {
                     ...orderData,
+                    customerId: customerId || null,
                     createdAt: serverTimestamp(),
                     status: ORDER_STATUS.RECEIVED,
                     isPaid: false,
-                    paymentMethod: 'cod' // Default
+                    paymentMethod: 'cod'
                 });
             });
             // Fire automation AFTER successful transaction
@@ -69,8 +144,45 @@ export const useOrderActions = () => {
                     customerDoc = await transaction.get(customerRef);
                 }
 
-                // 1. Stock Adjustments - MOVED TO CLOUD FUNCTIONS
+                // 1. Stock Adjustments
+                const adjustStock = async (articleId, variantId, quantity, isRestock) => {
+                    const productRef = doc(db, "products", articleId);
+                    const productSnap = await transaction.get(productRef);
+                    const qty = parseInt(quantity) || 1;
+                    const change = isRestock ? qty : -qty;
 
+                    if (productSnap.exists()) {
+                        const product = productSnap.data();
+                        if (product.isVariable && variantId) {
+                            const newVariants = (product.variants || []).map(v => {
+                                if (v.id === variantId) {
+                                    return { ...v, stock: (parseInt(v.stock) || 0) + change };
+                                }
+                                return v;
+                            });
+                            transaction.update(productRef, { variants: newVariants, stock: increment(change) });
+                        } else {
+                            transaction.update(productRef, { stock: increment(change) });
+                        }
+                    }
+                };
+
+                const restock = shouldRestock(oldData.status, newData.status);
+                const deduct = shouldDeductStock(oldData.status, newData.status);
+
+                if (restock || deduct) {
+                    if (newData.articleId) {
+                        await adjustStock(newData.articleId, newData.variantId, newData.quantity, restock);
+                    } else if (newData.products) {
+                        for (const item of newData.products) {
+                            await adjustStock(item.id, item.variantId, item.quantity, restock);
+                        }
+                    }
+                } else if (oldData.articleId !== newData.articleId) {
+                    // Product changed (Admin Modal case)
+                    if (oldData.articleId) await adjustStock(oldData.articleId, oldData.variantId, oldData.quantity, true);
+                    if (newData.articleId) await adjustStock(newData.articleId, newData.variantId, newData.quantity, false);
+                }
 
                 // 2. Update Order
                 transaction.update(orderRef, {
@@ -78,8 +190,8 @@ export const useOrderActions = () => {
                     updatedAt: serverTimestamp()
                 });
 
-                // 3. Update Customer Profile if linked
-                if (customerDoc && customerDoc.exists()) {
+                // 3. Update Customer Profile OR CREATE if phone changed/added
+                if (customerRef && customerDoc && customerDoc.exists()) {
                     transaction.update(customerRef, {
                         name: newData.clientName,
                         phone: newData.clientPhone,
@@ -87,6 +199,61 @@ export const useOrderActions = () => {
                         city: newData.clientCity,
                         updatedAt: serverTimestamp()
                     });
+                } else if (!newData.customerId && newData.clientPhone) {
+                    // Try to find by phone again or create (identical to createOrder logic but shorter)
+                    const customersQ = query(
+                        collection(db, "customers"),
+                        where("storeId", "==", store.id),
+                        where("phone", "==", newData.clientPhone),
+                        limit(1)
+                    );
+                    const customerSnap = await getDocs(customersQ);
+                    if (!customerSnap.empty) {
+                        const foundId = customerSnap.docs[0].id;
+                        transaction.update(orderRef, { customerId: foundId });
+                        transaction.update(doc(db, "customers", foundId), {
+                            name: newData.clientName,
+                            address: newData.clientAddress,
+                            city: newData.clientCity,
+                            updatedAt: serverTimestamp()
+                        });
+                    } else if (newData.clientName) {
+                        const newCustRef = doc(collection(db, "customers"));
+                        transaction.set(newCustRef, {
+                            storeId: store.id,
+                            name: newData.clientName,
+                            phone: newData.clientPhone,
+                            address: newData.clientAddress || "",
+                            city: newData.clientCity || "",
+                            totalSpent: parseFloat(newData.price) || 0,
+                            orderCount: 1,
+                            firstOrderDate: new Date().toISOString().split('T')[0],
+                            lastOrderDate: new Date().toISOString().split('T')[0],
+                            createdAt: serverTimestamp(),
+                            updatedAt: serverTimestamp()
+                        });
+                        transaction.update(orderRef, { customerId: newCustRef.id });
+                    }
+                }
+
+                // 4. Update Global Store Stats
+                const statsRef = doc(db, "stores", store.id, "stats", "sales");
+                const statsUpdates = {};
+                if (oldData.status !== newData.status) {
+                    statsUpdates[`statusCounts.${oldData.status || 'reçu'}`] = increment(-1);
+                    statsUpdates[`statusCounts.${newData.status}`] = increment(1);
+
+                    // Specific logic for realized revenue
+                    if (newData.status === 'livré' && oldData.status !== 'livré') {
+                        statsUpdates["totals.deliveredRevenue"] = increment(parseFloat(newData.price) || 0);
+                        statsUpdates["totals.deliveredCount"] = increment(1);
+                    } else if (oldData.status === 'livré' && newData.status !== 'livré') {
+                        statsUpdates["totals.deliveredRevenue"] = increment(-(parseFloat(oldData.price) || 0));
+                        statsUpdates["totals.deliveredCount"] = increment(-1);
+                    }
+                }
+                if (Object.keys(statsUpdates).length > 0) {
+                    transaction.update(statsRef, statsUpdates);
                 }
             });
 

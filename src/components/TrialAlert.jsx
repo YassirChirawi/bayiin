@@ -7,7 +7,14 @@ export default function TrialAlert({ createdAt, plan }) {
     if (plan === 'pro' || plan === 'unlimited') return null; // Hide if already upgraded
     // Calculate trial status
     // Fallback to today if createdAt is missing (Legacy stores get a fresh trial)
-    const startDate = createdAt ? parseISO(createdAt) : new Date();
+    // Handle Firestore Timestamp, JS Date, or ISO string
+    const toDate = (val) => {
+        if (!val) return new Date();
+        if (typeof val?.toDate === 'function') return val.toDate(); // Firestore Timestamp
+        if (val instanceof Date) return val;
+        return parseISO(String(val)); // ISO string fallback
+    };
+    const startDate = toDate(createdAt);
     const today = new Date();
     const daysUsed = differenceInDays(today, startDate);
     const trialLength = 14;

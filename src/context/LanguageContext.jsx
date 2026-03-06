@@ -16,9 +16,13 @@ export function LanguageProvider({ children }) {
         document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
     }, [language]);
 
-    // Translation function
+    // Translation function with fallback chain: current lang → fr → en → key
     const t = (key, params = {}) => {
-        let text = translations[language][key] || key;
+        let text =
+            translations[language]?.[key] ??
+            translations['fr']?.[key] ??
+            translations['en']?.[key] ??
+            key;
 
         // Simple interpolation
         if (params && typeof params === 'object') {

@@ -14,6 +14,7 @@ import { format } from "date-fns"; // For Audit Dates
 import { PLANS, createCheckoutSession } from "../lib/stripeService";
 import { DEFAULT_TEMPLATES, DARIJA_TEMPLATES } from "../utils/whatsappTemplates";
 import { reconcileStoreStats } from "../utils/reconcileStats";
+import { useReconciliation } from "../hooks/useReconciliation";
 import ShippingSettings from "./ShippingSettings";
 
 
@@ -30,6 +31,7 @@ export default function Settings() {
     const [activeTab, setActiveTab] = useState("general");
     const [loading, setLoading] = useState(null); // 'starter' | 'pro' | null
     const { uploadImage, uploading, error: uploadError } = useImageUpload();
+    const { runReconciliation, isRecalculating } = useReconciliation(store?.id);
 
     // Check for Return from Stripe
     // Check for Return from Stripe
@@ -71,70 +73,16 @@ export default function Settings() {
         }
     };
 
-    const [recalcMsg, setRecalcMsg] = useState("");
-    const handleRecalculateStats = async () => {
-        if (!store?.id) return;
-        if (!window.confirm("This will scan all orders. Continue?")) return;
-        setLoading('recalc');
-        setRecalcMsg("Scanning orders...");
-        try {
-            const ordersRef = collection(db, "orders");
-            const q = query(ordersRef, where("storeId", "==", store.id));
-            const snapshot = await getDocs(q);
-            const orders = snapshot.docs.map(d => d.data());
-            const customerStats = {};
-
-            orders.forEach(order => {
-                if (!order.customerId) return;
-                if (!customerStats[order.customerId]) {
-                    customerStats[order.customerId] = { count: 0, spent: 0, dates: [] };
-                }
-                const amount = (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
-                customerStats[order.customerId].count += 1;
-                customerStats[order.customerId].spent += amount;
-                if (order.date) customerStats[order.customerId].dates.push(order.date);
-            });
-
-            setRecalcMsg("Updating customers...");
-            const updates = Object.entries(customerStats).map(async ([custId, stats]) => {
-                const custRef = doc(db, "customers", custId);
-                const lastOrderDate = stats.dates.sort().pop() || new Date().toISOString().split('T')[0];
-                await updateDoc(custRef, {
-                    orderCount: stats.count,
-                    totalSpent: stats.spent,
-                    lastOrderDate: lastOrderDate
-                });
-            });
-
-            await Promise.all(updates);
-            toast.success(t('msg_stats_fixed', { count: updates.length }));
-            setRecalcMsg("");
-        } catch (err) {
-            console.error("Recalc Error:", err);
-            toast.error(t('err_recalculate'));
-            setRecalcMsg("");
-        } finally {
-            setLoading(null);
-        }
+    const handleRecalculateStats = () => {
+        if (!window.confirm(t('confirm_recalc_customers') || "This will scan all orders to fix customer totals. Continue?")) return;
+        runReconciliation({ updateCustomers: true, forceReload: false });
     };
 
     const handleRecalculateStoreStats = async () => {
         if (!store?.id) return;
-        if (!window.confirm("⚠️ WARNING: This will RESET your Dashboard Financials based on current active orders. \n\nUse this only if your stats are out of sync.\n\nContinue?")) return;
+        if (!window.confirm(t('confirm_fix_financials') || "⚠️ WARNING: This will RESET your Dashboard Financials based on current active orders. Continue?")) return;
 
-        setLoading('recalcStore');
-        setRecalcMsg("Resetting Stats...");
-        try {
-            await reconcileStoreStats(db, store.id);
-            toast.success(t('msg_financials_recalculated'));
-            window.location.reload(); // Refresh to see changes
-        } catch (err) {
-            console.error("Store Recalc Error:", err);
-            toast.error(t('err_generic') + err.message);
-        } finally {
-            setLoading(null);
-            setRecalcMsg("");
-        }
+        runReconciliation({ updateCustomers: true, forceReload: true });
     };
 
     // Audit Log State
@@ -675,22 +623,22 @@ export default function Settings() {
                             </h3>
                             <Button
                                 onClick={handleRecalculateStats}
-                                isLoading={loading === 'recalc'}
+                                isLoading={isRecalculating}
                                 variant="secondary"
                                 className="w-full sm:w-auto"
                             >
-                                {recalcMsg || t('btn_recalc_stats')}
+                                {isRecalculating ? t('loading') : t('btn_recalc_stats')}
                             </Button>
 
                             <div className="mt-4 pt-4 border-t border-gray-100">
                                 <p className="text-sm text-gray-500 mb-2">{t('fix_dashboard_data')}</p>
                                 <Button
                                     onClick={handleRecalculateStoreStats}
-                                    isLoading={loading === 'recalcStore'}
+                                    isLoading={isRecalculating}
                                     variant="secondary"
                                     className="w-full sm:w-auto text-red-600 border-red-200 hover:bg-red-50"
                                 >
-                                    {loading === 'recalcStore' ? recalcMsg : t('btn_fix_financials')}
+                                    {isRecalculating ? t('loading') : t('btn_fix_financials')}
                                 </Button>
                             </div>
                         </div>

@@ -33,6 +33,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
         customerId: null,
         articleId: "",
         articleName: "",
+        variantId: "", // NEW
         size: "",
         color: "",
         quantity: 1,
@@ -62,6 +63,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 customerId: order.customerId || null,
                 articleId: order.articleId || "",
                 articleName: order.articleName || "",
+                variantId: order.variantId || "", // NEW
                 size: order.size || "",
                 color: order.color || "",
                 quantity: order.quantity || 1,
@@ -87,6 +89,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 customerId: null,
                 articleId: "",
                 articleName: "",
+                variantId: "", // NEW
                 size: "",
                 color: "",
                 quantity: 1,
@@ -183,7 +186,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
         setStockWarning(null); // Reset
 
         if (!productId) {
-            setFormData(prev => ({ ...prev, articleId: "", articleName: "", price: "" }));
+            setFormData(prev => ({ ...prev, articleId: "", articleName: "", variantId: "", price: "" }));
             return;
         }
         const product = products.find(p => p.id === productId);
@@ -192,18 +195,49 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 ...prev,
                 articleId: product.id,
                 articleName: product.name,
+                variantId: "", // Reset variant on product change
                 price: product.price,
                 costPrice: product.costPrice || 0
             }));
 
-            // Stock Check
-            const currentStock = parseInt(product.stock) || 0;
-            if (currentStock <= 0) {
-                const returnCount = await checkPotentialReturns(product.id);
+            // If not variable, check stock immediately
+            if (!product.isVariable) {
+                const currentStock = parseInt(product.stock) || 0;
+                if (currentStock <= 0) {
+                    const returnCount = await checkPotentialReturns(product.id);
+                    setStockWarning({
+                        show: true,
+                        stock: currentStock,
+                        returnCount
+                    });
+                }
+            }
+        }
+    };
+
+    const handleVariantChange = (e) => {
+        const variantId = e.target.value;
+        const product = products.find(p => p.id === formData.articleId);
+        if (!product) return;
+
+        const variant = product.variants?.find(v => v.id === variantId);
+        if (variant) {
+            setFormData(prev => ({
+                ...prev,
+                variantId: variant.id,
+                price: variant.price || prev.price,
+                // Extract size/color if they exist in attributes
+                size: variant.attributes?.Size || variant.attributes?.taille || prev.size,
+                color: variant.attributes?.Color || variant.attributes?.couleur || prev.color
+            }));
+
+            // Check variant stock
+            const variantStock = parseInt(variant.stock) || 0;
+            if (variantStock <= 0) {
                 setStockWarning({
                     show: true,
-                    stock: currentStock,
-                    returnCount
+                    stock: variantStock,
+                    returnCount: 0 // We don't track returns per variant yet for simplicity
                 });
             }
         }
@@ -273,21 +307,21 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                             <div className="flex items-start gap-3">
                                 <AlertCircle className="h-6 w-6 text-red-600 mt-1" />
                                 <div>
-                                    <h4 className="font-bold text-red-900 text-lg">⚠️ Stock Épuisé ({stockWarning.stock})</h4>
+                                    <h4 className="font-bold text-red-900 text-lg">⚠️ {t('stock_out')} ({stockWarning.stock})</h4>
                                     <p className="text-red-700 mt-1">
-                                        Impossible de garantir la disponibilité.
+                                        {t('availability_not_guaranteed')}
                                     </p>
                                     {stockWarning.returnCount > 0 ? (
                                         <div className="mt-2 bg-white p-3 rounded border border-red-100">
                                             <p className="text-sm font-semibold text-gray-800">
-                                                💡 Indice : Il y a <span className="text-indigo-600 font-bold">{stockWarning.returnCount} commandes</span> en "Retour" ou "Annulé".
+                                                {t('returns_hint', { count: stockWarning.returnCount })}
                                             </p>
                                             <p className="text-xs text-gray-500 mt-1">
-                                                Est-ce qu'un retour est arrivé ? Veuillez vérifier et mettre à jour le stock avant de continuer.
+                                                {t('check_returns_msg')}
                                             </p>
                                         </div>
                                     ) : (
-                                        <p className="text-sm text-red-600 mt-1">Aucun retour récent trouvé.</p>
+                                        <p className="text-sm text-red-600 mt-1">{t('no_recent_returns')}</p>
                                     )}
                                     <div className="mt-4 flex gap-3">
                                         <Button
@@ -299,14 +333,14 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                                 setStockWarning(null);
                                             }}
                                         >
-                                            Annuler sélection
+                                            {t('cancel_selection')}
                                         </Button>
                                         <Button
                                             size="sm"
                                             variant="secondary"
                                             onClick={() => setStockWarning(null)}
                                         >
-                                            Forcer la commande (Stock -1)
+                                            {t('force_order')}
                                         </Button>
                                     </div>
                                 </div>
@@ -335,7 +369,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                 <Input label={t('label_name')} value={formData.clientName} onChange={e => setFormData({ ...formData, clientName: e.target.value })} required />
                                 <div className="space-y-1">
                                     <label className="block text-sm font-medium text-gray-700">{t('label_city')}</label>
-                                    <input list="cities" className="w-full px-3 py-2 border rounded-lg" value={formData.clientCity} onChange={e => setFormData({ ...formData, clientCity: e.target.value })} required placeholder="Select City..." />
+                                    <input list="cities" className="w-full px-3 py-2 border rounded-lg" value={formData.clientCity} onChange={e => setFormData({ ...formData, clientCity: e.target.value })} required placeholder={t('select_city_placeholder')} />
                                     <datalist id="cities">{MOROCCAN_CITIES.map(c => <option key={c} value={c} />)}</datalist>
                                 </div>
                                 <div className="md:col-span-3">
@@ -351,10 +385,21 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">{t('label_product')}</label>
                                     <select className="w-full px-3 py-2 border rounded-lg" value={formData.articleId} onChange={handleProductChange}>
-                                        <option value="">-- Select --</option>
+                                        <option value="">{t('select_product_placeholder')}</option>
                                         {products.map(p => <option key={p.id} value={p.id}>{p.name} (Stock: {p.stock})</option>)}
                                     </select>
                                 </div>
+                                {formData.articleId && products.find(p => p.id === formData.articleId)?.isVariable && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('label_variant') || 'Variante'}</label>
+                                        <select className="w-full px-3 py-2 border rounded-lg" value={formData.variantId} onChange={handleVariantChange} required>
+                                            <option value="">Sélectionner une variante...</option>
+                                            {products.find(p => p.id === formData.articleId)?.variants?.map(v => (
+                                                <option key={v.id} value={v.id}>{v.name} (Stock: {v.stock}) - {v.price} DH</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                                 <Input label={t('label_date')} type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} required />
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -389,7 +434,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                     <label className="flex items-center space-x-2 cursor-pointer">
                                         <input type="checkbox" className="h-5 w-5 text-emerald-600 rounded focus:ring-emerald-500" checked={formData.isPaid} onChange={e => setFormData({ ...formData, isPaid: e.target.checked })} />
                                         <span className={`font-bold ${formData.isPaid ? 'text-emerald-700' : 'text-gray-500'}`}>
-                                            {formData.isPaid ? 'PAID (Encaissé)' : 'Unpaid (Non Payé)'}
+                                            {formData.isPaid ? t('paid_status') : t('unpaid_status')}
                                         </span>
                                     </label>
                                 </div>
@@ -397,14 +442,14 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
 
                             <div className="mt-4">
                                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('label_note')}</label>
-                                <textarea className="w-full px-3 py-2 border rounded-lg" rows="2" value={formData.note} onChange={e => setFormData({ ...formData, note: e.target.value })} placeholder="Digicode, instructions..."></textarea>
+                                <textarea className="w-full px-3 py-2 border rounded-lg" rows="2" value={formData.note} onChange={e => setFormData({ ...formData, note: e.target.value })} placeholder={t('note_placeholder')}></textarea>
                             </div>
 
                             {order?.driverNote && (
                                 <div className="mt-3 p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2">
                                     <span className="text-lg">💬</span>
                                     <div>
-                                        <p className="text-xs font-bold text-rose-700 uppercase tracking-wide mb-0.5">Remarque du Livreur</p>
+                                        <p className="text-xs font-bold text-rose-700 uppercase tracking-wide mb-0.5">{t('driver_note_label')}</p>
                                         <p className="text-sm text-rose-800">{order.driverNote}</p>
                                     </div>
                                 </div>

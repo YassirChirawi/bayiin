@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import {
-    collection, query, where, getDocs, doc, updateDoc, arrayUnion
+    collection, query, where, getDocs, doc, updateDoc, arrayUnion, runTransaction, increment
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import {
@@ -13,6 +13,8 @@ import {
 import { toast } from "react-hot-toast";
 import DriverAuth from "../components/DriverAuth";
 
+import { getOrderStatusConfig } from "../utils/statusConfig";
+
 // ── Status options for the livreur ──
 const STATUS_ACTIONS = [
     { status: 'livré', label: 'Livré ✓', color: 'bg-emerald-500 hover:bg-emerald-600', icon: CheckCircle },
@@ -20,16 +22,6 @@ const STATUS_ACTIONS = [
     { status: 'pas de réponse', label: 'Pas de réponse', color: 'bg-amber-500 hover:bg-amber-600', icon: PhoneMissed },
     { status: 'reporté', label: 'Reporter', color: 'bg-gray-500 hover:bg-gray-600', icon: Clock },
 ];
-
-const STATUS_LABELS = {
-    'livré': { label: 'Livré', bg: 'bg-emerald-100 text-emerald-800' },
-    'retour': { label: 'Retour Déposé', bg: 'bg-rose-100 text-rose-800' },
-    'pas de réponse': { label: 'Pas de réponse', bg: 'bg-amber-100 text-amber-800' },
-    'reporté': { label: 'Reporté', bg: 'bg-gray-100 text-gray-700' },
-    'livraison': { label: 'En livraison', bg: 'bg-blue-100 text-blue-800' },
-    'ramassage': { label: 'À Ramasser', bg: 'bg-orange-100 text-orange-800' },
-    'retour en cours': { label: 'Retour Livreur', bg: 'bg-rose-100 text-rose-800' },
-};
 
 // ── Helpers ──
 function getMapsUrl(order) {
@@ -48,7 +40,7 @@ function getWazeUrl(order) {
 function OrderCard({ order, onUpdateStatus, updating }) {
     const [expanded, setExpanded] = useState(false);
     const [note, setNote] = useState("");
-    const statusStyle = STATUS_LABELS[order.status] || { label: order.status, bg: 'bg-gray-100 text-gray-700' };
+    const statusConfig = getOrderStatusConfig(order.status);
     const isDone = ['livré', 'retour'].includes(order.status);
     const isRetourEnCours = order.status === 'retour en cours';
     const mapsUrl = getMapsUrl(order);
@@ -61,8 +53,8 @@ function OrderCard({ order, onUpdateStatus, updating }) {
                 <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusStyle.bg}`}>
-                                {statusStyle.label}
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusConfig.color}`}>
+                                {statusConfig.label}
                             </span>
                             {order.orderNumber && (
                                 <span className="text-sm font-bold text-indigo-900 bg-indigo-50 px-2 rounded-full">#{order.orderNumber}</span>
@@ -390,22 +382,99 @@ export default function DeliveryApp() {
         const key = orderId + newStatus;
         setUpdating(key);
         try {
-            const updates = {
-                status: newStatus,
-                [`statusHistory.${newStatus.replace(/\s/g, '_')}`]: new Date().toISOString(),
-                ...(newStatus === 'livré' ? { isPaid: true } : {})
-            };
-            if (noteString.trim()) {
-                updates.driverNote = noteString.trim();
-                updates.remarksHistory = arrayUnion({
-                    status: newStatus,
-                    text: noteString.trim(),
-                    date: new Date().toISOString()
-                });
-            }
+            const order = orders.find(o => o.id === orderId);
+            if (!order) throw new Error("Order not found");
 
-            await updateDoc(doc(db, 'orders', orderId), updates);
-            setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updates } : o));
+            await runTransaction(db, async (transaction) => {
+                const orderRef = doc(db, 'orders', orderId);
+
+                const updates = {
+                    status: newStatus,
+                    [`statusHistory.${newStatus.replace(/\s/g, '_')}`]: new Date().toISOString(),
+                    ...(newStatus === 'livré' ? { isPaid: true } : {})
+                };
+                if (noteString.trim()) {
+                    updates.driverNote = noteString.trim();
+                    updates.remarksHistory = arrayUnion({
+                        status: newStatus,
+                        text: noteString.trim(),
+                        date: new Date().toISOString()
+                    });
+                }
+
+                // 1. Update Order
+                transaction.update(orderRef, updates);
+
+                // 2. Handle Stock Re-stocking on 'retour'
+                const restockProduct = async (articleId, variantId, quantity) => {
+                    const productRef = doc(db, 'products', articleId);
+                    const qty = parseInt(quantity) || 1;
+
+                    if (variantId) {
+                        const productSnap = await transaction.get(productRef);
+                        if (productSnap.exists()) {
+                            const product = productSnap.data();
+                            const newVariants = (product.variants || []).map(v => {
+                                if (v.id === variantId) {
+                                    return { ...v, stock: (parseInt(v.stock) || 0) + qty };
+                                }
+                                return v;
+                            });
+                            transaction.update(productRef, {
+                                variants: newVariants,
+                                stock: increment(qty)
+                            });
+                        }
+                    } else {
+                        transaction.update(productRef, { stock: increment(qty) });
+                    }
+                };
+
+                if (newStatus === 'retour') {
+                    if (order.articleId) {
+                        await restockProduct(order.articleId, order.variantId, order.quantity);
+                    } else if (order.products && Array.isArray(order.products)) {
+                        for (const item of order.products) {
+                            await restockProduct(item.id, item.variantId, item.quantity);
+                        }
+                    }
+                }
+
+                // 3. Update Driver Stats
+                if (order.driverId) {
+                    const driverRef = doc(db, 'drivers', order.driverId);
+                    const driverStatsUpdates = {};
+
+                    if (newStatus === 'livré') {
+                        driverStatsUpdates['stats.totalDelivered'] = increment(1);
+                        driverStatsUpdates['stats.totalCOD'] = increment(parseFloat(order.price) || 0);
+                    } else if (newStatus === 'retour') {
+                        driverStatsUpdates['stats.totalReturned'] = increment(1);
+                    }
+
+                    if (Object.keys(driverStatsUpdates).length > 0) {
+                        transaction.update(driverRef, driverStatsUpdates);
+                    }
+                }
+
+                // 4. Update Global Store Stats
+                const statsRef = doc(db, "stores", order.storeId, "stats", "sales");
+                const statsUpdates = {};
+                statsUpdates[`statusCounts.${order.status || 'reçu'}`] = increment(-1);
+                statsUpdates[`statusCounts.${newStatus}`] = increment(1);
+
+                if (newStatus === 'livré' && order.status !== 'livré') {
+                    statsUpdates["totals.deliveredRevenue"] = increment(parseFloat(order.price) || 0);
+                    statsUpdates["totals.deliveredCount"] = increment(1);
+                } else if (order.status === 'livré' && newStatus !== 'livré') {
+                    statsUpdates["totals.deliveredRevenue"] = increment(-(parseFloat(order.price) || 0));
+                    statsUpdates["totals.deliveredCount"] = increment(-1);
+                }
+
+                transaction.update(statsRef, statsUpdates);
+            });
+
+            setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus, ...(newStatus === 'livré' ? { isPaid: true } : {}), ...(noteString.trim() ? { driverNote: noteString.trim() } : {}) } : o));
 
             if (newStatus === 'livré') toast.success('✅ Commande livrée !');
             else if (newStatus === 'livraison') toast.success('📦 Ramassage validé, en route !');
@@ -418,7 +487,7 @@ export default function DeliveryApp() {
         } finally {
             setUpdating(null);
         }
-    }, []);
+    }, [orders]);
 
     // Derived lists
     const pickup = orders.filter(o => o.status === 'ramassage');
