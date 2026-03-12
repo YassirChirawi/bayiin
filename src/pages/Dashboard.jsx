@@ -2,7 +2,8 @@ import { useTenant } from "../context/TenantContext";
 import { useStoreData } from "../hooks/useStoreData";
 import { useStoreStats } from "../hooks/useStoreStats";
 import { Link } from "react-router-dom";
-import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, RotateCcw, CheckCircle, RefreshCw, Check, X, Calendar, Clock, Truck } from "lucide-react"; // Added Calendar, Clock, Truck
+import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, RotateCcw, CheckCircle, RefreshCw, Check, X, Calendar, Clock, Truck, Sparkles } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion"; // Added Calendar, Clock, Truck
 import { useMemo, useState } from "react";
 import { format, subDays } from "date-fns";
 import { where, limit, orderBy, doc, updateDoc } from "firebase/firestore";
@@ -17,6 +18,7 @@ import HelpTooltip from "../components/HelpTooltip";
 import { useOrderActions } from "../hooks/useOrderActions"; // NEW
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import Button from "../components/Button"; // NEW
+import ForecastingWidget from "../components/ForecastingWidget"; // NEW
 
 export default function Dashboard() {
     const { store } = useTenant();
@@ -106,9 +108,11 @@ export default function Dashboard() {
             .slice(0, 10);
     }, [orderTasks, customEvents]);
 
-    // 4. Low Stock
-    const lowStockConstraints = useMemo(() => [where("stock", "<", 5), limit(20)], []);
-    const { data: lowStockProducts } = useStoreData("products", lowStockConstraints);
+    // 4. Low Stock — dynamic, uses per-product min_stock_alert threshold
+    const { data: allProducts } = useStoreData("products");
+    const lowStockProducts = useMemo(() =>
+        (allProducts || []).filter(p => !p.deleted && parseFloat(p.stock) < (p.min_stock_alert ?? 5))
+        , [allProducts]);
 
     // Transform Data
     const dashboardData = useMemo(() => {
@@ -324,6 +328,49 @@ export default function Dashboard() {
                 </div>
             </div>
 
+            {/* 🚨 Animated Stock Alert Banner */}
+            <AnimatePresence>
+                {lowStockProducts.length > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -12, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -12, scale: 0.98 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                        className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 shadow-sm"
+                    >
+                        <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 bg-amber-400/20 rounded-lg p-2">
+                                <Sparkles className="w-5 h-5 text-amber-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-amber-900">
+                                    ⚠️ {lowStockProducts.length} produit(s) sous le seuil d'alerte stock
+                                </p>
+                                <div className="mt-2 space-y-1">
+                                    {lowStockProducts.slice(0, 5).map(p => (
+                                        <div key={p.id} className="flex items-center justify-between text-xs">
+                                            <span className="text-amber-800 font-medium flex items-center gap-1.5">
+                                                {p.sku && <span className="font-mono bg-amber-100 text-amber-700 px-1 rounded">{p.sku}</span>}
+                                                {p.name}
+                                            </span>
+                                            <span className="font-bold text-orange-700 flex-shrink-0 ml-2">
+                                                Stock: {p.stock} / Min: {p.min_stock_alert ?? 5}
+                                            </span>
+                                        </div>
+                                    ))}
+                                    {lowStockProducts.length > 5 && (
+                                        <p className="text-xs text-amber-600 italic">+ {lowStockProducts.length - 5} autres...</p>
+                                    )}
+                                </div>
+                            </div>
+                            <Link to="/purchases" className="flex-shrink-0 text-xs font-semibold text-indigo-700 hover:text-indigo-900 bg-white border border-indigo-200 px-2 py-1 rounded-lg whitespace-nowrap">
+                                Commander →
+                            </Link>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* NEW: Financial Reconciliation (COD) */}
             <div className="glass-panel rounded-xl overflow-hidden p-6 mb-8 border-t-4 border-indigo-500">
                 <div className="flex items-center justify-between mb-6">
@@ -478,6 +525,11 @@ export default function Dashboard() {
 
                 {/* Right Column (Pie Chart & Orders) */}
                 <div className="lg:col-span-1 space-y-6">
+                    {/* IA Forecasting Widget (NEW) */}
+                    <div className="lg:sticky lg:top-8">
+                        <ForecastingWidget products={allProducts} orders={recentOrders} />
+                    </div>
+
                     {/* Status Breakdown (Pie Chart) */}
                     <div className="glass-panel rounded-xl p-6">
                         <h3 className="text-lg font-medium text-gray-900 mb-4">{t('chart_order_status')}</h3>

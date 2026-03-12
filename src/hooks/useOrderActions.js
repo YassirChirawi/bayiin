@@ -94,7 +94,29 @@ export const useOrderActions = () => {
                                 stock: increment(-qty)
                             });
                         } else {
-                            transaction.update(productRef, { stock: increment(-qty) });
+                            let stockUpdates = { stock: increment(-qty) };
+
+                            // FEFO logic for batches
+                            if (product.inventoryBatches && product.inventoryBatches.length > 0) {
+                                // Important: We clone the array to avoid mutating the original directly in place before updating
+                                // Then sort by expiryDate ascending (oldest first)
+                                let updatedBatches = [...product.inventoryBatches].sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
+                                let remainingQty = qty;
+
+                                for (let i = 0; i < updatedBatches.length && remainingQty > 0; i++) {
+                                    let batch = updatedBatches[i];
+                                    let batchQty = parseInt(batch.quantity) || 0;
+
+                                    if (batchQty > 0) {
+                                        let deductAmount = Math.min(batchQty, remainingQty);
+                                        batch.quantity = batchQty - deductAmount;
+                                        remainingQty -= deductAmount;
+                                    }
+                                }
+                                stockUpdates.inventoryBatches = updatedBatches;
+                            }
+
+                            transaction.update(productRef, stockUpdates);
                         }
                     }
                 };
@@ -162,7 +184,33 @@ export const useOrderActions = () => {
                             });
                             transaction.update(productRef, { variants: newVariants, stock: increment(change) });
                         } else {
-                            transaction.update(productRef, { stock: increment(change) });
+                            let stockUpdates = { stock: increment(change) };
+
+                            if (product.inventoryBatches && product.inventoryBatches.length > 0) {
+                                let updatedBatches = [...product.inventoryBatches];
+
+                                if (change > 0) {
+                                    // Restocking: add to the newest batch (highest expiry date)
+                                    updatedBatches.sort((a, b) => new Date(b.expiryDate || 0) - new Date(a.expiryDate || 0));
+                                    updatedBatches[0].quantity = (parseInt(updatedBatches[0].quantity) || 0) + change;
+                                } else if (change < 0) {
+                                    // Deducting (FEFO)
+                                    let remainingQty = Math.abs(change);
+                                    updatedBatches.sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
+                                    for (let i = 0; i < updatedBatches.length && remainingQty > 0; i++) {
+                                        let batch = updatedBatches[i];
+                                        let batchQty = parseInt(batch.quantity) || 0;
+                                        if (batchQty > 0) {
+                                            let deductAmount = Math.min(batchQty, remainingQty);
+                                            batch.quantity = batchQty - deductAmount;
+                                            remainingQty -= deductAmount;
+                                        }
+                                    }
+                                }
+                                stockUpdates.inventoryBatches = updatedBatches;
+                            }
+
+                            transaction.update(productRef, stockUpdates);
                         }
                     }
                 };

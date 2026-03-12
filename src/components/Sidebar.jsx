@@ -21,7 +21,11 @@ import {
     Workflow,
     Building2,
     Truck,
-    RefreshCw
+    RefreshCw,
+    UserCheck,
+    ShoppingCart,
+    RotateCcw,
+    Megaphone
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useReconciliation } from "../hooks/useReconciliation";
@@ -53,7 +57,12 @@ export default function Sidebar({ isOpen, onClose }) {
         { name: t('products'), href: '/products', icon: Package },
         { name: t('customers'), href: '/customers', icon: Users },
         { name: t('automations') || 'Automations', href: '/automations', icon: Workflow },
+        { name: 'Marketing', href: '/marketing', icon: Megaphone },
         { name: t('drivers') || 'Livreurs', href: '/drivers', icon: Truck },
+        { name: 'Ressources Humaines', href: '/hr', icon: UserCheck },
+        { name: 'Gestion des Assets', href: '/assets', icon: Building2 },
+        { name: 'Achats', href: '/purchases', icon: ShoppingCart },
+        { name: 'SAV & Retours', href: '/returns', icon: RotateCcw },
         ...(role !== 'staff' ? [
             { name: t('finances'), href: '/finances', icon: DollarSign },
             { name: t('team'), href: '/team', icon: UserPlus },

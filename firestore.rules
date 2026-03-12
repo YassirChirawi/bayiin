@@ -180,6 +180,16 @@ service cloud.firestore {
         allow write: if request.auth != null && isSuperAdmin();
     }
 
+    match /incidents/{incidentId} {
+      allow read: if isStoreOwner() || isSuperAdmin() || isFranchiseAdmin();
+      allow write: if isStoreOwner() || isSuperAdmin();
+    }
+
+    match /assets/{assetId} {
+      allow read: if isStoreOwner() || isSuperAdmin() || isFranchiseAdmin();
+      allow write: if isStoreOwner() || isSuperAdmin();
+    }
+
     // Franchises collection
     match /franchises/{franchiseId} {
         allow read: if request.auth != null && (
@@ -215,6 +225,93 @@ service cloud.firestore {
         allow create: if request.auth != null && (
             isSuperAdmin() ||
             isStoreOwner(request.resource.data.storeId)
+        );
+    }
+
+    // Employees (RH — Vendeurs/Vendeuses) — store owners and staff can manage
+    match /employees/{employeeId} {
+        allow read: if request.auth != null && (
+            isSuperAdmin() ||
+            belongsToStore(resource.data.storeId) ||
+            isStoreOwner(resource.data.storeId) ||
+            (isFranchiseAdmin() && inSameFranchise(resource.data.storeId))
+        );
+        allow create: if request.auth != null && (
+            isSuperAdmin() ||
+            isStoreOwner(request.resource.data.storeId) ||
+            request.resource.data.storeId == getUserData().storeId
+        );
+        allow update, delete: if request.auth != null && (
+            isSuperAdmin() ||
+            belongsToStore(resource.data.storeId) ||
+            isStoreOwner(resource.data.storeId)
+        );
+
+        // Subcollection: absences
+        match /absences/{absenceId} {
+            allow read, write: if request.auth != null && (
+                isSuperAdmin() ||
+                isStoreOwner(get(/databases/$(database)/documents/employees/$(employeeId)).data.storeId) ||
+                get(/databases/$(database)/documents/employees/$(employeeId)).data.storeId == getUserData().storeId
+            );
+        }
+
+        // Subcollection: payroll_history
+        match /payroll_history/{payrollId} {
+            allow read, write: if request.auth != null && (
+                isSuperAdmin() ||
+                isStoreOwner(get(/databases/$(database)/documents/employees/$(employeeId)).data.storeId) ||
+                get(/databases/$(database)/documents/employees/$(employeeId)).data.storeId == getUserData().storeId
+            );
+        }
+    }
+
+    // Purchase Orders (Module Achats) — store owners and staff can manage
+    match /purchase_orders/{orderId} {
+        allow read: if request.auth != null && (
+            isSuperAdmin() ||
+            belongsToStore(resource.data.storeId) ||
+            isStoreOwner(resource.data.storeId) ||
+            (isFranchiseAdmin() && inSameFranchise(resource.data.storeId))
+        );
+        allow create: if request.auth != null && (
+            isSuperAdmin() ||
+            isStoreOwner(request.resource.data.storeId) ||
+            request.resource.data.storeId == getUserData().storeId
+        );
+        allow update, delete: if request.auth != null && (
+            isSuperAdmin() ||
+            belongsToStore(resource.data.storeId) ||
+            isStoreOwner(resource.data.storeId)
+        );
+
+        // Subcollection: receptions
+        match /receptions/{receptionId} {
+            allow read, write: if request.auth != null && (
+                isSuperAdmin() ||
+                isStoreOwner(get(/databases/$(database)/documents/purchase_orders/$(orderId)).data.storeId) ||
+                get(/databases/$(database)/documents/purchase_orders/$(orderId)).data.storeId == getUserData().storeId
+            );
+        }
+    }
+
+    // SAV Returns — store owners and staff can manage
+    match /returns/{returnId} {
+        allow read: if request.auth != null && (
+            isSuperAdmin() ||
+            belongsToStore(resource.data.storeId) ||
+            isStoreOwner(resource.data.storeId) ||
+            (isFranchiseAdmin() && inSameFranchise(resource.data.storeId))
+        );
+        allow create: if request.auth != null && (
+            isSuperAdmin() ||
+            isStoreOwner(request.resource.data.storeId) ||
+            request.resource.data.storeId == getUserData().storeId
+        );
+        allow update, delete: if request.auth != null && (
+            isSuperAdmin() ||
+            belongsToStore(resource.data.storeId) ||
+            isStoreOwner(resource.data.storeId)
         );
     }
   }

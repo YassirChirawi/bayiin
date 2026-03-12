@@ -6,6 +6,8 @@ import Input from "./Input";
 import { useImageUpload } from "../hooks/useImageUpload";
 import { useTenant } from "../context/TenantContext";
 import { useLanguage } from "../context/LanguageContext"; // NEW
+import { validateSKU, suggestSKU } from "../lib/skuService"; // NEW
+import { useStoreData } from "../hooks/useStoreData"; // NEW — for SKU suggestions
 
 export default function ProductModal({ isOpen, onClose, onSave, product = null }) {
     const [formData, setFormData] = useState({
@@ -17,12 +19,19 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
         sizes: "", // Legacy field, kept for simple products
         description: "",
         photoUrl: "",
-        isVariable: false
+        isVariable: false,
+        costCurrency: "MAD",
+        supplier_ref: "",
+        sku: "",
+        min_stock_alert: 5
     });
 
     // Variants State
     const [attributes, setAttributes] = useState([]); // [{ name: 'Size', options: ['S', 'M'] }]
     const [variants, setVariants] = useState([]); // [{ id: '..', attributes: {Size: 'S'}, price, stock }]
+
+    // Batches State
+    const [batches, setBatches] = useState([]); // [{ batchNumber: '', expiryDate: '', quantity: 0 }]
 
     const { store } = useTenant();
     const { t } = useLanguage(); // NEW
@@ -41,10 +50,15 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                 sizes: product.sizes ? product.sizes.join(", ") : "",
                 description: product.description || "",
                 photoUrl: product.photoUrl || "",
-                isVariable: product.isVariable || false
+                isVariable: product.isVariable || false,
+                costCurrency: product.costCurrency || "MAD",
+                supplier_ref: product.supplier_ref || "",
+                sku: product.sku || "",
+                min_stock_alert: product.min_stock_alert ?? 5
             });
             setAttributes(product.attributes || []);
             setVariants(product.variants || []);
+            setBatches(product.inventoryBatches || []);
         } else {
             setFormData({
                 name: "",
@@ -55,10 +69,15 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                 sizes: "",
                 description: "",
                 photoUrl: "",
-                isVariable: false
+                isVariable: false,
+                costCurrency: "MAD",
+                supplier_ref: "",
+                sku: "",
+                min_stock_alert: 5
             });
             setAttributes([]);
             setVariants([]);
+            setBatches([]);
         }
     }, [product, isOpen]);
 
@@ -71,6 +90,15 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
             setFormData(prev => ({ ...prev, photoUrl: url }));
         }
     };
+
+    // --- Batch Logic ---
+    const addBatch = () => setBatches([...batches, { batchNumber: "", expiryDate: "", quantity: 0 }]);
+    const updateBatch = (index, field, value) => {
+        const newBatches = [...batches];
+        newBatches[index][field] = value;
+        setBatches(newBatches);
+    };
+    const removeBatch = (index) => setBatches(batches.filter((_, i) => i !== index));
 
     // --- Variant Logic ---
 
@@ -140,17 +168,28 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
             // If variable, calculate total stock from variants
             if (formData.isVariable) {
                 finalStock = variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
+            } else if (batches.length > 0) {
+                // If batches exist, total stock is sum of batch quantities
+                finalStock = batches.reduce((sum, b) => sum + (parseInt(b.quantity) || 0), 0);
+            }
+
+            let finalCostPrice = parseFloat(formData.costPrice) || 0;
+            if (formData.costCurrency === 'EUR') {
+                finalCostPrice = finalCostPrice * 10.7; // Standard conversion rate
             }
 
             const productData = {
                 ...formData,
                 price: parseFloat(formData.price),
-                costPrice: parseFloat(formData.costPrice) || 0,
+                costPrice: finalCostPrice,
+                originalCostPrice: parseFloat(formData.costPrice) || 0,
+                costCurrency: formData.costCurrency || "MAD",
                 stock: finalStock,
                 sizes: formData.sizes.split(",").map(s => s.trim()).filter(Boolean), // Keep for legacy compatibility
                 isVariable: formData.isVariable,
                 attributes: formData.isVariable ? attributes : [],
                 variants: formData.isVariable ? variants : [],
+                inventoryBatches: batches,
                 updatedAt: new Date().toISOString()
             };
 
@@ -200,21 +239,62 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                                     value={formData.price}
                                     onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                                 />
-                                <Input
-                                    label={t('label_cost_price_dh')}
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={formData.costPrice}
-                                    onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
-                                    placeholder={t('placeholder_optional')}
-                                />
+                                <div className="flex gap-2 items-end">
+                                    <div className="flex-1">
+                                        <Input
+                                            label={t('label_cost_price') || "Coût d'achat"}
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={formData.costPrice}
+                                            onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
+                                            placeholder={t('placeholder_optional')}
+                                        />
+                                    </div>
+                                    <select
+                                        value={formData.costCurrency}
+                                        onChange={(e) => setFormData({ ...formData, costCurrency: e.target.value })}
+                                        className="mb-1 block w-20 shadow-sm sm:text-sm border-gray-300 rounded-md p-2 border bg-gray-50 focus:ring-indigo-500 focus:border-indigo-500"
+                                    >
+                                        <option value="MAD">MAD</option>
+                                        <option value="EUR">EUR</option>
+                                    </select>
+                                </div>
                             </div>
                             <Input
                                 label={t('label_category')}
                                 value={formData.category}
                                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                                 placeholder={t('placeholder_category')}
+                            />
+                            {/* SKU Field with live validation */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    SKU KUO'S
+                                    <span className="ml-1 text-xs font-normal text-gray-400">(ex: DSVP001)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.sku}
+                                    onChange={(e) => setFormData({ ...formData, sku: e.target.value.toUpperCase() })}
+                                    placeholder="DREN001"
+                                    className={`block w-full font-mono text-sm border rounded-md px-3 py-2 focus:outline-none focus:ring-1 ${!formData.sku ? 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'
+                                        : validateSKU(formData.sku).valid ? 'border-emerald-400 bg-emerald-50 focus:ring-emerald-400'
+                                            : 'border-rose-400 bg-rose-50 focus:ring-rose-400'
+                                        }`}
+                                />
+                                {formData.sku && (() => {
+                                    const v = validateSKU(formData.sku);
+                                    return v.valid
+                                        ? <p className="mt-1 text-xs text-emerald-600 font-medium">✓ Ligne : {v.lineName} · N° {v.number}</p>
+                                        : <p className="mt-1 text-xs text-rose-600">{v.error}</p>;
+                                })()}
+                            </div>
+                            <Input
+                                label="Référence fournisseur (Odoo)"
+                                value={formData.supplier_ref}
+                                onChange={(e) => setFormData({ ...formData, supplier_ref: e.target.value })}
+                                placeholder="ex: PROD-0042"
                             />
                         </div>
 
@@ -289,22 +369,90 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
 
                         {!formData.isVariable ? (
                             // Simple Stock UI
-                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <Input
-                                    label={t('label_total_stock')}
-                                    type="number"
-                                    required={!formData.isVariable}
-                                    min="0"
-                                    value={formData.stock}
-                                    onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                                />
-                                <Input
-                                    label={t('label_sizes_optional')}
-                                    value={formData.sizes}
-                                    onChange={(e) => setFormData({ ...formData, sizes: e.target.value })}
-                                    placeholder={t('placeholder_sizes')}
-                                />
-                            </div>
+                            <>
+                                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <Input
+                                        label={t('label_total_stock')}
+                                        type="number"
+                                        required={!formData.isVariable}
+                                        min="0"
+                                        value={formData.stock}
+                                        onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+                                        disabled={batches.length > 0}
+                                    />
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Alerte seuil min
+                                            <span className="ml-1 text-xs font-normal text-amber-500">⚠️</span>
+                                        </label>
+                                        <input
+                                            type="number" min="0"
+                                            value={formData.min_stock_alert}
+                                            onChange={e => setFormData({ ...formData, min_stock_alert: parseInt(e.target.value) || 0 })}
+                                            className="block w-full text-sm border border-amber-200 bg-amber-50 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                                        />
+                                        <p className="text-xs text-gray-400 mt-0.5">Alerte Dashboard si stock &lt; {formData.min_stock_alert}</p>
+                                    </div>
+                                    <Input
+                                        label={t('label_sizes_optional')}
+                                        value={formData.sizes}
+                                        onChange={(e) => setFormData({ ...formData, sizes: e.target.value })}
+                                        placeholder={t('placeholder_sizes')}
+                                    />
+                                </div>
+
+                                <div className="mt-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h4 className="text-sm font-medium text-gray-700">{t('label_inventory_batches') || "Traçabilité des Lots (FEFO)"}</h4>
+                                        <Button type="button" variant="secondary" size="sm" onClick={addBatch} icon={Plus}>
+                                            {t('btn_add_batch') || "Ajouter Lot"}
+                                        </Button>
+                                    </div>
+                                    {batches.length > 0 ? (
+                                        <div className="space-y-3">
+                                            {batches.map((batch, idx) => (
+                                                <div key={idx} className="flex gap-2 items-center bg-white p-2 border border-gray-100 rounded-lg shadow-sm">
+                                                    <div className="flex-1">
+                                                        <input
+                                                            type="text"
+                                                            placeholder={t('placeholder_batch_num') || "Numéro Lot"}
+                                                            className="block w-full sm:text-sm border-gray-300 rounded-md p-1.5 border"
+                                                            value={batch.batchNumber}
+                                                            onChange={(e) => updateBatch(idx, 'batchNumber', e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <input
+                                                            type="date"
+                                                            className="block w-full sm:text-sm border-gray-300 rounded-md p-1.5 border"
+                                                            value={batch.expiryDate}
+                                                            onChange={(e) => updateBatch(idx, 'expiryDate', e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div className="w-24">
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            placeholder="Qté"
+                                                            className="block w-full sm:text-sm border-gray-300 rounded-md p-1.5 border"
+                                                            value={batch.quantity}
+                                                            onChange={(e) => updateBatch(idx, 'quantity', e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <button type="button" onClick={() => removeBatch(idx)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-md">
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            <p className="text-xs text-indigo-600 font-medium mt-2">
+                                                {t('msg_stock_auto_calc') || "Le stock total est calculé automatiquement à partir des lots."}
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-500 italic">{t('msg_no_batches') || "Aucun lot configuré. Gestion classique du stock."}</p>
+                                    )}
+                                </div>
+                            </>
                         ) : (
                             // Advanced Variants UI
                             <div className="space-y-6">

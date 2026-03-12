@@ -96,11 +96,13 @@ export default function Products() {
 
     const handleExportCSV = () => {
         const dataToExport = products.map(p => ({
+            SKU: p.sku || '',
             [t('label_product_name')]: p.name,
             [t('label_category')]: p.category || '',
             [t('table_price')]: p.price,
             [t('table_stock')]: p.stock,
             [t('label_cost_price_dh')]: p.costPrice || 0,
+            'Ref Fournisseur': p.supplier_ref || '',
             [t('with_variants')]: p.isVariable ? t('yes') : t('no')
         }));
         exportToCSV(dataToExport, 'products');
@@ -134,7 +136,8 @@ export default function Products() {
         .filter(p => showTrash ? p.deleted : !p.deleted)
         .filter(p =>
             p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.category?.toLowerCase().includes(searchTerm.toLowerCase())
+            p.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            p.sku?.toUpperCase().includes(searchTerm.toUpperCase())
         );
 
     return (
@@ -250,6 +253,11 @@ export default function Products() {
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex items-center gap-2">
                                                     <p className="text-sm font-medium text-indigo-600 truncate">{product.name}</p>
+                                                    {product.sku && (
+                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                                            {product.sku}
+                                                        </span>
+                                                    )}
                                                     {product.isVariable && (
                                                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
                                                             {t('with_variants')}
@@ -291,6 +299,23 @@ export default function Products() {
                                                         {t('low_stock')}
                                                     </div>
                                                 )}
+
+                                                {product.inventoryBatches?.some(b => {
+                                                    if (!b.expiryDate) return false;
+                                                    const expDate = new Date(b.expiryDate);
+                                                    const threeMonthsFromNow = new Date();
+                                                    threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
+                                                    return expDate <= threeMonthsFromNow && expDate >= new Date() && parseInt(b.quantity) > 0;
+                                                }) && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, scale: 0.9 }}
+                                                            animate={{ opacity: 1, scale: 1 }}
+                                                            className="mt-1 flex items-center gap-1 text-xs text-red-700 font-bold bg-red-100 px-2 py-0.5 rounded w-fit shadow-sm border border-red-200"
+                                                        >
+                                                            <AlertCircle className="h-3 w-3" />
+                                                            {t('expiring_soon') || "Lot(s) expirant bientôt"}
+                                                        </motion.div>
+                                                    )}
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-4">
@@ -377,10 +402,26 @@ export default function Products() {
                                             )}
                                         </div>
 
-                                        <div className="flex items-end justify-between mt-2">
+                                        <div className="flex flex-col items-start mt-2 space-y-1">
                                             <span className={`text-xs font-medium px-2 py-1 rounded-full ${parseInt(product.stock) === 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                                                 {product.stock} {t('in_stock')}
                                             </span>
+                                            {product.inventoryBatches?.some(b => {
+                                                if (!b.expiryDate) return false;
+                                                const expDate = new Date(b.expiryDate);
+                                                const threeMonthsFromNow = new Date();
+                                                threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
+                                                return expDate <= threeMonthsFromNow && expDate >= new Date() && parseInt(b.quantity) > 0;
+                                            }) && (
+                                                    <motion.div
+                                                        initial={{ opacity: 0 }}
+                                                        animate={{ opacity: 1 }}
+                                                        className="flex items-center gap-1 text-[10px] text-red-700 font-bold bg-red-100 px-1.5 py-0.5 rounded whitespace-nowrap"
+                                                    >
+                                                        <AlertCircle className="h-2.5 w-2.5" />
+                                                        Exp. proche
+                                                    </motion.div>
+                                                )}
                                         </div>
                                     </div>
                                 </div>

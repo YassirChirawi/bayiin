@@ -432,22 +432,52 @@ export default function Settings() {
                                                 />
                                             </div>
                                             <div className="sm:col-span-3">
-                                                <label className="block text-sm font-medium text-gray-700">{t('label_store_ice')}</label>
+                                                <label className="block text-sm font-medium text-gray-700">{t('label_store_ice') || 'ICE'}</label>
                                                 <input
                                                     type="text"
                                                     value={store?.ice || ''}
                                                     onChange={(e) => setStore(prev => ({ ...prev, ice: e.target.value }))}
-                                                    placeholder="Tax ID or ICE"
+                                                    placeholder="Identifiant Commun de l'Entreprise"
+                                                    className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                                />
+                                            </div>
+                                            <div className="sm:col-span-3">
+                                                <label className="block text-sm font-medium text-gray-700">IF Fiscal</label>
+                                                <input
+                                                    type="text"
+                                                    value={store?.if_fiscal || ''}
+                                                    onChange={(e) => setStore(prev => ({ ...prev, if_fiscal: e.target.value }))}
+                                                    placeholder="Identifiant Fiscal"
+                                                    className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                                />
+                                            </div>
+                                            <div className="sm:col-span-3">
+                                                <label className="block text-sm font-medium text-gray-700">RC (Registre du Commerce)</label>
+                                                <input
+                                                    type="text"
+                                                    value={store?.rc || ''}
+                                                    onChange={(e) => setStore(prev => ({ ...prev, rc: e.target.value }))}
+                                                    placeholder="Numéro RC"
+                                                    className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                                />
+                                            </div>
+                                            <div className="sm:col-span-3">
+                                                <label className="block text-sm font-medium text-gray-700">Patente</label>
+                                                <input
+                                                    type="text"
+                                                    value={store?.patente || ''}
+                                                    onChange={(e) => setStore(prev => ({ ...prev, patente: e.target.value }))}
+                                                    placeholder="N° Patente"
                                                     className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
                                                 />
                                             </div>
                                             <div className="sm:col-span-6">
-                                                <label className="block text-sm font-medium text-gray-700">{t('label_store_address')}</label>
+                                                <label className="block text-sm font-medium text-gray-700">{t('label_store_address') || 'Adresse'}</label>
                                                 <textarea
                                                     rows={2}
                                                     value={store?.address || ''}
                                                     onChange={(e) => setStore(prev => ({ ...prev, address: e.target.value }))}
-                                                    placeholder="123 Business St, Casablanca"
+                                                    placeholder="123 Rue Mohammed V, Casablanca"
                                                     className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
                                                 />
                                             </div>
@@ -458,17 +488,20 @@ export default function Settings() {
                                                             await updateDoc(doc(db, "stores", store.id), {
                                                                 phone: store.phone || "",
                                                                 ice: store.ice || "",
+                                                                if_fiscal: store.if_fiscal || "",
+                                                                rc: store.rc || "",
+                                                                patente: store.patente || "",
                                                                 address: store.address || ""
                                                             });
-                                                            toast.success(t('msg_details_saved'));
+                                                            toast.success(t('msg_details_saved') || 'Mentions légales sauvegardées !');
                                                         } catch (e) {
                                                             console.error(e);
-                                                            toast.error(t('err_save_failed'));
+                                                            toast.error(t('err_save_failed') || 'Erreur lors de la sauvegarde');
                                                         }
                                                     }}
                                                     icon={Save}
                                                 >
-                                                    {t('btn_save_details')}
+                                                    {t('btn_save_details') || 'Sauvegarder'}
                                                 </Button>
                                             </div>
                                         </div>

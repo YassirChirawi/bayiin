@@ -39,6 +39,11 @@ import FranchiseDashboard from "./pages/FranchiseDashboard"; // NEW
 import DeliveryApp from "./pages/DeliveryApp"; // NEW
 import Drivers from "./pages/Drivers"; // NEW
 import DriverApplication from "./pages/DriverApplication"; // NEW
+import HR from "./pages/HR"; // NEW
+import Purchases from "./pages/Purchases"; // NEW
+import Returns from "./pages/Returns"; // NEW
+import Marketing from "./pages/Marketing"; // NEW
+import Assets from "./pages/Assets"; // NEW
 
 import { HelmetProvider } from 'react-helmet-async';
 import { useAnalytics } from './hooks/useAnalytics';
@@ -160,6 +165,11 @@ function App() {
                         <Route path="/support-ai" element={<SupportAI />} /> {/* NEW */}
                         <Route path="/automations" element={<Automations />} /> {/* NEW */}
                         <Route path="/drivers" element={<Drivers />} /> {/* NEW */}
+                        <Route path="/hr" element={<HR />} /> {/* NEW */}
+                        <Route path="/purchases" element={<Purchases />} /> {/* NEW */}
+                        <Route path="/returns" element={<Returns />} /> {/* NEW */}
+                        <Route path="/marketing" element={<Marketing />} /> {/* NEW */}
+                        <Route path="/assets" element={<Assets />} /> {/* NEW */}
                       </Route>
                       <Route path="*" element={<NotFound />} />
                     </Routes>

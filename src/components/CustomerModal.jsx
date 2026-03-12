@@ -15,6 +15,8 @@ export default function CustomerModal({ isOpen, onClose, onSave, customer = null
         phone: "",
         address: "",
         city: "", // Explicit city field
+        customerType: "RETAIL", // RETAIL | PRO
+        ice: "", // Identifiant Commun de l'Entreprise
     });
     const [loading, setLoading] = useState(false);
 
@@ -25,6 +27,8 @@ export default function CustomerModal({ isOpen, onClose, onSave, customer = null
                 phone: customer.phone || "",
                 address: customer.address || "",
                 city: customer.city || "",
+                customerType: customer.customerType || "RETAIL",
+                ice: customer.ice || "",
             });
         } else {
             setFormData({
@@ -32,6 +36,8 @@ export default function CustomerModal({ isOpen, onClose, onSave, customer = null
                 phone: "",
                 address: "",
                 city: "",
+                customerType: "RETAIL",
+                ice: "",
             });
         }
     }, [customer, isOpen]);
@@ -105,6 +111,26 @@ export default function CustomerModal({ isOpen, onClose, onSave, customer = null
                         onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                         placeholder={t('placeholder_address')}
                     />
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{t('label_customer_type') || "Type de Client"}</label>
+                            <select
+                                className="w-full px-3 py-2 border rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                                value={formData.customerType}
+                                onChange={(e) => setFormData({ ...formData, customerType: e.target.value })}
+                            >
+                                <option value="RETAIL">{t('option_retail') || "Particulier (RETAIL)"}</option>
+                                <option value="PRO">{t('option_pro') || "Professionnel (PRO/Institut)"}</option>
+                            </select>
+                        </div>
+                        <Input
+                            label={t('label_ice') || "ICE (Identifiant Commun de l'Entreprise)"}
+                            value={formData.ice}
+                            onChange={(e) => setFormData({ ...formData, ice: e.target.value })}
+                            placeholder={t('placeholder_ice') || "Optionnel"}
+                        />
+                    </div>
 
                     <div className="flex justify-between items-center pt-4 border-t border-gray-100">
                         {customer && (

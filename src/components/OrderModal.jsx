@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
-import { X, Save, Search, UserCheck, AlertCircle } from "lucide-react";
+import { X, Save, Search, UserCheck, AlertCircle, Sparkles } from "lucide-react";
 import Button from "./Button";
 import Input from "./Input";
 import { useStoreData } from "../hooks/useStoreData";
@@ -12,6 +12,8 @@ import { MOROCCAN_CITIES } from "../utils/moroccanCities";
 import { ORDER_STATUS, ORDER_STATUS_LABELS, PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "../utils/constants";
 import { useOrderActions } from "../hooks/useOrderActions";
 import { useLanguage } from "../context/LanguageContext"; // NEW
+import { calculateProductPrice } from "../utils/pricing"; // NEW
+import { getAISuggestions } from "../services/productAdvisorService"; // NEW
 
 export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
     const { data: products } = useStoreData("products");
@@ -31,9 +33,12 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
         clientAddress: "",
         clientCity: "",
         customerId: null,
+        clientCustomerType: "RETAIL", // NEW
+        clientIce: "", // NEW
         articleId: "",
         articleName: "",
         variantId: "", // NEW
+        batchNumber: "", // NEW
         size: "",
         color: "",
         quantity: 1,
@@ -53,6 +58,9 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
     const [notifyClient, setNotifyClient] = useState(false);
     const [customWhatsappMessage, setCustomWhatsappMessage] = useState("");
 
+    const [aiSuggestions, setAiSuggestions] = useState(null); // { suggestions: [], aiInsight: '', ... }
+    const [loadingAI, setLoadingAI] = useState(false);
+
     useEffect(() => {
         if (order) {
             setFormData({
@@ -61,9 +69,12 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 clientAddress: order.clientAddress || "",
                 clientCity: order.clientCity || order.city || "",
                 customerId: order.customerId || null,
+                clientCustomerType: order.clientCustomerType || "RETAIL", // NEW
+                clientIce: order.clientIce || "", // NEW
                 articleId: order.articleId || "",
                 articleName: order.articleName || "",
                 variantId: order.variantId || "", // NEW
+                batchNumber: order.batchNumber || "", // NEW
                 size: order.size || "",
                 color: order.color || "",
                 quantity: order.quantity || 1,
@@ -87,9 +98,12 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 clientAddress: "",
                 clientCity: "",
                 customerId: null,
+                clientCustomerType: "RETAIL",
+                clientIce: "",
                 articleId: "",
                 articleName: "",
                 variantId: "", // NEW
+                batchNumber: "", // NEW
                 size: "",
                 color: "",
                 quantity: 1,
@@ -148,7 +162,9 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 clientName: foundCustomer.name,
                 clientAddress: foundCustomer.address || prev.clientAddress,
                 clientCity: foundCustomer.city || prev.clientCity,
-                customerId: foundCustomer.id
+                customerId: foundCustomer.id,
+                clientCustomerType: foundCustomer.customerType || "RETAIL",
+                clientIce: foundCustomer.ice || ""
             }));
             setShowCustomerAlert(false);
         }
@@ -191,12 +207,16 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
         }
         const product = products.find(p => p.id === productId);
         if (product) {
+            // Apply Pricing logic based on customer type
+            const calculatedPrice = calculateProductPrice(product, formData.clientCustomerType);
+
             setFormData(prev => ({
                 ...prev,
                 articleId: product.id,
                 articleName: product.name,
                 variantId: "", // Reset variant on product change
-                price: product.price,
+                batchNumber: "", // Reset batch
+                price: calculatedPrice,
                 costPrice: product.costPrice || 0
             }));
 
@@ -212,6 +232,17 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                     });
                 }
             }
+
+            // --- AI Advisor Integration ---
+            if (product.sku) {
+                setLoadingAI(true);
+                getAISuggestions(product.sku, [], products)
+                    .then(res => setAiSuggestions(res))
+                    .catch(err => console.error("AI Advisor error:", err))
+                    .finally(() => setLoadingAI(false));
+            } else {
+                setAiSuggestions(null);
+            }
         }
     };
 
@@ -222,10 +253,17 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
 
         const variant = product.variants?.find(v => v.id === variantId);
         if (variant) {
+            // Re-calculate price for variant. We apply the same formula if the model evolves to proPrice per variant
+            // For now, if variant has price, use it, maybe discount it if PRO:
+            let vPrice = variant.price || prev.price;
+            if (formData.clientCustomerType === 'PRO') {
+                vPrice = parseFloat(vPrice) * 0.7; // Simple implicit discount if no proPrice
+            }
+
             setFormData(prev => ({
                 ...prev,
                 variantId: variant.id,
-                price: variant.price || prev.price,
+                price: vPrice,
                 // Extract size/color if they exist in attributes
                 size: variant.attributes?.Size || variant.attributes?.taille || prev.size,
                 color: variant.attributes?.Color || variant.attributes?.couleur || prev.color
@@ -400,6 +438,24 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                         </select>
                                     </div>
                                 )}
+                                {formData.articleId && products.find(p => p.id === formData.articleId)?.inventoryBatches?.length > 0 && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('label_batch_number') || 'Numéro de Lot'}</label>
+                                        <select
+                                            className="w-full px-3 py-2 border rounded-lg"
+                                            value={formData.batchNumber}
+                                            onChange={e => setFormData({ ...formData, batchNumber: e.target.value })}
+                                        >
+                                            <option value="">Auto (FEFO - Plus proche exp.)</option>
+                                            {products.find(p => p.id === formData.articleId).inventoryBatches.filter(b => b.quantity > 0).map(b => (
+                                                <option key={b.batchNumber} value={b.batchNumber}>
+                                                    {b.batchNumber} (Exp: {b.expiryDate} - Qté: {b.quantity})
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <p className="text-[10px] text-gray-400 mt-1">Sert de référence visuelle. La déduction réelle suit la logique FEFO globale.</p>
+                                    </div>
+                                )}
                                 <Input label={t('label_date')} type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} required />
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -408,6 +464,41 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                 <Input label={t('label_shipping')} type="number" value={formData.shippingCost} onChange={e => setFormData({ ...formData, shippingCost: e.target.value })} />
                                 <Input label={t('label_real_cost')} type="number" className="bg-red-50" value={formData.realDeliveryCost} onChange={e => setFormData({ ...formData, realDeliveryCost: e.target.value })} />
                             </div>
+
+                            {/* --- AI Recommendations Section --- */}
+                            {formData.articleId && (
+                                <div className="mt-4 pt-4 border-t border-gray-200">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Sparkles className="w-4 h-4 text-indigo-500 animate-pulse" />
+                                        <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Recommandations AI (ProductAdvisor)</h4>
+                                    </div>
+
+                                    {loadingAI ? (
+                                        <div className="flex gap-2">
+                                            <div className="h-8 w-24 bg-indigo-50 animate-pulse rounded-full" />
+                                            <div className="h-8 w-24 bg-indigo-50 animate-pulse rounded-full" />
+                                        </div>
+                                    ) : aiSuggestions?.suggestions?.length > 0 ? (
+                                        <div className="space-y-3">
+                                            <div className="flex flex-wrap gap-2">
+                                                {aiSuggestions.suggestions.map(s => (
+                                                    <div key={s.productId} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-full text-[11px] font-semibold border border-indigo-100 shadow-sm transition-transform hover:scale-105">
+                                                        <span className="opacity-70 font-mono">{s.sku}</span>
+                                                        <span>{s.name}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            {aiSuggestions.aiInsight && (
+                                                <p className="text-[11px] text-gray-500 italic leading-relaxed pl-1 border-l-2 border-indigo-200">
+                                                    “ {aiSuggestions.aiInsight} ”
+                                                </p>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <p className="text-[10px] text-gray-400 italic">Analysez les besoins du client pour proposer un soin complémentaire.</p>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* 3. Status & Payment (COD) */}

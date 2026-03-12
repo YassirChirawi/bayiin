@@ -3,21 +3,23 @@ import { useStoreData } from "../hooks/useStoreData";
 import { useTenant } from "../context/TenantContext";
 import { useLanguage } from "../context/LanguageContext";
 import { Navigate } from "react-router-dom";
-import { DollarSign, TrendingUp, CreditCard, Activity, Plus, Trash2, Library, Calendar, Sparkles, MessageSquare } from "lucide-react";
+import { DollarSign, TrendingUp, CreditCard, Activity, Plus, Trash2, Library, Sparkles, MessageSquare, Receipt, Truck, Download } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import jsPDF from 'jspdf';
 import Button from "../components/Button";
 import Input from "../components/Input";
-import CollectionsManager from "../components/CollectionsManager"; // NEW
-import { format, isSameDay, isSameWeek, isSameMonth, parseISO, startOfMonth, subDays, isWithinInterval, endOfDay, startOfDay } from 'date-fns';
+import CollectionsManager from "../components/CollectionsManager";
+import InvoiceTable from "../components/InvoiceTable";
+import { format, startOfMonth } from 'date-fns';
 import { where } from "firebase/firestore";
-import TopProductsChart from "../components/charts/TopProductsChart"; // NEW
-import CityRevenueChart from "../components/charts/CityRevenueChart"; // NEW
-import { motion } from "framer-motion"; // NEW
-import { getTopProducts, getCityStats, getHighReturnCities, getRetentionStats } from "../utils/analytics"; // NEW
-import { generateFinancialInsight, detectFinancialLeaks, analyzeFinancialScenario } from "../services/aiService"; // NEW
-import { calculateFinancialStats } from "../utils/financials"; // NEW
-import { getSenditInvoices } from "../lib/sendit"; // NEW
-import CFOSimulator from "../components/CFOSimulator"; // NEW
+import TopProductsChart from "../components/charts/TopProductsChart";
+import CityRevenueChart from "../components/charts/CityRevenueChart";
+import { motion } from "framer-motion";
+import { getTopProducts, getCityStats, getHighReturnCities, getRetentionStats } from "../utils/analytics";
+import { generateFinancialInsight, detectFinancialLeaks, analyzeFinancialScenario } from "../services/aiService";
+import { calculateFinancialStats } from "../utils/financials";
+import { getSenditInvoices } from "../lib/sendit";
+import CFOSimulator from "../components/CFOSimulator";
 
 export default function Finances() {
     const { store } = useTenant();
@@ -30,6 +32,7 @@ export default function Finances() {
 
     // State
     const [expenseForm, setExpenseForm] = useState({ description: "", amount: "", category: "Other", collectionId: "" });
+    const [importFees, setImportFees] = useState(""); // Frais d'approche (Douane, Transit)
     const [loadingExpense, setLoadingExpense] = useState(false);
 
     // Collections Mode
@@ -84,8 +87,8 @@ export default function Finances() {
 
     // --- Precise KPIs Calculation ---
     const stats = useMemo(() => {
-        return calculateFinancialStats(orders, expenses, dateRange, selectedCollection ? selectedCollection.id : null);
-    }, [orders, expenses, dateRange, selectedCollection]);
+        return calculateFinancialStats(orders, expenses, dateRange, selectedCollection ? selectedCollection.id : null, parseFloat(importFees) || 0);
+    }, [orders, expenses, dateRange, selectedCollection, importFees]);
 
 
     // --- Chart Data ---
@@ -192,10 +195,107 @@ export default function Finances() {
         }
     };
 
+    // ─── Accounting Export ────────────────────────────────────────────────────────
+    const [exportingAccounting, setExportingAccounting] = useState(false);
+
+    const generateAccountingReport = () => {
+        setExportingAccounting(true);
+        try {
+            const month = dateRange.start.slice(0, 7); // YYYY-MM
+            const filteredOrders = (orders || []).filter(o => !o.deleted);
+
+            // Calculations
+            const totalVentesHT = filteredOrders
+                .filter(o => o.status === 'livré' || o.status === 'payé')
+                .reduce((s, o) => s + (parseFloat(o.price) * (parseInt(o.quantity) || 1)), 0);
+            const totalTVA = totalVentesHT * 0.20;
+            const totalCOGS = filteredOrders
+                .filter(o => o.status === 'livré' || o.status === 'payé')
+                .reduce((s, o) => s + ((parseFloat(o.costPrice) || 0) * (parseInt(o.quantity) || 1)), 0);
+            const totalCharges = stats.totalExpenses || 0;
+            const fraisImport = parseFloat(importFees) || 0;
+            const margeReelle = totalVentesHT - totalCOGS - totalCharges - fraisImport;
+            const netApresCharges = margeReelle;
+
+            // 1. CSV
+            const csvRows = [
+                ['Rapport Comptable', month],
+                ['Période', `${dateRange.start} → ${dateRange.end}`],
+                [],
+                ['RUBRIQUE', 'MONTANT (MAD)'],
+                ['Total Ventes HT (livrées)', totalVentesHT.toFixed(2)],
+                ['TVA Collectée (20%)', totalTVA.toFixed(2)],
+                ['Total Ventes TTC', (totalVentesHT + totalTVA).toFixed(2)],
+                [],
+                ['CHARGES'],
+                ['Coût Achat Produits (COGS)', totalCOGS.toFixed(2)],
+                ['Charges Opérationnelles', totalCharges.toFixed(2)],
+                ['Frais Import/Approche', fraisImport.toFixed(2)],
+                [],
+                ['RÉSULTAT'],
+                ['Marge Réelle', margeReelle.toFixed(2)],
+                ['Net Après Charges', netApresCharges.toFixed(2)],
+                ['Taux de Marge', `${totalVentesHT > 0 ? ((margeReelle / totalVentesHT) * 100).toFixed(1) : 0}%`],
+            ];
+            const csvContent = csvRows.map(r => r.join(';')).join('\n');
+            const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `rapport-comptable-${month}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            // 2. PDF
+            const doc = new jsPDF();
+            doc.setFontSize(16); doc.setFont('helvetica', 'bold');
+            doc.setTextColor(79, 70, 229);
+            doc.text('RAPPORT COMPTABLE', 20, 20);
+            doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100);
+            doc.text(`Période : ${dateRange.start} → ${dateRange.end}`, 20, 28);
+
+            let y = 40;
+            const line = (label, value, bold = false) => {
+                if (bold) { doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30); }
+                else { doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 60); }
+                doc.text(label, 20, y);
+                doc.text(`${value} MAD`, 160, y, { align: 'right' });
+                y += 7;
+            };
+            const section = (title) => {
+                y += 3;
+                doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(79, 70, 229);
+                doc.text(title.toUpperCase(), 20, y); y += 6;
+                doc.setFontSize(10);
+            };
+
+            section('📊 Ventes');
+            line('Total Ventes HT (livrées)', totalVentesHT.toFixed(2));
+            line('TVA Collectée (20%)', totalTVA.toFixed(2));
+            line('Total Ventes TTC', (totalVentesHT + totalTVA).toFixed(2), true);
+            section('📦 Charges');
+            line('Coût Achat Produits (COGS)', totalCOGS.toFixed(2));
+            line('Charges Opérationnelles', totalCharges.toFixed(2));
+            line('Frais Import / Approche', fraisImport.toFixed(2));
+            section('💰 Résultat');
+            line('Marge Réelle', margeReelle.toFixed(2), true);
+            line('Taux de Marge', `${totalVentesHT > 0 ? ((margeReelle / totalVentesHT) * 100).toFixed(1) : 0}%`, true);
+
+            doc.setFontSize(8); doc.setTextColor(150);
+            doc.text('Document généré par BayIIn — Prêt pour votre comptable.', 20, 280);
+            doc.save(`rapport-comptable-${month}.pdf`);
+
+            toast.success('✅ Rapport comptable généré (CSV + PDF) !');
+        } finally {
+            setExportingAccounting(false);
+        }
+    };
+
     // Auto-fetch on date change if keys exist
     useEffect(() => {
         if (store?.senditPublicKey) {
             fetchInvoices();
+
         }
     }, [dateRange, store]); // removed fetchInvoices from dependency to avoid loop if not memoized
 
@@ -268,6 +368,15 @@ export default function Finances() {
                             className="border-gray-300 rounded-md text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 w-full sm:w-auto"
                         />
                     </div>
+                    {/* Accounting Export Button */}
+                    <button
+                        onClick={generateAccountingReport}
+                        disabled={exportingAccounting || loadingOrders}
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg shadow-sm disabled:opacity-50 transition-colors whitespace-nowrap"
+                    >
+                        <Download className="w-4 h-4" />
+                        {exportingAccounting ? 'Génération...' : 'Export Comptable'}
+                    </button>
                 </div>
             </div>
 
@@ -394,7 +503,7 @@ export default function Finances() {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
                 {/* 1. Total Income (LIVRÉ) */}
                 <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
                     <div className="flex items-center">
@@ -462,6 +571,51 @@ export default function Finances() {
                         </div>
                     </div>
                 </div>
+
+                {/* 5. TVA à Collecter */}
+                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                    <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                            <div className="flex items-center justify-center h-12 w-12 rounded-md bg-rose-100 text-rose-600">
+                                <Receipt className="h-6 w-6" />
+                            </div>
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt className="text-sm font-medium text-gray-500 truncate">TVA à Collecter (20%)</dt>
+                                <dd className="text-2xl font-semibold text-rose-600">{stats.res.tvaCollectee.toFixed(0)} {store?.currency || 'MAD'}</dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Frais d'approche (Import Fees) */}
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                        <Truck className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <div>
+                        <p className="text-sm font-semibold text-amber-900">Frais d'approche</p>
+                        <p className="text-xs text-amber-600">Douane · Transit · Transport Espagne-Maroc</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2 flex-1 max-w-xs">
+                    <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00 MAD"
+                        value={importFees}
+                        onChange={e => setImportFees(e.target.value)}
+                        className="flex-1"
+                    />
+                    <span className="text-sm text-amber-700 font-medium whitespace-nowrap">{store?.currency || "MAD"}</span>
+                </div>
+                {importFees && parseFloat(importFees) > 0 && (
+                    <p className="text-xs text-amber-700">⚠ Déduit du Net Profit</p>
+                )}
             </div>
 
             {/* ANALYTICS SECTION */}
@@ -648,6 +802,9 @@ export default function Finances() {
                     </div>
                 </div>
             </div>
+
+            {/* Invoice Table — Transactions & Factures */}
+            <InvoiceTable orders={orders} store={store} />
 
             {/* Expenses Management */}
             <div className="bg-white p-4 sm:p-6 rounded-lg shadow border border-gray-100 lg:col-span-2">

@@ -291,3 +291,52 @@ export const generateWhatsAppTemplate = async (instructions, language = 'fr') =>
 
     return await generateAIResponse(prompt);
 };
+
+/**
+ * AI ProductAdvisor — suggest complementary KUO'S products based on SKU line code.
+ * @param {string} sku  e.g. "DSVP001"
+ * @param {Object[]} productList  Products with name and sku
+ * @returns {Promise<string>} AI rationale text
+ */
+export const suggestComplementaryProducts = async (sku, productList = []) => {
+    const names = productList.slice(0, 15).map(p => `${p.sku || '?'} — ${p.name}`).join('\n');
+    const prompt = `
+Tu es un expert en cosmétique KUO'S. Analysez le SKU "${sku}" et suggère les produits complémentaires parmi cette liste pour créer une routine beauté complète pour le client :
+${names}
+
+Réponds en 3 bullet points maximum, en français, en citant les SKU et les bénéfices pour la peau.
+`;
+    return await generateAIResponse(prompt);
+};
+
+/**
+ * AI Stock Forecasting — predict critical ruptures based on run rate.
+ * @param {Object[]} products 
+ * @param {Object[]} orders 
+ * @returns {Promise<Object[]>} array of {sku, rationale, suggestedQuantity, urgency}
+ */
+export const generateStockForecast = async (products = [], orders = []) => {
+    const productsData = products.slice(0, 20).map(p => ({
+        name: p.name,
+        sku: p.sku,
+        stock: p.stock,
+        min: p.min_stock_alert || 5
+    }));
+
+    const prompt = `
+        Rôle : Expert Logistique BayIIn (KUO'S Maroc).
+        Données : ${JSON.stringify(productsData)}
+        Analyse les stocks et prédis les ruptures imminentes. 
+        Format : JSON array uniquement [{sku, rationale, suggestedQuantity, urgency: 'Haut'|'Moyen'}].
+        Sois court et pro.
+    `;
+
+    try {
+        const text = await generateAIResponse(prompt);
+        const jsonStr = text.replace(/```json|```/g, '').trim();
+        return JSON.parse(jsonStr);
+    } catch (e) {
+        console.error("Forecasting AI Error:", e);
+        return [];
+    }
+};

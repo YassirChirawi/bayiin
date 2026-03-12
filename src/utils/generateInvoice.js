@@ -117,17 +117,26 @@ export const generateInvoice = async (order, store) => {
     if (order.clientPhone) doc.text(order.clientPhone, rightX, 67);
     if (order.clientAddress) doc.text(order.clientAddress, rightX, 73, { maxWidth: 50 });
 
+    // Add ICE if available (we need to fetch it or pass it. If passed in order:)
+    let currentY = 79;
+    if (order.clientIce) {
+        doc.text(`ICE: ${order.clientIce}`, rightX, currentY);
+    }
+
     // --- Table ---
     const tableStartY = Math.max(startY, 85); // Ensure we don't overlap header
 
     const tableColumn = ["Description", "Quantity", "Price", "Total"];
     const itemTotal = (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
     const shippingCost = parseFloat(order.shippingCost) || 0;
-    const grandTotal = itemTotal + shippingCost;
+
+    // 20% TVA logic
+    const tvaAmount = itemTotal * 0.20;
+    const grandTotal = itemTotal + tvaAmount + shippingCost;
 
     const tableRows = [
         [
-            `${order.articleName} (${order.size}/${order.color})`,
+            `${order.sku ? `[${order.sku}] ` : ''}${order.articleName} (${order.size}/${order.color})`,
             order.quantity,
             `${parseFloat(order.price).toFixed(2)} DH`,
             `${itemTotal.toFixed(2)} DH`
@@ -156,16 +165,29 @@ export const generateInvoice = async (order, store) => {
     const finalY = (doc).lastAutoTable.finalY + 10;
 
     doc.setFontSize(10);
-    doc.text("TOTAL :", 140, finalY);
-    doc.setFontSize(14);
+    doc.text("Total HT :", 120, finalY);
+    doc.text(`${itemTotal.toFixed(2)} DH`, 160, finalY);
+
+    doc.text("TVA (20%) :", 120, finalY + 6);
+    doc.text(`${tvaAmount.toFixed(2)} DH`, 160, finalY + 6);
+
+    if (shippingCost > 0) {
+        doc.text("Livraison :", 120, finalY + 12);
+        doc.text(`${shippingCost.toFixed(2)} DH`, 160, finalY + 12);
+    }
+
+    const totalYPosition = finalY + (shippingCost > 0 ? 20 : 14);
+
+    doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
-    doc.text(`${grandTotal.toFixed(2)} DH`, 140, finalY + 7);
+    doc.text("TOTAL TTC :", 120, totalYPosition);
+    doc.text(`${grandTotal.toFixed(2)} DH`, 160, totalYPosition);
 
     // Footer Message
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(150, 150, 150);
-    doc.text("Merci pour votre confiance !", 20, finalY + 30);
+    doc.text("Merci pour votre confiance !", 20, totalYPosition + 20);
 
     // Save
     doc.save(`invoice_${order.orderNumber}.pdf`);

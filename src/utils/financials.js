@@ -1,6 +1,6 @@
 /**
  * Financial Calculation Utilities
- * Centralizes logic for calculating Revenue, Expenses, Margins, and KPIs.
+ * Centralizes logic for calculating Revenue, Expenses, Margins, KPIs, and Moroccan TVA.
  */
 
 // Helper: Safely parse a float
@@ -17,12 +17,13 @@ const safeInt = (val) => {
 
 /**
  * Calculate Financial Statistics
- * @param {Array} orders - List of orders (filtered by date externally if needed, or we filter here)
+ * @param {Array} orders - List of orders (filtered by date externally)
  * @param {Array} expenses - List of expenses
  * @param {Object} dateRange - { start, end } (ISO strings)
  * @param {String} collectionId - Optional: Filter expenses by collection
+ * @param {Number} importFees - Optional: Frais d'approche (Douane, Transit, Transport)
  */
-export const calculateFinancialStats = (orders, expenses, dateRange = null, collectionId = null) => {
+export const calculateFinancialStats = (orders, expenses, dateRange = null, collectionId = null, importFees = 0) => {
     const res = {
         realizedRevenue: 0, // Cash Collected (isPaid)
         deliveredRevenue: 0, // Potential from Delivered (status == livré)
@@ -32,6 +33,9 @@ export const calculateFinancialStats = (orders, expenses, dateRange = null, coll
 
         netResult: 0,
         margin: "0.0",
+
+        // Moroccan Tax
+        tvaCollectee: 0, // TVA 20% sur ventes livrées
 
         // Advanced
         adsSpend: 0,
@@ -43,10 +47,6 @@ export const calculateFinancialStats = (orders, expenses, dateRange = null, coll
         deliveredCount: 0,
         activeCount: 0
     };
-
-    // Date Filtering for Expenses (Orders are typically already filtered by the hook, but let's be safe if needed)
-    // NOTE: This utility assumes 'orders' passed in are ALREADY filtered by dateRange.
-    // However, 'expenses' might need filtering if we fetch all.
 
     const start = dateRange ? new Date(dateRange.start) : null;
     const end = dateRange ? new Date(dateRange.end + "T23:59:59") : null;
@@ -81,25 +81,27 @@ export const calculateFinancialStats = (orders, expenses, dateRange = null, coll
         }
 
         // Delivery Costs
-        // We count delivery cost if status is 'livré' or 'retour' OR if there is a realDeliveryCost set > 0 (attempt made)
         if (['livré', 'retour'].includes(o.status) || delivery > 0) {
             res.totalRealDelivery += delivery;
         }
     });
 
+    // TVA 20% sur le Chiffre d'Affaires Livré (hors TVA = TTC / 1.2, TVA = TTC - HT)
+    // Formule: TVA = CA_livré - (CA_livré / 1.20)
+    res.tvaCollectee = res.deliveredRevenue > 0
+        ? res.deliveredRevenue - (res.deliveredRevenue / 1.2)
+        : 0;
+
     // 2. Process Expenses
     const filteredExpenses = expenses.filter(e => {
         if (collectionId) {
-            if (e.collectionId === collectionId) return true; // Explicit link
-            if (e.collectionId) return false; // Linked to ANOTHER collection
-
-            // Not linked, check date
+            if (e.collectionId === collectionId) return true;
+            if (e.collectionId) return false;
             if (!e.date || !start || !end) return false;
             const d = new Date(e.date);
             return d >= start && d <= end;
         } else {
-            // Global View: Pure Date Filtering
-            if (!e.date || !start || !end) return true; // Safety
+            if (!e.date || !start || !end) return true;
             const d = new Date(e.date);
             return d >= start && d <= end;
         }
@@ -112,10 +114,11 @@ export const calculateFinancialStats = (orders, expenses, dateRange = null, coll
         .filter(e => e.category === 'Ads')
         .reduce((sum, e) => sum + safeFloat(e.amount), 0);
 
-    // 3. Net Result
-    res.netResult = res.realizedRevenue - res.totalCOGS - res.totalRealDelivery - res.totalExpenses;
+    // 3. Net Result (incluant les frais d'approche)
+    const importFeesAmount = safeFloat(importFees);
+    res.netResult = res.realizedRevenue - res.totalCOGS - res.totalRealDelivery - res.totalExpenses - importFeesAmount;
 
-    // 4. derivated
+    // 4. Derived Metrics
     res.margin = res.realizedRevenue > 0 ? ((res.netResult / res.realizedRevenue) * 100).toFixed(1) : "0.0";
     res.roas = res.adsSpend > 0 ? (res.realizedRevenue / res.adsSpend).toFixed(2) : "0.00";
     res.cac = res.deliveredCount > 0 ? (res.adsSpend / res.deliveredCount).toFixed(2) : "0.00";
