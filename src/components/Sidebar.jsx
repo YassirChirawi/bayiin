@@ -23,9 +23,9 @@ import {
     Truck,
     RefreshCw,
     UserCheck,
-    ShoppingCart,
     RotateCcw,
-    Megaphone
+    Megaphone,
+    Barcode
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useReconciliation } from "../hooks/useReconciliation";
@@ -57,6 +57,7 @@ export default function Sidebar({ isOpen, onClose }) {
         { name: t('products'), href: '/products', icon: Package },
         { name: t('customers'), href: '/customers', icon: Users },
         { name: t('automations') || 'Automations', href: '/automations', icon: Workflow },
+        { name: 'Entrepôt & Scan', href: '/warehouse', icon: Barcode },
         { name: 'Marketing', href: '/marketing', icon: Megaphone },
         { name: t('drivers') || 'Livreurs', href: '/drivers', icon: Truck },
         { name: 'Ressources Humaines', href: '/hr', icon: UserCheck },

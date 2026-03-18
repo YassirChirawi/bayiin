@@ -36,14 +36,15 @@ import AdminDashboard from "./pages/AdminDashboard";
 import PublicCatalog from "./pages/PublicCatalog"; // NEW
 import Planning from "./pages/Planning"; // NEW
 import FranchiseDashboard from "./pages/FranchiseDashboard"; // NEW
+import FranchiseApplication from "./pages/FranchiseApplication"; // NEW
 import DeliveryApp from "./pages/DeliveryApp"; // NEW
 import Drivers from "./pages/Drivers"; // NEW
 import DriverApplication from "./pages/DriverApplication"; // NEW
 import HR from "./pages/HR"; // NEW
 import Purchases from "./pages/Purchases"; // NEW
 import Returns from "./pages/Returns"; // NEW
-import Marketing from "./pages/Marketing"; // NEW
 import Assets from "./pages/Assets"; // NEW
+import Warehouse from "./pages/Warehouse"; // Phase 8
 
 import { HelmetProvider } from 'react-helmet-async';
 import { useAnalytics } from './hooks/useAnalytics';
@@ -121,6 +122,7 @@ function App() {
                       <Route path="/catalog/:storeId" element={<PublicCatalog />} /> {/* NEW */}
                       <Route path="/delivery/:token" element={<DeliveryApp />} /> {/* NEW — no auth */}
                       <Route path="/apply/driver/:storeId" element={<DriverApplication />} /> {/* NEW — public */}
+                      <Route path="/apply/franchise/:storeId" element={<FranchiseApplication />} /> {/* NEW - public */}
 
                       <Route path="/privacy" element={<Privacy />} />
                       <Route path="/terms" element={<Terms />} />
@@ -162,6 +164,7 @@ function App() {
                         <Route path="/team" element={<Team />} />
                         <Route path="/settings" element={<Settings />} />
                         <Route path="/help" element={<Help />} />
+                        <Route path="/warehouse" element={<Warehouse />} />
                         <Route path="/support-ai" element={<SupportAI />} /> {/* NEW */}
                         <Route path="/automations" element={<Automations />} /> {/* NEW */}
                         <Route path="/drivers" element={<Drivers />} /> {/* NEW */}

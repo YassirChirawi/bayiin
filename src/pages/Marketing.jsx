@@ -1,8 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useStoreData } from '../hooks/useStoreData';
 import { useTenant } from '../context/TenantContext';
-import { Megaphone, Users, MessageCircle, Search, Filter } from 'lucide-react';
+import { Megaphone, Users, MessageCircle, Search, Filter, Wand2, PenTool, Copy } from 'lucide-react';
 import { createRawWhatsAppLink } from '../utils/whatsappTemplates';
+import { generateAdsCopy } from '../services/aiService';
+import Button from '../components/Button';
+import toast from 'react-hot-toast';
 
 export default function Marketing() {
     const { store } = useTenant();
@@ -10,8 +13,30 @@ export default function Marketing() {
     const { data: customers } = useStoreData('customers');
     const { data: orders } = useStoreData('orders');
 
-    const [selectedSku, setSelectedSku] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+
+    // AI Ads Generator State
+    const [adsProduct, setAdsProduct] = useState('');
+    const [adsCopy, setAdsCopy] = useState('');
+    const [isGeneratingAds, setIsGeneratingAds] = useState(false);
+
+    const handleGenerateAds = async () => {
+        if (!adsProduct) {
+            toast.error("Veuillez choisir un produit.");
+            return;
+        }
+        setIsGeneratingAds(true);
+        try {
+            const product = products.find(p => p.id === adsProduct || p.sku === adsProduct);
+            const name = product ? product.name : adsProduct;
+            const copy = await generateAdsCopy(name);
+            setAdsCopy(copy);
+        } catch(e) {
+            toast.error("Erreur Gemini");
+        } finally {
+            setIsGeneratingAds(false);
+        }
+    };
 
     // Logic: Segment customers who bought a specific SKU
     const segmentedCustomers = useMemo(() => {
@@ -47,9 +72,70 @@ export default function Marketing() {
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                         <Megaphone className="h-6 w-6 text-indigo-600" />
-                        Marketing & Segmentation
+                        Marketing & CRM Hub
                     </h1>
-                    <p className="text-sm text-gray-500 mt-1">Ciblez vos clients par habitudes d'achat et automatisez les relances.</p>
+                    <p className="text-sm text-gray-500 mt-1">Générez des publicités avec l'IA et relancez automatiquement vos clients.</p>
+                </div>
+            </div>
+
+            {/* AI Ad Generator Widget */}
+            <div className="bg-gradient-to-r from-fuchsia-50 to-indigo-50 border border-fuchsia-100 rounded-2xl p-6 shadow-sm">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-3 bg-fuchsia-500 rounded-xl shadow-lg shadow-fuchsia-200">
+                        <Wand2 className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-bold text-gray-900 tracking-tight">Studio Créatif Beya3 (Meta Ads)</h2>
+                        <p className="text-sm text-gray-600 font-medium mt-0.5">Sélectionnez un produit pour que l'IA rédige instantanément 3 textes publicitaires percutants.</p>
+                    </div>
+                </div>
+
+                <div className="flex flex-col md:flex-row gap-4">
+                    <div className="flex-1 space-y-3">
+                        <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Produit à promouvoir</label>
+                        <select
+                            value={adsProduct}
+                            onChange={(e) => setAdsProduct(e.target.value)}
+                            className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-fuchsia-300 outline-none shadow-sm"
+                        >
+                            <option value="">Sélectionnez un produit dans le catalogue...</option>
+                            {products.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                        </select>
+                        <Button 
+                            onClick={handleGenerateAds} 
+                            isLoading={isGeneratingAds}
+                            icon={PenTool}
+                            className="w-full bg-gray-900 hover:bg-black text-white py-3 mt-2 shadow-lg shadow-gray-300"
+                        >
+                            Générer les textes (IA)
+                        </Button>
+                    </div>
+
+                    <div className="flex-[2] relative">
+                        {adsCopy ? (
+                            <div className="bg-white rounded-xl border border-fuchsia-200 p-5 h-full min-h-[200px] shadow-sm relative group">
+                                <p className="text-xs text-fuchsia-600 font-black uppercase tracking-widest mb-3 flex items-center gap-2">
+                                    <Sparkles className="w-3.5 h-3.5" /> Résultat de la génération
+                                </p>
+                                <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto custom-scrollbar pr-2 pb-8">
+                                    {adsCopy}
+                                </div>
+                                <button 
+                                    onClick={() => { navigator.clipboard.writeText(adsCopy); toast.success("Copié !"); }}
+                                    className="absolute bottom-4 right-4 bg-white border border-gray-200 text-gray-600 p-2 rounded-lg shadow-sm hover:text-indigo-600 hover:border-indigo-200 transition-colors"
+                                    title="Copier le texte"
+                                >
+                                    <Copy className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="bg-white/50 border-2 border-dashed border-fuchsia-200 rounded-xl flex items-center justify-center p-8 h-full min-h-[200px]">
+                                <p className="text-sm text-gray-400 font-medium italic">Le copywriting généré apparaîtra ici...</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 

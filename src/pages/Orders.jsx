@@ -32,6 +32,10 @@ import OrderFilters from "../components/orders/OrderFilters";
 import OrderBulkActions from "../components/orders/OrderBulkActions";
 import OrderTable from "../components/orders/OrderTable";
 import OrderMobileList from "../components/orders/OrderMobileList";
+import PageTransition from "../components/PageTransition";
+import { TableSkeleton } from "../components/Skeleton";
+import InfiniteScrollTrigger from "../components/InfiniteScrollTrigger";
+import { vibrate } from "../utils/haptics";
 
 export default function Orders() {
     const { store } = useTenant();
@@ -99,8 +103,12 @@ export default function Orders() {
             batch.update(doc(db, "orders", order.id), { isPaid: newIsPaid });
             await batch.commit();
             logActivity(db, store.id, user, 'PAYMENT_UPDATE', `Order ${order.orderNumber} ${newIsPaid ? 'PAID' : 'UNPAID'}`, { orderId: order.id, newIsPaid });
+            vibrate('success');
             toast.success(newIsPaid ? t('msg_payment_marked') : t('msg_payment_cancelled'));
-        } catch (err) { toast.error(t('err_update_payment')); }
+        } catch (err) { 
+            vibrate('error');
+            toast.error(t('err_update_payment')); 
+        }
     };
 
     const handleOpenTracking = async (order) => {
@@ -129,6 +137,7 @@ export default function Orders() {
                 showTrash ? await permanentDeleteStoreItem(id) : await deleteStoreItem(id);
                 bulkActions.setSelectedOrders(prev => prev.filter(oid => oid !== id));
                 if (!showTrash) logActivity(db, store.id, user, 'ORDER_DELETE', `Order ${id} trashed`, { orderId: id });
+                vibrate('medium');
                 toast.success(t('msg_order_deleted'));
             }
         });
@@ -137,6 +146,7 @@ export default function Orders() {
     const handleRestore = async (id) => {
         await restoreStoreItem(id);
         bulkActions.setSelectedOrders(prev => prev.filter(oid => oid !== id));
+        vibrate('success');
         toast.success(t('msg_order_restored'));
     };
 
@@ -157,6 +167,7 @@ export default function Orders() {
              }).then(() => { importedCount++; }).catch(console.error);
          });
          await Promise.all(promises);
+         vibrate('success');
          toast.success(t('success_import', { count: importedCount }));
     };
 
@@ -178,7 +189,8 @@ export default function Orders() {
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
+        <PageTransition>
+        <div className="space-y-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
@@ -211,18 +223,26 @@ export default function Orders() {
 
             <OrderBulkActions {...bulkActions} handleSelectAll={() => bulkActions.handleSelectAll(filteredOrders)} filteredOrdersCount={filteredOrders.length} activeTab={activeTab} showTrash={showTrash} store={store} t={t} handleRequestPickup={handleRequestPickup} setIsInternalPickupModalOpen={setIsInternalPickupModalOpen} />
 
-            {loading ? <div className="text-center py-10 text-gray-500">{t('msg_loading_orders')}</div> : filteredOrders.length === 0 ? <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow p-8"><p>{t('msg_no_orders_filter')}</p></div> : (
+            {loading ? <TableSkeleton rows={10} cols={8} /> : filteredOrders.length === 0 ? <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow p-8"><p>{t('msg_no_orders_filter')}</p></div> : (
                 <>
                     <div className="hidden md:block">
                         <OrderTable orders={filteredOrders} selectedOrders={bulkActions.selectedOrders} handleSelectAll={() => bulkActions.handleSelectAll(filteredOrders)} handleSelectOne={bulkActions.handleSelectOne} activeTab={activeTab} showTrash={showTrash} store={store} togglePaid={togglePaid} handleEdit={(o) => {setEditingOrder(o); setIsModalOpen(true);}} deleteStoreItem={deleteStoreItem} handleRestore={handleRestore} handleDelete={handleDelete} openConfirmation={openConfirmation} sendToOlivraison={sendToOlivraison} sendToSendit={sendToSendit} handleOpenTracking={handleOpenTracking} setQrOrder={setQrOrder} t={t} />
                     </div>
-                    <OrderMobileList orders={filteredOrders} selectedOrders={bulkActions.selectedOrders} handleSelectOne={bulkActions.handleSelectOne} activeTab={activeTab} showTrash={showTrash} store={store} togglePaid={togglePaid} handleEdit={(o) => {setEditingOrder(o); setIsModalOpen(true);}} deleteStoreItem={deleteStoreItem} handleRestore={handleRestore} handleDelete={handleDelete} openConfirmation={openConfirmation} sendToOlivraison={sendToOlivraison} sendToSendit={sendToSendit} handleOpenTracking={handleOpenTracking} setQrOrder={setQrOrder} t={t} />
+                    <div className="md:hidden">
+                        <OrderMobileList orders={filteredOrders} selectedOrders={bulkActions.selectedOrders} handleSelectOne={bulkActions.handleSelectOne} activeTab={activeTab} showTrash={showTrash} store={store} togglePaid={togglePaid} handleEdit={(o) => {setEditingOrder(o); setIsModalOpen(true);}} deleteStoreItem={deleteStoreItem} handleRestore={handleRestore} handleDelete={handleDelete} openConfirmation={openConfirmation} sendToOlivraison={sendToOlivraison} sendToSendit={sendToSendit} handleOpenTracking={handleOpenTracking} setQrOrder={setQrOrder} t={t} />
+                    </div>
                 </>
             )}
 
-            <div className="flex justify-center mt-4">
-                 <Button variant="secondary" onClick={() => filterState.setLimitCount(prev => prev + 50)} disabled={loading || orders.length < filterState.limitCount}>{loading ? "Loading..." : "Load More"}</Button>
-            </div>
+            {/* Infinite Scroll */}
+            {!loading && filteredOrders.length > 0 && (
+                <InfiniteScrollTrigger 
+                    onTrigger={() => filterState.setLimitCount(prev => prev + 50)} 
+                    isLoading={loading} 
+                    hasMore={orders.length >= filterState.limitCount} 
+                    text={t('msg_loading_orders') || "Chargement..."}
+                />
+            )}
 
             {/* Modals */}
             <OrderModal isOpen={isModalOpen} onClose={() => {setIsModalOpen(false); setEditingOrder(null);}} onSave={() => {setIsModalOpen(false); setEditingOrder(null);}} order={editingOrder} />
@@ -254,5 +274,6 @@ export default function Orders() {
                 </div>
             )}
         </div>
+        </PageTransition>
     );
 }

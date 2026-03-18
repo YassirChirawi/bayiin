@@ -34,6 +34,24 @@ export const translations = {
         help: "Help & Support",
         logout: "Log Out",
         install_app: "Install App",
+        franchise_hub: "Franchise Hub",
+        consolidated_ca: "Consolidated Revenue",
+        total_orders_consolidated: "Total Orders",
+        return_rate_avg: "Return Rate",
+        active_stores: "Active Stores",
+        create_new_store: "New Store",
+        store_name: "Store Name",
+        clone_catalog: "Duplicate Catalog? (Optional)",
+        clone_catalog_desc: "Immediately copy all products from an existing store to the new one.",
+        start_from_scratch: "-- Start from scratch --",
+        revenue_by_store: "Revenue by Store",
+        trend_7d_global: "7-Day Trend (Global Revenue)",
+        store_comparison: "Store Comparison",
+        top_products_global: "Top Products",
+        no_stores_found: "No stores found in this franchise",
+        total_global: "Total",
+        revenue_unit: "DH",
+
 
         // Dashboard
         welcome_back: "Welcome back, {name}! 👋",
@@ -326,6 +344,20 @@ export const translations = {
         placeholder_city: "e.g. Casablanca",
         placeholder_address: "Street address...",
         btn_save_customer: "Save Customer",
+        label_customer_type: "Customer Type",
+        option_retail: "Individual (RETAIL)",
+        option_pro: "Professional (PRO/Business)",
+        label_ice: "ICE (Business Tax ID)",
+        placeholder_ice: "Optional",
+        btn_ai_reengage: "Re-engage (AI)",
+
+        // Order Table Headers
+        order_id: "Order",
+        client: "Client",
+        order_price: "Price",
+        order_status: "Status",
+        payment: "Payment",
+        catalog_source: "Catalog",
 
         // Customer Profile
         title_customer_profile: "Customer Profile",
@@ -815,6 +847,24 @@ export const translations = {
         help: "Aide & Support",
         logout: "Déconnexion",
         install_app: "Installer l'App",
+        franchise_hub: "Franchise Hub",
+        consolidated_ca: "CA Consolidé",
+        total_orders_consolidated: "Commandes Totales",
+        return_rate_avg: "Taux de Retour",
+        active_stores: "Magasins Actifs",
+        create_new_store: "Nouveau Magasin",
+        store_name: "Nom du magasin",
+        clone_catalog: "Dupliquer le catalogue ? (Optionnel)",
+        clone_catalog_desc: "Copiez immédiatement tous les produits d'un magasin existant vers le nouveau.",
+        start_from_scratch: "-- Démarrer à zéro --",
+        revenue_by_store: "CA par Magasin",
+        trend_7d_global: "Tendance 7 Jours (CA global)",
+        store_comparison: "Comparaison par Magasin",
+        top_products_global: "Top Produits",
+        no_stores_found: "Aucun magasin trouvé dans cette franchise",
+        total_global: "Total",
+        revenue_unit: "DH",
+
 
         // Dashboard
         welcome_back: "Bon retour, {name}! 👋",
@@ -1097,6 +1147,20 @@ export const translations = {
         placeholder_city: "ex: Casablanca",
         placeholder_address: "Adresse...",
         btn_save_customer: "Enregistrer Client",
+        label_customer_type: "Type de Client",
+        option_retail: "Particulier (RETAIL)",
+        option_pro: "Professionnel (PRO/Institut)",
+        label_ice: "ICE (Identifiant Commun de l'Entreprise)",
+        placeholder_ice: "Optionnel",
+        btn_ai_reengage: "Relancer (IA)",
+
+        // En-têtes tableau commandes
+        order_id: "Commande",
+        client: "Client",
+        order_price: "Prix",
+        order_status: "Statut",
+        payment: "Paiement",
+        catalog_source: "Catalogue",
 
         // Customer Profile
         title_customer_profile: "Profil Client",
@@ -1584,6 +1648,24 @@ export const translations = {
         help: "المساعدة والدعم",
         logout: "تسجيل الخروج",
         install_app: "تثبيت التطبيق",
+        franchise_hub: "مركز الامتياز",
+        consolidated_ca: "رقم المعاملات المجمع",
+        total_orders_consolidated: "إجمالي الطلبيات",
+        return_rate_avg: "معدل الإرجاع",
+        active_stores: "المتاجر النشطة",
+        create_new_store: "متجر جديد",
+        store_name: "اسم المتجر",
+        clone_catalog: "نسخ الكتالوج؟ (اختياري)",
+        clone_catalog_desc: "نسخ جميع المنتجات من متجر موجود إلى المتجر الجديد فورًا.",
+        start_from_scratch: "-- ابدأ من الصفر --",
+        revenue_by_store: "الدخل حسب المتجر",
+        trend_7d_global: "الاتجاه في 7 أيام (الدخل الإجمالي)",
+        store_comparison: "مقارنة المتاجر",
+        top_products_global: "أفضل المنتجات",
+        no_stores_found: "لم يتم العثور على متاجر في هذا الامتياز",
+        total_global: "المجموع",
+        revenue_unit: "درهم",
+
 
         // Dashboard
         welcome_back: "مرحبًا بك، {name}! 👋",
@@ -1851,6 +1933,20 @@ export const translations = {
         placeholder_city: "مثال: الدار البيضاء",
         placeholder_address: "العنوان...",
         btn_save_customer: "حفظ الزبون",
+        label_customer_type: "نوع الزبون",
+        option_retail: "أفراد (RETAIL)",
+        option_pro: "مهني (PRO)",
+        label_ice: "رقم الضريبة (ICE)",
+        placeholder_ice: "اختياري",
+        btn_ai_reengage: "إعادة التفاعل (AI)",
+
+        // رؤوس جدول الطلبيات
+        order_id: "الطلبية",
+        client: "الزبون",
+        order_price: "السعر",
+        order_status: "الحالة",
+        payment: "الدفع",
+        catalog_source: "الكتالوج",
 
         // Customer Profile
         title_customer_profile: "ملف الزبون",

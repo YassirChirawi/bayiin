@@ -17,8 +17,11 @@ import TrialAlert from "../components/TrialAlert";
 import HelpTooltip from "../components/HelpTooltip";
 import { useOrderActions } from "../hooks/useOrderActions"; // NEW
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import Button from "../components/Button"; // NEW
-import ForecastingWidget from "../components/ForecastingWidget"; // NEW
+import ForecastingWidget from "../components/ForecastingWidget"; 
+import Beya3Insights from "../components/Beya3Insights"; 
+import PageTransition from "../components/PageTransition";
+import { DashboardSkeleton } from "../components/Skeleton";
+import { vibrate } from "../utils/haptics";
 
 export default function Dashboard() {
     const { store } = useTenant();
@@ -38,6 +41,7 @@ export default function Dashboard() {
             try {
                 const eventRef = doc(db, "events", task.id);
                 await updateDoc(eventRef, { isTaskDone: true });
+                vibrate('success');
                 toast.success(t('msg_task_done') || "Task Completed");
             } catch (err) {
                 console.error("Error completing event:", err);
@@ -50,9 +54,13 @@ export default function Dashboard() {
                 followUpDate: "",
                 followUpNote: ""
             });
-
-            if (type === 'done') toast.success(t('msg_task_done') || "Task Completed");
-            else toast.success(t('msg_task_removed') || "Task Removed");
+            if (type === 'done') {
+                vibrate('success');
+                toast.success(t('msg_task_done') || "Task Completed");
+            } else {
+                vibrate('medium');
+                toast.success(t('msg_task_removed') || "Task Removed");
+            }
         }
     };
 
@@ -177,14 +185,19 @@ export default function Dashboard() {
 
 
     if (!store) return null;
-
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
     const isLoading = statsLoading || ordersLoading || loadingOrderTasks || loadingEvents;
 
-
-
+    if (isLoading) {
+        return (
+            <PageTransition>
+                <DashboardSkeleton />
+            </PageTransition>
+        );
+    }
 
     return (
+        <PageTransition>
         <div className="space-y-8">
             <TrialAlert createdAt={store?.createdAt} plan={store?.plan} />
             {/* Header */}
@@ -240,6 +253,9 @@ export default function Dashboard() {
                     </div>
                 )
             }
+
+            {/* Smart Insights (AI) */}
+            <Beya3Insights orders={recentOrders} storeStats={aggregatedStats} />
 
             {/* KPI Grid */}
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -586,5 +602,6 @@ export default function Dashboard() {
                 </div>
             </div>
         </div >
+        </PageTransition>
     );
 }

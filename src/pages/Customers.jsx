@@ -14,6 +14,9 @@ import { motion } from "framer-motion";
 import { getCustomerSegment } from "../utils/aiSegmentation"; // NEW
 import { getWhatsAppLink } from "../utils/whatsappTemplates"; // NEW
 import { MessageCircle } from "lucide-react"; // NEW icon
+import PageTransition from "../components/PageTransition";
+import { TableSkeleton } from "../components/Skeleton";
+import InfiniteScrollTrigger from "../components/InfiniteScrollTrigger";
 
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -32,11 +35,13 @@ const itemVariants = {
 
 export default function Customers() {
     const { t } = useLanguage(); // NEW
-    // Limit to 50 active clients for performance
+    const [limitCount, setLimitCount] = useState(50);
+    
+    // Dynamically limit for pagination
     const customerConstraints = useMemo(() => [
         orderBy("createdAt", "desc"),
-        limit(50)
-    ], []);
+        limit(limitCount)
+    ], [limitCount]);
 
     const { data: customers, loading, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("customers", customerConstraints);
     const [searchTerm, setSearchTerm] = useState("");
@@ -123,6 +128,7 @@ export default function Customers() {
     const handleSaveCustomer = async (formData) => {
         if (editingCustomer) {
             await updateStoreItem(editingCustomer.id, formData);
+            vibrate('success');
             toast.success(t('msg_customer_updated'));
         } else {
             await addStoreItem({
@@ -132,6 +138,7 @@ export default function Customers() {
                 firstOrderDate: null,
                 lastOrderDate: null
             });
+            vibrate('success');
             toast.success(t('msg_customer_added'));
         }
         setIsEditModalOpen(false);
@@ -175,8 +182,7 @@ export default function Customers() {
         });
 
         await Promise.all(promises);
-        await Promise.all(promises);
-        await Promise.all(promises);
+        vibrate('success');
         toast.success(t('success_import_customers', { count: importedCount }));
     };
 
@@ -198,6 +204,7 @@ export default function Customers() {
         });
 
     return (
+        <PageTransition>
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
@@ -312,32 +319,33 @@ export default function Customers() {
             </div>
 
             {/* Desktop Table */}
-            <div className="hidden md:block bg-white shadow border-b border-gray-200 sm:rounded-lg overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_client')}</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_phone')}</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_city')}</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_orders_count')}</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_spent')}</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_last_order')}</th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{t('actions')}</th>
-                        </tr>
-                    </thead>
-                    <motion.tbody
-                        variants={containerVariants}
-                        initial="hidden"
-                        animate="show"
-                        className="bg-white divide-y divide-gray-200"
-                    >
-                        {loading ? (
-                            <tr><td colSpan="7" className="px-6 py-4 text-center">{t('loading')}</td></tr>
-                        ) : filteredCustomers.length === 0 ? (
-                            <tr><td colSpan="7" className="px-6 py-4 text-center text-gray-500">{t('no_data')}</td></tr>
-                        ) : filteredCustomers.map((customer) => {
-                            const segment = getSegment(customer);
-                            return (
+            {loading ? (
+                <div className="hidden md:block"><TableSkeleton rows={8} cols={7} /></div>
+            ) : (
+                <div className="hidden md:block bg-white shadow border-b border-gray-200 sm:rounded-lg overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_client')}</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_phone')}</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_city')}</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_orders_count')}</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_spent')}</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('table_last_order')}</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{t('actions')}</th>
+                            </tr>
+                        </thead>
+                        <motion.tbody
+                            variants={containerVariants}
+                            initial="hidden"
+                            animate="show"
+                            className="bg-white divide-y divide-gray-200"
+                        >
+                            {filteredCustomers.length === 0 ? (
+                                <tr><td colSpan="7" className="px-6 py-4 text-center text-gray-500">{t('no_data')}</td></tr>
+                            ) : filteredCustomers.map((customer) => {
+                                const segment = getSegment(customer);
+                                return (
                                 <motion.tr key={customer.id} variants={itemVariants} className="hover:bg-gray-50">
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex flex-col">
@@ -426,6 +434,7 @@ export default function Customers() {
                     </motion.tbody>
                 </table>
             </div>
+            )}
 
             {/* Mobile Card View */}
             <motion.div
@@ -435,7 +444,11 @@ export default function Customers() {
                 className="md:hidden space-y-4"
             >
                 {loading ? (
-                    <div className="text-center py-10 text-gray-500">{t('loading')}</div>
+                    <div className="space-y-4">
+                        <div className="h-32 bg-gray-100 rounded-xl animate-pulse"></div>
+                        <div className="h-32 bg-gray-100 rounded-xl animate-pulse"></div>
+                        <div className="h-32 bg-gray-100 rounded-xl animate-pulse"></div>
+                    </div>
                 ) : filteredCustomers.length === 0 ? (
                     <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow p-8">
                         <p>{t('no_data')}</p>
@@ -534,6 +547,16 @@ export default function Customers() {
                 )}
             </motion.div>
 
+            {/* Infinite Scroll for Customers */}
+            {!loading && filteredCustomers.length > 0 && (
+                <InfiniteScrollTrigger 
+                    onTrigger={() => setLimitCount(prev => prev + 50)} 
+                    isLoading={loading} 
+                    hasMore={customers.length >= limitCount} 
+                    text={t('loading') || "Chargement..."}
+                />
+            )}
+
             <CustomerDetailModal
                 isOpen={!!selectedCustomer}
                 onClose={() => setSelectedCustomer(null)}
@@ -555,5 +578,6 @@ export default function Customers() {
                 templateHeaders={["Name", "Phone"]}
             />
         </div >
+        </PageTransition>
     );
 }

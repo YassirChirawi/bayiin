@@ -1,104 +1,106 @@
 import { useState, useEffect } from "react";
-import { useStoreData } from "../hooks/useStoreData";
 import { useTenant } from "../context/TenantContext";
-import { useLanguage } from "../context/LanguageContext"; // NEW
+import { useLanguage } from "../context/LanguageContext";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { toast } from "react-hot-toast";
-import { Save, Truck, Info, Globe, RefreshCw } from "lucide-react";
+import { Save, Truck, Info, Globe, RefreshCw, ShieldCheck, Key } from "lucide-react";
 import { authenticateSendit, getSenditDistricts } from "../lib/sendit";
 import Button from "../components/Button";
-import Input from "../components/Input"; // Assuming you have this
-// If Input component doesn't match, I'll use standard input.
 
 export default function ShippingSettings() {
     const { store } = useTenant();
-    const { t } = useLanguage(); // NEW
-    const [config, setConfig] = useState({
-        amana: { enabled: false, login: "", password: "", customerId: "" },
-        cathedis: { enabled: false, apiKey: "", accountId: "" },
-        olivraison: { enabled: false, token: "" },
-        sendit: { enabled: false, token: "" },
-        tawssil: { enabled: false, token: "" },
-    });
+    const { t } = useLanguage();
+
+    // ── Local API Key State (avoids mutating store context directly) ──
+    const [olivraisonKeys, setOlivraisonKeys] = useState({ apiKey: "", secretKey: "" });
+    const [senditKeys, setSenditKeys] = useState({ publicKey: "", secretKey: "" });
     const [loading, setLoading] = useState(false);
+    const [senditInfoLoading, setSenditInfoLoading] = useState(false);
     const [senditCities, setSenditCities] = useState([]);
     const [loadingCities, setLoadingCities] = useState(false);
 
-    useEffect(() => {
-        if (store?.shippingConfig) {
-            setConfig(prev => ({ ...prev, ...store.shippingConfig }));
-        }
-    }, [store]);
+    // Sender info local state
+    const [senditSender, setSenditSender] = useState({
+        name: "", phone: "", address: "", pickupCityId: ""
+    });
 
-    // Load cached cities if available (optional optimization, but for now we sync manually)
     useEffect(() => {
-        if (store?.senditCities) {
-            setSenditCities(store.senditCities);
-        }
+        if (!store) return;
+        setOlivraisonKeys({
+            apiKey: store.olivraisonApiKey || "",
+            secretKey: store.olivraisonSecretKey || "",
+        });
+        setSenditKeys({
+            publicKey: store.senditPublicKey || "",
+            secretKey: store.senditSecretKey || "",
+        });
+        setSenditSender({
+            name: store.senditSenderName || "",
+            phone: store.senditSenderPhone || "",
+            address: store.senditSenderAddress || "",
+            pickupCityId: store.senditPickupCityId || "",
+        });
+        if (store.senditCities) setSenditCities(store.senditCities);
     }, [store]);
 
     const handleSyncCities = async () => {
-        if (!store.senditPublicKey || !store.senditSecretKey) {
-            toast.error("Please save your Sendit API Keys first.");
+        if (!senditKeys.publicKey || !senditKeys.secretKey) {
+            toast.error("Enregistrez d'abord vos clés Sendit.");
             return;
         }
         setLoadingCities(true);
         try {
-            const token = await authenticateSendit(store.senditPublicKey, store.senditSecretKey);
+            const token = await authenticateSendit(senditKeys.publicKey, senditKeys.secretKey);
             const districts = await getSenditDistricts(token);
             setSenditCities(districts);
-
-            // Save valid cities to store to avoid refetching every time
-            await updateDoc(doc(db, "stores", store.id), {
-                senditCities: districts
-            });
-
-            toast.success(`Synchronized ${districts.length} cities from Sendit.`);
+            await updateDoc(doc(db, "stores", store.id), { senditCities: districts });
+            toast.success(`${districts.length} villes synchronisées.`);
         } catch (error) {
-            console.error("City Sync Error:", error);
-            toast.error("Failed to synchronize cities. Check your keys.");
+            toast.error("Échec de la synchronisation. Vérifiez vos clés.");
         } finally {
             setLoadingCities(false);
         }
     };
 
-    const handleSave = async (e) => {
-        e.preventDefault();
+    const handleSaveOlivraison = async () => {
+        if (!store?.id) return;
         setLoading(true);
         try {
-            const storeRef = doc(db, "stores", store.id);
-            await updateDoc(storeRef, {
-                shippingConfig: config
+            await updateDoc(doc(db, "stores", store.id), {
+                olivraisonApiKey: olivraisonKeys.apiKey,
+                olivraisonSecretKey: olivraisonKeys.secretKey,
             });
-            toast.success(t('msg_shipping_saved'));
-        } catch (err) {
-            console.error(err);
-            toast.error(t('err_save_config'));
+            toast.success(t('msg_olivraison_saved'));
+        } catch (e) {
+            toast.error(t('err_save_failed'));
         } finally {
             setLoading(false);
         }
     };
 
-    const handleChange = (provider, field, value) => {
-        setConfig(prev => ({
-            ...prev,
-            [provider]: {
-                ...prev[provider],
-                [field]: value
-            }
-        }));
+    const handleSaveSendit = async () => {
+        if (!store?.id) return;
+        setSenditInfoLoading(true);
+        try {
+            await updateDoc(doc(db, "stores", store.id), {
+                senditPublicKey: senditKeys.publicKey,
+                senditSecretKey: senditKeys.secretKey,
+                senditSenderName: senditSender.name,
+                senditSenderPhone: senditSender.phone,
+                senditSenderAddress: senditSender.address,
+                senditPickupCityId: senditSender.pickupCityId,
+            });
+            toast.success("Configuration Sendit enregistrée ✓");
+        } catch (e) {
+            toast.error(t('err_save_failed'));
+        } finally {
+            setSenditInfoLoading(false);
+        }
     };
 
-    const toggleProvider = (provider) => {
-        setConfig(prev => ({
-            ...prev,
-            [provider]: {
-                ...prev[provider],
-                enabled: !prev[provider].enabled
-            }
-        }));
-    };
+    // ── Shared input style ──
+    const inputCls = "mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition";
 
     return (
         <div className="space-y-6">
@@ -110,58 +112,49 @@ export default function ShippingSettings() {
                 </div>
             </div>
 
-            {/* O-Livraison Integration */}
-            <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
-                <div className="px-4 py-5 sm:p-6">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
+            {/* ── O-Livraison Integration ── */}
+            <div className="bg-white shadow rounded-xl border border-gray-100 overflow-hidden">
+                <div className="px-6 py-5">
+                    <div className="flex items-center gap-2 mb-1">
                         <Globe className="h-5 w-5 text-indigo-500" />
-                        {t('olivraison_title')}
-                    </h3>
-                    <p className="mt-1 text-sm text-gray-500 mb-6">
-                        {t('olivraison_desc')}
-                    </p>
+                        <h3 className="text-lg font-semibold text-gray-900">{t('olivraison_title')}</h3>
+                        <span className="ml-auto inline-flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                            <ShieldCheck className="h-3 w-3" /> Actif
+                        </span>
+                    </div>
+                    <p className="text-sm text-gray-500 mb-5">{t('olivraison_desc')}</p>
 
                     <div className="max-w-xl space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">{t('label_api_key')}</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <Key className="inline h-3.5 w-3.5 mr-1 text-gray-400" />
+                                Clé API (API Key)
+                            </label>
                             <input
                                 type="text"
-                                value={store?.olivraisonApiKey || ''}
-                                onChange={(e) => setStore(prev => ({ ...prev, olivraisonApiKey: e.target.value }))}
-                                className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                value={olivraisonKeys.apiKey}
+                                onChange={(e) => setOlivraisonKeys(prev => ({ ...prev, apiKey: e.target.value }))}
+                                className={inputCls}
                                 placeholder={t('placeholder_api_key')}
+                                autoComplete="off"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">{t('label_secret_key')}</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <Key className="inline h-3.5 w-3.5 mr-1 text-gray-400" />
+                                Clé Secrète (Secret Key)
+                            </label>
                             <input
                                 type="password"
-                                value={store?.olivraisonSecretKey || ''}
-                                onChange={(e) => setStore(prev => ({ ...prev, olivraisonSecretKey: e.target.value }))}
-                                className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
-                                placeholder={t('placeholder_secret_key')}
+                                value={olivraisonKeys.secretKey}
+                                onChange={(e) => setOlivraisonKeys(prev => ({ ...prev, secretKey: e.target.value }))}
+                                className={inputCls}
+                                placeholder="••••••••••••••••"
+                                autoComplete="new-password"
                             />
                         </div>
-                        <div className="flex justify-end">
-                            <Button
-                                onClick={async () => {
-                                    setLoading(true);
-                                    try {
-                                        await updateDoc(doc(db, "stores", store.id), {
-                                            olivraisonApiKey: store.olivraisonApiKey || "",
-                                            olivraisonSecretKey: store.olivraisonSecretKey || ""
-                                        });
-                                        toast.success(t('msg_olivraison_saved'));
-                                    } catch (e) {
-                                        console.error(e);
-                                        toast.error(t('err_save_failed'));
-                                    } finally {
-                                        setLoading(false);
-                                    }
-                                }}
-                                isLoading={loading}
-                                icon={Save}
-                            >
+                        <div className="flex justify-end pt-2">
+                            <Button onClick={handleSaveOlivraison} isLoading={loading} icon={Save}>
                                 {t('btn_save_keys')}
                             </Button>
                         </div>
@@ -213,50 +206,36 @@ export default function ShippingSettings() {
 
                     <div className="max-w-xl space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Public Key</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <Key className="inline h-3.5 w-3.5 mr-1 text-gray-400" />
+                                Clé Publique (Public Key)
+                            </label>
                             <input
                                 type="text"
-                                value={store?.senditPublicKey || ''}
-                                onChange={(e) => setStore(prev => ({ ...prev, senditPublicKey: e.target.value }))}
-                                className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                value={senditKeys.publicKey}
+                                onChange={(e) => setSenditKeys(prev => ({ ...prev, publicKey: e.target.value }))}
+                                className={inputCls}
                                 placeholder="Enter Public Key"
+                                autoComplete="off"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Secret Key</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <Key className="inline h-3.5 w-3.5 mr-1 text-gray-400" />
+                                Clé Secrète (Secret Key)
+                            </label>
                             <input
                                 type="password"
-                                value={store?.senditSecretKey || ''}
-                                onChange={(e) => setStore(prev => ({ ...prev, senditSecretKey: e.target.value }))}
-                                className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
-                                placeholder="Enter Secret Key"
+                                value={senditKeys.secretKey}
+                                onChange={(e) => setSenditKeys(prev => ({ ...prev, secretKey: e.target.value }))}
+                                className={inputCls}
+                                placeholder="••••••••••••••••"
+                                autoComplete="new-password"
                             />
                         </div>
-                        <div className="flex justify-end">
-                            <Button
-                                onClick={async () => {
-                                    setLoading(true);
-                                    try {
-                                        await updateDoc(doc(db, "stores", store.id), {
-                                            senditPublicKey: store.senditPublicKey || "",
-                                            senditSecretKey: store.senditSecretKey || "",
-                                            senditSenderName: store.senditSenderName || "",
-                                            senditSenderPhone: store.senditSenderPhone || "",
-                                            senditSenderAddress: store.senditSenderAddress || "",
-                                            senditPickupCityId: store.senditPickupCityId || ""
-                                        });
-                                        toast.success("Sendit settings saved successfully");
-                                    } catch (e) {
-                                        console.error(e);
-                                        toast.error("Failed to save Sendit settings");
-                                    } finally {
-                                        setLoading(false);
-                                    }
-                                }}
-                                isLoading={loading}
-                                icon={Save}
-                            >
-                                Save Sendit Settings
+                        <div className="flex justify-end pt-2">
+                            <Button onClick={handleSaveSendit} isLoading={senditInfoLoading} icon={Save}>
+                                Enregistrer les clés Sendit
                             </Button>
                         </div>
 
@@ -270,9 +249,9 @@ export default function ShippingSettings() {
                                     <label className="block text-sm font-medium text-gray-700">Sender Name</label>
                                     <input
                                         type="text"
-                                        value={store?.senditSenderName || ''}
-                                        onChange={(e) => setStore(prev => ({ ...prev, senditSenderName: e.target.value }))}
-                                        className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2 border"
+                                        value={senditSender.name}
+                                        onChange={(e) => setSenditSender(prev => ({ ...prev, name: e.target.value }))}
+                                        className={inputCls}
                                         placeholder="e.g. My Store"
                                     />
                                 </div>
@@ -280,9 +259,9 @@ export default function ShippingSettings() {
                                     <label className="block text-sm font-medium text-gray-700">Sender Phone</label>
                                     <input
                                         type="text"
-                                        value={store?.senditSenderPhone || ''}
-                                        onChange={(e) => setStore(prev => ({ ...prev, senditSenderPhone: e.target.value }))}
-                                        className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2 border"
+                                        value={senditSender.phone}
+                                        onChange={(e) => setSenditSender(prev => ({ ...prev, phone: e.target.value }))}
+                                        className={inputCls}
                                         placeholder="06XXXXXXXX"
                                     />
                                 </div>
@@ -290,9 +269,9 @@ export default function ShippingSettings() {
                                     <label className="block text-sm font-medium text-gray-700">Pickup Address</label>
                                     <input
                                         type="text"
-                                        value={store?.senditSenderAddress || ''}
-                                        onChange={(e) => setStore(prev => ({ ...prev, senditSenderAddress: e.target.value }))}
-                                        className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2 border"
+                                        value={senditSender.address}
+                                        onChange={(e) => setSenditSender(prev => ({ ...prev, address: e.target.value }))}
+                                        className={inputCls}
                                         placeholder="Full address for pickup"
                                     />
                                 </div>
@@ -300,9 +279,9 @@ export default function ShippingSettings() {
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Pickup City (Sendit ID)</label>
                                     <div className="flex gap-2">
                                         <select
-                                            value={store?.senditPickupCityId || ''}
-                                            onChange={(e) => setStore(prev => ({ ...prev, senditPickupCityId: e.target.value }))}
-                                            className="block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2 border bg-white"
+                                            value={senditSender.pickupCityId}
+                                            onChange={(e) => setSenditSender(prev => ({ ...prev, pickupCityId: e.target.value }))}
+                                            className="block w-full shadow-sm sm:text-sm border-gray-300 rounded-lg p-2 border bg-white focus:ring-2 focus:ring-indigo-500"
                                         >
                                             <option value="">Select a city...</option>
                                             {senditCities.map(city => (

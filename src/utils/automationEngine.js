@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { authenticateSendit, createSenditPackage } from '../lib/sendit';
 
@@ -9,7 +9,7 @@ const evaluateCondition = (conditionNode, payload) => {
     // Check specific conditions based on ID
     switch (conditionNode.id) {
         case 'status_equals':
-            if (!conditionNode.config?.status) return true; // if not configured, let it pass or fail? let's fail to be safe, no wait, if they didn't config it, let's say it doesn't match.
+            if (!conditionNode.config?.status) return true; 
             return payload.status === conditionNode.config.status;
         case 'total_greater':
             return payload.total > (conditionNode.config?.amount || 0);
@@ -19,8 +19,28 @@ const evaluateCondition = (conditionNode, payload) => {
 };
 
 // Helper to execute actions
-const executeAction = async (actionNode, payload, store) => {
+const executeAction = async (actionNode, payload, store, delayMs = 0) => {
     try {
+        // --- DELAY TASK SCHEDULING ---
+        // If there's a delay (>0) AND it's an order payload (has an id), we schedule it as a pending Task in the CRM.
+        if (delayMs > 0 && payload.id) {
+            const followUpDateObj = new Date(Date.now() + delayMs);
+            const isoString = followUpDateObj.toISOString();
+            const dateStr = isoString.split('T')[0]; // "YYYY-MM-DD"
+            
+            const messagePreview = actionNode.config?.message ? `(Msg: ${actionNode.config.message.substring(0,10)}...)` : '';
+            const followUpNote = `[Automatisation] ${actionNode.name} ${messagePreview}`.trim();
+            
+            const orderRef = doc(db, `stores/${store.id}/orders`, payload.id);
+            await updateDoc(orderRef, {
+                followUpDate: dateStr,
+                followUpNote: followUpNote
+            });
+            console.log(`[Automation] Action ${actionNode.name} scheduled for ${dateStr} for order ${payload.id}`);
+            return; // Exit here. The action is scheduled in the DB, not executed immediately.
+        }
+
+        // --- IMMEDIATE EXECUTION ---
         switch (actionNode.id) {
             case 'create_delivery':
                 if (!store.senditPublicKey || !store.senditSecretKey) {
@@ -44,31 +64,25 @@ const executeAction = async (actionNode, payload, store) => {
                     message = message.replace(/{store_name}/g, store?.name || 'Notre Boutique');
                     message = message.replace(/{delivery_address}/g, payload.clientAddress || 'votre adresse');
 
-                    // Tracking link
                     let trackingLink = '';
                     if (payload.trackingId && store?.senditPublicKey) {
-                        // Normally this would be a full URL, e.g. https://sendit.ma/tracking/123
-                        // Replace with actual Sendit tracking URL format if known, assuming standard
                         trackingLink = `https://sendit.ma/tracking/${payload.trackingId}`;
                     }
                     message = message.replace(/{tracking}/g, trackingLink || '(Lien non disponible)');
                 }
 
-                // In a real app, connect to WhatsApp Business API or webhook
                 console.log(`Automation: WhatsApp message triggered for phone ${payload.clientPhone}`);
-                console.log(`Message Content:\n${message}`);
-
-                // Open WhatsApp Web/App with pre-filled message
+                
                 if (payload.clientPhone) {
                     const cleanPhone = payload.clientPhone.replace(/[^\d+]/g, '');
                     const encodedMessage = encodeURIComponent(message);
-
-                    // Note: This relies on front-end browser context. 
-                    // If executeAction is called in the background it might not open a window.
-                    // Assuming this is tied to user action (e.g. changing status) for now.
                     try {
-                        window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
-                        toast?.success("Redirection WhatsApp...");
+                        const link = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+                        console.log("Would normally window.open here:", link);
+                        // window.open may fail in background processes, but we trigger it if in frontend context
+                        if (typeof window !== 'undefined' && delayMs === 0) {
+                             window.open(link, '_blank');
+                        }
                     } catch (e) {
                         console.warn("Could not open WhatsApp window (maybe blocked by popup blocker):", e);
                     }
@@ -87,7 +101,6 @@ const executeAction = async (actionNode, payload, store) => {
         }
     } catch (error) {
         console.error(`Automation Engine Error executing ${actionNode.id}:`, error);
-        // We catch here so one failed action doesn't crash the whole app flow
     }
 };
 
@@ -101,7 +114,6 @@ export const runAutomations = async (triggerType, payload, store) => {
     if (!store?.id) return;
 
     try {
-        // 1. Fetch active automations for this trigger
         const automationsRef = collection(db, `stores/${store.id}/automations`);
         const q = query(
             automationsRef,
@@ -119,24 +131,43 @@ export const runAutomations = async (triggerType, payload, store) => {
 
         console.log(`[Automation Engine] Found ${automationsToRun.length} automations for ${triggerType}`);
 
-        // 2. Evaluate and Execute each matching automation
         for (const auto of automationsToRun) {
             const nodes = auto.nodes || [];
-            if (nodes.length < 2) continue;
+            if (nodes.length < 2) continue; // Need at least trigger and action
 
-            const conditionNode = nodes.find(n => n.type === 'condition');
-            const actionNode = nodes.find(n => n.type === 'action') || nodes[nodes.length - 1]; // fallback
+            let conditionsPassed = true;
+            let currentDelayMs = 0;
+            const actionNodes = [];
 
-            // 3. Evaluate Conditions
-            const passed = evaluateCondition(conditionNode, payload);
-            if (!passed) {
+            // Traverse the nodes starting from index 1 (0 is trigger)
+            for (let i = 1; i < nodes.length; i++) {
+                const node = nodes[i];
+
+                if (node.type === 'condition') {
+                    if (!evaluateCondition(node, payload)) {
+                        conditionsPassed = false;
+                        break; // Stop parsing this workflow if a condition fails
+                    }
+                } else if (node.type === 'delay') {
+                    const days = parseInt(node.config?.days || 0);
+                    const hours = parseInt(node.config?.hours || 0);
+                    const ms = (days * 24 * 60 * 60 * 1000) + (hours * 60 * 60 * 1000);
+                    currentDelayMs += ms;
+                } else if (node.type === 'action' || !node.type) { 
+                    // Fallback !node.type to action for backward compatibility
+                    actionNodes.push({ node, delayMs: currentDelayMs });
+                }
+            }
+
+            if (!conditionsPassed) {
                 console.log(`[Automation] ${auto.name} skipped: condition not met.`);
                 continue;
             }
 
-            // 4. Run Action (Fire and Forget or await depending on strictness)
-            // We use await to keep it sequential, but could be Promise.all for speed
-            await executeAction(actionNode, payload, store);
+            // Execute all collected actions for this workflow
+            for (const { node, delayMs } of actionNodes) {
+                await executeAction(node, payload, store, delayMs);
+            }
         }
 
     } catch (error) {

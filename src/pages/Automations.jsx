@@ -26,6 +26,10 @@ const CONDITIONS = [
     { id: 'total_greater', name: 'Si Total > ...', description: 'Vérifie si le montant dépasse un seuil.', icon: DollarSign, color: 'text-emerald-500', bg: 'bg-emerald-50' },
 ];
 
+const DELAYS = [
+    { id: 'wait_days', name: 'Attendre...', description: 'Mettre en pause l\'automatisation pendant un certain temps.', icon: Clock, color: 'text-amber-500', bg: 'bg-amber-50' }
+];
+
 const ACTIONS = [
     { id: 'send_whatsapp', name: 'Envoyer WhatsApp', description: 'Envoie un message via WhatsApp au client.', icon: MessageCircle, color: 'text-green-600', bg: 'bg-green-100' },
     { id: 'create_delivery', name: 'Envoi Prestataire', description: 'Crée un colis automatiquement sur Sendit.', icon: Send, color: 'text-sky-500', bg: 'bg-sky-50' },
@@ -37,7 +41,7 @@ const ACTIONS = [
 const FlowNode = ({ node, index, onRemove, onEdit }) => {
     if (!node) return null;
     const isTrigger = index === 0 && !node.type; // First node is always trigger if no type specified
-    const typeLabel = node.type === 'trigger' || isTrigger ? 'DÉCLENCHEUR' : node.type === 'condition' ? 'CONDITION' : 'ACTION';
+    const typeLabel = node.type === 'trigger' || isTrigger ? 'DÉCLENCHEUR' : node.type === 'condition' ? 'CONDITION' : node.type === 'delay' ? 'DÉLAI' : 'ACTION';
 
     const NodeIcon = node.icon || Zap;
 
@@ -169,6 +173,25 @@ const NodeSelector = ({ isOpen, onClose, onSelect, availableTypes }) => {
                         </div>
                     )}
 
+                    {availableTypes.includes('delay') && (
+                        <div>
+                            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Délais</h3>
+                            <div className="space-y-2">
+                                {DELAYS.map(item => (
+                                    <button key={item.id} onClick={() => onSelect({ ...item, type: 'delay' })} className="w-full text-left flex items-start p-3 hover:bg-gray-50 rounded-xl border border-transparent hover:border-gray-200 transition-all">
+                                        <div className={`p-2 rounded-lg ${item.bg} ${item.color} mr-3`}>
+                                            <item.icon className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <div className="font-medium text-gray-900 text-sm">{item.name}</div>
+                                            <div className="text-xs text-gray-500 mt-0.5">{item.description}</div>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {availableTypes.includes('action') && (
                         <div>
                             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Actions</h3>
@@ -239,6 +262,8 @@ const NodeConfigModal = ({ isOpen, onClose, node, onSave, store }) => {
             preview = `Total > ${config.amount || 0} DH`;
         } else if (node.id === 'schedule_time') {
             preview = `${config.time || '00:00'} Tous les jours`;
+        } else if (node.id === 'wait_days') {
+            preview = `${config.days || 0} jours / ${config.hours || 0} heures`;
         } else if (node.id === 'send_whatsapp') {
             const shortMsg = config.message ? config.message.substring(0, 20) + '...' : 'Message vide';
             preview = `WhatsApp: "${shortMsg}"`;
@@ -315,6 +340,32 @@ const NodeConfigModal = ({ isOpen, onClose, node, onSave, store }) => {
                                 onChange={(e) => setConfig({ ...config, time: e.target.value })}
                                 className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                             />
+                        </div>
+                    )}
+
+                    {node.id === 'wait_days' && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Jours</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={config.days !== undefined ? config.days : 2}
+                                    onChange={(e) => setConfig({ ...config, days: Number(e.target.value) })}
+                                    className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-amber-500 focus:border-amber-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Heures</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="23"
+                                    value={config.hours !== undefined ? config.hours : 0}
+                                    onChange={(e) => setConfig({ ...config, hours: Number(e.target.value) })}
+                                    className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-amber-500 focus:border-amber-500"
+                                />
+                            </div>
                         </div>
                     )}
 
@@ -406,7 +457,7 @@ const NodeConfigModal = ({ isOpen, onClose, node, onSave, store }) => {
                     )}
 
                     {/* Placeholder for nodes without specific config yet */}
-                    {!['status_equals', 'total_greater', 'schedule_time', 'send_whatsapp'].includes(node.id) && (
+                    {!['status_equals', 'total_greater', 'schedule_time', 'wait_days', 'send_whatsapp'].includes(node.id) && (
                         <div className="text-sm text-gray-500 italic bg-gray-50 p-3 rounded-lg border border-gray-100">
                             Aucune configuration supplémentaire n'est requise pour cette étape.
                         </div>
@@ -528,7 +579,7 @@ export default function Automations() {
     // Determine what types of nodes can be added at a specific index
     const getAvailableTypesForIndex = (index) => {
         if (index === 0) return ['trigger']; // First node must be trigger
-        return ['condition', 'action']; // Subsequent nodes
+        return ['condition', 'delay', 'action']; // Subsequent nodes
     };
 
     return (
@@ -650,7 +701,7 @@ export default function Automations() {
                                         // Re-attach real icon from definitions if missing (from loaded DB state)
                                         let fullNode = node;
                                         if (!fullNode.icon) {
-                                            const sourceList = fullNode.type === 'trigger' ? TRIGGERS : fullNode.type === 'action' ? ACTIONS : CONDITIONS;
+                                            const sourceList = fullNode.type === 'trigger' ? TRIGGERS : fullNode.type === 'action' ? ACTIONS : fullNode.type === 'delay' ? DELAYS : CONDITIONS;
                                             const match = sourceList.find(n => n.id === node.id);
                                             if (match) fullNode = { ...fullNode, icon: match.icon };
                                         }

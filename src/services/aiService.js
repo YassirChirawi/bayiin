@@ -340,3 +340,19 @@ export const generateStockForecast = async (products = [], orders = []) => {
         return [];
     }
 };
+
+/**
+ * AI Ads Generator — Creates Meta/Instagram ad copies.
+ * @param {string} productName
+ * @param {string} targetAudience
+ */
+export const generateAdsCopy = async (productName, targetAudience = "L'audience cible de BayIIn") => {
+    const prompt = `Agis comme un expert Media Buyer Facebook/Instagram Ads. Rédige 3 textes publicitaires (Copywriting) ultra-performants pour vendre ce produit : "${productName}".
+Cible : ${targetAudience}.
+Chaque proposition doit contenir :
+- Une phrase d'accroche irrésistible (Hook)
+- Le corps du texte avec les bénéfices clés (Body)
+- Un appel à l'action clair (CTA)
+Utilise un langage persuasif, des émojis et un formatage aéré pour Meta/Instagram Ads. Ne dis pas bonjour ni au revoir, donne juste les textes.`;
+    return await generateAIResponse(prompt);
+};

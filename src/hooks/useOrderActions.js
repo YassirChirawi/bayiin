@@ -8,12 +8,14 @@ import { authenticateSendit, createSenditPackage } from '../lib/sendit';
 import { logActivity } from '../utils/logger'; // NEW
 import { useAuth } from '../context/AuthContext'; // NEW
 import { runAutomations } from '../utils/automationEngine'; // NEW
+import { useAudit } from './useAudit'; // NEW
 
 export const useOrderActions = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const { store } = useTenant();
     const { user } = useAuth();
+    const { logAction } = useAudit();
 
     // Helpers to determine if stock should be adjusted
     const shouldRestock = (oldStatus, newStatus) => {
@@ -140,7 +142,15 @@ export const useOrderActions = () => {
                     paymentMethod: 'cod'
                 });
             });
-            // Fire automation AFTER successful transaction
+
+                // Log the action (Audit)
+                logAction('ORDER_CREATE', `Created order for ${orderData.clientName || 'Unknown'}`, {
+                    orderId: orderData.id || 'N/A',
+                    price: orderData.price,
+                    status: ORDER_STATUS.RECEIVED
+                });
+
+                // Fire automation AFTER successful transaction
             runAutomations('order_created', { ...orderData, status: ORDER_STATUS.RECEIVED }, store).catch(console.error);
             setLoading(false);
             return true;
@@ -307,6 +317,11 @@ export const useOrderActions = () => {
 
             // If status changed, trigger automation
             if (oldData.status !== newData.status) {
+                logAction('ORDER_STATUS_UPDATE', `Changed status from ${oldData.status} to ${newData.status}`, {
+                    orderId,
+                    oldStatus: oldData.status,
+                    newStatus: newData.status
+                });
                 runAutomations('order_updated', { ...newData, id: orderId }, store).catch(console.error);
             }
 

@@ -5,8 +5,9 @@ import Button from "./Button";
 import Input from "./Input";
 import { useLanguage } from "../context/LanguageContext"; // NEW
 import { getCustomerSegment } from "../utils/aiSegmentation";
-import { getWhatsAppLink } from "../utils/whatsappTemplates";
-import { MessageCircle } from "lucide-react";
+import { getWhatsAppLink, createRawWhatsAppLink } from "../utils/whatsappTemplates";
+import { MessageCircle, Sparkles, Wand2 } from "lucide-react";
+import { generateWhatsAppTemplate } from "../services/aiService"; // NEW
 
 export default function CustomerModal({ isOpen, onClose, onSave, customer = null }) {
     const { t } = useLanguage(); // NEW
@@ -19,6 +20,10 @@ export default function CustomerModal({ isOpen, onClose, onSave, customer = null
         ice: "", // Identifiant Commun de l'Entreprise
     });
     const [loading, setLoading] = useState(false);
+    
+    // AI Integration
+    const [aiMessage, setAiMessage] = useState("");
+    const [isGeneratingAi, setIsGeneratingAi] = useState(false);
 
     useEffect(() => {
         if (customer) {
@@ -39,6 +44,7 @@ export default function CustomerModal({ isOpen, onClose, onSave, customer = null
                 customerType: "RETAIL",
                 ice: "",
             });
+            setAiMessage("");
         }
     }, [customer, isOpen]);
 
@@ -132,21 +138,55 @@ export default function CustomerModal({ isOpen, onClose, onSave, customer = null
                         />
                     </div>
 
+                    {/* AI Generated Message Box */}
+                    {aiMessage && (
+                        <div className="p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg border border-emerald-100 relative shadow-inner">
+                            <label className="text-xs font-bold text-emerald-800 mb-2 flex items-center gap-1.5 uppercase tracking-wider">
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Message généré par Beya3
+                            </label>
+                            <textarea
+                                value={aiMessage}
+                                onChange={e => setAiMessage(e.target.value)}
+                                className="w-full text-sm text-gray-800 bg-white/80 backdrop-blur-sm border border-emerald-200 rounded-lg p-3 min-h-[100px] focus:ring-2 focus:ring-emerald-400 outline-none shadow-sm"
+                            />
+                            <div className="mt-3 flex justify-end">
+                                <Button 
+                                    type="button"
+                                    className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-200 uppercase tracking-widest text-[10px] font-black"
+                                    onClick={() => {
+                                        const link = createRawWhatsAppLink(customer.phone, aiMessage);
+                                        window.open(link, '_blank');
+                                    }}
+                                >
+                                    Ouvrir dans WhatsApp
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="flex justify-between items-center pt-4 border-t border-gray-100">
                         {customer && (
                             <Button
                                 type="button"
                                 variant="outline"
-                                icon={MessageCircle}
-                                className="text-green-600 border-green-200 hover:bg-green-50"
-                                onClick={() => {
-                                    const segment = getCustomerSegment(customer, customer.orders || []);
-                                    // Use the template-based link generator
-                                    const link = getWhatsAppLink(customer.phone, customer.name, segment.messageKey, 'fr');
-                                    window.open(link, '_blank');
+                                icon={Wand2}
+                                className="text-green-700 border-green-200 hover:bg-green-50 shadow-sm"
+                                isLoading={isGeneratingAi}
+                                onClick={async () => {
+                                    setIsGeneratingAi(true);
+                                    try {
+                                        const segment = getCustomerSegment(customer, customer.orders || []);
+                                        const prompt = `Génère un message WhatsApp amical pour un client nommé ${customer.name}. Il fait partie du segment "${segment.label}". Propose-lui subtilement de revenir voir nos nouveautés ou une offre de fidélité. Sois court (2 phrases max), ajoute des emojis, pas de blabla.`;
+                                        const msg = await generateWhatsAppTemplate(prompt, 'fr');
+                                        setAiMessage(msg);
+                                    } catch (e) {
+                                        toast.error("Erreur de génération IA");
+                                    } finally {
+                                        setIsGeneratingAi(false);
+                                    }
                                 }}
                             >
-                                {t('btn_ai_reengage') || "Relancer (IA)"}
+                                {t('btn_ai_reengage') || "Générer Séquence (IA)"}
                             </Button>
                         )}
                         <div className="flex gap-3">

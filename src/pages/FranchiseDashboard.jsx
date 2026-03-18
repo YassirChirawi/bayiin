@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useTenant } from "../context/TenantContext";
 import { useFranchiseData } from "../hooks/useFranchiseData";
 import { useAuth } from "../context/AuthContext";
@@ -9,13 +9,16 @@ import {
 } from "recharts";
 import {
     Building2, DollarSign, ShoppingBag, RotateCcw, Package,
-    TrendingUp, Users, Award, AlertTriangle, Store, Plus, Box
+    TrendingUp, Users, Award, AlertTriangle, Store, Plus, Box,
+    Edit, Power, ExternalLink
 } from "lucide-react";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import toast from "react-hot-toast";
-import { addDoc, collection, getDocs, doc, setDoc, query, where } from "firebase/firestore";
+import { addDoc, collection, getDocs, doc, setDoc, query, where, writeBatch } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import { useLanguage } from "../context/LanguageContext";
+import { useAudit } from "../hooks/useAudit";
 
 // ── Color palette for per-store bars ──
 const STORE_COLORS = [
@@ -50,15 +53,102 @@ function StatCard({ icon: Icon, label, value, sub, color = 'indigo', loading }) 
 }
 
 export default function FranchiseDashboard() {
+    const { t } = useLanguage();
+    const { logAction } = useAudit();
     const { user } = useAuth();
     const { franchise, franchiseStores, isFranchiseAdmin, refreshStores } = useTenant();
-    const { kpis, storeStats, topProducts, loading, refreshData } = useFranchiseData();
+    
+    // Global Date Filter State
+    const [dateFilter, setDateFilter] = useState('all');
+
+    const { kpis, storeStats, topProducts, loading, refreshData } = useFranchiseData(dateFilter);
+
+    // Franchise Applications State
+    const [applications, setApplications] = useState([]);
+    const [pendingApproveId, setPendingApproveId] = useState(null);
+
+    useEffect(() => {
+        if (!franchise?.id) return;
+        const loadApps = async () => {
+            try {
+                const q = query(
+                    collection(db, 'franchiseApplications'),
+                    where('storeId', '==', franchise.id),
+                    where('status', '==', 'pending')
+                );
+                const snap = await getDocs(q);
+                setApplications(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            } catch(e) { console.error(e); }
+        };
+        loadApps();
+    }, [franchise?.id]);
+
+    const handleApproveApplication = (app) => {
+        setNewStoreName(`Franchise ${app.city} - ${app.name}`);
+        setPendingApproveId(app.id);
+        setIsCreateModalOpen(true);
+    };
+
+    const closeCreateModal = () => {
+        if (isCreating) return;
+        setIsCreateModalOpen(false);
+        setPendingApproveId(null);
+    };
 
     // Store Creation State
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [newStoreName, setNewStoreName] = useState("");
     const [cloneSourceId, setCloneSourceId] = useState("");
     const [isCreating, setIsCreating] = useState(false);
+
+    // Store Management State
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingStore, setEditingStore] = useState(null);
+
+    const handleSwitchStore = (storeId) => {
+        localStorage.setItem('bayiin_tenant_store', storeId);
+        window.location.href = '/dashboard';
+    };
+
+    const toggleStoreStatus = async (storeId, currentStatus) => {
+        const isCurrentlyActive = currentStatus !== false; 
+        if (window.confirm(`Voulez-vous vraiment ${isCurrentlyActive ? 'désactiver' : 'réactiver'} ce magasin ?`)) {
+            const toastId = toast.loading("Mise à jour...");
+            try {
+                await setDoc(doc(db, "stores", storeId), { isActive: !isCurrentlyActive }, { merge: true });
+                await refreshStores();
+                if (refreshData) refreshData();
+                toast.success(`Magasin ${isCurrentlyActive ? 'désactivé' : 'réactivé'} avec succès`, { id: toastId });
+                logAction('STORE_STATUS_TOGGLE', `Store ${storeId} ${isCurrentlyActive ? 'deactivated' : 'activated'}`);
+            } catch (err) {
+                console.error(err);
+                toast.error("Erreur de mise à jour", { id: toastId });
+            }
+        }
+    };
+
+    const handleUpdateStore = async (e) => {
+        e.preventDefault();
+        if (!editingStore?.name?.trim()) return;
+
+        const toastId = toast.loading("Mise à jour...");
+        try {
+            await setDoc(doc(db, "stores", editingStore.id), { 
+                name: editingStore.name.trim(),
+                plan: editingStore.plan || 'free'
+            }, { merge: true });
+            
+            setIsEditModalOpen(false);
+            setEditingStore(null);
+            await refreshStores();
+            if (refreshData) refreshData();
+            
+            toast.success("Paramètres mis à jour", { id: toastId });
+        } catch (err) {
+            console.error(err);
+            toast.error("Erreur lors de la modification", { id: toastId });
+        }
+    };
 
     const handleCreateStore = async (e) => {
         e.preventDefault();
@@ -81,6 +171,9 @@ export default function FranchiseDashboard() {
                 }
             });
 
+            // Log activity
+            logAction('STORE_CREATE', `Created new store: ${newStoreName.trim()}`, { storeId: storeRef.id });
+
             // 2. Clone Catalog if requested
             if (cloneSourceId) {
                 const toastId = toast.loading("Duplication du catalogue...");
@@ -88,21 +181,36 @@ export default function FranchiseDashboard() {
                 const productsSnap = await getDocs(productsQuery);
 
                 let clonedCount = 0;
-                const batchPromises = productsSnap.docs.map(async (productDoc) => {
+                let currentBatch = writeBatch(db);
+                let operationsCount = 0;
+
+                for (const productDoc of productsSnap.docs) {
                     const data = productDoc.data();
                     // exclude specific fields if needed
                     delete data.createdAt;
                     delete data.updatedAt;
 
-                    await addDoc(collection(db, "products"), {
+                    const newDocRef = doc(collection(db, "products"));
+                    currentBatch.set(newDocRef, {
                         ...data,
                         storeId: storeRef.id,
                         createdAt: new Date()
                     });
-                    clonedCount++;
-                });
 
-                await Promise.all(batchPromises);
+                    clonedCount++;
+                    operationsCount++;
+
+                    // Firestore batch limit is 500. We commit at 450 to be safe.
+                    if (operationsCount === 450) {
+                        await currentBatch.commit();
+                        currentBatch = writeBatch(db);
+                        operationsCount = 0;
+                    }
+                }
+
+                if (operationsCount > 0) {
+                    await currentBatch.commit();
+                }
 
                 // Update product count on store
                 await setDoc(doc(db, "stores", storeRef.id), { products: clonedCount }, { merge: true });
@@ -119,6 +227,12 @@ export default function FranchiseDashboard() {
 
             // Refresh tenant context to include new store
             if (refreshStores) await refreshStores();
+
+            if (pendingApproveId) {
+                await setDoc(doc(db, 'franchiseApplications', pendingApproveId), { status: 'approved' }, { merge: true });
+                setApplications(prev => prev.filter(a => a.id !== pendingApproveId));
+                setPendingApproveId(null);
+            }
         } catch (error) {
             console.error(error);
             toast.error("Erreur lors de la création du magasin");
@@ -135,11 +249,12 @@ export default function FranchiseDashboard() {
 
     // Per-store comparison table data
     const tableData = storeStats.map(({ storeId, storeName, stats }) => {
+        const storeObj = franchiseStores.find(s => s.id === storeId);
         const revenue = stats?.totals?.deliveredRevenue ?? stats?.totals?.revenue ?? 0;
         const orders = stats?.totals?.count ?? 0;
         const returns = stats?.statusCounts?.retour ?? 0;
         const returnRate = orders > 0 ? ((returns / orders) * 100).toFixed(1) : '0.0';
-        return { storeId, storeName, revenue, orders, returnRate };
+        return { storeId, storeName, revenue, orders, returnRate, storeObj };
     }).sort((a, b) => b.revenue - a.revenue);
 
     return (
@@ -155,17 +270,28 @@ export default function FranchiseDashboard() {
                         <div>
                             <h1 className="text-3xl font-bold text-white tracking-tight">{franchiseName}</h1>
                             <p className="text-indigo-300 text-sm mt-0.5">
-                                Tableau de bord franchise · {storeCount} magasin{storeCount > 1 ? 's' : ''}
+                                {t('franchise_hub')} · {storeCount} {t('active_stores').toLowerCase()}
                             </p>
                         </div>
                     </div>
-                    <Button
-                        icon={Plus}
-                        className="bg-white text-indigo-900 border-none hover:bg-indigo-50 shadow-lg"
-                        onClick={() => setIsCreateModalOpen(true)}
-                    >
-                        Nouveau Magasin
-                    </Button>
+                    <div className="flex items-center gap-3">
+                        <select 
+                            value={dateFilter} 
+                            onChange={e => setDateFilter(e.target.value)}
+                            className="bg-white/10 text-white border border-white/20 rounded-xl px-4 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500 outline-none backdrop-blur-sm cursor-pointer [&>option]:text-gray-900"
+                        >
+                            <option value="7d">{t('last_7_days') || "7 Derniers Jours"}</option>
+                            <option value="30d">{t('last_30_days') || "30 Derniers Jours"}</option>
+                            <option value="all">{t('all_time') || "Global (Tout)"}</option>
+                        </select>
+                        <Button
+                            icon={Plus}
+                            className="bg-white text-indigo-900 border-none hover:bg-indigo-50 shadow-lg"
+                            onClick={() => setIsCreateModalOpen(true)}
+                        >
+                            {t('create_new_store')}
+                        </Button>
+                    </div>
                 </div>
                 {/* Store badges */}
                 <div className="flex flex-wrap gap-2 mt-4">
@@ -185,24 +311,24 @@ export default function FranchiseDashboard() {
             {/* ── KPI Row ── */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                 <StatCard
-                    icon={DollarSign} label="CA Consolidé" color="indigo" loading={loading}
-                    value={kpis ? `${kpis.totalRevenue.toLocaleString('fr-MA')} DH` : '—'}
-                    sub="Toutes franchises"
+                    icon={DollarSign} label={t('consolidated_ca')} color="indigo" loading={loading}
+                    value={kpis ? `${kpis.totalRevenue.toLocaleString('fr-MA')} ${t('revenue_unit')}` : '—'}
+                    sub={t('total_global')}
                 />
                 <StatCard
-                    icon={ShoppingBag} label="Commandes Totales" color="violet" loading={loading}
+                    icon={ShoppingBag} label={t('total_orders_consolidated')} color="violet" loading={loading}
                     value={kpis ? kpis.totalOrders.toLocaleString('fr-MA') : '—'}
-                    sub="Commandes livrées incluses"
+                    sub={t('total_orders_consolidated')}
                 />
                 <StatCard
-                    icon={RotateCcw} label="Taux de Retour" color="rose" loading={loading}
+                    icon={RotateCcw} label={t('return_rate_avg')} color="rose" loading={loading}
                     value={kpis ? `${kpis.returnRate}%` : '—'}
-                    sub="Moyenne pondérée"
+                    sub={t('return_rate_avg')}
                 />
                 <StatCard
-                    icon={Package} label="Magasins Actifs" color="emerald" loading={loading}
+                    icon={Package} label={t('active_stores')} color="emerald" loading={loading}
                     value={storeCount}
-                    sub="Dans cette franchise"
+                    sub={t('active_stores')}
                 />
             </div>
 
@@ -213,11 +339,11 @@ export default function FranchiseDashboard() {
                 <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6">
                     <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                         <TrendingUp className="h-5 w-5 text-indigo-400" />
-                        CA par Magasin
+                        {t('revenue_by_store')}
                     </h2>
                     {loading ? (
                         <div className="h-56 flex items-center justify-center text-indigo-300/50 text-sm">
-                            Chargement...
+                            {t('loading')}
                         </div>
                     ) : (
                         <ResponsiveContainer width="100%" height={220}>
@@ -236,7 +362,7 @@ export default function FranchiseDashboard() {
                                 />
                                 <Tooltip
                                     contentStyle={{ background: '#1e1b4b', border: 'none', borderRadius: 10, color: '#fff', fontSize: 12 }}
-                                    formatter={v => [`${v.toLocaleString('fr-MA')} DH`, 'CA']}
+                                    formatter={v => [`${v.toLocaleString('fr-MA')} ${t('revenue_unit')}`, t('revenue') || 'CA']}
                                 />
                                 <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
                                     {(kpis?.revByStore || []).map((_, i) => (
@@ -252,7 +378,7 @@ export default function FranchiseDashboard() {
                 <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6">
                     <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                         <TrendingUp className="h-5 w-5 text-purple-400" />
-                        Tendance 7 Jours (CA global)
+                        {t('trend_7d_global')}
                     </h2>
                     {loading ? (
                         <div className="h-56 flex items-center justify-center text-purple-300/50 text-sm">
@@ -268,7 +394,7 @@ export default function FranchiseDashboard() {
                                 />
                                 <Tooltip
                                     contentStyle={{ background: '#1e1b4b', border: 'none', borderRadius: 10, color: '#fff', fontSize: 12 }}
-                                    formatter={v => [`${v.toLocaleString('fr-MA')} DH`, 'Revenu']}
+                                    formatter={v => [`${v.toLocaleString('fr-MA')} ${t('revenue_unit')}`, t('revenue') || 'Revenu']}
                                 />
                                 <Line
                                     type="monotone" dataKey="revenue" stroke="#818cf8" strokeWidth={3}
@@ -288,23 +414,24 @@ export default function FranchiseDashboard() {
                 <div className="lg:col-span-2 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6">
                     <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                         <Store className="h-5 w-5 text-indigo-400" />
-                        Comparaison par Magasin
+                        {t('store_comparison')}
                     </h2>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="border-b border-white/10">
-                                    <th className="text-left text-indigo-300 font-semibold pb-3 pr-4">Magasin</th>
-                                    <th className="text-right text-indigo-300 font-semibold pb-3 pr-4">CA (DH)</th>
-                                    <th className="text-right text-indigo-300 font-semibold pb-3 pr-4">Commandes</th>
-                                    <th className="text-right text-indigo-300 font-semibold pb-3">Retours</th>
+                                    <th className="text-left text-indigo-300 font-semibold pb-3 pr-4">{t('active_stores')}</th>
+                                    <th className="text-right text-indigo-300 font-semibold pb-3 pr-4">{t('consolidated_ca')} ({t('revenue_unit')})</th>
+                                    <th className="text-right text-indigo-300 font-semibold pb-3 pr-4">{t('orders')}</th>
+                                    <th className="text-right text-indigo-300 font-semibold pb-3 pr-4">{t('status_retour')}</th>
+                                    <th className="text-right text-indigo-300 font-semibold pb-3">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
                                 {loading ? (
                                     [1, 2, 3].map(i => (
                                         <tr key={i}>
-                                            {[1, 2, 3, 4].map(j => (
+                                            {[1, 2, 3, 4, 5].map(j => (
                                                 <td key={j} className="py-3 pr-4">
                                                     <div className="h-4 bg-white/10 rounded animate-pulse" />
                                                 </td>
@@ -313,29 +440,57 @@ export default function FranchiseDashboard() {
                                     ))
                                 ) : tableData.length === 0 ? (
                                     <tr>
-                                        <td colSpan={4} className="py-8 text-center text-indigo-300/50 text-sm">
-                                            Aucun magasin trouvé dans cette franchise
+                                        <td colSpan={5} className="py-8 text-center text-indigo-300/50 text-sm">
+                                            {t('no_stores_found')}
                                         </td>
                                     </tr>
-                                ) : tableData.map(({ storeId, storeName, revenue, orders, returnRate }, i) => (
-                                    <tr key={storeId} className="hover:bg-white/5 transition-colors">
+                                ) : tableData.map(({ storeId, storeName, revenue, orders, returnRate, storeObj }, i) => (
+                                    <tr key={storeId} className={`hover:bg-white/5 transition-colors ${storeObj?.isActive === false ? 'opacity-50 grayscale' : ''}`}>
                                         <td className="py-3 pr-4">
                                             <div className="flex items-center gap-2">
                                                 <span
                                                     className="h-2.5 w-2.5 rounded-full flex-shrink-0"
                                                     style={{ backgroundColor: STORE_COLORS[i % STORE_COLORS.length] }}
                                                 />
-                                                <span className="text-white font-medium truncate">{storeName}</span>
+                                                <span className="text-white font-medium truncate">
+                                                    {storeName}
+                                                    {storeObj?.isActive === false && <span className="ml-2 text-[10px] bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded uppercase cursor-help" title="Magasin désactivé">INACTIF</span>}
+                                                </span>
                                             </div>
                                         </td>
                                         <td className="py-3 pr-4 text-right text-emerald-400 font-bold">
                                             {revenue.toLocaleString('fr-MA')}
                                         </td>
                                         <td className="py-3 pr-4 text-right text-white">{orders}</td>
-                                        <td className="py-3 text-right">
+                                        <td className="py-3 pr-4 text-right">
                                             <span className={`font-medium ${parseFloat(returnRate) > 15 ? 'text-rose-400' : parseFloat(returnRate) > 8 ? 'text-amber-400' : 'text-emerald-400'}`}>
                                                 {returnRate}%
                                             </span>
+                                        </td>
+                                        <td className="py-3 text-right">
+                                            <div className="flex items-center justify-end gap-1 opacity-60 hover:opacity-100 transition-opacity">
+                                                <button 
+                                                    title="Accéder au magasin"
+                                                    onClick={() => handleSwitchStore(storeId)} 
+                                                    className="p-1.5 text-indigo-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                                >
+                                                    <ExternalLink className="w-4 h-4" />
+                                                </button>
+                                                <button 
+                                                    title="Modifier les paramètres"
+                                                    onClick={() => { setEditingStore(storeObj); setIsEditModalOpen(true); }}
+                                                    className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                                >
+                                                    <Edit className="w-4 h-4" />
+                                                </button>
+                                                <button 
+                                                    title={storeObj?.isActive !== false ? "Désactiver le magasin" : "Réactiver le magasin"}
+                                                    onClick={() => toggleStoreStatus(storeId, storeObj?.isActive)}
+                                                    className={`p-1.5 rounded-lg transition-colors ${storeObj?.isActive !== false ? 'text-gray-400 hover:text-rose-400 hover:bg-rose-400/10' : 'text-rose-400 hover:text-emerald-400 hover:bg-emerald-400/10'}`}
+                                                >
+                                                    <Power className="w-4 h-4" />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -343,16 +498,17 @@ export default function FranchiseDashboard() {
                             {!loading && tableData.length > 0 && (
                                 <tfoot>
                                     <tr className="border-t border-white/20">
-                                        <td className="pt-3 pr-4 text-indigo-300 font-bold text-xs uppercase tracking-wide">Total</td>
+                                        <td className="pt-3 pr-4 text-indigo-300 font-bold text-xs uppercase tracking-wide">{t('total_global')}</td>
                                         <td className="pt-3 pr-4 text-right text-white font-bold">
                                             {tableData.reduce((s, r) => s + r.revenue, 0).toLocaleString('fr-MA')}
                                         </td>
                                         <td className="pt-3 pr-4 text-right text-white font-bold">
                                             {tableData.reduce((s, r) => s + r.orders, 0)}
                                         </td>
-                                        <td className="pt-3 text-right text-white font-bold">
+                                        <td className="pt-3 pr-4 text-right text-white font-bold">
                                             {kpis?.returnRate}%
                                         </td>
+                                        <td className="pt-3"></td>
                                     </tr>
                                 </tfoot>
                             )}
@@ -364,7 +520,7 @@ export default function FranchiseDashboard() {
                 <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6">
                     <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                         <Award className="h-5 w-5 text-amber-400" />
-                        Top Produits
+                        {t('top_products_global')}
                     </h2>
                     {loading ? (
                         <div className="space-y-3">
@@ -375,7 +531,7 @@ export default function FranchiseDashboard() {
                     ) : topProducts.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-8 text-indigo-300/50">
                             <AlertTriangle className="h-8 w-8 mb-2 opacity-40" />
-                            <p className="text-sm">Aucun produit livré</p>
+                            <p className="text-sm">{t('no_data')}</p>
                         </div>
                     ) : (
                         <ol className="space-y-2">
@@ -389,7 +545,7 @@ export default function FranchiseDashboard() {
                                     </span>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-white text-sm font-medium truncate">{p.name}</p>
-                                        <p className="text-indigo-300/70 text-xs">{p.qty} unités · {p.storeCount} magasin{p.storeCount > 1 ? 's' : ''}</p>
+                                        <p className="text-indigo-300/70 text-xs">{p.qty} {t('label_quantity').toLowerCase()} · {p.storeCount} {t('active_stores').toLowerCase()}</p>
                                     </div>
                                 </li>
                             ))}
@@ -398,17 +554,66 @@ export default function FranchiseDashboard() {
                 </div>
             </div>
 
+            {/* ── Franchise Applications ── */}
+            {applications.length > 0 && (
+                <div className="mt-6 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6">
+                    <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <Users className="h-5 w-5 text-emerald-400" />
+                        Candidatures en attente ({applications.length})
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {applications.map(app => (
+                            <div key={app.id} className="bg-white/10 backdrop-blur border border-white/20 rounded-xl p-5 relative overflow-hidden hover:bg-white/20 transition-all">
+                                <div className="absolute -top-4 -right-4 p-4 opacity-10"><Building2 className="w-24 h-24 text-white" /></div>
+                                <div className="relative z-10 space-y-2">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div>
+                                            <p className="font-bold text-white text-lg">{app.name}</p>
+                                            <p className="text-sm font-medium text-indigo-300 flex items-center gap-1">
+                                                <Store className="w-3.5 h-3.5" /> {app.city}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1.5 pb-2 border-b border-white/10">
+                                        <p className="text-xs text-slate-200 flex items-center gap-2">
+                                            <span className="text-indigo-300 w-16">Téléphone:</span> <span className="font-medium">{app.phone}</span>
+                                        </p>
+                                        <p className="text-xs text-slate-200 flex items-center gap-2">
+                                            <span className="text-indigo-300 w-16">Budget:</span> <span className="bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-medium">{app.budget}</span>
+                                        </p>
+                                        <p className="text-xs text-slate-200 flex items-start gap-2">
+                                            <span className="text-indigo-300 w-16 flex-shrink-0">Profil:</span> <span>{app.experience}</span>
+                                        </p>
+                                    </div>
+                                    {app.motivation && (
+                                        <div className="pt-1">
+                                            <p className="text-xs text-indigo-200 mb-1">Motivation :</p>
+                                            <p className="text-xs text-slate-300 p-2.5 bg-black/20 rounded-lg italic line-clamp-3">"{app.motivation}"</p>
+                                        </div>
+                                    )}
+                                    <div className="pt-3">
+                                        <Button className="w-full bg-emerald-500 hover:bg-emerald-600 border-none text-white shadow-lg shadow-emerald-900/50" onClick={() => handleApproveApplication(app)}>
+                                            Valider la candidature
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Store Creation Modal */}
             {isCreateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
                         <div className="bg-indigo-600 p-6 text-white flex justify-between items-center">
                             <div>
-                                <h2 className="text-xl font-bold">Ajouter un Magasin</h2>
-                                <p className="text-indigo-200 text-sm mt-1">Élargissez votre franchise</p>
+                                <h2 className="text-xl font-bold">{t('create_new_store')}</h2>
+                                <p className="text-indigo-200 text-sm mt-1">{t('franchise_hub')}</p>
                             </div>
                             <button
-                                onClick={() => !isCreating && setIsCreateModalOpen(false)}
+                                onClick={closeCreateModal}
                                 className="text-white/70 hover:text-white"
                                 disabled={isCreating}
                             >
@@ -418,7 +623,7 @@ export default function FranchiseDashboard() {
 
                         <form onSubmit={handleCreateStore} className="p-6 space-y-5">
                             <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1">Nom du magasin</label>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">{t('store_name')}</label>
                                 <Input
                                     placeholder="Ex: Kuos Agadir"
                                     value={newStoreName}
@@ -431,10 +636,10 @@ export default function FranchiseDashboard() {
                             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                                 <label className="block text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
                                     <Box className="w-4 h-4 text-indigo-500" />
-                                    Dupliquer le catalogue ? (Optionnel)
+                                    {t('clone_catalog')}
                                 </label>
                                 <p className="text-xs text-gray-500 mb-3">
-                                    Copiez immédiatement tous les produits d'un magasin existant vers le nouveau.
+                                    {t('clone_catalog_desc')}
                                 </p>
                                 <select
                                     className="w-full text-sm border-gray-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500"
@@ -442,7 +647,7 @@ export default function FranchiseDashboard() {
                                     onChange={e => setCloneSourceId(e.target.value)}
                                     disabled={isCreating || franchiseStores.length === 0}
                                 >
-                                    <option value="">-- Démarrer à zéro --</option>
+                                    <option value="">{t('start_from_scratch')}</option>
                                     {franchiseStores.map(s => (
                                         <option key={s.id} value={s.id}>{s.name}</option>
                                     ))}
@@ -453,17 +658,62 @@ export default function FranchiseDashboard() {
                                 <Button
                                     type="button"
                                     variant="secondary"
-                                    onClick={() => !isCreating && setIsCreateModalOpen(false)}
+                                    onClick={closeCreateModal}
                                     disabled={isCreating}
                                 >
-                                    Annuler
+                                    {t('cancel')}
                                 </Button>
                                 <Button
                                     type="submit"
                                     disabled={isCreating}
                                 >
-                                    {isCreating ? 'Création en cours...' : 'Créer le magasin'}
+                                    {isCreating ? t('loading') : t('create_new_store')}
                                 </Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Store Edit Modal */}
+            {isEditModalOpen && editingStore && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+                        <div className="bg-slate-800 p-6 text-white flex justify-between items-center">
+                            <div>
+                                <h2 className="text-xl font-bold">Gérer le magasin</h2>
+                                <p className="text-slate-300 text-sm mt-1">Paramètres de la succursale</p>
+                            </div>
+                            <button onClick={() => setIsEditModalOpen(false)} className="text-white/70 hover:text-white">
+                                &times;
+                            </button>
+                        </div>
+                        <form onSubmit={handleUpdateStore} className="p-6 space-y-5">
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">{t('store_name')}</label>
+                                <Input
+                                    value={editingStore.name}
+                                    onChange={e => setEditingStore({...editingStore, name: e.target.value})}
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Plan d'abonnement</label>
+                                <select
+                                    className="w-full text-sm border-gray-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border bg-gray-50 text-gray-900"
+                                    value={editingStore.plan || 'free'}
+                                    onChange={e => setEditingStore({...editingStore, plan: e.target.value})}
+                                >
+                                    <option value="free">Basic (Gratuit)</option>
+                                    <option value="pro">Pro</option>
+                                    <option value="enterprise">Entreprise</option>
+                                </select>
+                            </div>
+                            <div className="pt-2 flex justify-end gap-3">
+                                <Button type="button" variant="secondary" onClick={() => setIsEditModalOpen(false)}>
+                                    {t('cancel')}
+                                </Button>
+                                <Button type="submit">Sauvegarder</Button>
                             </div>
                         </form>
                     </div>

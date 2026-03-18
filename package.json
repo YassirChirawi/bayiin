@@ -27,6 +27,7 @@
     "firebase": "^11.1.0",
     "firebase-admin": "^13.7.0",
     "framer-motion": "^12.34.1",
+    "html5-qrcode": "^2.3.8",
     "jspdf": "^4.0.0",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.562.0",

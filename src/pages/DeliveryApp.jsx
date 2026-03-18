@@ -8,7 +8,7 @@ import {
     Phone, MapPin, DollarSign, CheckCircle, XCircle,
     PhoneMissed, Package, Truck, ChevronRight, RotateCcw,
     Clock, Star, MessageSquare, Navigation, User, TrendingUp,
-    Headphones, ChevronDown, Info
+    Headphones, ChevronDown, Info, Search
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import DriverAuth from "../components/DriverAuth";
@@ -78,7 +78,7 @@ function OrderCard({ order, onUpdateStatus, updating }) {
             {/* Expanded detail */}
             {expanded && (
                 <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-3">
-                    {/* Phone + Call + GPS */}
+                    {/* Phone + Call + WhatsApp */}
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 text-sm text-gray-700">
                             <Phone className="h-4 w-4 text-indigo-500" />
@@ -86,13 +86,24 @@ function OrderCard({ order, onUpdateStatus, updating }) {
                         </div>
                         <div className="flex gap-2">
                             {order.clientPhone && (
-                                <a
-                                    href={`tel:${order.clientPhone}`}
-                                    className="flex items-center gap-1.5 bg-indigo-600 text-white text-sm font-semibold px-3 py-2 rounded-xl hover:bg-indigo-700 transition-colors"
-                                >
-                                    <Phone className="h-4 w-4" />
-                                    Appeler
-                                </a>
+                                <>
+                                    <a
+                                        href={`https://wa.me/${order.clientPhone.replace(/[^\d]/g, '')}?text=${encodeURIComponent(`Bonjour ${order.clientName || ''}, c'est votre livreur BayIIn. Je suis en route pour votre commande. Êtes-vous disponible pour la réception ?`)}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center justify-center p-2 bg-emerald-100 text-emerald-700 rounded-xl hover:bg-emerald-200 transition-colors"
+                                        title="WhatsApp Client"
+                                    >
+                                        <MessageSquare className="h-5 w-5" />
+                                    </a>
+                                    <a
+                                        href={`tel:${order.clientPhone}`}
+                                        className="flex items-center gap-1.5 bg-indigo-600 text-white text-sm font-semibold px-3 py-2 rounded-xl hover:bg-indigo-700 transition-colors"
+                                    >
+                                        <Phone className="h-4 w-4" />
+                                        Appeler
+                                    </a>
+                                </>
                             )}
                         </div>
                     </div>
@@ -343,6 +354,7 @@ export default function DeliveryApp() {
     const [storeName, setStoreName] = useState('');
     const [storePhone, setStorePhone] = useState('');
     const [storeWhatsApp, setStoreWhatsApp] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         if (!token) return;
@@ -489,12 +501,20 @@ export default function DeliveryApp() {
         }
     }, [orders]);
 
-    // Derived lists
-    const pickup = orders.filter(o => o.status === 'ramassage');
-    const pending = orders.filter(o => ['livraison', 'reporté', 'pas de réponse'].includes(o.status));
-    const returns = orders.filter(o => o.status === 'retour en cours');
-    const done = orders.filter(o => ['livré', 'retour'].includes(o.status));
-    const delivered = done.filter(o => o.status === 'livré');
+    // Derived lists and filtering
+    const safeSearch = searchQuery.toLowerCase().trim();
+    const filteredOrders = orders.filter(o => 
+        !safeSearch || 
+        (o.clientName || '').toLowerCase().includes(safeSearch) ||
+        (o.clientPhone || '').includes(safeSearch) ||
+        (o.orderNumber?.toString() || '').includes(safeSearch)
+    );
+
+    const pickup = filteredOrders.filter(o => o.status === 'ramassage');
+    const pending = filteredOrders.filter(o => ['livraison', 'reporté', 'pas de réponse'].includes(o.status));
+    const returns = filteredOrders.filter(o => o.status === 'retour en cours');
+    const done = filteredOrders.filter(o => ['livré', 'retour'].includes(o.status));
+    const delivered = orders.filter(o => o.status === 'livré');
     const totalCOD = delivered.reduce((s, o) => s + Number(o.price || 0), 0);
     const displayed = filter === 'pickup' ? pickup : filter === 'pending' ? pending : filter === 'returns' ? returns : filter === 'done' ? done : [];
 
@@ -575,7 +595,7 @@ export default function DeliveryApp() {
                     {TABS.map(({ key, label, count, dot, icon: TabIcon }) => (
                         <button
                             key={key}
-                            onClick={() => setFilter(key)}
+                            onClick={() => { setFilter(key); setSearchQuery(''); }}
                             className={`flex-1 relative py-2 px-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap flex items-center justify-center gap-1 ${filter === key
                                 ? 'bg-indigo-600 text-white shadow-sm'
                                 : 'text-gray-500 hover:text-gray-700'
@@ -594,6 +614,29 @@ export default function DeliveryApp() {
                         </button>
                     ))}
                 </div>
+
+                {/* ── Search Bar ── */}
+                {filter !== 'profile' && (
+                    <div className="px-4 mb-3">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="Rechercher (Nom, Téléphone, Numéro...)"
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                className="w-full bg-white border border-gray-200 rounded-xl pl-10 pr-10 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm placeholder:text-gray-400"
+                            />
+                            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
+                                <Search className="w-4 h-4" />
+                            </div>
+                            {searchQuery && (
+                                <button onClick={() => setSearchQuery('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                    <XCircle className="w-4 h-4" />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* ── Profile Tab ── */}
                 {filter === 'profile' ? (

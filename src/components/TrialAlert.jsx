@@ -38,9 +38,12 @@ export default function TrialAlert({ createdAt, plan }) {
                             </p>
                         </div>
                     </div>
-                    <button className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-700 transition shadow-sm whitespace-nowrap">
-                        Upgrade Now
-                    </button>
+                    <Link
+                        to="/settings?tab=billing"
+                        className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-700 transition shadow-sm whitespace-nowrap"
+                    >
+                        Mettre à niveau →
+                    </Link>
                 </div>
             </div>
         );
@@ -60,9 +63,12 @@ export default function TrialAlert({ createdAt, plan }) {
                             </p>
                         </div>
                     </div>
-                    <button className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-orange-700 transition shadow-sm whitespace-nowrap">
-                        Upgrade Plan
-                    </button>
+                    <Link
+                        to="/settings?tab=billing"
+                        className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-orange-700 transition shadow-sm whitespace-nowrap flex items-center gap-1.5"
+                    >
+                        ⚡ Mettre à niveau
+                    </Link>
                 </div>
             </div>
         );
@@ -81,8 +87,8 @@ export default function TrialAlert({ createdAt, plan }) {
                     <span className="text-xs text-indigo-600 font-medium">{daysLeft} days remaining</span>
                 </div>
             </div>
-            <Link to="/settings" className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:underline">
-                View Plans
+            <Link to="/settings?tab=billing" className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-indigo-700 transition shadow-sm whitespace-nowrap flex items-center gap-1.5">
+                ⚡ Mettre à niveau
             </Link>
         </div>
     );

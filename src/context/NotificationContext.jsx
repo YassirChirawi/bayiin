@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useStoreData } from '../hooks/useStoreData';
 import { detectFinancialLeaks } from '../services/aiService';
@@ -14,7 +14,7 @@ export const useNotifications = () => {
 };
 
 export const NotificationProvider = ({ children }) => {
-    const { store } = useTenant();
+    const { store, franchiseStores } = useTenant();
     const { user } = useAuth();
     const [alerts, setAlerts] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -26,54 +26,87 @@ export const NotificationProvider = ({ children }) => {
     // Optimization: Audit runs only on mount or manual trigger to save reads.
 
     const runAudit = async () => {
-        if (!store?.id || !user) return;
+        if (!user) return;
+        // Proceed if we have a single store context OR if we are handling a franchise
+        if (!store?.id && (!franchiseStores || franchiseStores.length === 0)) return;
+        
         setLoading(true);
         const newAlerts = [];
 
         try {
-            // 1. Financial Leaks (Ghost Orders & Margins)
-            // Fetch last 100 delivered orders or recent orders
-            // Use a specific query for delivered orders in last 30 days
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            // 1. Financial Leaks (Ghost Orders & Margins) - Store Context
+            if (store?.id) {
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-            const ordersRef = collection(db, "orders");
-            const qOrders = query(
-                ordersRef,
-                where("storeId", "==", store.id),
-                where("date", ">=", thirtyDaysAgo.toISOString().split('T')[0]),
-                limit(200)
-            );
+                const ordersRef = collection(db, "orders");
+                const qOrders = query(
+                    ordersRef,
+                    where("storeId", "==", store.id),
+                    where("date", ">=", thirtyDaysAgo.toISOString().split('T')[0]),
+                    limit(200)
+                );
 
-            const ordersSnap = await getDocs(qOrders);
-            const orders = ordersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                const ordersSnap = await getDocs(qOrders);
+                const orders = ordersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-            // Re-use logic from AI Service
-            const leaks = detectFinancialLeaks(orders, 0); // CAC 0 for quick check
+                const leaks = detectFinancialLeaks(orders, 0);
 
-            if (leaks.ghostOrders.length > 0) {
-                newAlerts.push({
-                    id: 'ghost_orders',
-                    type: 'critical',
-                    title: 'Commandes Fantômes 👻',
-                    message: `${leaks.ghostOrders.length} commandes livrées non payées (>15j).`,
-                    link: '/finances',
-                    details: leaks.ghostOrders.map(o => o.reference).join(', ')
-                });
+                if (leaks.ghostOrders.length > 0) {
+                    newAlerts.push({
+                        id: 'ghost_orders',
+                        type: 'critical',
+                        title: 'Commandes Fantômes 👻',
+                        message: `${leaks.ghostOrders.length} commandes livrées non payées (>15j).`,
+                        link: '/finances',
+                        details: leaks.ghostOrders.map(o => o.reference).join(', ')
+                    });
+                }
+
+                if (leaks.negativeMargins.length > 0) {
+                    newAlerts.push({
+                        id: 'negative_margins',
+                        type: 'warning',
+                        title: 'Marge Négative 💸',
+                        message: `${leaks.negativeMargins.length} commandes à perte détectées.`,
+                        link: '/finances'
+                    });
+                }
             }
 
-            if (leaks.negativeMargins.length > 0) {
-                newAlerts.push({
-                    id: 'negative_margins',
-                    type: 'warning',
-                    title: 'Marge Négative 💸',
-                    message: `${leaks.negativeMargins.length} commandes à perte détectées.`,
-                    link: '/finances'
-                });
+            // --- 2. Franchise High-Return Alerts --- //
+            if (franchiseStores && franchiseStores.length > 0) {
+                for (const fStore of franchiseStores) {
+                    try {
+                        const salesDoc = await getDoc(doc(db, 'stores', fStore.id, 'stats', 'sales'));
+                        if (salesDoc.exists()) {
+                            const stats = salesDoc.data();
+                            const ordersCount = stats.totals?.count || 0;
+                            const returnsCount = stats.statusCounts?.retour || 0;
+                            
+                            // Only trigger on stores with meaningful volume >= 10
+                            if (ordersCount >= 10) {
+                                const rate = (returnsCount / ordersCount) * 100;
+                                // Alert if return rate >= 25%
+                                if (rate >= 25) {
+                                    newAlerts.push({
+                                        id: `high_return_${fStore.id}`,
+                                        type: 'critical',
+                                        title: 'Alerte Franchise 🚨',
+                                        message: `Le magasin ${fStore.name || fStore.id} a un taux de retour critique (${rate.toFixed(1)}%).`,
+                                        link: '/dashboard'
+                                    });
+                                }
+                            }
+                        }
+                    } catch (e) {
+                         console.error("Failed to check franchise store stats:", e);
+                    }
+                }
             }
 
-            // 2. Unpaid Invoices (Sendit)
-            if (store.senditPublicKey) {
+            // 3. Unpaid Invoices (Sendit)
+            if (store?.id && store.senditPublicKey) {
                 // Mock check or real check if lightweight
                 // implementation depends on Sendit API speed
                 // For now, let's assume we check "Pending" invoices from recent sync

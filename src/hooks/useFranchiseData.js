@@ -14,11 +14,11 @@ import { useTenant } from '../context/TenantContext';
  *  - trend7d: last-7-days revenue (all stores combined), shape: [{ date, revenue }]
  *  - loading / error
  */
-export function useFranchiseData() {
+export function useFranchiseData(dateFilter = 'all') {
     const { franchiseStores, isFranchiseAdmin } = useTenant();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [storeStats, setStoreStats] = useState([]); // FIXME: Ajout de l'état manquant
+    const [storeStats, setStoreStats] = useState([]);
     const [topProducts, setTopProducts] = useState([]);
 
     const storeIds = useMemo(() => franchiseStores.map(s => s.id), [franchiseStores]);
@@ -61,12 +61,22 @@ export function useFranchiseData() {
                 const chunks = chunkArray(storeIds, 30); // Firestore `in` limit
                 const productMap = new Map(); // productId → { name, qty, storeCount }
 
+                let limitDate = null;
+                if (dateFilter !== 'all') {
+                     limitDate = new Date();
+                     limitDate.setDate(limitDate.getDate() - (dateFilter === '7d' ? 7 : 30));
+                }
+
                 for (const chunk of chunks) {
-                    const ordersQuery = query(
-                        collection(db, 'orders'),
+                    let constraints = [
                         where('storeId', 'in', chunk),
                         where('status', '==', 'livré')
-                    );
+                    ];
+                    if (limitDate) {
+                        constraints.push(where('createdAt', '>=', limitDate));
+                    }
+                    
+                    const ordersQuery = query(collection(db, 'orders'), ...constraints);
                     const ordersSnap = await getDocs(ordersQuery);
                     ordersSnap.docs.forEach(d => {
                         const order = d.data();
@@ -100,7 +110,7 @@ export function useFranchiseData() {
 
     useEffect(() => {
         fetchAll();
-    }, [isFranchiseAdmin, storeIds.join(','), franchiseStores]);
+    }, [isFranchiseAdmin, storeIds.join(','), franchiseStores, dateFilter]);
 
     // ── Derive consolidated KPIs from storeStats ──
     const kpis = useMemo(() => {
@@ -108,7 +118,10 @@ export function useFranchiseData() {
 
         let totalRevenue = 0;
         let totalOrders = 0;
-        let totalReturns = 0;
+        
+        let globalOrders = 0;
+        let globalReturns = 0;
+        
         const revByStore = [];
 
         // 7-day trend aggregated
@@ -119,15 +132,38 @@ export function useFranchiseData() {
             trendMap[d.toISOString().split('T')[0]] = 0;
         }
 
+        let limitStr = null;
+        if (dateFilter !== 'all') {
+            const d = new Date();
+            d.setDate(d.getDate() - (dateFilter === '7d' ? 7 : 30));
+            limitStr = d.toISOString().split('T')[0];
+        }
+
         storeStats.forEach(({ storeName, stats }) => {
             if (!stats) return;
-            const storeRevenue = stats.totals?.deliveredRevenue ?? stats.totals?.revenue ?? 0;
-            const storeOrders = stats.totals?.count ?? 0;
-            const storeReturns = stats.statusCounts?.retour ?? 0;
+
+            globalOrders += stats.totals?.count ?? 0;
+            globalReturns += stats.statusCounts?.retour ?? 0;
+            
+            let storeRevenue = 0;
+            let storeOrders = 0;
+
+            if (dateFilter === 'all') {
+                storeRevenue = stats.totals?.deliveredRevenue ?? stats.totals?.revenue ?? 0;
+                storeOrders = stats.totals?.count ?? 0;
+            } else {
+                if (stats.daily) {
+                    Object.entries(stats.daily).forEach(([dateKey, dailyData]) => {
+                        if (dateKey >= limitStr) {
+                            storeRevenue += dailyData.revenue ?? dailyData.deliveredRevenue ?? 0;
+                            storeOrders += dailyData.count ?? 0;
+                        }
+                    });
+                }
+            }
 
             totalRevenue += storeRevenue;
             totalOrders += storeOrders;
-            totalReturns += storeReturns;
 
             revByStore.push({ name: storeName, revenue: storeRevenue, orders: storeOrders });
 
@@ -137,7 +173,8 @@ export function useFranchiseData() {
             });
         });
 
-        const returnRate = totalOrders > 0 ? ((totalReturns / totalOrders) * 100).toFixed(1) : '0.0';
+        // Use global rate since accurate filtered return counts are not available in daily aggregations
+        const returnRate = globalOrders > 0 ? ((globalReturns / globalOrders) * 100).toFixed(1) : '0.0';
         const trend7d = Object.entries(trendMap).map(([date, revenue]) => ({
             date: new Date(date).toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' }),
             revenue

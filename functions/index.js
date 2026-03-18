@@ -6,6 +6,7 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 // Initialize Stripe with Secret Key (set via .env)
 const stripeKey = process.env.STRIPE_SECRET_KEY || (functions.config().stripe && functions.config().stripe.secret) || 'sk_test_placeholder';
 const stripe = require('stripe')(stripeKey);
+const WooService = require('./wooService');
 
 initializeApp();
 // Connect to the named database used by the frontend
@@ -51,6 +52,123 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
     }
 
     res.json({ received: true });
+});
+
+/**
+ * WooCommerce Webhook Handler
+ * URL: .../handleWooCommerceOrder?storeId=STORE_ID
+ */
+exports.handleWooCommerceOrder = functions.https.onRequest(async (req, res) => {
+    const storeId = req.query.storeId;
+    if (!storeId) {
+        console.error("WooCommerce Webhook: Missing storeId in query params");
+        return res.status(400).send("Missing storeId");
+    }
+
+    // 1. Get Store Config
+    const storeDoc = await db.collection('stores').doc(storeId).get();
+    if (!storeDoc.exists) {
+        return res.status(404).send("Store not found");
+    }
+    const storeData = storeDoc.data();
+
+    // 2. Verify Signature
+    const wooService = new WooService(
+        process.env.WOOCOMMERCE_URL || storeData.wooUrl,
+        process.env.WOOCOMMERCE_CONSUMER_KEY || storeData.wooConsumerKey,
+        process.env.WOOCOMMERCE_CONSUMER_SECRET || storeData.wooConsumerSecret,
+        process.env.WOOCOMMERCE_WEBHOOK_SECRET || storeData.wooWebhookSecret
+    );
+
+    const signature = req.headers['x-wc-webhook-signature'];
+    if (!wooService.verifySignature(req.rawBody, signature)) {
+        console.error("WooCommerce Webhook: Invalid Signature");
+        return res.status(401).send("Invalid Signature");
+    }
+
+    const orderData = req.body;
+    console.log(`WooCommerce Order Received: ${orderData.id} for Store: ${storeId}`);
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            const batch = db.batch(); // We'll use this for stock updates as well or just transaction
+            
+            // A. Map Items & Deduct Stock
+            const items = orderData.line_items || [];
+            const mappedProducts = [];
+
+            for (const item of items) {
+                const sku = item.sku;
+                if (!sku) continue;
+
+                // Find product in BayIIn by SKU
+                const productsSnap = await db.collection('products')
+                    .where('storeId', '==', storeId)
+                    .where('sku', '==', sku)
+                    .limit(1)
+                    .get();
+
+                if (!productsSnap.empty) {
+                    const productDoc = productsSnap.docs[0];
+                    const product = productDoc.data();
+                    const qty = parseInt(item.quantity) || 1;
+
+                    // FEFO Stock Deduction
+                    let stockUpdates = { stock: FieldValue.increment(-qty) };
+                    if (product.inventoryBatches && product.inventoryBatches.length > 0) {
+                        let updatedBatches = [...product.inventoryBatches].sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
+                        let remainingQty = qty;
+
+                        for (let i = 0; i < updatedBatches.length && remainingQty > 0; i++) {
+                            let b = updatedBatches[i];
+                            let bQty = parseInt(b.quantity) || 0;
+                            if (bQty > 0) {
+                                let deductAmount = Math.min(bQty, remainingQty);
+                                b.quantity = bQty - deductAmount;
+                                remainingQty -= deductAmount;
+                            }
+                        }
+                        stockUpdates.inventoryBatches = updatedBatches;
+                    }
+                    
+                    transaction.update(productDoc.ref, stockUpdates);
+                    
+                    mappedProducts.push({
+                        id: productDoc.id,
+                        name: product.name,
+                        quantity: qty,
+                        price: parseFloat(item.price) || 0
+                    });
+                }
+            }
+
+            // B. Create Order in BayIIn
+            const newOrderRef = db.collection('orders').doc(`WOO-${orderData.id}`);
+            const billing = orderData.billing || {};
+            
+            transaction.set(newOrderRef, {
+                storeId: storeId,
+                orderNumber: `WOO-${orderData.number || orderData.id}`,
+                clientName: `${billing.first_name || ''} ${billing.last_name || ''}`.trim() || 'WooCommerce Client',
+                clientPhone: billing.phone || "",
+                clientAddress: `${billing.address_1 || ''} ${billing.address_2 || ''}`.trim(),
+                clientCity: billing.city || "",
+                price: parseFloat(orderData.total) || 0,
+                status: 'reçu', // "À confirmer"
+                createdAt: FieldValue.serverTimestamp(),
+                source: 'WooCommerce',
+                externalId: orderData.id,
+                products: mappedProducts,
+                isPaid: orderData.status === 'processing' || orderData.status === 'completed',
+                paymentMethod: orderData.payment_method || 'cod'
+            });
+        });
+
+        res.status(200).send("OK");
+    } catch (error) {
+        console.error("WooCommerce Order Processing Error:", error);
+        res.status(500).send("Internal Error");
+    }
 });
 
 /**
@@ -381,5 +499,46 @@ exports.senditWebhook = functions.https.onRequest(async (req, res) => {
         console.error("Error processing Sendit webhook:", error);
         // Return 500 only for server errors on our side
         res.status(500).send("Internal Server Error");
+    }
+});
+
+/**
+ * Sync Stock to WooCommerce on product update
+ */
+exports.syncStockToWooCommerce = onDocumentWritten({
+    document: "products/{productId}",
+    database: "comsaas",
+}, async (event) => {
+    const change = event.data;
+    if (!change || !change.after.exists) return;
+
+    const before = change.before.data();
+    const after = change.after.data();
+
+    // Only sync if stock changed
+    if (before && before.stock === after.stock) return;
+
+    const storeId = after.storeId;
+    if (!storeId) return;
+
+    // Get Store Config
+    const storeDoc = await db.collection('stores').doc(storeId).get();
+    if (!storeDoc.exists) return;
+    const storeData = storeDoc.data();
+
+    // Check if WooCommerce integration is active
+    if (!storeData.wooUrl || !storeData.wooConsumerKey) return;
+
+    const wooService = new WooService(
+        process.env.WOOCOMMERCE_URL || storeData.wooUrl,
+        process.env.WOOCOMMERCE_CONSUMER_KEY || storeData.wooConsumerKey,
+        process.env.WOOCOMMERCE_CONSUMER_SECRET || storeData.wooConsumerSecret
+    );
+
+    try {
+        await wooService.updateStock(after.sku, after.stock);
+        console.log(`Synced stock for SKU ${after.sku} to WooCommerce: ${after.stock}`);
+    } catch (error) {
+        console.error(`Failed to sync stock to WooCommerce for SKU ${after.sku}:`, error);
     }
 });

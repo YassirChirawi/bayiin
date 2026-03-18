@@ -31,6 +31,26 @@ export const getTopProducts = (orders) => {
         .slice(0, 5);
 };
 
+export const normalizeCityName = (cityStr) => {
+    if (!cityStr) return "UNKNOWN";
+    let normalized = cityStr.trim().toUpperCase();
+
+    // Remove common accents for safe comparison
+    normalized = normalized.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    const CASABLANCA = "CASABLANCA";
+    const MARRAKECH = "MARRAKECH";
+    const RABAT = "RABAT";
+    const TANGIER = "TANGER";
+
+    if (["CASA", "CASABLANCA", "DAR BEIDA", "DAR EL BEIDA"].includes(normalized)) return CASABLANCA;
+    if (["KECH", "MARRAKESH", "MARRAKECH"].includes(normalized)) return MARRAKECH;
+    if (["RBT", "RABAT"].includes(normalized)) return RABAT;
+    if (["TANJA", "TANGIER", "TANGER"].includes(normalized)) return TANGIER;
+    
+    return normalized;
+};
+
 /*
  * Calculates Revenue and Return Rate per City.
  * Revenue: Sum of price * quantity for 'livré' orders.
@@ -43,8 +63,8 @@ export const getCityStats = (orders) => {
 
     orders.forEach(order => {
         let city = order.clientCity || order.city || "Unknown";
-        // Normalize city name (basic)
-        city = city.trim().toUpperCase();
+        // Normalize city name robustly
+        city = normalizeCityName(city);
 
         if (!cityStats[city]) {
             cityStats[city] = {

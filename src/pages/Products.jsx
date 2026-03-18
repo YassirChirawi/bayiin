@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { toast } from "react-hot-toast";
 import { useStoreData } from "../hooks/useStoreData";
-import { Plus, Edit2, Trash2, Package, Search, RotateCcw, AlertCircle, Upload, Download, Share2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Package, Search, RotateCcw, AlertCircle, Upload, Download, Share2, ImageOff } from "lucide-react";
 import Button from "../components/Button";
 import ProductModal from "../components/ProductModal";
 import ImportModal from "../components/ImportModal";
@@ -245,8 +245,8 @@ export default function Products() {
                                                 {product.photoUrl ? (
                                                     <img className="h-full w-full object-cover" src={product.photoUrl} alt={product.name} />
                                                 ) : (
-                                                    <div className="h-full w-full flex items-center justify-center text-gray-400">
-                                                        <Package className="h-8 w-8" />
+                                                    <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50 text-indigo-300">
+                                                        <Package className="h-7 w-7" strokeWidth={1.5} />
                                                     </div>
                                                 )}
                                             </div>
@@ -379,8 +379,8 @@ export default function Products() {
                                         {product.photoUrl ? (
                                             <img className="h-full w-full object-cover" src={product.photoUrl} alt={product.name} />
                                         ) : (
-                                            <div className="h-full w-full flex items-center justify-center text-gray-400">
-                                                <Package className="h-8 w-8" />
+                                            <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50 text-indigo-300">
+                                                <Package className="h-7 w-7" strokeWidth={1.5} />
                                             </div>
                                         )}
                                     </div>
