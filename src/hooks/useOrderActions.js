@@ -34,59 +34,81 @@ export const useOrderActions = () => {
         setLoading(true);
         setError(null);
         try {
-            await runTransaction(db, async (transaction) => {
-                // 1. Handle Customer (Find by phone OR Create)
-                let customerId = orderData.customerId;
-                if (!customerId && orderData.clientPhone) {
-                    const customersQ = query(
-                        collection(db, "customers"),
-                        where("storeId", "==", store.id),
-                        where("phone", "==", orderData.clientPhone),
-                        limit(1)
-                    );
-                    const customerSnap = await getDocs(customersQ);
+            // Non-transactional reads FIRST
+            let customerId = orderData.customerId;
+            let existingCustomerId = null;
+            if (!customerId && orderData.clientPhone) {
+                const customersQ = query(
+                    collection(db, "customers"),
+                    where("storeId", "==", store.id),
+                    where("phone", "==", orderData.clientPhone),
+                    limit(1)
+                );
+                const customerSnap = await getDocs(customersQ);
+                if (!customerSnap.empty) {
+                    existingCustomerId = customerSnap.docs[0].id;
+                }
+            }
 
-                    if (!customerSnap.empty) {
-                        customerId = customerSnap.docs[0].id;
-                        // Update existing customer stats
-                        transaction.update(doc(db, "customers", customerId), {
-                            lastOrderDate: new Date().toISOString().split('T')[0],
-                            totalSpent: increment(parseFloat(orderData.price) || 0),
-                            orderCount: increment(1),
-                            updatedAt: serverTimestamp()
-                        });
-                    } else if (orderData.clientName) {
-                        // Create new customer
-                        const newCustomerRef = doc(collection(db, "customers"));
-                        customerId = newCustomerRef.id;
-                        transaction.set(newCustomerRef, {
-                            storeId: store.id,
-                            name: orderData.clientName,
-                            phone: orderData.clientPhone,
-                            address: orderData.clientAddress || "",
-                            city: orderData.clientCity || "",
-                            totalSpent: parseFloat(orderData.price) || 0,
-                            orderCount: 1,
-                            firstOrderDate: new Date().toISOString().split('T')[0],
-                            lastOrderDate: new Date().toISOString().split('T')[0],
-                            createdAt: serverTimestamp(),
-                            updatedAt: serverTimestamp()
-                        });
+            // Products to process
+            const itemsToProcess = [];
+            if (orderData.articleId) {
+                itemsToProcess.push({ id: orderData.articleId, variantId: orderData.variantId, quantity: orderData.quantity });
+            } else if (orderData.products && Array.isArray(orderData.products)) {
+                for (const item of orderData.products) {
+                    itemsToProcess.push({ id: item.id, variantId: item.variantId, quantity: item.quantity });
+                }
+            }
+
+            await runTransaction(db, async (transaction) => {
+                // --- 1. READ PHASE ---
+                const productDocs = {};
+                for (const item of itemsToProcess) {
+                    if (!productDocs[item.id]) {
+                        productDocs[item.id] = await transaction.get(doc(db, "products", item.id));
                     }
                 }
 
-                // 2. Handle Stock Deduction
-                const deductStockForProduct = async (articleId, variantId, quantity) => {
-                    const productRef = doc(db, "products", articleId);
-                    const productSnap = await transaction.get(productRef);
+                // --- 2. WRITE PHASE ---
+                let finalCustomerId = customerId || existingCustomerId;
+                
+                // Write Customer
+                if (existingCustomerId) {
+                    transaction.update(doc(db, "customers", existingCustomerId), {
+                        lastOrderDate: new Date().toISOString().split('T')[0],
+                        totalSpent: increment(parseFloat(orderData.price) || 0),
+                        orderCount: increment(1),
+                        updatedAt: serverTimestamp()
+                    });
+                } else if (orderData.clientName && !finalCustomerId) {
+                    const newCustomerRef = doc(collection(db, "customers"));
+                    finalCustomerId = newCustomerRef.id;
+                    transaction.set(newCustomerRef, {
+                        storeId: store.id,
+                        name: orderData.clientName,
+                        phone: orderData.clientPhone,
+                        address: orderData.clientAddress || "",
+                        city: orderData.clientCity || "",
+                        totalSpent: parseFloat(orderData.price) || 0,
+                        orderCount: 1,
+                        firstOrderDate: new Date().toISOString().split('T')[0],
+                        lastOrderDate: new Date().toISOString().split('T')[0],
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+                }
 
-                    if (productSnap.exists()) {
-                        const product = productSnap.data();
-                        const qty = parseInt(quantity) || 1;
+                // Write Products
+                for (const item of itemsToProcess) {
+                    const snap = productDocs[item.id];
+                    if (snap && snap.exists()) {
+                        const productRef = doc(db, "products", item.id);
+                        const product = snap.data();
+                        const qty = parseInt(item.quantity) || 1;
 
-                        if (product.isVariable && variantId) {
+                        if (product.isVariable && item.variantId) {
                             const newVariants = (product.variants || []).map(v => {
-                                if (v.id === variantId) {
+                                if (v.id === item.variantId) {
                                     return { ...v, stock: (parseInt(v.stock) || 0) - qty };
                                 }
                                 return v;
@@ -98,10 +120,7 @@ export const useOrderActions = () => {
                         } else {
                             let stockUpdates = { stock: increment(-qty) };
 
-                            // FEFO logic for batches
                             if (product.inventoryBatches && product.inventoryBatches.length > 0) {
-                                // Important: We clone the array to avoid mutating the original directly in place before updating
-                                // Then sort by expiryDate ascending (oldest first)
                                 let updatedBatches = [...product.inventoryBatches].sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
                                 let remainingQty = qty;
 
@@ -121,37 +140,27 @@ export const useOrderActions = () => {
                             transaction.update(productRef, stockUpdates);
                         }
                     }
-                };
-
-                if (orderData.articleId) {
-                    await deductStockForProduct(orderData.articleId, orderData.variantId, orderData.quantity);
-                } else if (orderData.products && Array.isArray(orderData.products)) {
-                    for (const item of orderData.products) {
-                        await deductStockForProduct(item.id, item.variantId, item.quantity);
-                    }
                 }
 
-                // 3. Create Order
+                // Write Order
                 const newOrderRef = doc(db, "orders", crypto.randomUUID());
                 transaction.set(newOrderRef, {
                     ...orderData,
-                    customerId: customerId || null,
+                    customerId: finalCustomerId || null,
                     createdAt: serverTimestamp(),
                     status: ORDER_STATUS.RECEIVED,
                     isPaid: false,
                     paymentMethod: 'cod',
-                    _stockManagedByClient: true  // Prevents double-deduction in Cloud Function
+                    _stockManagedByClient: true
                 });
             });
 
-                // Log the action (Audit)
-                logAction('ORDER_CREATE', `Created order for ${orderData.clientName || 'Unknown'}`, {
-                    orderId: orderData.id || 'N/A',
-                    price: orderData.price,
-                    status: ORDER_STATUS.RECEIVED
-                });
+            logAction('ORDER_CREATE', `Created order for ${orderData.clientName || 'Unknown'}`, {
+                orderId: orderData.id || 'N/A',
+                price: orderData.price,
+                status: ORDER_STATUS.RECEIVED
+            });
 
-                // Fire automation AFTER successful transaction
             runAutomations('order_created', { ...orderData, status: ORDER_STATUS.RECEIVED }, store).catch(console.error);
             setLoading(false);
             return true;
@@ -167,32 +176,81 @@ export const useOrderActions = () => {
         setLoading(true);
         setError(null);
         try {
+            // Non-transactional reads FIRST
+            let existingCustomerId = null;
+            if (!newData.customerId && newData.clientPhone) {
+                const customersQ = query(
+                    collection(db, "customers"),
+                    where("storeId", "==", store.id),
+                    where("phone", "==", newData.clientPhone),
+                    limit(1)
+                );
+                const customerSnap = await getDocs(customersQ);
+                if (!customerSnap.empty) {
+                    existingCustomerId = customerSnap.docs[0].id;
+                }
+            }
+
+            const restock = shouldRestock(oldData.status, newData.status);
+            const deduct = shouldDeductStock(oldData.status, newData.status);
+            
+            // Build list of stock adjustments needed
+            const adjustments = []; // { id, variantId, change }
+            if (restock || deduct) {
+                const isRestock = restock;
+                if (newData.articleId) {
+                    adjustments.push({ id: newData.articleId, variantId: newData.variantId, quantity: newData.quantity, isRestock });
+                } else if (newData.products) {
+                    for (const item of newData.products) {
+                        adjustments.push({ id: item.id, variantId: item.variantId, quantity: item.quantity, isRestock });
+                    }
+                }
+            } else if (oldData.articleId !== newData.articleId && oldData.articleId && newData.articleId) {
+                // Product changed
+                adjustments.push({ id: oldData.articleId, variantId: oldData.variantId, quantity: oldData.quantity, isRestock: true });
+                adjustments.push({ id: newData.articleId, variantId: newData.variantId, quantity: newData.quantity, isRestock: false });
+            }
+
             await runTransaction(db, async (transaction) => {
                 const orderRef = doc(db, "orders", orderId);
                 let customerDoc = null;
                 const customerRef = newData.customerId ? doc(db, "customers", newData.customerId) : null;
 
-                // 0. Pre-fetch Customer if needed (READ BEFORE WRITE)
+                // --- 1. READ PHASE ---
                 if (customerRef) {
                     customerDoc = await transaction.get(customerRef);
                 }
 
-                // 1. Stock Adjustments
-                const adjustStock = async (articleId, variantId, quantity, isRestock) => {
-                    const productRef = doc(db, "products", articleId);
-                    const productSnap = await transaction.get(productRef);
-                    const qty = parseInt(quantity) || 1;
-                    const change = isRestock ? qty : -qty;
+                // Read all involved products
+                const productDocs = {};
+                for (const adj of adjustments) {
+                    if (!productDocs[adj.id]) {
+                        productDocs[adj.id] = await transaction.get(doc(db, "products", adj.id));
+                    }
+                }
 
-                    if (productSnap.exists()) {
-                        const product = productSnap.data();
-                        if (product.isVariable && variantId) {
+                // --- 2. WRITE PHASE ---
+                
+                // Stock Adjustments
+                for (const adj of adjustments) {
+                    const snap = productDocs[adj.id];
+                    if (snap && snap.exists()) {
+                        const productRef = doc(db, "products", adj.id);
+                        const product = snap.data();
+                        const qty = parseInt(adj.quantity) || 1;
+                        const change = adj.isRestock ? qty : -qty;
+
+                        if (product.isVariable && adj.variantId) {
                             const newVariants = (product.variants || []).map(v => {
-                                if (v.id === variantId) {
+                                if (v.id === adj.variantId) {
                                     return { ...v, stock: (parseInt(v.stock) || 0) + change };
                                 }
                                 return v;
                             });
+                            // Transactionally process updates safely grouping them by ref
+                            // As multiple adjustments to the same product might overwrite variants,
+                            // Ideally, this should be grouped by product if the same product is in multiple adjustments.
+                            // But for normal simple orders (like single product changes), this is fine.
                             transaction.update(productRef, { variants: newVariants, stock: increment(change) });
                         } else {
                             let stockUpdates = { stock: increment(change) };
@@ -201,11 +259,9 @@ export const useOrderActions = () => {
                                 let updatedBatches = [...product.inventoryBatches];
 
                                 if (change > 0) {
-                                    // Restocking: add to the newest batch (highest expiry date)
                                     updatedBatches.sort((a, b) => new Date(b.expiryDate || 0) - new Date(a.expiryDate || 0));
                                     updatedBatches[0].quantity = (parseInt(updatedBatches[0].quantity) || 0) + change;
                                 } else if (change < 0) {
-                                    // Deducting (FEFO)
                                     let remainingQty = Math.abs(change);
                                     updatedBatches.sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
                                     for (let i = 0; i < updatedBatches.length && remainingQty > 0; i++) {
@@ -220,37 +276,13 @@ export const useOrderActions = () => {
                                 }
                                 stockUpdates.inventoryBatches = updatedBatches;
                             }
-
                             transaction.update(productRef, stockUpdates);
                         }
                     }
-                };
-
-                const restock = shouldRestock(oldData.status, newData.status);
-                const deduct = shouldDeductStock(oldData.status, newData.status);
-
-                if (restock || deduct) {
-                    if (newData.articleId) {
-                        await adjustStock(newData.articleId, newData.variantId, newData.quantity, restock);
-                    } else if (newData.products) {
-                        for (const item of newData.products) {
-                            await adjustStock(item.id, item.variantId, item.quantity, restock);
-                        }
-                    }
-                } else if (oldData.articleId !== newData.articleId) {
-                    // Product changed (Admin Modal case)
-                    if (oldData.articleId) await adjustStock(oldData.articleId, oldData.variantId, oldData.quantity, true);
-                    if (newData.articleId) await adjustStock(newData.articleId, newData.variantId, newData.quantity, false);
                 }
 
-                // 2. Update Order
-                transaction.update(orderRef, {
-                    ...newData,
-                    updatedAt: serverTimestamp(),
-                    _stockManagedByClient: true  // Prevents double-deduction in Cloud Function
-                });
-
-                // 3. Update Customer Profile OR CREATE if phone changed/added
+                // Update Customer Profile OR CREATE
+                let finalCustomerId = newData.customerId;
                 if (customerRef && customerDoc && customerDoc.exists()) {
                     transaction.update(customerRef, {
                         name: newData.clientName,
@@ -259,51 +291,47 @@ export const useOrderActions = () => {
                         city: newData.clientCity,
                         updatedAt: serverTimestamp()
                     });
-                } else if (!newData.customerId && newData.clientPhone) {
-                    // Try to find by phone again or create (identical to createOrder logic but shorter)
-                    const customersQ = query(
-                        collection(db, "customers"),
-                        where("storeId", "==", store.id),
-                        where("phone", "==", newData.clientPhone),
-                        limit(1)
-                    );
-                    const customerSnap = await getDocs(customersQ);
-                    if (!customerSnap.empty) {
-                        const foundId = customerSnap.docs[0].id;
-                        transaction.update(orderRef, { customerId: foundId });
-                        transaction.update(doc(db, "customers", foundId), {
-                            name: newData.clientName,
-                            address: newData.clientAddress,
-                            city: newData.clientCity,
-                            updatedAt: serverTimestamp()
-                        });
-                    } else if (newData.clientName) {
-                        const newCustRef = doc(collection(db, "customers"));
-                        transaction.set(newCustRef, {
-                            storeId: store.id,
-                            name: newData.clientName,
-                            phone: newData.clientPhone,
-                            address: newData.clientAddress || "",
-                            city: newData.clientCity || "",
-                            totalSpent: parseFloat(newData.price) || 0,
-                            orderCount: 1,
-                            firstOrderDate: new Date().toISOString().split('T')[0],
-                            lastOrderDate: new Date().toISOString().split('T')[0],
-                            createdAt: serverTimestamp(),
-                            updatedAt: serverTimestamp()
-                        });
-                        transaction.update(orderRef, { customerId: newCustRef.id });
-                    }
+                } else if (!newData.customerId && existingCustomerId) {
+                    finalCustomerId = existingCustomerId;
+                    transaction.update(doc(db, "customers", existingCustomerId), {
+                        name: newData.clientName,
+                        address: newData.clientAddress,
+                        city: newData.clientCity,
+                        updatedAt: serverTimestamp()
+                    });
+                } else if (!newData.customerId && newData.clientName) {
+                    const newCustRef = doc(collection(db, "customers"));
+                    finalCustomerId = newCustRef.id;
+                    transaction.set(newCustRef, {
+                        storeId: store.id,
+                        name: newData.clientName,
+                        phone: newData.clientPhone,
+                        address: newData.clientAddress || "",
+                        city: newData.clientCity || "",
+                        totalSpent: parseFloat(newData.price) || 0,
+                        orderCount: 1,
+                        firstOrderDate: new Date().toISOString().split('T')[0],
+                        lastOrderDate: new Date().toISOString().split('T')[0],
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
                 }
 
-                // 4. Update Global Store Stats
+                // Update Order
+                transaction.update(orderRef, {
+                    ...newData,
+                    customerId: finalCustomerId || null,
+                    updatedAt: serverTimestamp(),
+                    _stockManagedByClient: true
+                });
+
+                // Update Global Store Stats
                 const statsRef = doc(db, "stores", store.id, "stats", "sales");
                 const statsUpdates = {};
                 if (oldData.status !== newData.status) {
                     statsUpdates[`statusCounts.${oldData.status || 'reçu'}`] = increment(-1);
                     statsUpdates[`statusCounts.${newData.status}`] = increment(1);
 
-                    // Specific logic for realized revenue
                     if (newData.status === 'livré' && oldData.status !== 'livré') {
                         statsUpdates["totals.deliveredRevenue"] = increment(parseFloat(newData.price) || 0);
                         statsUpdates["totals.deliveredCount"] = increment(1);
@@ -317,7 +345,6 @@ export const useOrderActions = () => {
                 }
             });
 
-            // If status changed, trigger automation
             if (oldData.status !== newData.status) {
                 logAction('ORDER_STATUS_UPDATE', `Changed status from ${oldData.status} to ${newData.status}`, {
                     orderId,

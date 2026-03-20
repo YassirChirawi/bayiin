@@ -645,3 +645,134 @@ exports.syncStockToWooCommerce = onDocumentWritten({
         console.error(`Failed to sync stock to WooCommerce for SKU ${after.sku}:`, error);
     }
 });
+
+/**
+ * Track Expenses in Real-Time
+ */
+exports.onExpenseWrite = onDocumentWritten({
+    document: "expenses/{expenseId}",
+    database: "comsaas",
+    region: "us-central1",
+}, async (event) => {
+    const change = event.data;
+    if (!change) return;
+
+    const before = change.before.exists ? change.before.data() : null;
+    const after = change.after.exists ? change.after.data() : null;
+
+    const storeId = after ? after.storeId : before.storeId;
+    if (!storeId) return;
+
+    let amountDelta = 0;
+
+    if (!before && after) {
+        amountDelta = parseFloat(after.amount) || 0;
+    } else if (before && !after) {
+        amountDelta = -(parseFloat(before.amount) || 0);
+    } else if (before && after) {
+        amountDelta = (parseFloat(after.amount) || 0) - (parseFloat(before.amount) || 0);
+    }
+
+    if (amountDelta === 0) return;
+
+    const statsRef = db.collection('stores').doc(storeId).collection('stats').doc('sales');
+    return statsRef.set({
+        'totals.expenses': FieldValue.increment(amountDelta)
+    }, { merge: true });
+});
+
+/**
+ * Daily Stats Reconciliation (Cron Job)
+ * Rebuilds stats/sales every night at 2:00 AM to fix any potential drift.
+ */
+exports.scheduledReconciliation = functions.pubsub.schedule('0 2 * * *')
+  .timeZone('Africa/Casablanca')
+  .onRun(async (context) => {
+    console.log("Starting Daily Recalculation of all Store Stats...");
+
+    const storesSnap = await db.collection('stores').get();
+    
+    for (const storeDoc of storesSnap.docs) {
+        const storeId = storeDoc.id;
+        
+        try {
+            // Fetch Orders
+            const ordersSnap = await db.collection('orders').where('storeId', '==', storeId).get();
+            // Fetch Expenses
+            const expensesSnap = await db.collection('expenses').where('storeId', '==', storeId).get();
+            
+            const stats = {
+                totals: {
+                    revenue: 0,
+                    count: 0,
+                    realizedRevenue: 0,
+                    realizedCOGS: 0,
+                    realizedDeliveryCost: 0,
+                    deliveredRevenue: 0,
+                    expectedRevenue: 0,
+                    unremittedRevenue: 0,
+                    remittedRevenue: 0,
+                    expenses: 0
+                },
+                statusCounts: {},
+                daily: {}
+            };
+
+            // Aggregate Expenses
+            expensesSnap.forEach(eDoc => {
+                const e = eDoc.data();
+                stats.totals.expenses += (parseFloat(e.amount) || 0);
+            });
+
+            // Aggregate Orders
+            ordersSnap.forEach(oDoc => {
+                const order = oDoc.data();
+                const orderVal = (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
+                const orderCost = (parseFloat(order.costPrice) || 0) * (parseInt(order.quantity) || 1);
+                const deliveryCost = parseFloat(order.realDeliveryCost) || 0;
+                const dateKey = order.date ? order.date.split('T')[0] : 'unknown';
+
+                stats.totals.revenue += orderVal;
+                stats.totals.count += 1;
+
+                if (order.isPaid) {
+                    stats.totals.realizedRevenue += orderVal;
+                    stats.totals.realizedCOGS += orderCost;
+                    stats.totals.realizedDeliveryCost += deliveryCost;
+                }
+
+                if (order.status === 'livraison' || order.status === 'ramassage') {
+                    stats.totals.expectedRevenue += orderVal;
+                }
+
+                if (order.status === 'livré') {
+                    stats.totals.deliveredRevenue += orderVal;
+                    if (order.paymentStatus === 'remitted') {
+                        stats.totals.remittedRevenue += orderVal;
+                    } else {
+                        stats.totals.unremittedRevenue += orderVal;
+                    }
+                }
+
+                const status = order.status || 'unknown';
+                stats.statusCounts[status] = (stats.statusCounts[status] || 0) + 1;
+
+                if (!stats.daily[dateKey]) {
+                    stats.daily[dateKey] = { revenue: 0, count: 0 };
+                }
+                stats.daily[dateKey].revenue += orderVal;
+                stats.daily[dateKey].count += 1;
+            });
+
+            // Commit to Firestore
+            await db.collection('stores').doc(storeId).collection('stats').doc('sales').set(stats);
+            console.log(`Reconciled Store ${storeId} successfully.`);
+        } catch (err) {
+            console.error(`Failed to reconcile store ${storeId}:`, err);
+        }
+    }
+    
+    console.log("Daily reconciliation finished.");
+    return null;
+});
+

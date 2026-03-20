@@ -1,6 +1,11 @@
 export const translations = {
     en: {
         // Common
+        btn_next: "Next",
+        btn_back: "Back",
+        btn_finish_setup: "Finish Setup",
+        btn_create: "Create",
+        label_qty: "Quantity",
         loading: "Loading...",
         search_placeholder: "Search...",
         btn_search: "Search",
@@ -814,6 +819,11 @@ export const translations = {
     },
     fr: {
         // Common
+        btn_next: "Suivant",
+        btn_back: "Précédent",
+        btn_finish_setup: "Terminer",
+        btn_create: "Créer",
+        label_qty: "Quantité",
         loading: "Chargement...",
         search_placeholder: "Rechercher...",
         btn_search: "Rechercher",

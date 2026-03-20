@@ -2,7 +2,7 @@ import { useTenant } from "../context/TenantContext";
 import { useStoreData } from "../hooks/useStoreData";
 import { useStoreStats } from "../hooks/useStoreStats";
 import { Link } from "react-router-dom";
-import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, RotateCcw, CheckCircle, RefreshCw, Check, X, Calendar, Clock, Truck, Sparkles } from "lucide-react";
+import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, RotateCcw, CheckCircle, RefreshCw, Check, X, Calendar, Clock, Truck, Sparkles, Activity } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion"; // Added Calendar, Clock, Truck
 import { useMemo, useState } from "react";
 import { format, subDays } from "date-fns";
@@ -169,6 +169,12 @@ export default function Dashboard() {
         const unremittedRevenue = aggregatedStats.totals?.unremittedRevenue || 0;
         const remittedRevenue = aggregatedStats.totals?.remittedRevenue || 0;
         const totalDelivered = aggregatedStats.totals?.deliveredRevenue || 0;
+        
+        const totalExpenses = aggregatedStats.totals?.expenses || 0;
+        const realizedRevenue = aggregatedStats.totals?.realizedRevenue || 0;
+        const realizedCOGS = aggregatedStats.totals?.realizedCOGS || 0;
+        const netMarginValue = realizedRevenue - realizedCOGS - totalExpenses;
+        const marginPercentage = realizedRevenue > 0 ? ((netMarginValue / realizedRevenue) * 100).toFixed(1) : 0;
 
         return {
             revenueToday,
@@ -179,7 +185,10 @@ export default function Dashboard() {
             expectedRevenue,
             unremittedRevenue,
             remittedRevenue,
-            totalDelivered
+            totalDelivered,
+            totalExpenses,
+            netMarginValue,
+            marginPercentage
         };
     }, [aggregatedStats]);
 
@@ -258,7 +267,7 @@ export default function Dashboard() {
             <Beya3Insights orders={recentOrders} storeStats={aggregatedStats} />
 
             {/* KPI Grid */}
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 <div className="glass-panel rounded-xl overflow-hidden p-5">
                     <div className="flex items-center">
                         <div className="flex-shrink-0 bg-indigo-50 rounded-md p-3">
@@ -341,6 +350,47 @@ export default function Dashboard() {
                             </ul>
                         </div>
                     )}
+                </div>
+
+                <div className="glass-panel rounded-xl overflow-hidden p-5">
+                    <div className="flex items-center">
+                        <div className="flex-shrink-0 bg-red-50 rounded-md p-3">
+                            <Activity className="h-6 w-6 text-red-600" />
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt className="text-sm font-medium text-gray-500 truncate flex items-center gap-2">
+                                    Total Charges
+                                    <HelpTooltip topic="dashboard" />
+                                </dt>
+                                <dd className="text-2xl font-semibold text-gray-900">
+                                    {statsLoading ? "..." : (dashboardData.totalExpenses.toLocaleString())} DH
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="glass-panel rounded-xl overflow-hidden p-5">
+                    <div className="flex items-center">
+                        <div className="flex-shrink-0 bg-green-50 rounded-md p-3">
+                            <DollarSign className="h-6 w-6 text-green-600" />
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt className="text-sm font-medium text-gray-500 truncate flex items-center gap-2">
+                                    Marge Nette
+                                    <HelpTooltip topic="dashboard" />
+                                </dt>
+                                <dd className="text-2xl font-semibold text-gray-900">
+                                    {statsLoading ? "..." : (dashboardData.netMarginValue.toLocaleString())} DH
+                                </dd>
+                                <dd className="text-sm font-medium text-green-600 mt-1">
+                                    {dashboardData.marginPercentage}% de marge
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
                 </div>
             </div>
 

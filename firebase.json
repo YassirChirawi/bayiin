@@ -19,7 +19,14 @@
     "functions": {
         "source": "functions"
     },
-    "firestore": {
-        "rules": "firestore.rules"
-    }
+    "firestore": [
+        {
+            "database": "(default)",
+            "rules": "firestore.rules"
+        },
+        {
+            "database": "comsaas",
+            "rules": "firestore.rules"
+        }
+    ]
 }

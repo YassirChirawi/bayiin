@@ -14,7 +14,11 @@ export const reconcileStoreStats = async (db, storeId) => {
         const q = query(ordersRef, where("storeId", "==", storeId));
         const snapshot = await getDocs(q);
 
-        console.log(`Reconciling stats for ${storeId}. Found ${snapshot.size} orders.`);
+        const expensesRef = collection(db, "expenses");
+        const expQ = query(expensesRef, where("storeId", "==", storeId));
+        const expSnapshot = await getDocs(expQ);
+
+        console.log(`Reconciling stats for ${storeId}. Found ${snapshot.size} orders and ${expSnapshot.size} expenses.`);
 
         const stats = {
             totals: {
@@ -26,7 +30,8 @@ export const reconcileStoreStats = async (db, storeId) => {
                 deliveredRevenue: 0, // Specific tracked metric
                 expectedRevenue: 0,
                 unremittedRevenue: 0,
-                remittedRevenue: 0
+                remittedRevenue: 0,
+                expenses: 0
             },
             statusCounts: {},
             daily: {} // date -> { revenue, count }
@@ -72,6 +77,11 @@ export const reconcileStoreStats = async (db, storeId) => {
             }
             stats.daily[dateKey].revenue += orderVal;
             stats.daily[dateKey].count += 1;
+        });
+
+        expSnapshot.forEach(doc => {
+            const e = doc.data();
+            stats.totals.expenses += (parseFloat(e.amount) || 0);
         });
 
         // Write to Firestore

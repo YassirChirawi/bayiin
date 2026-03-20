@@ -191,25 +191,28 @@ export function exportOrderForOdoo(order) {
 
 // ─── 4. Reception & Stock Update ─────────────────────────────────────────────
 
-/**
- * Validate the reception of a purchase order:
- * 1. Increments stock for each product line.
- * 2. Updates costPrice with the received unit_price.
- * 3. Appends batch entries (batchNumber, expiryDate, quantity).
- *
- * @param {string} orderId
- * @param {Array} receivedLines  [{ productId, qty, unit_price, batchNumber, expiryDate }]
- * @param {string} storeId
- */
 export async function validateReception(orderId, receivedLines, storeId) {
     const batch = writeBatch(db);
 
+    // 1. Read phase
+    const poSnap = await getDoc(doc(db, 'purchase_orders', orderId));
+    const supplierName = poSnap.exists() ? poSnap.data().supplierName : 'Fournisseur';
+
+    const productDocs = {};
     for (const line of receivedLines) {
         if (!line.productId) continue;
-        const productRef = doc(db, 'products', line.productId);
-        const productSnap = await getDoc(productRef);
+        if (!productDocs[line.productId]) {
+            productDocs[line.productId] = await getDoc(doc(db, 'products', line.productId));
+        }
+    }
+
+    // 2. Write phase
+    for (const line of receivedLines) {
+        if (!line.productId) continue;
+        const productSnap = productDocs[line.productId];
         if (!productSnap.exists()) continue;
 
+        const productRef = doc(db, 'products', line.productId);
         const current = productSnap.data();
         const currentStock = parseFloat(current.stock) || 0;
         const newStock = currentStock + (parseFloat(line.qty) || 0);
@@ -240,27 +243,25 @@ export async function validateReception(orderId, receivedLines, storeId) {
     });
 
     // Record reception sub-document
-    await addDoc(collection(db, 'purchase_orders', orderId, 'receptions'), {
+    const newReceptionRef = doc(collection(db, 'purchase_orders', orderId, 'receptions'));
+    batch.set(newReceptionRef, {
         receivedAt: serverTimestamp(),
         storeId,
         lines: receivedLines,
     });
 
-    // 4. Auto-create Finance Expense (COGS)
+    // Auto-create Finance Expense (COGS)
     const totalReceivedValue = receivedLines.reduce((sum, l) => sum + ((parseFloat(l.qty) || 0) * (parseFloat(l.unit_price) || 0)), 0);
     
-    // Get PO details for the expense description
-    const poSnap = await getDoc(doc(db, 'purchase_orders', orderId));
-    const supplierName = poSnap.exists() ? poSnap.data().supplierName : 'Fournisseur';
-    
+    // We categorize it exactly as "COGS" so the dashboard recognizes it.
     const expenseRef = doc(collection(db, 'expenses'));
     batch.set(expenseRef, {
         storeId,
         date: new Date().toISOString().split('T')[0],
-        category: 'Fournitures & Stock (COGS)',
+        category: 'COGS',
         amount: totalReceivedValue,
         description: `Réception Commande Fournisseur - ${supplierName}`,
-        collectionId: '', // General store expense
+        collectionId: '',
         recurrent: false,
         source: 'purchase_order',
         purchaseOrderId: orderId,

@@ -675,7 +675,7 @@ export default function Finances() {
                 </div>
 
                 {/* CFO Simulator Section */}
-                <div className="mb-8">
+                <div className="md:col-span-4 mb-8">
                     <CFOSimulator
                         currentStats={stats.res}
                         onAiAnalysis={async (scenario, projections) => {
