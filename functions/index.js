@@ -226,7 +226,8 @@ exports.handleWooCommerceOrder = functions.https.onRequest(async (req, res) => {
                 externalId: orderData.id,
                 products: mappedProducts,
                 isPaid: orderData.status === 'processing' || orderData.status === 'completed',
-                paymentMethod: orderData.payment_method || 'cod'
+                paymentMethod: orderData.payment_method || 'cod',
+                _stockManagedByClient: true // Stock already deducted above — prevents double deduction in onOrderWrite
             });
         });
 
@@ -453,7 +454,33 @@ exports.onOrderWrite = onDocumentWritten({
     // Commit batch for Stock (and any other potential batch ops)
     const batchPromise = batch.commit();
 
-    return Promise.all([statsPromise, batchPromise]);
+    // 5. CUSTOMER totalSpent SYNC
+    // When an order transitions to 'livré', increment customer totalSpent by order value.
+    // When an order leaves 'livré' (cancelled, returned), decrement it.
+    const DELIVERED_STATUS = 'livré';
+    const customerId = after?.customerId || before?.customerId;
+    let customerSpentPromise = Promise.resolve();
+
+    if (customerId) {
+        const wasDelivered = oldStatus === DELIVERED_STATUS;
+        const isDelivered = newStatus === DELIVERED_STATUS;
+        const orderValue = getOrderValue(after || before);
+
+        if (!wasDelivered && isDelivered) {
+            // Transition TO delivered: increment totalSpent
+            customerSpentPromise = db.collection('customers').doc(customerId).update({
+                totalSpent: FieldValue.increment(orderValue),
+                lastOrderDate: (after?.date) || new Date().toISOString().split('T')[0]
+            }).catch(e => console.warn('Customer totalSpent update failed:', e.message));
+        } else if (wasDelivered && !isDelivered && before && after) {
+            // Transition AWAY from delivered: decrement totalSpent
+            customerSpentPromise = db.collection('customers').doc(customerId).update({
+                totalSpent: FieldValue.increment(-getOrderValue(before))
+            }).catch(e => console.warn('Customer totalSpent decrement failed:', e.message));
+        }
+    }
+
+    return Promise.all([statsPromise, batchPromise, customerSpentPromise]);
 });
 
 /**

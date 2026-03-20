@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     collection, query, where, getDocs, doc, updateDoc,
     setDoc, serverTimestamp, addDoc, deleteDoc
@@ -13,7 +14,7 @@ import {
     ChevronDown, ChevronUp, Phone, MapPin, Briefcase, Star,
     Clock, CheckCircle, AlertTriangle, Upload, ShieldCheck,
     TrendingUp, RefreshCcw, Edit2, Save, Car, Award,
-    Home, Contact, GraduationCap, Camera, HeartPulse
+    Home, Contact, GraduationCap, Camera, HeartPulse, Mail, Shield
 } from 'lucide-react';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -462,6 +463,7 @@ const EMP_SUBTABS = [
 ];
 
 function EmployeeCard({ employee, onUpdate }) {
+    const navigate = useNavigate();
     const [expanded, setExpanded] = useState(false);
     const [subTab, setSubTab] = useState('info');
     const [editing, setEditing] = useState(false);
@@ -469,9 +471,19 @@ function EmployeeCard({ employee, onUpdate }) {
         name: employee.name, phone: employee.phone || '', city: employee.city || '',
         department: employee.department || 'Vente', contractType: employee.contractType || 'CDI',
         startDate: employee.startDate || '', position: employee.position || '',
+        email: employee.email || '',
     });
     const [saving, setSaving] = useState(false);
     const score = employee.performance_score ?? 100;
+
+    const handleInviteToPanel = () => {
+        // Pre-fill Team invite form via sessionStorage bridge
+        sessionStorage.setItem('hr_invite_prefill', JSON.stringify({
+            name: employee.name,
+            email: employee.email || ''
+        }));
+        navigate('/team');
+    };
 
     async function saveEdit() {
         setSaving(true);
@@ -524,6 +536,7 @@ function EmployeeCard({ employee, onUpdate }) {
                                             <div className="grid grid-cols-2 gap-3">
                                                 {[
                                                     { key: 'name', label: 'Nom complet' },
+                                                    { key: 'email', label: 'Email (pour accès panel)' },
                                                     { key: 'phone', label: 'Téléphone' },
                                                     { key: 'city', label: 'Ville' },
                                                     { key: 'position', label: 'Poste' },
@@ -589,11 +602,37 @@ function EmployeeCard({ employee, onUpdate }) {
                                                     <p className="text-xs text-gray-400 mb-0.5">Ville</p>
                                                     <p className="font-medium text-gray-800">{employee.city || '—'}</p>
                                                 </div>
+                                                {employee.email && (
+                                                    <div className="col-span-2 bg-indigo-50 rounded-lg p-3 flex items-center justify-between">
+                                                        <div>
+                                                            <p className="text-xs text-indigo-400 mb-0.5">Email Panel</p>
+                                                            <p className="font-medium text-indigo-800 text-xs">{employee.email}</p>
+                                                        </div>
+                                                        <button
+                                                            onClick={handleInviteToPanel}
+                                                            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
+                                                        >
+                                                            <Shield className="w-3 h-3" /> Inviter sur le panel
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
-                                            <button onClick={() => setEditing(true)}
-                                                className="flex items-center gap-1.5 text-sm text-emerald-600 hover:underline">
-                                                <Edit2 className="w-3.5 h-3.5" /> Modifier le profil
-                                            </button>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setEditing(true)}
+                                                    className="flex items-center gap-1.5 text-sm text-emerald-600 hover:underline"
+                                                >
+                                                    <Edit2 className="w-3.5 h-3.5" /> Modifier le profil
+                                                </button>
+                                                {!employee.email && (
+                                                    <button
+                                                        onClick={() => setEditing(true)}
+                                                        className="flex items-center gap-1.5 text-xs text-indigo-500 hover:underline"
+                                                    >
+                                                        <Mail className="w-3 h-3" /> + Ajouter email pour accès panel
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                 </div>

@@ -246,6 +246,27 @@ export async function validateReception(orderId, receivedLines, storeId) {
         lines: receivedLines,
     });
 
+    // 4. Auto-create Finance Expense (COGS)
+    const totalReceivedValue = receivedLines.reduce((sum, l) => sum + ((parseFloat(l.qty) || 0) * (parseFloat(l.unit_price) || 0)), 0);
+    
+    // Get PO details for the expense description
+    const poSnap = await getDoc(doc(db, 'purchase_orders', orderId));
+    const supplierName = poSnap.exists() ? poSnap.data().supplierName : 'Fournisseur';
+    
+    const expenseRef = doc(collection(db, 'expenses'));
+    batch.set(expenseRef, {
+        storeId,
+        date: new Date().toISOString().split('T')[0],
+        category: 'Fournitures & Stock (COGS)',
+        amount: totalReceivedValue,
+        description: `Réception Commande Fournisseur - ${supplierName}`,
+        collectionId: '', // General store expense
+        recurrent: false,
+        source: 'purchase_order',
+        purchaseOrderId: orderId,
+        createdAt: serverTimestamp()
+    });
+
     await batch.commit();
 }
 
