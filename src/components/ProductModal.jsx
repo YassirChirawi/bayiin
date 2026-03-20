@@ -270,7 +270,7 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                             {/* SKU Field with live validation */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    SKU KUO'S
+                                    SKU (Référence unique)
                                     <span className="ml-1 text-xs font-normal text-gray-400">(ex: DSVP001)</span>
                                 </label>
                                 <input
@@ -279,12 +279,12 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                                     onChange={(e) => setFormData({ ...formData, sku: e.target.value.toUpperCase() })}
                                     placeholder="DREN001"
                                     className={`block w-full font-mono text-sm border rounded-md px-3 py-2 focus:outline-none focus:ring-1 ${!formData.sku ? 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'
-                                        : validateSKU(formData.sku).valid ? 'border-emerald-400 bg-emerald-50 focus:ring-emerald-400'
+                                        : validateSKU(formData.sku, store?.settings).valid ? 'border-emerald-400 bg-emerald-50 focus:ring-emerald-400'
                                             : 'border-rose-400 bg-rose-50 focus:ring-rose-400'
                                         }`}
                                 />
                                 {formData.sku && (() => {
-                                    const v = validateSKU(formData.sku);
+                                    const v = validateSKU(formData.sku, store?.settings);
                                     return v.valid
                                         ? <p className="mt-1 text-xs text-emerald-600 font-medium">✓ Ligne : {v.lineName} · N° {v.number}</p>
                                         : <p className="mt-1 text-xs text-rose-600">{v.error}</p>;

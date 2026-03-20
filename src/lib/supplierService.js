@@ -101,8 +101,9 @@ export async function parseOdooCSV(file) {
  * Returns { matched: [], unmatched: [] }
  * @param {string} storeId
  * @param {Array} parsedRows
+ * @param {Object} storeSettings
  */
-export async function matchProductsBySupplierRef(storeId, parsedRows) {
+export async function matchProductsBySupplierRef(storeId, parsedRows, storeSettings = {}) {
     const snap = await getDocs(
         query(collection(db, 'products'), where('storeId', '==', storeId))
     );
@@ -123,7 +124,7 @@ export async function matchProductsBySupplierRef(storeId, parsedRows) {
         const refKey = (row.supplier_ref || '').trim().toLowerCase();
         const nameKey = (row.name || '').trim().toLowerCase();
         // Try SKU match first (highest precision)
-        const detectedSKU = extractSKUFromRow(row);
+        const detectedSKU = extractSKUFromRow(row, storeSettings);
         const product = (
             (detectedSKU && bySKU[detectedSKU]) ||
             byRef[refKey] ||

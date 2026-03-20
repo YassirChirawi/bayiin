@@ -531,7 +531,7 @@ export default function Landing() {
                                     </div>
                                     <div>
                                         <p className="font-bold text-white">App Livreur</p>
-                                        <p className="text-xs text-slate-400">Kuos Cosmetics</p>
+                                        <p className="text-xs text-slate-400">Boutique Exemple</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-2 text-xs">

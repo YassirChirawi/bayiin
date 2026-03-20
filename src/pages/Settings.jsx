@@ -1,7 +1,7 @@
 import { useTenant } from "../context/TenantContext";
 import { useLanguage } from "../context/LanguageContext"; // NEW
-import { User, Store, CreditCard, Check, Zap, Shield, Save, Settings as SettingsIcon, Truck, Users, Lock, Activity, Sparkles } from "lucide-react";
-import { doc, updateDoc, setDoc, collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
+import { User, Store, CreditCard, Check, Zap, Shield, Save, Settings as SettingsIcon, Truck, Users, Lock, Activity, Sparkles, Package, Trash2, Plus } from "lucide-react";
+import { doc, updateDoc, collection, query, getDocs, orderBy, limit } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Button from "../components/Button";
 import { useState, useEffect } from "react";
@@ -13,25 +13,157 @@ import { format } from "date-fns"; // For Audit Dates
 
 import { PLANS, createCheckoutSession } from "../lib/stripeService";
 import { DEFAULT_TEMPLATES, DARIJA_TEMPLATES } from "../utils/whatsappTemplates";
-import { reconcileStoreStats } from "../utils/reconcileStats";
+
 import { useReconciliation } from "../hooks/useReconciliation";
 import ShippingSettings from "./ShippingSettings";
 
+function CatalogSettings({ store, setStore, t }) {
+    const [settings, setSettings] = useState(store?.settings || {
+        skuRegex: '',
+        lineProfiles: {},
+        complementaryRules: {}
+    });
+    const [saving, setSaving] = useState(false);
 
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            await updateDoc(doc(db, "stores", store.id), { settings });
+            setStore(prev => ({ ...prev, settings }));
+            toast.success("Configurations du catalogue enregistrées !");
+        } catch (e) {
+            console.error(e);
+            toast.error("Erreur de sauvegarde");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const addProfile = () => {
+        const code = prompt("Code de la gamme (ex: DSV, SER, ...) :");
+        if (!code) return;
+        const name = prompt(`Nom de la gamme pour ${code} (ex: Soin Visage, Sérums, ...) :`);
+        if (!name) return;
+        setSettings(prev => ({
+            ...prev,
+            lineProfiles: { ...prev.lineProfiles, [code.toUpperCase()]: name }
+        }));
+    };
+
+    const removeProfile = (code) => {
+        const newProfiles = { ...settings.lineProfiles };
+        delete newProfiles[code];
+        setSettings(prev => ({ ...prev, lineProfiles: newProfiles }));
+    };
+
+    const addRule = (lineCode) => {
+        const targetCode = prompt(`Quel code de gamme suggérer avec ${lineCode} ?`);
+        if (!targetCode) return;
+        const currentRules = settings.complementaryRules?.[lineCode] || [];
+        if (currentRules.includes(targetCode.toUpperCase())) return;
+        
+        setSettings(prev => ({
+            ...prev,
+            complementaryRules: {
+                ...(prev.complementaryRules || {}),
+                [lineCode]: [...currentRules, targetCode.toUpperCase()]
+            }
+        }));
+    };
+
+    const removeRule = (lineCode, targetCode) => {
+        const currentRules = settings.complementaryRules?.[lineCode] || [];
+        setSettings(prev => ({
+            ...prev,
+            complementaryRules: {
+                ...prev.complementaryRules,
+                [lineCode]: currentRules.filter(c => c !== targetCode)
+            }
+        }));
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
+                <div className="px-4 py-5 sm:p-6 space-y-6">
+                    <div>
+                        <h3 className="text-lg font-medium text-gray-900 border-b pb-2 mb-4">SKU & Validation</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Regex de validation SKU</label>
+                                <input
+                                    type="text"
+                                    value={settings.skuRegex || ''}
+                                    onChange={e => setSettings(prev => ({ ...prev, skuRegex: e.target.value }))}
+                                    placeholder="Ex: ^[A-Z]{3,4}\d{3}$ (Force 3-4 lettres + 3 chiffres)"
+                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm font-mono focus:ring-indigo-500 focus:border-indigo-500"
+                                />
+                                <p className="mt-1 text-[10px] text-gray-400">Laissez vide pour autoriser n'importe quel SKU. Utilisez les regex standards JavaScript.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 className="text-lg font-medium text-gray-900 border-b pb-2 mb-4">Gammage & Profils</h3>
+                        <p className="text-xs text-gray-400 mb-4">Associez les préfixes de vos SKU à des noms de gammes pour personnaliser l'Advisor.</p>
+                        <div className="space-y-2">
+                            {Object.entries(settings.lineProfiles || {}).map(([code, name]) => (
+                                <div key={code} className="flex items-center justify-between bg-gray-50 p-2 rounded-lg border border-gray-100">
+                                    <div className="flex items-center gap-3">
+                                        <span className="font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">{code}</span>
+                                        <span className="text-sm text-gray-700">{name}</span>
+                                    </div>
+                                    <button onClick={() => removeProfile(code)} className="text-rose-400 hover:text-rose-600 p-1"><Trash2 className="w-4 h-4" /></button>
+                                </div>
+                            ))}
+                            <button onClick={addProfile} className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 text-xs font-semibold py-2">
+                                <Plus className="w-3.5 h-3.5" /> Ajouter une gamme
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 className="text-lg font-medium text-gray-900 border-b pb-2 mb-4">Règles de Recommandation (Cross-selling)</h3>
+                        <p className="text-xs text-gray-400 mb-4">Définissez quels produits suggérer selon la gamme sélectionnée.</p>
+                        <div className="space-y-4">
+                            {Object.keys(settings.lineProfiles || {}).map(lineCode => (
+                                <div key={lineCode} className="border border-gray-100 rounded-xl p-3 bg-gray-50/50">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-xs font-bold text-gray-600 uppercase">Si le client achète : {settings.lineProfiles[lineCode]} ({lineCode})</span>
+                                        <button onClick={() => addRule(lineCode)} className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-bold tracking-tight uppercase">Suggérer gamme +</button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {(settings.complementaryRules?.[lineCode] || []).map(target => (
+                                            <div key={target} className="flex items-center gap-1.5 px-2 py-1 bg-white border border-indigo-100 rounded text-xs text-indigo-700">
+                                                <span className="font-mono font-bold">{target}</span>
+                                                <button onClick={() => removeRule(lineCode, target)} className="text-gray-300 hover:text-rose-500">×</button>
+                                            </div>
+                                        ))}
+                                        {!(settings.complementaryRules?.[lineCode]?.length) && <span className="text-[10px] text-gray-400 italic">Aucune règle définie (Vente aléatoire activée)</span>}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end pt-4 border-t border-gray-100">
+                        <Button onClick={handleSave} isLoading={saving} icon={Save}>Enregistrer les configurations</Button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 export default function Settings() {
     const { store, setStore } = useTenant();
     const { t } = useLanguage(); // NEW
 
-    // Security: Redirect Staff //
-    if (store?.role === 'staff') {
-        return <Navigate to="/dashboard" replace />;
-    }
-
     const [activeTab, setActiveTab] = useState("general");
     const [loading, setLoading] = useState(null); // 'starter' | 'pro' | null
     const { uploadImage, uploading, error: uploadError } = useImageUpload();
     const { runReconciliation, isRecalculating } = useReconciliation(store?.id);
+
 
     // Check for Return from Stripe
     // Check for Return from Stripe
@@ -106,6 +238,7 @@ export default function Settings() {
     const tabs = [
         { id: "general", label: t('tab_general'), icon: Store },
         { id: "shipping", label: t('tab_shipping'), icon: Truck },
+        { id: "catalog", label: t('tab_catalog') || 'Catalogue', icon: Package },
         { id: "billing", label: t('tab_billing'), icon: CreditCard },
         { id: "security", label: t('tab_security'), icon: Shield },
         { id: "activity", label: t('tab_activity'), icon: Activity }, // NEW
@@ -145,6 +278,11 @@ export default function Settings() {
             }
         }
     };
+
+    // Security: Redirect Staff //
+    if (store?.role === 'staff') {
+        return <Navigate to="/dashboard" replace />;
+    }
 
     return (
         <div className="space-y-6">
@@ -216,6 +354,7 @@ export default function Settings() {
                 )}
 
                 {activeTab === "shipping" && <ShippingSettings />}
+                {activeTab === "catalog" && <CatalogSettings store={store} setStore={setStore} t={t} />}
 
                 {activeTab === "billing" && (
                     <div className="space-y-6">
@@ -494,8 +633,7 @@ export default function Settings() {
                                                                 address: store.address || ""
                                                             });
                                                             toast.success(t('msg_details_saved') || 'Mentions légales sauvegardées !');
-                                                        } catch (e) {
-                                                            console.error(e);
+                                                        } catch {
                                                             toast.error(t('err_save_failed') || 'Erreur lors de la sauvegarde');
                                                         }
                                                     }}

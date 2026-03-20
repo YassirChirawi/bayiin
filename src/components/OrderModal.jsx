@@ -236,7 +236,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
             // --- AI Advisor Integration ---
             if (product.sku) {
                 setLoadingAI(true);
-                getAISuggestions(product.sku, [], products)
+                getAISuggestions(product.sku, [], products, store?.settings)
                     .then(res => setAiSuggestions(res))
                     .catch(err => console.error("AI Advisor error:", err))
                     .finally(() => setLoadingAI(false));

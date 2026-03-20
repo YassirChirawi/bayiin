@@ -512,7 +512,7 @@ export default function AdminDashboard() {
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Franchise Name</label>
                                 <Input
-                                    placeholder="e.g. Kuos Cosmetics Global"
+                                    placeholder="e.g. Boutique Global"
                                     value={newFranchiseName}
                                     onChange={e => setNewFranchiseName(e.target.value)}
                                     required autoFocus

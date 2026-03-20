@@ -225,7 +225,7 @@ function PurchaseOrdersTab({ storeId }) {
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="col-span-2">
                                     <label className="text-xs text-gray-500">Nom du fournisseur *</label>
-                                    <input required type="text" value={supplierName} onChange={e => setSupplierName(e.target.value)} placeholder="ex: KUO'S Grossiste Espagne"
+                                    <input required type="text" value={supplierName} onChange={e => setSupplierName(e.target.value)} placeholder="ex: Mon Fournisseur"
                                         className="block w-full mt-1 text-sm border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-300 focus:outline-none" />
                                 </div>
                             </div>
@@ -355,7 +355,8 @@ function PurchaseOrdersTab({ storeId }) {
 
 // ─── Tab: Import Facture Odoo ─────────────────────────────────────────────────
 
-function ImportTab({ storeId }) {
+function ImportTab({ store }) {
+    const storeId = store?.id;
     const [dragging, setDragging] = useState(false);
     const [parsing, setParsing] = useState(false);
     const [result, setResult] = useState(null); // { matched, unmatched, errors, rawHeaders }
@@ -369,7 +370,7 @@ function ImportTab({ storeId }) {
         setResult(null);
         try {
             const parsed = await parseOdooCSV(file);
-            const matching = await matchProductsBySupplierRef(storeId, parsed.rows);
+            const matching = await matchProductsBySupplierRef(storeId, parsed.rows, store?.settings);
             setResult({ ...matching, errors: parsed.errors, rawHeaders: parsed.rawHeaders });
             if (parsed.errors.length > 0) toast.error(`${parsed.errors.length} ligne(s) ignorée(s)`);
         } catch (e) {
@@ -464,7 +465,7 @@ function ImportTab({ storeId }) {
 
                             <div>
                                 <label className="text-xs text-gray-500">Nom du fournisseur</label>
-                                <input type="text" value={supplierName} onChange={e => setSupplierName(e.target.value)} placeholder="ex: KUO'S Grossiste"
+                                <input type="text" value={supplierName} onChange={e => setSupplierName(e.target.value)} placeholder="ex: Mon Grossiste"
                                     className="block w-full mt-1 text-sm border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-300 focus:outline-none" />
                             </div>
 
@@ -698,7 +699,7 @@ export default function Purchases() {
                     transition={{ duration: 0.2, ease: 'easeInOut' }}>
                     {tab === 'dashboard' && <DashboardTab storeId={store?.id} />}
                     {tab === 'orders' && <PurchaseOrdersTab storeId={store?.id} />}
-                    {tab === 'import' && <ImportTab storeId={store?.id} />}
+                    {tab === 'import' && <ImportTab store={store} />}
                     {tab === 'reception' && <ReceptionTab storeId={store?.id} />}
                 </motion.div>
             </AnimatePresence>

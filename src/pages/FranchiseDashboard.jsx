@@ -625,7 +625,7 @@ export default function FranchiseDashboard() {
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">{t('store_name')}</label>
                                 <Input
-                                    placeholder="Ex: Kuos Agadir"
+                                    placeholder="Ex: Boutique Agadir"
                                     value={newStoreName}
                                     onChange={e => setNewStoreName(e.target.value)}
                                     required

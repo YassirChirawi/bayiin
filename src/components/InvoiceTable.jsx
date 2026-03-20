@@ -246,7 +246,7 @@ export default function InvoiceTable({ orders = [], store }) {
             "Date": o.date || "—",
             "Ville": o.clientCity || "—",
         }));
-        exportToCSV(rows, `transactions-kuos-${new Date().toISOString().split("T")[0]}.csv`);
+        exportToCSV(rows, `transactions-${new Date().toISOString().split("T")[0]}.csv`);
     };
 
     return (
