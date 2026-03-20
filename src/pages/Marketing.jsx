@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useStoreData } from '../hooks/useStoreData';
 import { useTenant } from '../context/TenantContext';
-import { Megaphone, Users, MessageCircle, Search, Filter, Wand2, PenTool, Copy } from 'lucide-react';
+import { Megaphone, Users, MessageCircle, Search, Filter, Wand2, PenTool, Copy, Sparkles } from 'lucide-react';
 import { createRawWhatsAppLink } from '../utils/whatsappTemplates';
 import { generateAdsCopy } from '../services/aiService';
 import Button from '../components/Button';
@@ -14,6 +14,7 @@ export default function Marketing() {
     const { data: orders } = useStoreData('orders');
 
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedSku, setSelectedSku] = useState('');
 
     // AI Ads Generator State
     const [adsProduct, setAdsProduct] = useState('');

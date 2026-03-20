@@ -39,7 +39,7 @@ class ErrorBoundary extends React.Component {
                         Une erreur inattendue s'est produite dans cette partie de l'application. Nos équipes ont été notifiées.
                     </p>
 
-                    {process.env.NODE_ENV === 'development' && this.state.error && (
+                    {import.meta.env.DEV && this.state.error && (
                         <div className="mb-6 p-4 bg-gray-900 rounded-lg text-left overflow-auto w-full max-w-2xl max-h-64">
                             <p className="text-rose-400 font-mono text-sm mb-2">{this.state.error.toString()}</p>
                             <pre className="text-gray-400 font-mono text-xs">

@@ -51,7 +51,7 @@ export default function Orders() {
     const filterState = useOrderFilters(activeTab, showTrash, 50);
 
     // Data Fetching
-    const { data: orders, loading, addStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("orders", filterState.orderConstraints);
+    const { data: orders = [], loading, addStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("orders", filterState.orderConstraints);
     const filteredOrders = filterState.filterData(orders);
 
     // Modals & UI State

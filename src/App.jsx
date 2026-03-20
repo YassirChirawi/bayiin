@@ -1,67 +1,78 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import { AuthProvider } from "./context/AuthContext";
-import Privacy from "./pages/Privacy";
-import Terms from "./pages/Terms";
+import { TenantProvider } from "./context/TenantContext";
+import { LanguageProvider } from "./context/LanguageContext";
+import { CopilotProvider } from "./context/CopilotContext";
+import { NotificationProvider } from "./context/NotificationContext";
+import { useAuth } from "./context/AuthContext";
+import { HelmetProvider } from 'react-helmet-async';
+import { useAnalytics } from './hooks/useAnalytics';
+import { Toaster } from 'react-hot-toast';
+
+import ProtectedRoute from "./components/ProtectedRoute";
+import RoleProtectedRoute from "./components/RoleProtectedRoute";
+import Layout from "./components/Layout";
+import BiometricLock from "./components/BiometricLock";
+import CookieBanner from "./components/CookieBanner";
+import ErrorBoundary from "./components/ErrorBoundary";
+
+// Eagerly loaded pages (small, frequently accessed or needed at startup)
+import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
-import Dashboard from "./pages/Dashboard";
 import Onboarding from "./pages/Onboarding";
-import Finances from "./pages/Finances";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
+import NotFound from "./pages/NotFound";
+import DemoDashboard from "./pages/DemoDashboard";
+import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Orders from "./pages/Orders";
 import Customers from "./pages/Customers";
 import Settings from "./pages/Settings";
 import Team from "./pages/Team";
-import Automations from "./pages/Automations"; // NEW
-import Help from "./pages/Help"; // NEW
-import NotFound from "./pages/NotFound"; // NEW
-import ProtectedRoute from "./components/ProtectedRoute";
-import RoleProtectedRoute from "./components/RoleProtectedRoute"; // NEW
-import Layout from "./components/Layout";
-import { TenantProvider } from "./context/TenantContext";
-import BiometricLock from "./components/BiometricLock"; // NEW
-import { useAuth } from "./context/AuthContext"; // NEW for Redirect
+import Help from "./pages/Help";
+import Planning from "./pages/Planning";
+import Warehouse from "./pages/Warehouse";
+import SupportAI from "./pages/SupportAI";
+import PublicCatalog from "./pages/PublicCatalog";
+import DeliveryApp from "./pages/DeliveryApp";
+import DriverApplication from "./pages/DriverApplication";
+import FranchiseApplication from "./pages/FranchiseApplication";
+import Assets from "./pages/Assets";
+import Marketing from "./pages/Marketing";
 
-// New Component for Smart Redirect
+// 🚀 Lazy-loaded heavy pages (code splitting — reduces initial bundle ~40%)
+const Finances = lazy(() => import("./pages/Finances"));
+const Automations = lazy(() => import("./pages/Automations"));
+const HR = lazy(() => import("./pages/HR"));
+const Drivers = lazy(() => import("./pages/Drivers"));
+const Purchases = lazy(() => import("./pages/Purchases"));
+const Returns = lazy(() => import("./pages/Returns"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const FranchiseDashboard = lazy(() => import("./pages/FranchiseDashboard"));
+
+// Simple page-level loading fallback
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-screen">
+    <div className="w-8 h-8 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin" />
+  </div>
+);
+
+// Smart landing: redirect authenticated users to dashboard
 const SmartLanding = () => {
   const { user, loading } = useAuth();
-  if (loading) return null; // Or a spinner
+  if (loading) return null;
   if (user) return <Navigate to="/dashboard" replace />;
   return <Landing />;
 };
 
-import Landing from "./pages/Landing";
-import DemoDashboard from "./pages/DemoDashboard";
-import AdminDashboard from "./pages/AdminDashboard";
-import PublicCatalog from "./pages/PublicCatalog"; // NEW
-import Planning from "./pages/Planning"; // NEW
-import FranchiseDashboard from "./pages/FranchiseDashboard"; // NEW
-import FranchiseApplication from "./pages/FranchiseApplication"; // NEW
-import DeliveryApp from "./pages/DeliveryApp"; // NEW
-import Drivers from "./pages/Drivers"; // NEW
-import DriverApplication from "./pages/DriverApplication"; // NEW
-import HR from "./pages/HR"; // NEW
-import Purchases from "./pages/Purchases"; // NEW
-import Returns from "./pages/Returns"; // NEW
-import Assets from "./pages/Assets"; // NEW
-import Warehouse from "./pages/Warehouse"; // Phase 8
-
-import { HelmetProvider } from 'react-helmet-async';
-import { useAnalytics } from './hooks/useAnalytics';
-import { Toaster } from 'react-hot-toast';
-
-// Navigation Tracker Component
+// Navigation analytics tracker
 const AnalyticsTracker = () => {
   useAnalytics();
   return null;
 };
-
-import { LanguageProvider } from "./context/LanguageContext"; // NEW
-import CookieBanner from "./components/CookieBanner"; // NEW
-import { CopilotProvider } from "./context/CopilotContext"; // NEW
-import { NotificationProvider } from "./context/NotificationContext"; // NEW
-import SupportAI from "./pages/SupportAI"; // NEW
-import ErrorBoundary from "./components/ErrorBoundary"; // NEW
 
 function App() {
   return (
@@ -84,98 +95,102 @@ function App() {
                       success: {
                         style: {
                           background: 'white',
-                          color: '#15803d', // green-700
-                          border: '1px solid #bbf7d0', // green-200
+                          color: '#15803d',
+                          border: '1px solid #bbf7d0',
                           padding: '16px',
                           borderRadius: '12px',
                           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
                           fontWeight: 500,
                         },
-                        iconTheme: {
-                          primary: '#22c55e',
-                          secondary: '#fff',
-                        },
+                        iconTheme: { primary: '#22c55e', secondary: '#fff' },
                         duration: 4000,
                       },
                       error: {
                         style: {
                           background: 'white',
-                          color: '#b91c1c', // red-700
-                          border: '1px solid #fecaca', // red-200
+                          color: '#b91c1c',
+                          border: '1px solid #fecaca',
                           padding: '16px',
                           borderRadius: '12px',
-                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', // Stronger shadow for errors
+                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
                           fontWeight: 600,
                         },
-                        iconTheme: {
-                          primary: '#ef4444',
-                          secondary: '#fff',
-                        },
-                        duration: 5000, // Stay longer
+                        iconTheme: { primary: '#ef4444', secondary: '#fff' },
+                        duration: 5000,
                       },
                     }}
                   />
                   <ErrorBoundary>
-                    <Routes>
-                      <Route path="/" element={<SmartLanding />} /> {/* Modified */}
-                      {/* Public Routes */}
-                      <Route path="/catalog/:storeId" element={<PublicCatalog />} /> {/* NEW */}
-                      <Route path="/delivery/:token" element={<DeliveryApp />} /> {/* NEW — no auth */}
-                      <Route path="/apply/driver/:storeId" element={<DriverApplication />} /> {/* NEW — public */}
-                      <Route path="/apply/franchise/:storeId" element={<FranchiseApplication />} /> {/* NEW - public */}
+                    <Suspense fallback={<PageLoader />}>
+                      <Routes>
+                        <Route path="/" element={<SmartLanding />} />
 
-                      <Route path="/privacy" element={<Privacy />} />
-                      <Route path="/terms" element={<Terms />} />
-                      <Route path="/demo" element={<DemoDashboard />} />
-                      <Route path="/admin" element={
-                        <RoleProtectedRoute allowedRoles={['super_admin']}>
-                          <BiometricLock>
-                            <AdminDashboard />
-                          </BiometricLock>
-                        </RoleProtectedRoute>
-                      } />
-                      <Route path="/franchise" element={
-                        <RoleProtectedRoute allowedRoles={['super_admin', 'franchise_admin']}>
-                          <BiometricLock>
-                            <FranchiseDashboard />
-                          </BiometricLock>
-                        </RoleProtectedRoute>
-                      } /> {/* NEW */}
-                      <Route path="/login" element={<Login />} />
-                      <Route path="/signup" element={<Signup />} />
-                      <Route path="/onboarding" element={
-                        <ProtectedRoute>
-                          <Onboarding />
-                        </ProtectedRoute>
-                      } />
-                      <Route element={
-                        <ProtectedRoute>
-                          <BiometricLock> {/* Protected by Lock */}
-                            <Layout />
-                          </BiometricLock>
-                        </ProtectedRoute>
-                      }>
-                        <Route path="/dashboard" element={<Dashboard />} />
-                        <Route path="/finances" element={<Finances />} />
-                        <Route path="/products" element={<Products />} />
-                        <Route path="/orders" element={<Orders />} />
-                        <Route path="/customers" element={<Customers />} />
-                        <Route path="/planning" element={<Planning />} />
-                        <Route path="/team" element={<Team />} />
-                        <Route path="/settings" element={<Settings />} />
-                        <Route path="/help" element={<Help />} />
-                        <Route path="/warehouse" element={<Warehouse />} />
-                        <Route path="/support-ai" element={<SupportAI />} /> {/* NEW */}
-                        <Route path="/automations" element={<Automations />} /> {/* NEW */}
-                        <Route path="/drivers" element={<Drivers />} /> {/* NEW */}
-                        <Route path="/hr" element={<HR />} /> {/* NEW */}
-                        <Route path="/purchases" element={<Purchases />} /> {/* NEW */}
-                        <Route path="/returns" element={<Returns />} /> {/* NEW */}
-                        <Route path="/marketing" element={<Marketing />} /> {/* NEW */}
-                        <Route path="/assets" element={<Assets />} /> {/* NEW */}
-                      </Route>
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
+                        {/* Public Routes */}
+                        <Route path="/catalog/:storeId" element={<PublicCatalog />} />
+                        <Route path="/delivery/:token" element={<DeliveryApp />} />
+                        <Route path="/apply/driver/:storeId" element={<DriverApplication />} />
+                        <Route path="/apply/franchise/:storeId" element={<FranchiseApplication />} />
+                        <Route path="/privacy" element={<Privacy />} />
+                        <Route path="/terms" element={<Terms />} />
+                        <Route path="/demo" element={<DemoDashboard />} />
+
+                        {/* Admin (lazy) */}
+                        <Route path="/admin" element={
+                          <RoleProtectedRoute allowedRoles={['super_admin']}>
+                            <BiometricLock>
+                              <AdminDashboard />
+                            </BiometricLock>
+                          </RoleProtectedRoute>
+                        } />
+
+                        {/* Franchise admin (lazy) */}
+                        <Route path="/franchise" element={
+                          <RoleProtectedRoute allowedRoles={['super_admin', 'franchise_admin']}>
+                            <BiometricLock>
+                              <FranchiseDashboard />
+                            </BiometricLock>
+                          </RoleProtectedRoute>
+                        } />
+
+                        <Route path="/login" element={<Login />} />
+                        <Route path="/signup" element={<Signup />} />
+                        <Route path="/onboarding" element={
+                          <ProtectedRoute>
+                            <Onboarding />
+                          </ProtectedRoute>
+                        } />
+
+                        {/* Authenticated App Routes */}
+                        <Route element={
+                          <ProtectedRoute>
+                            <BiometricLock>
+                              <Layout />
+                            </BiometricLock>
+                          </ProtectedRoute>
+                        }>
+                          <Route path="/dashboard" element={<Dashboard />} />
+                          <Route path="/finances" element={<Finances />} />
+                          <Route path="/products" element={<Products />} />
+                          <Route path="/orders" element={<Orders />} />
+                          <Route path="/customers" element={<Customers />} />
+                          <Route path="/planning" element={<Planning />} />
+                          <Route path="/team" element={<Team />} />
+                          <Route path="/settings" element={<Settings />} />
+                          <Route path="/help" element={<Help />} />
+                          <Route path="/warehouse" element={<Warehouse />} />
+                          <Route path="/support-ai" element={<SupportAI />} />
+                          <Route path="/automations" element={<Automations />} />
+                          <Route path="/drivers" element={<Drivers />} />
+                          <Route path="/hr" element={<HR />} />
+                          <Route path="/purchases" element={<Purchases />} />
+                          <Route path="/returns" element={<Returns />} />
+                          <Route path="/marketing" element={<Marketing />} />
+                          <Route path="/assets" element={<Assets />} />
+                        </Route>
+
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                    </Suspense>
                   </ErrorBoundary>
                   <CookieBanner />
                 </BrowserRouter>
@@ -194,7 +209,7 @@ const AuthContextWrapper = ({ children }) => {
     <AuthProvider>
       {children}
     </AuthProvider>
-  )
-}
+  );
+};
 
 export default App;

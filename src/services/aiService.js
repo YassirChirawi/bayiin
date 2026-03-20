@@ -3,8 +3,6 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SYSTEM_PERSONA_INSTRUCTIONS, SHIPPING_INFO, SALES_SCRIPTS, FAQ, GROWTH_MODULES } from './knowledge.js';
 
 // Initialize Gemini API
-// NOTE: Ideally, the API key should be fetched from backend/server function to keep it secure.
-// For this frontend implementation, we'll try to use an environment variable or a user-provided setting.
 let genAI = null;
 let model = null;
 
@@ -12,7 +10,8 @@ export const initializeAI = (apiKey) => {
     if (!apiKey) return;
     try {
         genAI = new GoogleGenerativeAI(apiKey);
-        model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
+        // gemini-1.5-flash: available on free tier (use gemini-2.0-flash if on paid plan)
+        model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
     } catch (error) {
         console.error("Failed to initialize AI:", error);
     }
@@ -23,7 +22,6 @@ const constructContext = (userMsg) => {
     let context = "";
     const lowerMsg = userMsg.toLowerCase();
 
-    // Check for keywords to inject specific knowledge
     if (lowerMsg.includes("livraison") || lowerMsg.includes("frais") || lowerMsg.includes("expédition")) {
         context += `\n[INFO LOGISTIQUE]: ${JSON.stringify(SHIPPING_INFO)}`;
     }
@@ -36,7 +34,6 @@ const constructContext = (userMsg) => {
         context += `\n[MODULE GROWTH]: ${GROWTH_MODULES.META_ADS}`;
     }
 
-    // Add FAQ context if relevant (simple keyword match for now)
     FAQ.forEach(item => {
         if (lowerMsg.includes(item.q.toLowerCase()) || lowerMsg.includes(item.a.toLowerCase())) {
             context += `\n[FAQ SIMILAIRE]: Q: ${item.q} R: ${item.a}`;
@@ -46,9 +43,14 @@ const constructContext = (userMsg) => {
     return context;
 };
 
+/**
+ * Core AI call. Throws on API errors so callers handle them properly.
+ * - Returns a friendly message if no model is initialized.
+ * - Throws an Error with isRateLimit=true on 429, with a user-readable message.
+ * - Re-throws other errors (do NOT return error strings — callers that JSON.parse() would crash).
+ */
 export const generateAIResponse = async (prompt) => {
     if (!model) {
-        // Fallback if no API key is configured yet
         return "Oups ! Je n'ai pas encore ma clé API pour réfléchir. 🗝️ Peux-tu la configurer dans les paramètres ? (Tu peux la trouver sur Google AI Studio)";
     }
 
@@ -58,33 +60,34 @@ export const generateAIResponse = async (prompt) => {
         return response.text();
     } catch (error) {
         console.error("Gemini Error:", error);
-        return `Aïe, j'ai un petit mal de tête... 🤕 (Erreur: ${error.message || error})`;
+        // 429 — rate limit exceeded: surface a specific, friendly message
+        if (error?.message?.includes('429') || error?.status === 429) {
+            const retryMatch = error.message?.match(/(\d+)s/);
+            const retryIn = retryMatch ? ` Réessaie dans ${retryMatch[1]}s.` : '';
+            const friendly = `⏳ Quota API dépassé.${retryIn} (Limite du plan gratuit Gemini atteinte)`;
+            throw Object.assign(new Error(friendly), { isRateLimit: true });
+        }
+        // Re-throw other errors — callers that JSON.parse() the result have their own catch blocks
+        throw error;
     }
 };
 
 /**
  * Main Copilot Function
- * @param {string} msg - User message
- * @param {Array} history - Previous chat history
- * @param {Object} productContext - Optional: List of products or store context
  */
 export const generateCopilotResponse = async (msg, history = [], productContext = null) => {
-    // 1. Build System Prompt with Persona
     let fullPrompt = `${SYSTEM_PERSONA_INSTRUCTIONS}\n`;
 
-    // 2. Add Context (RAG-lite)
     const knowledgeContext = constructContext(msg);
     if (knowledgeContext) {
         fullPrompt += `\nUTILISE CES INFORMATIONS SI PERTIENT:\n${knowledgeContext}\n`;
     }
 
-    // 3. Add Product Context if available
     if (productContext && productContext.length > 0) {
         const snippet = productContext.slice(0, 10).map(p => `${p.name} (${p.price} DH)`).join(", ");
         fullPrompt += `\n[CONTEXTE PRODUITS (Magasin)]:\nVoici quelques produits: ${snippet}...\n`;
     }
 
-    // NEW: Action Capabilities
     fullPrompt += `
     [CAPACITÉS D'ACTION]:
     Tu peux créer des commandes si l'utilisateur te le demande explicitement avec les détails (Nom, Tel, Ville, Produit, Prix).
@@ -111,42 +114,38 @@ export const generateCopilotResponse = async (msg, history = [], productContext 
     - Sinon, utilise le format standard.
     `;
 
-    // 4. Add Conversation History (Last 5 messages)
     const recentHistory = history.slice(-5);
     if (recentHistory.length > 0) {
         fullPrompt += `\n[HISTORIQUE RECENT]:\n${recentHistory.map(m => `${m.role === 'user' ? 'Utilisateur' : 'Beya3'}: ${m.content}`).join("\n")}\n`;
     }
 
-    // 5. Add User Message
     fullPrompt += `\nUtilisateur: ${msg}\nBeya3:`;
 
-    // 6. Call API
-    return await generateAIResponse(fullPrompt);
+    try {
+        return await generateAIResponse(fullPrompt);
+    } catch (error) {
+        return error.message || "Une erreur est survenue avec l'IA. Vérifie ta clé API dans les paramètres.";
+    }
 };
 
-// Algorithme de Scoring (Anti-Retour) - Rules-based for now, could be AI-enhanced later
+// Algorithme de Scoring (Anti-Retour) - Rules-based
 export const evaluateOrderRisk = (order) => {
     let score = 0;
     let reasons = [];
 
-    // Rule 1: High Value
     if (order.total > 1000) {
         score += 20;
         reasons.push("Montant élevé (> 1000 DH)");
     }
 
-    // Rule 2: Incomplete Address (heuristic)
     if (!order.address || order.address.length < 10) {
         score += 30;
         reasons.push("Adresse courte ou incomplète");
     }
 
-    // Rule 3: City Check (Example: Specific cities might have higher return rates - hypothetical)
     if (["Casablanca", "Rabat"].includes(order.city)) {
-        // usually safer, maybe minus risk?
         score -= 10;
     } else {
-        // remote areas might have higher risk
         score += 10;
         reasons.push("Zone éloignée");
     }
@@ -159,7 +158,6 @@ export const evaluateOrderRisk = (order) => {
 };
 
 export const generateFinancialInsight = async (stats) => {
-    // Construct a prompt summarizing the stats
     const prompt = `
     Agis comme Beya3, Head of Growth. Analyse ces chiffres financiers pour la période sélectionnée :
     - Chiffre d'affaires Livré : ${stats.deliveredRevenue} DH
@@ -172,7 +170,11 @@ export const generateFinancialInsight = async (stats) => {
     Donne-moi 3 points clés (Top, Flop, Opportunité) et un conseil actionnable pour améliorer la rentabilité. Sois bref et percutant.
     `;
 
-    return await generateAIResponse(prompt);
+    try {
+        return await generateAIResponse(prompt);
+    } catch (error) {
+        return error.message || "Erreur analyse financière.";
+    }
 };
 
 /**
@@ -191,8 +193,6 @@ export const detectFinancialLeaks = (orders, cac = 0) => {
         // 1. Ghost Order Check
         if (order.status === 'livré' && (!order.isPaid || order.isPaid === "false")) {
             const deliveryDate = order.deliveryDate ? new Date(order.deliveryDate) : (order.date ? new Date(order.date) : null);
-            // Fallback: note that 'date' is usually order creation date. If no delivery date, we assume delivery happened reasonably after creation?
-            // Strict check: if creation date > 15 days ago and status is Delivered, it's likely a ghost if not paid.
             if (deliveryDate && deliveryDate < fifteenDaysAgo) {
                 ghostOrders.push({
                     id: order.id,
@@ -206,9 +206,8 @@ export const detectFinancialLeaks = (orders, cac = 0) => {
         // 2. Negative Margin Check
         const price = parseFloat(order.price) * (parseInt(order.quantity) || 1);
         const cost = parseFloat(order.costPrice) * (parseInt(order.quantity) || 1);
-        const delivery = parseFloat(order.realDeliveryCost || 0); // Only real cost
+        const delivery = parseFloat(order.realDeliveryCost || 0);
         const globalCAC = parseFloat(cac);
-
         const totalCost = cost + delivery + globalCAC;
 
         if (totalCost > price) {
@@ -231,9 +230,6 @@ export const detectFinancialLeaks = (orders, cac = 0) => {
 
 /**
  * Analyzes a financial scenario from the CFO Simulator
- * @param {object} baseStats - Current actual stats
- * @param {object} scenario - Slider values {adSpend, price, cogs}
- * @param {object} projections - Projected stats {revenue, profit, margin}
  */
 export const analyzeFinancialScenario = async (baseStats, scenario, projections) => {
     const prompt = `
@@ -257,13 +253,15 @@ export const analyzeFinancialScenario = async (baseStats, scenario, projections)
     Réponds en français, ton amical et professionnel (style Beya3).
     `;
 
-    return await generateAIResponse(prompt);
+    try {
+        return await generateAIResponse(prompt);
+    } catch (error) {
+        return error.message || "Erreur simulation CFO.";
+    }
 };
 
 /**
  * Generates a custom WhatsApp message template using AI based on user instructions.
- * @param {string} instructions - The user's prompt (e.g. "Un message de relance poli")
- * @param {string} language - 'fr' or 'darija'
  */
 export const generateWhatsAppTemplate = async (instructions, language = 'fr') => {
     const langInstructions = language === 'darija'
@@ -289,14 +287,15 @@ export const generateWhatsAppTemplate = async (instructions, language = 'fr') =>
     4. Retourne UNIQUEMENT le texte du message, sans guillemets, sans commentaires avant ou après. Ne dis pas "Voici le message", donne juste le message.
     `;
 
-    return await generateAIResponse(prompt);
+    try {
+        return await generateAIResponse(prompt);
+    } catch (error) {
+        return error.message || "Erreur génération message WhatsApp.";
+    }
 };
 
 /**
  * AI ProductAdvisor — suggest complementary KUO'S products based on SKU line code.
- * @param {string} sku  e.g. "DSVP001"
- * @param {Object[]} productList  Products with name and sku
- * @returns {Promise<string>} AI rationale text
  */
 export const suggestComplementaryProducts = async (sku, productList = []) => {
     const names = productList.slice(0, 15).map(p => `${p.sku || '?'} — ${p.name}`).join('\n');
@@ -306,13 +305,15 @@ ${names}
 
 Réponds en 3 bullet points maximum, en français, en citant les SKU et les bénéfices pour la peau.
 `;
-    return await generateAIResponse(prompt);
+    try {
+        return await generateAIResponse(prompt);
+    } catch (error) {
+        return error.message || "Erreur suggestion produits.";
+    }
 };
 
 /**
  * AI Stock Forecasting — predict critical ruptures based on run rate.
- * @param {Object[]} products 
- * @param {Object[]} orders 
  * @returns {Promise<Object[]>} array of {sku, rationale, suggestedQuantity, urgency}
  */
 export const generateStockForecast = async (products = [], orders = []) => {
@@ -333,8 +334,11 @@ export const generateStockForecast = async (products = [], orders = []) => {
 
     try {
         const text = await generateAIResponse(prompt);
-        const jsonStr = text.replace(/```json|```/g, '').trim();
-        return JSON.parse(jsonStr);
+        // Robustly extract the first JSON array from the response,
+        // even if the model adds prose or markdown fences around it.
+        const match = text.match(/(\[\s*\{[\s\S]*?\}\s*\])/m);
+        if (!match) return [];
+        return JSON.parse(match[1]);
     } catch (e) {
         console.error("Forecasting AI Error:", e);
         return [];
@@ -343,8 +347,6 @@ export const generateStockForecast = async (products = [], orders = []) => {
 
 /**
  * AI Ads Generator — Creates Meta/Instagram ad copies.
- * @param {string} productName
- * @param {string} targetAudience
  */
 export const generateAdsCopy = async (productName, targetAudience = "L'audience cible de BayIIn") => {
     const prompt = `Agis comme un expert Media Buyer Facebook/Instagram Ads. Rédige 3 textes publicitaires (Copywriting) ultra-performants pour vendre ce produit : "${productName}".
@@ -354,5 +356,10 @@ Chaque proposition doit contenir :
 - Le corps du texte avec les bénéfices clés (Body)
 - Un appel à l'action clair (CTA)
 Utilise un langage persuasif, des émojis et un formatage aéré pour Meta/Instagram Ads. Ne dis pas bonjour ni au revoir, donne juste les textes.`;
-    return await generateAIResponse(prompt);
+
+    try {
+        return await generateAIResponse(prompt);
+    } catch (error) {
+        return error.message || "Erreur génération publicité.";
+    }
 };

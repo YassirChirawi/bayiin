@@ -2,6 +2,7 @@ const functions = require('firebase-functions');
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
 
 // Initialize Stripe with Secret Key (set via .env)
 const stripeKey = process.env.STRIPE_SECRET_KEY || (functions.config().stripe && functions.config().stripe.secret) || 'sk_test_placeholder';
@@ -13,6 +14,71 @@ initializeApp();
 const db = getFirestore('comsaas');
 
 /**
+ * Custom Claims Sync
+ * Whenever a user document is written, sync their role to Firebase Auth JWT claims.
+ * This allows Firestore rules to use request.auth.token.role (JWT-based, no document lookup).
+ *
+ * Supported roles: 'super_admin', 'franchise_admin', 'owner', 'staff'
+ */
+exports.onUserWrite = onDocumentWritten({
+    document: "users/{userId}",
+    database: "comsaas",
+}, async (event) => {
+    const after = event.data?.after;
+    if (!after?.exists) return; // User deleted — don't revoke (handled separately if needed)
+
+    const userData = after.data();
+    const userId = event.params.userId;
+    const role = userData?.role || null;
+    const franchiseId = userData?.franchiseId || null;
+
+    try {
+        await getAuth().setCustomUserClaims(userId, {
+            role,
+            ...(franchiseId ? { franchiseId } : {})
+        });
+        console.log(`[CustomClaims] Synced role="${role}" for user ${userId}`);
+    } catch (err) {
+        console.error(`[CustomClaims] Failed to set claims for user ${userId}:`, err);
+    }
+});
+
+/**
+ * Callable function for super_admins to set another user's role.
+ * Frontend: const setRole = httpsCallable(functions, 'setUserRole');
+ *           await setRole({ targetUid: '...', role: 'franchise_admin', franchiseId: '...' });
+ */
+exports.setUserRole = functions.https.onCall(async (data, context) => {
+    // Verify caller is super_admin via JWT claim (not document lookup)
+    if (!context.auth || context.auth.token.role !== 'super_admin') {
+        throw new functions.https.HttpsError('permission-denied', 'Only super admins can set user roles.');
+    }
+
+    const { targetUid, role, franchiseId } = data;
+    if (!targetUid || !role) {
+        throw new functions.https.HttpsError('invalid-argument', 'targetUid and role are required.');
+    }
+
+    const allowedRoles = ['super_admin', 'franchise_admin', 'owner', 'staff'];
+    if (!allowedRoles.includes(role)) {
+        throw new functions.https.HttpsError('invalid-argument', `Invalid role. Must be one of: ${allowedRoles.join(', ')}`);
+    }
+
+    try {
+        // Update Firestore document (this will trigger onUserWrite to sync claims)
+        await db.collection('users').doc(targetUid).update({
+            role,
+            ...(franchiseId ? { franchiseId } : {})
+        });
+        return { success: true, message: `Role "${role}" assigned to user ${targetUid}` };
+    } catch (err) {
+        console.error(`[setUserRole] Error:`, err);
+        throw new functions.https.HttpsError('internal', 'Failed to set user role.');
+    }
+});
+
+
+/**
  * Stripe Webhook Handler
  */
 exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
@@ -22,11 +88,11 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
     let event;
 
     try {
-        if (endpointSecret) {
-            event = stripe.webhooks.constructEvent(req.rawBody, sig, endpointSecret);
-        } else {
-            event = req.body;
+        if (!endpointSecret) {
+            console.error('Stripe webhook secret not configured. Set STRIPE_WEBHOOK_SECRET env var.');
+            return res.status(500).send('Webhook secret not configured');
         }
+        event = stripe.webhooks.constructEvent(req.rawBody, sig, endpointSecret);
     } catch (err) {
         console.error(`Webhook Error: ${err.message}`);
         return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -335,39 +401,49 @@ exports.onOrderWrite = onDocumentWritten({
     }
 
     // 4. STOCK MANAGEMENT
-    const oldProductId = before?.articleId;
-    const newProductId = after?.articleId;
+    // Skip if stock was already managed by the client-side hook (useOrderActions).
+    // Orders created/updated from the BayIIn dashboard set _stockManagedByClient = true.
+    // Server-sourced orders (WooCommerce, public catalog) do NOT set this flag,
+    // so they rely entirely on this Cloud Function for stock deduction.
+    const skipStock = (after?._stockManagedByClient === true) || (before?._stockManagedByClient === true);
 
-    const getActiveQty = (o) => {
-        if (!o) return 0;
-        // Inactive statuses do not consume stock
-        // NOTE: 'retour en cours' still consumes stock (driver is returning to store, not yet restocked)
-        // Stock is only released once the driver confirms drop-off and the status becomes 'retour'
-        if (['retour', 'annulé'].includes(o.status)) return 0;
-        return parseInt(o.quantity) || 0;
-    };
+    if (!skipStock) {
+        const oldProductId = before?.articleId;
+        const newProductId = after?.articleId;
 
-    const updateStock = (prodId, delta) => {
-        if (delta === 0) return;
-        const ref = db.collection('products').doc(prodId);
-        batch.update(ref, { stock: FieldValue.increment(delta) });
-    };
+        const getActiveQty = (o) => {
+            if (!o) return 0;
+            // Inactive statuses do not consume stock
+            // NOTE: 'retour en cours' still consumes stock (driver is returning to store, not yet restocked)
+            // Stock is only released once the driver confirms drop-off and the status becomes 'retour'
+            if (['retour', 'annulé'].includes(o.status)) return 0;
+            return parseInt(o.quantity) || 0;
+        };
 
-    if (oldProductId === newProductId && oldProductId) {
-        // Same Product: Calculate net change
-        const oldQty = getActiveQty(before);
-        const newQty = getActiveQty(after);
-        updateStock(oldProductId, oldQty - newQty);
+        const updateStock = (prodId, delta) => {
+            if (delta === 0) return;
+            const ref = db.collection('products').doc(prodId);
+            batch.update(ref, { stock: FieldValue.increment(delta) });
+        };
+
+        if (oldProductId === newProductId && oldProductId) {
+            // Same Product: Calculate net change
+            const oldQty = getActiveQty(before);
+            const newQty = getActiveQty(after);
+            updateStock(oldProductId, oldQty - newQty);
+        } else {
+            // Product Changed (or Create/Delete)
+            if (oldProductId) {
+                // Restock old product (as if order deleted for that product)
+                updateStock(oldProductId, getActiveQty(before));
+            }
+            if (newProductId) {
+                // Destock new product (as if order created for that product)
+                updateStock(newProductId, -getActiveQty(after));
+            }
+        }
     } else {
-        // Product Changed (or Create/Delete)
-        if (oldProductId) {
-            // Restock old product (as if order deleted for that product)
-            updateStock(oldProductId, getActiveQty(before));
-        }
-        if (newProductId) {
-            // Destock new product (as if order created for that product)
-            updateStock(newProductId, -getActiveQty(after));
-        }
+        console.log(`onOrderWrite: Skipping stock update for order (managed by client).`);
     }
 
     // Execute Update

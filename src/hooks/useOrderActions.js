@@ -139,7 +139,8 @@ export const useOrderActions = () => {
                     createdAt: serverTimestamp(),
                     status: ORDER_STATUS.RECEIVED,
                     isPaid: false,
-                    paymentMethod: 'cod'
+                    paymentMethod: 'cod',
+                    _stockManagedByClient: true  // Prevents double-deduction in Cloud Function
                 });
             });
 
@@ -245,7 +246,8 @@ export const useOrderActions = () => {
                 // 2. Update Order
                 transaction.update(orderRef, {
                     ...newData,
-                    updatedAt: serverTimestamp()
+                    updatedAt: serverTimestamp(),
+                    _stockManagedByClient: true  // Prevents double-deduction in Cloud Function
                 });
 
                 // 3. Update Customer Profile OR CREATE if phone changed/added

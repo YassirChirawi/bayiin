@@ -7,6 +7,7 @@ import InstallGuide from "./InstallGuide";
 import {
     LayoutDashboard,
     ShoppingBag,
+    ShoppingCart,
     Package,
     Settings,
     LogOut,

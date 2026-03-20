@@ -113,10 +113,47 @@ export const NotificationProvider = ({ children }) => {
                 // Or just a generic reminder if we haven't checked int
             }
 
-            // 3. Stock Low (Simple check)
-            // This would require fetching all products, which might be heavy.
-            // Strategy: relies on `products` hook if available globally or fetch lean list.
-            // Skipping for now to avoid read spikes, or implement if user asks.
+            // 3. Low Stock Alert (lightweight — only fetches products with low/no stock)
+            if (store?.id) {
+                try {
+                    const lowStockSnap = await getDocs(
+                        query(
+                            collection(db, 'products'),
+                            where('storeId', '==', store.id),
+                            where('stock', '<=', 3),
+                            limit(50)
+                        )
+                    );
+                    const outOfStock = lowStockSnap.docs.filter(d => (d.data().stock || 0) <= 0);
+                    const criticalLow = lowStockSnap.docs.filter(d => {
+                        const s = d.data().stock || 0;
+                        return s > 0 && s <= 3;
+                    });
+
+                    if (outOfStock.length > 0) {
+                        newAlerts.push({
+                            id: 'out_of_stock',
+                            type: 'critical',
+                            title: 'Rupture de stock 📦',
+                            message: `${outOfStock.length} produit(s) en rupture de stock.`,
+                            link: '/products',
+                            details: outOfStock.map(d => d.data().name).slice(0, 5).join(', ')
+                        });
+                    }
+                    if (criticalLow.length > 0) {
+                        newAlerts.push({
+                            id: 'low_stock',
+                            type: 'warning',
+                            title: 'Stock critique ⚠️',
+                            message: `${criticalLow.length} produit(s) avec stock ≤ 3 unités.`,
+                            link: '/products',
+                            details: criticalLow.map(d => `${d.data().name} (${d.data().stock})`).slice(0, 5).join(', ')
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Low stock check failed:', e);
+                }
+            }
 
         } catch (err) {
             console.error("Notification Audit Error:", err);

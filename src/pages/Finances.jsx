@@ -46,7 +46,7 @@ export default function Finances() {
     });
 
     // Load Collections for Dropdown
-    const { data: collections } = useStoreData("collections");
+    const { data: collections = [] } = useStoreData("collections");
 
     // Effect: Update Date Range when Collection is Selected
     useEffect(() => {
@@ -72,17 +72,10 @@ export default function Finances() {
         ];
     }, [dateRange.start, dateRange.end]);
 
-    const { data: orders, loading: loadingOrders, error: ordersError } = useStoreData("orders", orderConstraints);
+    const { data: orders = [], loading: loadingOrders, error: ordersError } = useStoreData("orders", orderConstraints);
 
     // 2. Fetch Expenses
-    // Strategy: Fetch ALL expenses for now to enable effective client-side filtering by both Date AND Collection ID.
-    // If we only fetch data by date valid for the collection, we might miss expenses explicitly linked to the collection but outside the date range (e.g. Pre-launch ads).
-    // Or we continue simple approach: Date Range is King. 
-    // DECISION: If Collection is selected, we include:
-    // a) Expenses with matching collectionId (regardless of date?) -> Yes, strictly speaking.
-    // b) Expenses with NO collectionId BUT within date range (Shared costs).
-    // For simplicity and current scale: Fetch All, Filter Client Side.
-    const { data: expenses, loading: loadingExpenses, error: expensesError, addStoreItem: addExpense, deleteStoreItem: deleteExpense } = useStoreData("expenses");
+    const { data: expenses = [], loading: loadingExpenses, error: expensesError, addStoreItem: addExpense, deleteStoreItem: deleteExpense } = useStoreData("expenses");
 
 
     // --- Precise KPIs Calculation ---
