@@ -1,7 +1,7 @@
 import { useTenant } from "../context/TenantContext";
 import { useLanguage } from "../context/LanguageContext"; // NEW
 import { User, Store, CreditCard, Check, Zap, Shield, Save, Settings as SettingsIcon, Truck, Users, Lock, Activity, Sparkles, Package, Trash2, Plus } from "lucide-react";
-import { doc, updateDoc, collection, query, getDocs, orderBy, limit } from "firebase/firestore";
+import { doc, updateDoc, collection, query, getDocs, orderBy, limit, setDoc, addDoc, serverTimestamp, where, runTransaction, increment } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Button from "../components/Button";
 import { useState, useEffect } from "react";
@@ -155,6 +155,268 @@ function CatalogSettings({ store, setStore, t }) {
     );
 }
 
+function LocationSettings({ store, t }) {
+    const [locations, setLocations] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [newLoc, setNewLoc] = useState({ name: '', address: '' });
+    const [creating, setCreating] = useState(false);
+    const [transfer, setTransfer] = useState({ prodId: '', from: '', to: '', qty: 0 });
+    const [transferring, setTransferring] = useState(false);
+    const { data: allProds } = useStoreData("products");
+
+    const handleTransfer = async (e) => {
+        e.preventDefault();
+        const { prodId, from, to, qty } = transfer;
+        if (!prodId || !from || !to || qty <= 0) return toast.error("Tous les champs sont requis");
+        if (from === to) return toast.error("Le dépôt source et destination doivent être différents");
+
+        setTransferring(true);
+        try {
+            await runTransaction(db, async (transaction) => {
+                const prodRef = doc(db, "products", prodId);
+                const prodSnap = await transaction.get(prodRef);
+                if (!prodSnap.exists()) throw new Error("Produit non trouvé");
+                const product = prodSnap.data();
+
+                const currentFromStock = product.warehouseStocks?.[from] || 0;
+                if (currentFromStock < qty) throw new Error("Stock insuffisant dans le dépôt source");
+
+                transaction.update(prodRef, {
+                    [`warehouseStocks.${from}`]: increment(-qty),
+                    [`warehouseStocks.${to}`]: increment(qty),
+                    updatedAt: serverTimestamp()
+                });
+
+                const logRef = doc(collection(db, "stores", store.id, "audit_logs"));
+                transaction.set(logRef, {
+                    action: 'STOCK_TRANSFER',
+                    details: `Transféré ${qty} de ${product.name} du dépôt ${locations.find(l => l.id === from)?.name} vers ${locations.find(l => l.id === to)?.name}`,
+                    timestamp: serverTimestamp(),
+                    user: { id: 'system', name: 'Transfert Manager' }
+                });
+            });
+            toast.success("Transfert réussi !");
+            setTransfer({ prodId: '', from: '', to: '', qty: 0 });
+        } catch (e) {
+            console.error(e);
+            toast.error(e.message || "Erreur de transfert");
+        } finally {
+            setTransferring(false);
+        }
+    };
+
+    useEffect(() => {
+        if (!store?.id) return;
+        const fetchLocations = async () => {
+            setLoading(true);
+            try {
+                const q = query(collection(db, "warehouses"), where("storeId", "==", store.id), orderBy("createdAt", "desc"));
+                const snap = await getDocs(q);
+                setLocations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            } catch (e) {
+                console.error("Fetch error:", e);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchLocations();
+    }, [store?.id]);
+
+    const handleCreate = async (e) => {
+        e.preventDefault();
+        if (!newLoc.name) return toast.error("Nom requis");
+        setCreating(true);
+        try {
+            const locsRef = collection(db, "warehouses");
+            await addDoc(locsRef, {
+                ...newLoc,
+                storeId: store.id,
+                isDefault: locations.length === 0,
+                createdAt: serverTimestamp()
+            });
+            toast.success("Emplacement créé !");
+            setNewLoc({ name: '', address: '' });
+            // Re-fetch locations to update the list
+            if (store?.id) { // Ensure store.id is available before triggering re-fetch
+                const q = query(collection(db, "warehouses"), where("storeId", "==", store.id), orderBy("createdAt", "desc"));
+                const snap = await getDocs(q);
+                setLocations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            }
+        } catch (e) {
+            console.error(e);
+            toast.error("Erreur de création");
+        } finally {
+            setCreating(false);
+        }
+    };
+
+    const toggleDefault = async (locId) => {
+        try {
+            const batch = locations.map(l => {
+                const ref = doc(db, "warehouses", l.id);
+                return updateDoc(ref, { isDefault: l.id === locId });
+            });
+            await Promise.all(batch);
+            toast.success("Emplacement par défaut mis à jour");
+            // Re-fetch locations to update the list
+            if (store?.id) { // Ensure store.id is available before triggering re-fetch
+                const q = query(collection(db, "warehouses"), where("storeId", "==", store.id), orderBy("createdAt", "desc"));
+                const snap = await getDocs(q);
+                setLocations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            }
+        } catch (e) {
+            toast.error("Erreur");
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                            <Truck className="h-5 w-5 text-indigo-500" />
+                            Boutiques & Dépôts
+                        </h3>
+                        <p className="text-sm text-gray-500">Gérez vos emplacements physiques pour un inventaire précis.</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                    {locations.map(loc => (
+                        <div key={loc.id} className={`p-4 rounded-xl border-2 transition-all group ${loc.isDefault ? 'border-indigo-500 bg-indigo-50/30' : 'border-gray-100 bg-white hover:border-gray-200'}`}>
+                            <div className="flex justify-between items-start">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="font-bold text-gray-900 truncate">{loc.name}</h4>
+                                        {loc.isDefault && (
+                                            <span className="bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full flex-shrink-0">Défaut</span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1 truncate">{loc.address || "Pas d'adresse spécifiée"}</p>
+                                </div>
+                                {!loc.isDefault && (
+                                    <button 
+                                        onClick={() => toggleDefault(loc.id)}
+                                        className="text-[10px] text-gray-400 hover:text-indigo-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        Définir défaut
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                    {locations.length === 0 && !loading && (
+                        <div className="col-span-1 md:col-span-2 py-12 text-center border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
+                            <Package className="w-10 h-10 text-gray-300 mx-auto mb-3 opacity-50" />
+                            <p className="text-sm text-gray-400 font-medium">Aucun dépôt configuré.</p>
+                            <p className="text-xs text-gray-400 mt-1">Ajoutez votre premier emplacement ci-dessous.</p>
+                        </div>
+                    )}
+                </div>
+
+                <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
+                    <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <Plus className="w-4 h-4 text-indigo-600" />
+                        Nouvel emplacement
+                    </h4>
+                    <form onSubmit={handleCreate} className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Nom du Dépôt</label>
+                                <input 
+                                    placeholder="Ex: Entrepôt Principal" 
+                                    className="w-full p-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                    value={newLoc.name}
+                                    onChange={e => setNewLoc({...newLoc, name: e.target.value})}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Adresse (optionnel)</label>
+                                <input 
+                                    placeholder="Ex: Zone Industrielle, Casa" 
+                                    className="w-full p-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                    value={newLoc.address}
+                                    onChange={e => setNewLoc({...newLoc, address: e.target.value})}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end">
+                            <Button type="submit" isLoading={creating} icon={Plus}>Créer l'emplacement</Button>
+                        </div>
+                    </form>
+                </div>
+
+                <div className="mt-8 pt-8 border-t border-gray-100">
+                    <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-amber-500" />
+                        Transfert de Stock Inter-Dépôts
+                    </h4>
+                    <form onSubmit={handleTransfer} className="bg-amber-50/30 p-6 rounded-xl border border-amber-100 space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="md:col-span-1">
+                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Produit</label>
+                                <select 
+                                    className="w-full p-2 border rounded-lg text-sm bg-white"
+                                    value={transfer.prodId}
+                                    onChange={e => setTransfer({...transfer, prodId: e.target.value})}
+                                >
+                                    <option value="">Sélectionner...</option>
+                                    {allProds.filter(p => !p.isBundle).map(p => (
+                                        <option key={p.id} value={p.id}>{p.name} ({p.stock || 0})</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">De (Source)</label>
+                                <select 
+                                    className="w-full p-2 border rounded-lg text-sm bg-white"
+                                    value={transfer.from}
+                                    onChange={e => setTransfer({...transfer, from: e.target.value})}
+                                >
+                                    <option value="">Source...</option>
+                                    {locations.map(l => (
+                                        <option key={l.id} value={l.id}>{l.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Vers (Destination)</label>
+                                <select 
+                                    className="w-full p-2 border rounded-lg text-sm bg-white"
+                                    value={transfer.to}
+                                    onChange={e => setTransfer({...transfer, to: e.target.value})}
+                                >
+                                    <option value="">Destination...</option>
+                                    {locations.map(l => (
+                                        <option key={l.id} value={l.id}>{l.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Quantité</label>
+                                <input 
+                                    type="number" min="1"
+                                    className="w-full p-2 border rounded-lg text-sm bg-white"
+                                    value={transfer.qty}
+                                    onChange={e => setTransfer({...transfer, qty: parseInt(e.target.value) || 0})}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end">
+                            <Button type="submit" isLoading={transferring} icon={Zap} className="bg-amber-600 hover:bg-amber-700 text-white border-transparent">
+                                Exécuter le Transfert
+                            </Button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
+
 export default function Settings() {
     const { store, setStore } = useTenant();
     const { t } = useLanguage(); // NEW
@@ -238,6 +500,7 @@ export default function Settings() {
     const tabs = [
         { id: "general", label: t('tab_general'), icon: Store },
         { id: "shipping", label: t('tab_shipping'), icon: Truck },
+        { id: "locations", label: "Logistique & Dépôts", icon: Truck },
         { id: "catalog", label: t('tab_catalog') || 'Catalogue', icon: Package },
         { id: "billing", label: t('tab_billing'), icon: CreditCard },
         { id: "security", label: t('tab_security'), icon: Shield },
@@ -354,6 +617,7 @@ export default function Settings() {
                 )}
 
                 {activeTab === "shipping" && <ShippingSettings />}
+                {activeTab === "locations" && <LocationSettings store={store} t={t} />}
                 {activeTab === "catalog" && <CatalogSettings store={store} setStore={setStore} t={t} />}
 
                 {activeTab === "billing" && (

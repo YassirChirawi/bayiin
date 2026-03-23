@@ -13,8 +13,10 @@ import {
 } from 'lucide-react';
 import {
     parseOdooCSV, matchProductsBySupplierRef, createPurchaseOrder,
-    validateReception, exportOrderForOdoo, updatePOStatus, getSupplierStats
+    validateReception, exportOrderForOdoo, updatePOStatus, getSupplierStats,
+    addPurchasePayment
 } from '../lib/supplierService';
+import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from '../utils/constants';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -160,6 +162,11 @@ function PurchaseOrdersTab({ storeId }) {
     const [lines, setLines] = useState([{ supplier_ref: '', name: '', qty: 1, unit_price: 0 }]);
     const [creating, setCreating] = useState(false);
 
+    // Payments Form (Epic 2)
+    const [showPaymentFormId, setShowPaymentFormId] = useState(null);
+    const [newPayment, setNewPayment] = useState({ amount: "", method: PAYMENT_METHODS.BANK_TRANSFER, date: new Date().toISOString().split('T')[0] });
+    const [savingPayment, setSavingPayment] = useState(false);
+
     useEffect(() => { loadOrders(); }, [storeId]);
 
     async function loadOrders() {
@@ -196,6 +203,31 @@ function PurchaseOrdersTab({ storeId }) {
         await updatePOStatus(orderId, 'sent');
         setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'sent' } : o));
         toast.success('Commande marquée comme envoyée');
+    }
+
+    async function handleAddPayment(order) {
+        if (!newPayment.amount || isNaN(newPayment.amount) || parseFloat(newPayment.amount) <= 0) return;
+        setSavingPayment(true);
+        try {
+            const paymentToAdd = {
+                id: Date.now().toString(),
+                amount: parseFloat(newPayment.amount),
+                method: newPayment.method,
+                date: newPayment.date
+            };
+            const newAmountPaid = await addPurchasePayment(order.id, order, paymentToAdd);
+            
+            // Local update
+            setOrders(prev => prev.map(o => o.id === order.id ? { ...o, payments: [...(o.payments || []), paymentToAdd], amountPaid: newAmountPaid } : o));
+            toast.success('Règlement enregistré !');
+            setNewPayment({ amount: "", method: PAYMENT_METHODS.BANK_TRANSFER, date: new Date().toISOString().split('T')[0] });
+            setShowPaymentFormId(null);
+        } catch (e) {
+            console.error(e);
+            toast.error('Erreur lors du paiement');
+        } finally {
+            setSavingPayment(false);
+        }
     }
 
     function handleExportCSV(order) {
@@ -295,6 +327,9 @@ function PurchaseOrdersTab({ storeId }) {
                                 </div>
                                 <div className="text-right flex-shrink-0 mr-1">
                                     <p className="font-bold text-indigo-700 text-sm">{order.totalHT?.toFixed(2)} MAD</p>
+                                    {(order.amountPaid || 0) > 0 && (
+                                        <p className="text-[10px] text-emerald-600 font-bold uppercase mt-0.5">Payé : {order.amountPaid.toFixed(2)}</p>
+                                    )}
                                 </div>
                                 {expanded === order.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                             </button>
@@ -328,16 +363,53 @@ function PurchaseOrdersTab({ storeId }) {
                                             </div>
                                             {order.notes && <p className="text-xs text-gray-500 italic">{order.notes}</p>}
 
+                                            {/* Payments History (Epic 2) */}
+                                            {order.payments?.length > 0 && (
+                                                <div className="bg-emerald-50/50 border border-emerald-100/60 rounded-lg p-3">
+                                                    <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-widest mb-2">Historique des Règlements</p>
+                                                    <div className="space-y-1.5">
+                                                        {order.payments.map(p => (
+                                                            <div key={p.id} className="flex justify-between items-center text-xs bg-white px-2 py-1.5 rounded shadow-sm border border-emerald-50">
+                                                                <span className="font-bold text-emerald-700">{parseFloat(p.amount).toFixed(2)} MAD</span>
+                                                                <span className="text-gray-500">{PAYMENT_METHOD_LABELS[p.method] || p.method}</span>
+                                                                <span className="text-gray-400">{p.date}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Payment Action Form */}
+                                            {showPaymentFormId === order.id && (
+                                                <div className="bg-indigo-50/50 border border-indigo-100 rounded-lg p-3 flex flex-col sm:flex-row gap-2 items-center">
+                                                    <input type="number" step="0.01" placeholder="Montant" value={newPayment.amount} onChange={e => setNewPayment({...newPayment, amount: e.target.value})} className="text-xs border rounded px-2 py-1.5 w-full sm:w-24 focus:outline-none" />
+                                                    <select value={newPayment.method} onChange={e => setNewPayment({...newPayment, method: e.target.value})} className="text-xs bg-white border rounded px-2 py-1.5 w-full sm:w-auto focus:outline-none">
+                                                        {Object.values(PAYMENT_METHODS).map(m => (
+                                                            <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>
+                                                        ))}
+                                                    </select>
+                                                    <input type="date" value={newPayment.date} onChange={e => setNewPayment({...newPayment, date: e.target.value})} className="text-xs border rounded px-2 py-1.5 w-full sm:w-auto focus:outline-none" />
+                                                    <button onClick={() => handleAddPayment(order)} disabled={savingPayment} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg w-full sm:w-auto disabled:opacity-50">Valider</button>
+                                                    <button onClick={() => setShowPaymentFormId(null)} className="text-gray-400 hover:text-gray-600 w-full sm:w-auto"><X className="w-4 h-4 mx-auto" /></button>
+                                                </div>
+                                            )}
+
                                             {/* Actions */}
                                             <div className="flex flex-wrap gap-2 pt-1">
                                                 <button onClick={() => handleExportCSV(order)}
                                                     className="flex items-center gap-1.5 text-xs bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 font-medium px-3 py-1.5 rounded-lg">
-                                                    <Download className="w-3.5 h-3.5" /> Exporter CSV Odoo
+                                                    <Download className="w-3.5 h-3.5" /> Exporter CSV
                                                 </button>
                                                 {order.status === 'draft' && (
                                                     <button onClick={() => handleMarkSent(order.id)}
                                                         className="flex items-center gap-1.5 text-xs bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-medium px-3 py-1.5 rounded-lg">
-                                                        <Send className="w-3.5 h-3.5" /> Marquer comme envoyé
+                                                        <Send className="w-3.5 h-3.5" /> Envoyer
+                                                    </button>
+                                                )}
+                                                {((order.totalHT || 0) - (order.amountPaid || 0)) > 0 && showPaymentFormId !== order.id && (
+                                                    <button onClick={() => setShowPaymentFormId(order.id)}
+                                                        className="flex items-center gap-1.5 text-xs bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-medium px-3 py-1.5 rounded-lg ml-auto">
+                                                        <Plus className="w-3.5 h-3.5" /> Ajouter un Règlement
                                                     </button>
                                                 )}
                                             </div>

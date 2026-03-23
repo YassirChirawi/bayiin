@@ -606,6 +606,129 @@ exports.senditWebhook = functions.https.onRequest(async (req, res) => {
 });
 
 /**
+ * O-Livraison Webhook Handler
+ * Updates order status based on O-Livraison events.
+ * 
+ * URL to Register in O-Livraison Dashboard: 
+ * https://us-central1-YOUR-PROJECT-ID.cloudfunctions.net/olivraisonWebhook
+ */
+exports.olivraisonWebhook = functions.https.onRequest(async (req, res) => {
+    // Webhooks might be GET (ping) or POST
+    if (req.method !== 'POST') {
+        return res.status(200).send("O-Livraison Webhook endpoint is active. Awaiting POST.");
+    }
+
+    console.log("O-Livraison Webhook Received Payload:", JSON.stringify(req.body));
+
+    // Support various formats O-Livraison might use
+    const payload = req.body;
+    const status = payload.status || payload.Status || payload.etat || payload.state;
+    const tracking = payload.trackingNumber || payload.tracking_id || payload.code || payload.id || payload.trackingId || payload.package_id;
+
+    if (!tracking || !status) {
+        console.warn("Invalid O-Livraison Payload, missing tracking or status.");
+        // Always return 200 so they don't retry a bad payload infinitely
+        return res.status(200).send({ success: false, reason: "Missing tracking or status fields" });
+    }
+
+    try {
+        // Find order by trackingId
+        const ordersRef = db.collection('orders');
+        const snapshot = await ordersRef.where('trackingId', '==', String(tracking)).get();
+
+        if (snapshot.empty) {
+            console.log(`No order found in BayIIn for O-Livraison tracking code: ${tracking}`);
+            return res.status(200).send({ success: true, warning: 'Order not found in ERP' });
+        }
+
+        const batch = db.batch();
+        let updatedCount = 0;
+
+        // O-Livraison Status Mapping to Interne BayIIn
+        const mapOLivraisonStatus = (os) => {
+            const normalized = String(os).toUpperCase().trim();
+
+            const statusMap = {
+                // Success
+                'LIVRÉ': 'livré',
+                'LIVRE': 'livré',
+                'DELIVERED': 'livré',
+
+                // Failure / Returns
+                'RETOURNÉ': 'retour',
+                'RETOURNE': 'retour',
+                'REFUSÉ': 'retour',
+                'REFUSE': 'retour',
+                'ANNULÉ': 'annulé',
+                'ANNULE': 'annulé',
+                'CANCELED': 'annulé',
+
+                // In Progress
+                'EN COURS': 'livraison',
+                'EN COURS DE LIVRAISON': 'livraison',
+                'EXPÉDIÉ': 'livraison',
+                'EXPEDIE': 'livraison',
+                'OUT FOR DELIVERY': 'livraison',
+                'EN ROUTE': 'livraison',
+
+                // Pickup
+                'RAMASSÉ': 'ramassage',
+                'RAMASSE': 'ramassage',
+                'PICKED_UP': 'ramassage',
+                'NOUVEAU': 'confirmed',
+                'CONFIRMÉ': 'confirmed',
+                'CONFIRME': 'confirmed',
+
+                // Issues
+                'PAS DE RÉPONSE': 'pas de réponse',
+                'PAS DE REPONSE': 'pas de réponse',
+                'INJOIGNABLE': 'pas de réponse',
+                'REPORTÉ': 'reporté',
+                'REPORTE': 'reporté'
+            };
+            return statusMap[normalized] || null;
+        };
+
+        const newInternalStatus = mapOLivraisonStatus(status);
+
+        snapshot.forEach(doc => {
+            const order = doc.data();
+            const orderRef = db.collection('orders').doc(doc.id);
+
+            const updates = {
+                carrierStatus: String(status),
+                lastCarrierUpdate: FieldValue.serverTimestamp()
+            };
+
+            // Only update internal status if mapping exists and differs
+            if (newInternalStatus && order.status !== newInternalStatus) {
+                updates.status = newInternalStatus;
+            }
+
+            // Always update if tracking raw status changed or internal status changed
+            if (order.carrierStatus !== String(status) || (newInternalStatus && order.status !== newInternalStatus)) {
+                batch.update(orderRef, updates);
+                updatedCount++;
+            }
+        });
+
+        if (updatedCount > 0) {
+            await batch.commit();
+            console.log(`Updated ${updatedCount} orders for O-Livraison tracking ${tracking} to ${newInternalStatus || status}`);
+        } else {
+            console.log(`No updates needed for O-Livraison tracking ${tracking}`);
+        }
+
+        return res.status(200).send({ success: true, updated: updatedCount });
+
+    } catch (error) {
+        console.error("Error processing O-Livraison webhook:", error);
+        return res.status(500).send("Internal Server Error");
+    }
+});
+
+
+/**
  * Sync Stock to WooCommerce on product update
  */
 exports.syncStockToWooCommerce = onDocumentWritten({

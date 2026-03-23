@@ -174,6 +174,21 @@ export async function updatePOStatus(orderId, status) {
 }
 
 /**
+ * Add a payment to a Purchase Order (Epic 2: Partial Payments).
+ */
+export async function addPurchasePayment(orderId, orderData, payment) {
+    const newPayments = [...(orderData.payments || []), payment];
+    const newAmountPaid = newPayments.reduce((s, p) => s + parseFloat(p.amount || 0), 0);
+    
+    await updateDoc(doc(db, 'purchase_orders', orderId), {
+        payments: newPayments,
+        amountPaid: newAmountPaid,
+        updatedAt: serverTimestamp()
+    });
+    return newAmountPaid;
+}
+
+/**
  * Export a PO as a CSV string ready to import into Odoo.
  * @param {Object} order  Firestore PO document
  * @returns {string} CSV content
@@ -286,10 +301,14 @@ export async function getSupplierStats(storeId) {
     );
     const orders = ordersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    // Total due = sum of non-received orders
-    const totalDue = orders
-        .filter(o => o.status === 'sent' || o.status === 'draft')
-        .reduce((s, o) => s + (o.totalHT || 0), 0);
+    // Total due = sum of all orders cost minus the amount already paid
+    // (A received order mapping is still "due" if not paid)
+    const totalDue = orders.reduce((sum, o) => {
+        const cost = o.totalHT || 0;
+        const paid = o.amountPaid || 0;
+        const remaining = Math.max(0, cost - paid);
+        return sum + remaining;
+    }, 0);
 
     // Last received order
     const received = orders

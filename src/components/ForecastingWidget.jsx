@@ -15,11 +15,12 @@ export default function ForecastingWidget({ products, orders }) {
         setLoading(false);
     };
 
-    useEffect(() => {
-        if (products && products.length > 0 && forecast.length === 0) {
-            handleRunForecast();
-        }
-    }, [products]);
+    // Removed auto-run to save Gemini Free API quota
+    // useEffect(() => {
+    //     if (products && products.length > 0 && forecast.length === 0) {
+    //         handleRunForecast();
+    //     }
+    // }, [products]);
 
     return (
         <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden flex flex-col h-full min-h-[400px]">
@@ -58,12 +59,18 @@ export default function ForecastingWidget({ products, orders }) {
                     </div>
                 ) : forecast.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-center">
-                        <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                            <AlertTriangle className="w-8 h-8 text-gray-200" />
+                        <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mb-4">
+                            <AlertTriangle className="w-8 h-8 text-indigo-300" />
                         </div>
-                        <p className="text-sm text-gray-400 font-bold italic px-6 leading-relaxed">
-                            Nous n'avons pas encore assez de données de vente pour prédire une rupture.
+                        <p className="text-sm text-gray-500 font-bold px-6 leading-relaxed">
+                            L'IA est en veille pour économiser votre quota gratuit.
                         </p>
+                        <p className="text-xs text-gray-400 mt-2 px-6">
+                            Cliquez sur le bouton ci-dessous pour analyser vos historiques et prédire les ruptures de stock.
+                        </p>
+                        <button onClick={handleRunForecast} className="mt-5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-2">
+                            <Sparkles className="w-4 h-4" /> Lancer l'analyse (Gemini)
+                        </button>
                     </div>
                 ) : (
                     <AnimatePresence>

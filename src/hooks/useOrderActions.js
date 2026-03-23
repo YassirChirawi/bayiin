@@ -109,16 +109,27 @@ export const useOrderActions = () => {
                         if (product.isVariable && item.variantId) {
                             const newVariants = (product.variants || []).map(v => {
                                 if (v.id === item.variantId) {
-                                    return { ...v, stock: (parseInt(v.stock) || 0) - qty };
+                                    const vWStocks = { ...(v.warehouseStocks || {}) };
+                                    if (orderData.warehouseId) {
+                                        vWStocks[orderData.warehouseId] = (vWStocks[orderData.warehouseId] || 0) - qty;
+                                    }
+                                    return { ...v, stock: (parseInt(v.stock) || 0) - qty, warehouseStocks: vWStocks };
                                 }
                                 return v;
                             });
-                            transaction.update(productRef, {
+                            const pUpdates = {
                                 variants: newVariants,
                                 stock: increment(-qty)
-                            });
+                            };
+                            if (orderData.warehouseId) {
+                                pUpdates[`warehouseStocks.${orderData.warehouseId}`] = increment(-qty);
+                            }
+                            transaction.update(productRef, pUpdates);
                         } else {
                             let stockUpdates = { stock: increment(-qty) };
+                            if (orderData.warehouseId) {
+                                stockUpdates[`warehouseStocks.${orderData.warehouseId}`] = increment(-qty);
+                            }
 
                             if (product.inventoryBatches && product.inventoryBatches.length > 0) {
                                 let updatedBatches = [...product.inventoryBatches].sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
@@ -138,6 +149,38 @@ export const useOrderActions = () => {
                             }
 
                             transaction.update(productRef, stockUpdates);
+                        }
+
+                        // --- BUNDLE STOCK DEDUCTION (Épique 3) ---
+                        if (product.isBundle && product.bundleItems) {
+                            for (const component of product.bundleItems) {
+                                const compRef = doc(db, "products", component.productId);
+                                const compSnap = await transaction.get(compRef); // Fetching in write phase (allowed if no reads after this)
+                                if (compSnap.exists()) {
+                                    const compData = compSnap.data();
+                                    const totalDeduct = qty * (parseInt(component.qty) || 1);
+                                                                        // Apply deduction to component (supporting simple or batches)
+                                    let compUpdates = { stock: increment(-totalDeduct) };
+                                    if (orderData.warehouseId) {
+                                        compUpdates[`warehouseStocks.${orderData.warehouseId}`] = increment(-totalDeduct);
+                                    }
+                                    if (compData.inventoryBatches && compData.inventoryBatches.length > 0) {
+                                        let compUpdatedBatches = [...compData.inventoryBatches].sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
+                                        let remainingQty = totalDeduct;
+                                        for (let i = 0; i < compUpdatedBatches.length && remainingQty > 0; i++) {
+                                            let b = compUpdatedBatches[i];
+                                            let bQty = parseInt(b.quantity) || 0;
+                                            if (bQty > 0) {
+                                                let deductAmount = Math.min(bQty, remainingQty);
+                                                b.quantity = bQty - deductAmount;
+                                                remainingQty -= deductAmount;
+                                            }
+                                        }
+                                        compUpdates.inventoryBatches = compUpdatedBatches;
+                                    }
+                                    transaction.update(compRef, compUpdates);
+                                }
+                            }
                         }
                     }
                 }
@@ -194,22 +237,44 @@ export const useOrderActions = () => {
             const restock = shouldRestock(oldData.status, newData.status);
             const deduct = shouldDeductStock(oldData.status, newData.status);
             
-            // Build list of stock adjustments needed
-            const adjustments = []; // { id, variantId, change }
-            if (restock || deduct) {
-                const isRestock = restock;
-                if (newData.articleId) {
-                    adjustments.push({ id: newData.articleId, variantId: newData.variantId, quantity: newData.quantity, isRestock });
-                } else if (newData.products) {
-                    for (const item of newData.products) {
-                        adjustments.push({ id: item.id, variantId: item.variantId, quantity: item.quantity, isRestock });
-                    }
-                }
-            } else if (oldData.articleId !== newData.articleId && oldData.articleId && newData.articleId) {
-                // Product changed
-                adjustments.push({ id: oldData.articleId, variantId: oldData.variantId, quantity: oldData.quantity, isRestock: true });
-                adjustments.push({ id: newData.articleId, variantId: newData.variantId, quantity: newData.quantity, isRestock: false });
+            // Build list of stock net changes needed
+            const netChanges = {}; // { productId_variantId: { id, variantId, netChange } }
+
+            const addChange = (id, variantId, amount) => {
+                if (!id) return;
+                const key = variantId ? `${id}_${variantId}` : id;
+                if (!netChanges[key]) netChanges[key] = { id, variantId, netChange: 0 };
+                netChanges[key].netChange += amount;
+            };
+
+            const getItems = (data) => {
+                let items = [];
+                if (data.products && data.products.length > 0) items = [...data.products];
+                else if (data.articleId) items.push({ id: data.articleId, variantId: data.variantId, quantity: data.quantity });
+                return items;
+            };
+            if (restock) {
+                // Order cancelled -> Add back everything
+                getItems(oldData).forEach(item => addChange(item.id, item.variantId, parseInt(item.quantity) || 1));
+            } else if (deduct) {
+                // Order reactivated -> Deduct everything
+                getItems(newData).forEach(item => addChange(item.id, item.variantId, -(parseInt(item.quantity) || 1)));
+            } else if (![ORDER_STATUS.CANCELLED, ORDER_STATUS.RETURNED, ORDER_STATUS.NO_ANSWER, 'pending_catalog'].includes(oldData.status)) {
+                // Order remained Active. Diff the items.
+                // Restock old items
+                getItems(oldData).forEach(item => addChange(item.id, item.variantId, parseInt(item.quantity) || 1));
+                // Deduct new items
+                getItems(newData).forEach(item => addChange(item.id, item.variantId, -(parseInt(item.quantity) || 1)));
             }
+
+            const finalAdjustments = Object.values(netChanges).filter(adj => adj.netChange !== 0);
+
+            // Group by Product ID because a product might have multiple variant changes
+            const groupedByProduct = {};
+            finalAdjustments.forEach(adj => {
+                if (!groupedByProduct[adj.id]) groupedByProduct[adj.id] = [];
+                groupedByProduct[adj.id].push(adj);
+            });
 
             await runTransaction(db, async (transaction) => {
                 const orderRef = doc(db, "orders", orderId);
@@ -223,60 +288,119 @@ export const useOrderActions = () => {
 
                 // Read all involved products
                 const productDocs = {};
-                for (const adj of adjustments) {
-                    if (!productDocs[adj.id]) {
-                        productDocs[adj.id] = await transaction.get(doc(db, "products", adj.id));
+                for (const productId of Object.keys(groupedByProduct)) {
+                    if (!productDocs[productId]) {
+                        productDocs[productId] = await transaction.get(doc(db, "products", productId));
                     }
                 }
 
                 // --- 2. WRITE PHASE ---
                 
                 // Stock Adjustments
-                for (const adj of adjustments) {
-                    const snap = productDocs[adj.id];
+                for (const [productId, productAdjs] of Object.entries(groupedByProduct)) {
+                    const snap = productDocs[productId];
                     if (snap && snap.exists()) {
-                        const productRef = doc(db, "products", adj.id);
+                        const productRef = doc(db, "products", productId);
                         const product = snap.data();
-                        const qty = parseInt(adj.quantity) || 1;
-                        const change = adj.isRestock ? qty : -qty;
+                        
+                        let totalStockChange = 0;
+                        let newVariants = product.variants ? [...product.variants] : [];
+                        let updatedBatches = product.inventoryBatches ? [...product.inventoryBatches] : [];
+                        let stockUpdates = {};
 
-                        if (product.isVariable && adj.variantId) {
-                            const newVariants = (product.variants || []).map(v => {
-                                if (v.id === adj.variantId) {
-                                    return { ...v, stock: (parseInt(v.stock) || 0) + change };
-                                }
-                                return v;
-                            });
-                            // Transactionally process updates safely grouping them by ref
-                            // As multiple adjustments to the same product might overwrite variants,
-                            // Ideally, this should be grouped by product if the same product is in multiple adjustments.
-                            // But for normal simple orders (like single product changes), this is fine.
-                            transaction.update(productRef, { variants: newVariants, stock: increment(change) });
-                        } else {
-                            let stockUpdates = { stock: increment(change) };
+                        for (const adj of productAdjs) {
+                            totalStockChange += adj.netChange;
 
-                            if (product.inventoryBatches && product.inventoryBatches.length > 0) {
-                                let updatedBatches = [...product.inventoryBatches];
-
-                                if (change > 0) {
-                                    updatedBatches.sort((a, b) => new Date(b.expiryDate || 0) - new Date(a.expiryDate || 0));
-                                    updatedBatches[0].quantity = (parseInt(updatedBatches[0].quantity) || 0) + change;
-                                } else if (change < 0) {
-                                    let remainingQty = Math.abs(change);
-                                    updatedBatches.sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
-                                    for (let i = 0; i < updatedBatches.length && remainingQty > 0; i++) {
-                                        let batch = updatedBatches[i];
-                                        let batchQty = parseInt(batch.quantity) || 0;
-                                        if (batchQty > 0) {
-                                            let deductAmount = Math.min(batchQty, remainingQty);
-                                            batch.quantity = batchQty - deductAmount;
-                                            remainingQty -= deductAmount;
+                            if (product.isVariable && adj.variantId) {
+                                newVariants = newVariants.map(v => {
+                                    if (v.id === adj.variantId) {
+                                        const vWStocks = { ...(v.warehouseStocks || {}) };
+                                        if (newData.warehouseId) {
+                                            vWStocks[newData.warehouseId] = (vWStocks[newData.warehouseId] || 0) + adj.netChange;
+                                        }
+                                        return { ...v, stock: (parseInt(v.stock) || 0) + adj.netChange, warehouseStocks: vWStocks };
+                                    }
+                                    return v;
+                                });
+                            } else { // Not variable or no variantId
+                                let change = adj.netChange;
+                                if (updatedBatches.length > 0) {
+                                    if (change > 0) {
+                                        // Restock to the oldest batch (simplest approach for restock)
+                                        updatedBatches.sort((a, b) => new Date(b.expiryDate || 0) - new Date(a.expiryDate || 0));
+                                        updatedBatches[0].quantity = (parseInt(updatedBatches[0].quantity) || 0) + change;
+                                    } else if (change < 0) {
+                                        // Deduct from FEFO
+                                        let remainingQty = Math.abs(change);
+                                        updatedBatches.sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
+                                        for (let i = 0; i < updatedBatches.length && remainingQty > 0; i++) {
+                                            let batch = updatedBatches[i];
+                                            let batchQty = parseInt(batch.quantity) || 0;
+                                            if (batchQty > 0) {
+                                                let deductAmount = Math.min(batchQty, remainingQty);
+                                                batch.quantity = batchQty - deductAmount;
+                                                remainingQty -= deductAmount;
+                                            }
                                         }
                                     }
                                 }
-                                stockUpdates.inventoryBatches = updatedBatches;
                             }
-                            transaction.update(productRef, stockUpdates);
+                        }
+
+                        if (product.isVariable) {
+                            stockUpdates = { variants: newVariants, stock: increment(totalStockChange) };
+                            if (newData.warehouseId) {
+                                stockUpdates[`warehouseStocks.${newData.warehouseId}`] = increment(totalStockChange);
+                            }
+                        } else {
+                            stockUpdates = { stock: increment(totalStockChange) };
+                            if (newData.warehouseId) {
+                                stockUpdates[`warehouseStocks.${newData.warehouseId}`] = increment(totalStockChange);
+                            }
+                            if (updatedBatches.length > 0) stockUpdates.inventoryBatches = updatedBatches;
+                        }
+
+                        transaction.update(productRef, stockUpdates);
+
+                        // --- BUNDLE STOCK SYNC (Épique 3) ---
+                        if (product.isBundle && product.bundleItems) {
+                            for (const component of product.bundleItems) {
+                                const compRef = doc(db, "products", component.productId);
+                                // For updateOrder, we might not have pre-fetched all components in productDocs
+                                const compSnap = productDocs[component.productId] || await transaction.get(compRef);
+                                if (compSnap.exists()) {
+                                    const compData = compSnap.data();
+                                    // totalStockChange is the net change for the bundle product itself
+                                    const netCompChange = totalStockChange * (parseInt(component.qty) || 1);
+                                    let compUpdates = { stock: increment(netCompChange) };
+                                    if (newData.warehouseId) {
+                                        compUpdates[`warehouseStocks.${newData.warehouseId}`] = increment(netCompChange);
+                                    }
+
+                                    // Handle batches for component
+                                    if (compData.inventoryBatches && compData.inventoryBatches.length > 0) {
+                                        let compUpdatedBatches = [...compData.inventoryBatches];
+                                        if (netCompChange > 0) {
+                                            compUpdatedBatches.sort((a, b) => new Date(b.expiryDate || 0) - new Date(a.expiryDate || 0));
+                                            compUpdatedBatches[0].quantity = (parseInt(compUpdatedBatches[0].quantity) || 0) + netCompChange;
+                                        } else if (netCompChange < 0) {
+                                            let remainingQty = Math.abs(netCompChange);
+                                            compUpdatedBatches.sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
+                                            for (let i = 0; i < compUpdatedBatches.length && remainingQty > 0; i++) {
+                                                let b = compUpdatedBatches[i];
+                                                let bQty = parseInt(b.quantity) || 0;
+                                                if (bQty > 0) {
+                                                    let deduct = Math.min(bQty, remainingQty);
+                                                    b.quantity = bQty - deduct;
+                                                    remainingQty -= deduct;
+                                                }
+                                            }
+                                        }
+                                        compUpdates.inventoryBatches = compUpdatedBatches;
+                                    }
+                                    transaction.update(compRef, compUpdates);
+                                }
+                            }
                         }
                     }
                 }

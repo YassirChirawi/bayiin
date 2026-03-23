@@ -114,6 +114,13 @@ service cloud.firestore {
        allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
        allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId)));
     }
+
+    // Warehouses (Épique 5)
+    match /warehouses/{warehouseId} {
+       allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
+    }
     
     // Orders
     match /orders/{orderId} {

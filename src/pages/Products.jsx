@@ -263,6 +263,11 @@ export default function Products() {
                                                             {t('with_variants')}
                                                         </span>
                                                     )}
+                                                    {product.isBundle && (
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+                                                            <Package className="w-3 h-3 mr-1" /> Pack
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <p className="flex items-center text-sm text-gray-500">
                                                     <span className="truncate">{product.category}</span>
@@ -400,6 +405,11 @@ export default function Products() {
                                                     {product.variants?.length || 0} variants
                                                 </span>
                                             )}
+                                            {product.isBundle && (
+                                                <span className="inline-flex mt-1 items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-800">
+                                                    Pack
+                                                </span>
+                                            )}
                                         </div>
 
                                         <div className="flex flex-col items-start mt-2 space-y-1">
@@ -482,6 +492,7 @@ export default function Products() {
                 onClose={() => { setIsModalOpen(false); setEditingProduct(null); }}
                 onSave={handleSave}
                 product={editingProduct}
+                allProducts={products}
             />
 
             <ImportModal

@@ -77,11 +77,13 @@ export default function Finances() {
     // 2. Fetch Expenses
     const { data: expenses = [], loading: loadingExpenses, error: expensesError, addStoreItem: addExpense, deleteStoreItem: deleteExpense } = useStoreData("expenses");
 
+    // 2.5 Fetch Refunds (Avoirs)
+    const { data: refunds = [], loading: loadingRefunds } = useStoreData("refunds");
 
     // --- Precise KPIs Calculation ---
     const stats = useMemo(() => {
-        return calculateFinancialStats(orders, expenses, dateRange, selectedCollection ? selectedCollection.id : null, parseFloat(importFees) || 0);
-    }, [orders, expenses, dateRange, selectedCollection, importFees]);
+        return calculateFinancialStats(orders, expenses, refunds, dateRange, selectedCollection ? selectedCollection.id : null, parseFloat(importFees) || 0);
+    }, [orders, expenses, refunds, dateRange, selectedCollection, importFees]);
 
 
     // --- Chart Data ---
@@ -496,7 +498,7 @@ export default function Finances() {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 {/* 1. Total Income (LIVRÉ) */}
                 <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
                     <div className="flex items-center">
@@ -577,6 +579,23 @@ export default function Finances() {
                             <dl>
                                 <dt className="text-sm font-medium text-gray-500 truncate">TVA à Collecter (20%)</dt>
                                 <dd className="text-2xl font-semibold text-rose-600">{stats.res.tvaCollectee.toFixed(0)} {store?.currency || 'MAD'}</dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 6. Avoirs / Remboursements */}
+                <div className="bg-white overflow-hidden shadow rounded-lg border border-red-100 p-5">
+                    <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                            <div className="flex items-center justify-center h-12 w-12 rounded-md bg-red-100 text-red-600">
+                                <Activity className="h-6 w-6" />
+                            </div>
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt className="text-sm font-medium text-red-500 truncate">Remboursements</dt>
+                                <dd className="text-2xl font-semibold text-red-700">-{stats.res.totalRefunds?.toLocaleString()} {store?.currency || 'MAD'}</dd>
                             </dl>
                         </div>
                     </div>
@@ -890,6 +909,31 @@ export default function Finances() {
                                     </li>
                                 )
                             })}
+                        </ul>
+                    )}
+                </div>
+            </div>
+
+            {/* Refunds Management */}
+            <div className="bg-white p-4 sm:p-6 rounded-lg shadow border border-gray-100 lg:col-span-2">
+                <h3 className="text-lg font-bold text-red-600 mb-4">Registre des Avoirs (Remboursements)</h3>
+                <div className="overflow-y-auto max-h-64 border-t border-gray-100">
+                    {stats.filteredRefunds && stats.filteredRefunds.length === 0 ? (
+                        <p className="py-4 text-center text-sm text-gray-500">Aucun avoir émis (client remboursé) pour cette période.</p>
+                    ) : (
+                        <ul className="divide-y divide-gray-100">
+                            {(stats.filteredRefunds || []).map(ref => (
+                                <li key={ref.id} className="py-3 flex justify-between items-center text-sm">
+                                    <div className="flex flex-col">
+                                        <span className="text-gray-900 font-bold">Avoir #{ref.orderId?.substring(0, 5)}</span>
+                                        <span className="text-xs text-gray-500">{ref.clientName} - {ref.reason || "Retour / Remboursement"}</span>
+                                        {ref.date && <span className="text-xs text-gray-400">{new Date(ref.date).toLocaleDateString()}</span>}
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="font-bold text-red-600">-{parseFloat(ref.amount).toFixed(2)} DH</span>
+                                    </div>
+                                </li>
+                            ))}
                         </ul>
                     )}
                 </div>

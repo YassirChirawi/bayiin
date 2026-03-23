@@ -23,13 +23,14 @@ const safeInt = (val) => {
  * @param {String} collectionId - Optional: Filter expenses by collection
  * @param {Number} importFees - Optional: Frais d'approche (Douane, Transit, Transport)
  */
-export const calculateFinancialStats = (orders, expenses, dateRange = null, collectionId = null, importFees = 0) => {
+export const calculateFinancialStats = (orders, expenses, refunds = [], dateRange = null, collectionId = null, importFees = 0) => {
     const res = {
         realizedRevenue: 0, // Cash Collected (isPaid)
         deliveredRevenue: 0, // Potential from Delivered (status == livré)
         totalCOGS: 0,
         totalRealDelivery: 0,
         totalExpenses: 0,
+        totalRefunds: 0, // NEW
 
         netResult: 0,
         margin: "0.0",
@@ -75,9 +76,13 @@ export const calculateFinancialStats = (orders, expenses, dateRange = null, coll
         }
 
         // Realized Cash (The Gold Standard)
-        if (isPaid) {
-            res.realizedRevenue += revenue;
-            res.totalCOGS += cogs;
+        const amountCollected = (o.amountPaid !== undefined && o.amountPaid !== null && o.amountPaid !== "") 
+            ? safeFloat(o.amountPaid) 
+            : (isPaid ? revenue : 0);
+
+        if (amountCollected > 0 || isPaid) {
+            res.realizedRevenue += amountCollected;
+            res.totalCOGS += cogs; // We trigger full COGS liability as soon as ANY part of the order is collected
         }
 
         // Delivery Costs
@@ -114,18 +119,37 @@ export const calculateFinancialStats = (orders, expenses, dateRange = null, coll
         .filter(e => e.category === 'Ads')
         .reduce((sum, e) => sum + safeFloat(e.amount), 0);
 
-    // 3. Net Result (incluant les frais d'approche)
-    const importFeesAmount = safeFloat(importFees);
-    res.netResult = res.realizedRevenue - res.totalCOGS - res.totalRealDelivery - res.totalExpenses - importFeesAmount;
+    // 3. Process Refunds
+    const filteredRefunds = refunds.filter(r => {
+        if (collectionId) {
+            if (r.collectionId === collectionId) return true;
+            if (r.collectionId) return false;
+            if (!r.date || !start || !end) return false;
+            const d = new Date(r.date);
+            return d >= start && d <= end;
+        } else {
+            if (!r.date || !start || !end) return true;
+            const d = new Date(r.date);
+            return d >= start && d <= end;
+        }
+    });
 
-    // 4. Derived Metrics
-    res.margin = res.realizedRevenue > 0 ? ((res.netResult / res.realizedRevenue) * 100).toFixed(1) : "0.0";
-    res.roas = res.adsSpend > 0 ? (res.realizedRevenue / res.adsSpend).toFixed(2) : "0.00";
+    res.totalRefunds = filteredRefunds.reduce((sum, r) => sum + safeFloat(r.amount), 0);
+
+    // 4. Net Result (incluant frais d'approche et Avoirs)
+    const importFeesAmount = safeFloat(importFees);
+    res.netResult = res.realizedRevenue - res.totalCOGS - res.totalRealDelivery - res.totalExpenses - res.totalRefunds - importFeesAmount;
+
+    // 5. Derived Metrics
+    // Net Revenue = Gross Realized - Refunds
+    const netRevenue = res.realizedRevenue - res.totalRefunds;
+    res.margin = netRevenue > 0 ? ((res.netResult / netRevenue) * 100).toFixed(1) : "0.0";
+    res.roas = res.adsSpend > 0 ? (netRevenue / res.adsSpend).toFixed(2) : "0.00";
     res.cac = res.deliveredCount > 0 ? (res.adsSpend / res.deliveredCount).toFixed(2) : "0.00";
 
     const totalShipping = res.totalRealDelivery + filteredExpenses.filter(e => e.category === 'Shipping').reduce((sum, e) => sum + safeFloat(e.amount), 0);
-    res.shippingRatio = res.realizedRevenue > 0 ? ((totalShipping / res.realizedRevenue) * 100).toFixed(1) : "0.0";
+    res.shippingRatio = netRevenue > 0 ? ((totalShipping / netRevenue) * 100).toFixed(1) : "0.0";
     res.profitPerOrder = res.deliveredCount > 0 ? (res.netResult / res.deliveredCount).toFixed(2) : "0.00";
 
-    return { res, filteredExpenses };
+    return { res, filteredExpenses, filteredRefunds };
 };

@@ -9,7 +9,7 @@ import { useLanguage } from "../context/LanguageContext"; // NEW
 import { validateSKU, suggestSKU } from "../lib/skuService"; // NEW
 import { useStoreData } from "../hooks/useStoreData"; // NEW — for SKU suggestions
 
-export default function ProductModal({ isOpen, onClose, onSave, product = null }) {
+export default function ProductModal({ isOpen, onClose, onSave, product = null, allProducts = [] }) {
     const [formData, setFormData] = useState({
         name: "",
         category: "",
@@ -20,10 +20,12 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
         description: "",
         photoUrl: "",
         isVariable: false,
+        isBundle: false, // Épique 3
         costCurrency: "MAD",
         supplier_ref: "",
         sku: "",
-        min_stock_alert: 5
+        min_stock_alert: 5,
+        warehouseStocks: {} // { warehouseId: quantity }
     });
 
     // Variants State
@@ -33,8 +35,15 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
     // Batches State
     const [batches, setBatches] = useState([]); // [{ batchNumber: '', expiryDate: '', quantity: 0 }]
 
+    // Bundle State (Épique 3)
+    const [bundleItems, setBundleItems] = useState([]); // [{ productId: '...', name: '...', qty: 1 }]
+    const [searchBundleComponent, setSearchBundleComponent] = useState("");
+    const [showBundleDropdown, setShowBundleDropdown] = useState(false);
+
     const { store } = useTenant();
     const { t } = useLanguage(); // NEW
+    const [variantStockEditing, setVariantStockEditing] = useState(null); // { idx, name }
+    const { data: warehouses } = useStoreData("warehouses"); // Épique 5
     const [loading, setLoading] = useState(false);
     const { uploadImage, uploading, error: uploadError } = useImageUpload();
 
@@ -51,14 +60,17 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                 description: product.description || "",
                 photoUrl: product.photoUrl || "",
                 isVariable: product.isVariable || false,
+                isBundle: product.isBundle || false,
                 costCurrency: product.costCurrency || "MAD",
                 supplier_ref: product.supplier_ref || "",
                 sku: product.sku || "",
-                min_stock_alert: product.min_stock_alert ?? 5
+                min_stock_alert: product.min_stock_alert ?? 5,
+                warehouseStocks: product.warehouseStocks || {}
             });
             setAttributes(product.attributes || []);
             setVariants(product.variants || []);
             setBatches(product.inventoryBatches || []);
+            setBundleItems(product.bundleItems || []);
         } else {
             setFormData({
                 name: "",
@@ -70,14 +82,18 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                 description: "",
                 photoUrl: "",
                 isVariable: false,
+                isBundle: false,
                 costCurrency: "MAD",
                 supplier_ref: "",
                 sku: "",
-                min_stock_alert: 5
+                min_stock_alert: 5,
+                warehouseStocks: {}
             });
             setAttributes([]);
             setVariants([]);
             setBatches([]);
+            setBundleItems([]);
+            setSearchBundleComponent("");
         }
     }, [product, isOpen]);
 
@@ -151,10 +167,44 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
         setVariants(newVariants);
     };
 
-    const updateVariant = (index, field, value) => {
+    const updateVariant = (idx, field, value) => {
         const newVariants = [...variants];
-        newVariants[index][field] = value;
+        newVariants[idx] = { ...newVariants[idx], [field]: value };
+        // If updating stock manually, maybe clear warehouse breakdown? 
+        // Or better: keep them in sync if we really want, but for variants let's treat them separately for now.
         setVariants(newVariants);
+    };
+
+    const updateVariantWarehouseStock = (variantIdx, warehouseId, value) => {
+        const newVariants = [...variants];
+        const v = { ...newVariants[variantIdx] };
+        const stocks = { ...(v.warehouseStocks || {}) };
+        stocks[warehouseId] = value === '' ? '' : parseInt(value) || 0;
+        v.warehouseStocks = stocks;
+        
+        // Update total stock for this variant
+        v.stock = Object.values(stocks).reduce((a, b) => a + (parseInt(b) || 0), 0);
+        newVariants[variantIdx] = v;
+        setVariants(newVariants);
+    };
+
+    // --- Bundle Logic (Épique 3) ---
+    const addBundleItem = (prod) => {
+        if (!bundleItems.find(i => i.productId === prod.id)) {
+            setBundleItems([...bundleItems, { productId: prod.id, name: prod.name, stock: prod.stock, qty: 1 }]);
+        }
+        setSearchBundleComponent("");
+        setShowBundleDropdown(false);
+    };
+
+    const updateBundleItemQty = (index, qty) => {
+        const newItems = [...bundleItems];
+        newItems[index].qty = Math.max(1, parseInt(qty) || 1);
+        setBundleItems(newItems);
+    };
+
+    const removeBundleItem = (index) => {
+        setBundleItems(bundleItems.filter((_, i) => i !== index));
     };
 
     // --- Submit ---
@@ -168,6 +218,18 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
             // If variable, calculate total stock from variants
             if (formData.isVariable) {
                 finalStock = variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
+            } else if (formData.isBundle) {
+                // Bundle stock visually computed as Math.floor(min(componentStock / requiredQty))
+                if (bundleItems.length > 0) {
+                    const maxPacks = bundleItems.map(item => {
+                        const comp = allProducts.find(p => p.id === item.productId);
+                        const compStock = comp ? (parseInt(comp.stock) || 0) : 0;
+                        return Math.floor(compStock / (item.qty || 1));
+                    });
+                    finalStock = Math.min(...maxPacks);
+                } else {
+                    finalStock = 0;
+                }
             } else if (batches.length > 0) {
                 // If batches exist, total stock is sum of batch quantities
                 finalStock = batches.reduce((sum, b) => sum + (parseInt(b.quantity) || 0), 0);
@@ -187,9 +249,11 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                 stock: finalStock,
                 sizes: formData.sizes.split(",").map(s => s.trim()).filter(Boolean), // Keep for legacy compatibility
                 isVariable: formData.isVariable,
+                isBundle: formData.isBundle,
                 attributes: formData.isVariable ? attributes : [],
                 variants: formData.isVariable ? variants : [],
                 inventoryBatches: batches,
+                bundleItems: formData.isBundle ? bundleItems : [],
                 updatedAt: new Date().toISOString()
             };
 
@@ -347,27 +411,109 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
 
                     {/* Stock & Variants Type Toggle */}
                     <div className="space-y-4">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                             <h3 className="text-lg font-medium text-gray-900">{t('title_inventory')}</h3>
-                            <div className="flex bg-gray-100 p-1 rounded-lg">
+                            <div className="flex bg-gray-100 p-1 rounded-lg overflow-x-auto w-full sm:w-auto">
                                 <button
                                     type="button"
-                                    onClick={() => setFormData(prev => ({ ...prev, isVariable: false }))}
-                                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${!formData.isVariable ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
+                                    onClick={() => setFormData(prev => ({ ...prev, isVariable: false, isBundle: false }))}
+                                    className={`px-3 py-1.5 min-w-max text-xs font-semibold rounded-md transition-colors ${!formData.isVariable && !formData.isBundle ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
                                 >
-                                    {t('btn_simple_product')}
+                                    Stock Simple
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => setFormData(prev => ({ ...prev, isVariable: true }))}
-                                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${formData.isVariable ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500'}`}
+                                    onClick={() => setFormData(prev => ({ ...prev, isVariable: true, isBundle: false }))}
+                                    className={`px-3 py-1.5 min-w-max text-xs font-semibold rounded-md transition-colors ${formData.isVariable && !formData.isBundle ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500'}`}
                                 >
-                                    {t('btn_variable_product')}
+                                    Stock Variable (Attributs)
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, isVariable: false, isBundle: true }))}
+                                    className={`px-3 py-1.5 min-w-max text-xs font-semibold rounded-md transition-colors ${formData.isBundle ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-500'}`}
+                                >
+                                    <Package className="w-3 h-3 inline mr-1" /> Pack / Bundle
                                 </button>
                             </div>
                         </div>
 
-                        {!formData.isVariable ? (
+                        {formData.isBundle ? (
+                            // --- BUNDLE UI (Épique 3) ---
+                            <div className="bg-purple-50 p-5 rounded-xl border border-purple-100 space-y-4">
+                                <div className="text-sm text-purple-800 font-medium">
+                                    <p>Assemblez des produits existants pour créer ce Pack.</p>
+                                    <p className="text-xs mt-1 text-purple-600">Le stock de ce Pack sera automatiquement calculé selon les stocks disponibles de ses composants.</p>
+                                </div>
+                                
+                                {/* Component Search */}
+                                <div className="relative">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Rechercher un composant à ajouter (nom ou SKU)..."
+                                        value={searchBundleComponent}
+                                        onChange={e => {
+                                            setSearchBundleComponent(e.target.value);
+                                            setShowBundleDropdown(e.target.value.length > 0);
+                                        }}
+                                        onFocus={() => { if(searchBundleComponent.length > 0) setShowBundleDropdown(true); }}
+                                        className="w-full border border-purple-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 bg-white"
+                                    />
+                                    {showBundleDropdown && (
+                                        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-100 shadow-lg rounded-lg max-h-48 overflow-y-auto">
+                                            {allProducts.filter(p => !p.isBundle && (p.name.toLowerCase().includes(searchBundleComponent.toLowerCase()) || p.sku?.toLowerCase().includes(searchBundleComponent.toLowerCase()))).map(prod => (
+                                                <button 
+                                                    key={prod.id} 
+                                                    type="button"
+                                                    onClick={() => addBundleItem(prod)}
+                                                    className="w-full text-left px-4 py-2 text-sm hover:bg-purple-50 flex justify-between items-center"
+                                                >
+                                                    <span className="font-medium text-gray-800">{prod.name} <span className="text-gray-400 text-xs ml-1">{prod.sku}</span></span>
+                                                    <span className="text-xs font-semibold text-gray-500">Stock: {prod.stock}</span>
+                                                </button>
+                                            ))}
+                                            {allProducts.filter(p => !p.isBundle).length === 0 && (
+                                                <div className="px-4 py-3 text-sm text-gray-500 italic text-center">Aucun produit simple disponible.</div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Included Items List */}
+                                <div className="space-y-2">
+                                    <h4 className="text-xs font-bold text-purple-900 uppercase tracking-wider">Composants du Pack</h4>
+                                    {bundleItems.length === 0 ? (
+                                        <div className="text-center py-6 bg-white rounded-lg border border-dashed border-purple-200">
+                                            <p className="text-xs text-gray-400">Ce pack est vide. Recherchez un produit ci-dessus.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-white rounded-lg border border-purple-100 divide-y divide-purple-50">
+                                            {bundleItems.map((item, idx) => (
+                                                <div key={item.productId} className="flex items-center justify-between p-3">
+                                                    <div className="flex-1">
+                                                        <p className="text-sm font-semibold text-gray-800">{item.name}</p>
+                                                        <p className="text-[10px] text-gray-400">Stock actuel : {item.stock}</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <label className="text-xs font-medium text-gray-500">Qté incluse :</label>
+                                                            <input 
+                                                                type="number" min="1" value={item.qty} 
+                                                                onChange={e => updateBundleItemQty(idx, e.target.value)}
+                                                                className="w-16 border border-gray-200 rounded p-1 text-sm text-center"
+                                                            />
+                                                        </div>
+                                                        <button type="button" onClick={() => removeBundleItem(idx)} className="text-red-400 hover:text-red-600 p-1">
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ) : !formData.isVariable ? (
                             // Simple Stock UI
                             <>
                                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -378,8 +524,38 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                                         min="0"
                                         value={formData.stock}
                                         onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                                        disabled={batches.length > 0}
+                                        disabled={batches.length > 0 || (warehouses && warehouses.length > 0)}
                                     />
+                                    {warehouses && warehouses.length > 0 && (
+                                        <div className="sm:col-span-3 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 mt-2">
+                                            <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                <Truck className="w-3.5 h-3.5" />
+                                                Répartition par Dépôt
+                                            </h4>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {warehouses.map(wh => (
+                                                    <div key={wh.id} className="flex flex-col">
+                                                        <label className="text-[10px] font-bold text-gray-500 mb-1 truncate">{wh.name}</label>
+                                                        <input 
+                                                            type="number" min="0"
+                                                            value={formData.warehouseStocks?.[wh.id] || ""}
+                                                            placeholder="0"
+                                                            onChange={e => {
+                                                                const val = parseInt(e.target.value) || 0;
+                                                                const newWStocks = { ...formData.warehouseStocks, [wh.id]: val };
+                                                                const total = Object.values(newWStocks).reduce((a, b) => a + b, 0);
+                                                                setFormData({ ...formData, warehouseStocks: newWStocks, stock: total });
+                                                            }}
+                                                            className="w-full p-2 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <p className="text-[10px] text-indigo-600 mt-3 italic font-medium">
+                                                * Le stock total est automatiquement mis à jour selon la répartition.
+                                            </p>
+                                        </div>
+                                    )}
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">
                                             Alerte seuil min
@@ -530,18 +706,72 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null }
                                                             />
                                                         </td>
                                                         <td className="px-6 py-4 whitespace-nowrap">
-                                                            <input
-                                                                type="number"
-                                                                min="0"
-                                                                value={variant.stock}
-                                                                onChange={(e) => updateVariant(idx, 'stock', e.target.value)}
-                                                                className={`block w-24 sm:text-sm border rounded-md p-1 ${parseInt(variant.stock) === 0 ? 'border-red-300 bg-red-50' : 'border-gray-300'}`}
-                                                            />
+                                                            <div className="flex items-center gap-2">
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    value={variant.stock}
+                                                                    onChange={(e) => updateVariant(idx, 'stock', e.target.value)}
+                                                                    className={`block w-20 sm:text-sm border rounded-md p-1 ${parseInt(variant.stock) === 0 ? 'border-red-300 bg-red-50' : 'border-gray-300'}`}
+                                                                />
+                                                                {warehouses && warehouses.length > 0 && (
+                                                                    <button 
+                                                                        type="button"
+                                                                        onClick={() => setVariantStockEditing({ idx, name: variant.name })}
+                                                                        className="p-1 text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200"
+                                                                        title="Répartition par dépôt"
+                                                                    >
+                                                                        <Truck className="h-4 w-4" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 ))}
                                             </tbody>
                                         </table>
+                                    </div>
+                                )}
+
+                                {/* Variant Warehouse Stock Modal */}
+                                {variantStockEditing !== null && (
+                                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                                        <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+                                            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                                                <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                                                    <Truck className="h-5 w-5 text-indigo-500" />
+                                                    Stock par Dépôt : {variantStockEditing.name}
+                                                </h3>
+                                                <button onClick={() => setVariantStockEditing(null)} className="text-gray-400 hover:text-gray-500">
+                                                    <X className="h-5 w-5" />
+                                                </button>
+                                            </div>
+                                            <div className="p-6 space-y-4">
+                                                {warehouses.map(wh => (
+                                                    <div key={wh.id} className="flex items-center justify-between gap-4 p-2 hover:bg-gray-50 rounded-lg transition-colors">
+                                                        <div className="flex items-center gap-2 overflow-hidden">
+                                                            <div className={`p-1.5 rounded-md ${wh.isDefault ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-400'}`}>
+                                                                <Truck className="h-3.5 w-3.5" />
+                                                            </div>
+                                                            <span className="text-sm font-medium text-gray-700 truncate">{wh.name}</span>
+                                                        </div>
+                                                        <input 
+                                                            type="number" min="0" placeholder="0"
+                                                            value={variants[variantStockEditing.idx].warehouseStocks?.[wh.id] ?? ""}
+                                                            onChange={e => updateVariantWarehouseStock(variantStockEditing.idx, wh.id, e.target.value)}
+                                                            className="w-20 p-1.5 border border-gray-200 rounded text-sm text-right focus:border-indigo-500 outline-none"
+                                                        />
+                                                    </div>
+                                                ))}
+                                                <div className="pt-4 border-t flex justify-between items-center">
+                                                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Calculé</span>
+                                                    <span className="text-lg font-black text-indigo-600 font-mono">
+                                                        {Object.values(variants[variantStockEditing.idx].warehouseStocks || {}).reduce((a, b) => a + (parseInt(b) || 0), 0)}
+                                                    </span>
+                                                </div>
+                                                <Button onClick={() => setVariantStockEditing(null)} className="w-full mt-2">Valider la répartition</Button>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                             </div>
