@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
-import { X, Save, Upload, Plus, Trash2, RefreshCw } from "lucide-react";
+import { X, Save, Upload, Plus, Trash2, RefreshCw, Package, Truck } from "lucide-react";
 import Button from "./Button";
 import Input from "./Input";
 import { useImageUpload } from "../hooks/useImageUpload";

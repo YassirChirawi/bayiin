@@ -15,6 +15,7 @@ import { PLANS, createCheckoutSession } from "../lib/stripeService";
 import { DEFAULT_TEMPLATES, DARIJA_TEMPLATES } from "../utils/whatsappTemplates";
 
 import { useReconciliation } from "../hooks/useReconciliation";
+import { useStoreData } from "../hooks/useStoreData";
 import ShippingSettings from "./ShippingSettings";
 
 function CatalogSettings({ store, setStore, t }) {

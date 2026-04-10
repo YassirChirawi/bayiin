@@ -196,6 +196,12 @@ export const useOrderActions = () => {
                     paymentMethod: 'cod',
                     _stockManagedByClient: true
                 });
+
+                // Update Store Stats (statusCounts)
+                const statsRef = doc(db, "stores", store.id, "stats", "sales");
+                transaction.update(statsRef, {
+                    [`statusCounts.${ORDER_STATUS.RECEIVED}`]: increment(1)
+                });
             });
 
             logAction('ORDER_CREATE', `Created order for ${orderData.clientName || 'Unknown'}`, {
@@ -405,16 +411,35 @@ export const useOrderActions = () => {
                     }
                 }
 
-                // Update Customer Profile OR CREATE
+                // Update Customer Profile OR CREATE — with lifecycle-aware totalSpent
                 let finalCustomerId = newData.customerId;
+
                 if (customerRef && customerDoc && customerDoc.exists()) {
-                    transaction.update(customerRef, {
+                    const customerUpdates = {
                         name: newData.clientName,
                         phone: newData.clientPhone,
                         address: newData.clientAddress,
                         city: newData.clientCity,
                         updatedAt: serverTimestamp()
-                    });
+                    };
+
+                    if (restock) {
+                        // Commande annulée/retournée → retirer le montant et le comptage
+                        customerUpdates.totalSpent = increment(-(parseFloat(oldData.price) || 0));
+                        customerUpdates.orderCount = increment(-1);
+                    } else if (deduct) {
+                        // Commande réactivée → remettre le montant et le comptage
+                        customerUpdates.totalSpent = increment(parseFloat(newData.price) || 0);
+                        customerUpdates.orderCount = increment(1);
+                    } else {
+                        // Commande toujours active — ajuster le delta de prix si modifié
+                        const priceDelta = (parseFloat(newData.price) || 0) - (parseFloat(oldData.price) || 0);
+                        if (priceDelta !== 0) {
+                            customerUpdates.totalSpent = increment(priceDelta);
+                        }
+                    }
+
+                    transaction.update(customerRef, customerUpdates);
                 } else if (!newData.customerId && existingCustomerId) {
                     finalCustomerId = existingCustomerId;
                     transaction.update(doc(db, "customers", existingCustomerId), {

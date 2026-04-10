@@ -329,5 +329,25 @@ service cloud.firestore {
             isStoreOwner(resource.data.storeId)
         );
     }
+    // SAV Refunds — generated automatically when a return is validated
+    // Linked to the Finances module (P&L / Remboursements KPI)
+    match /refunds/{refundId} {
+        allow read: if request.auth != null && (
+            isSuperAdmin() ||
+            belongsToStore(resource.data.storeId) ||
+            isStoreOwner(resource.data.storeId) ||
+            (isFranchiseAdmin() && inSameFranchise(resource.data.storeId))
+        );
+        allow create: if request.auth != null && (
+            isSuperAdmin() ||
+            isStoreOwner(request.resource.data.storeId) ||
+            request.resource.data.storeId == getUserData().storeId
+        );
+        allow update, delete: if request.auth != null && (
+            isSuperAdmin() ||
+            belongsToStore(resource.data.storeId) ||
+            isStoreOwner(resource.data.storeId)
+        );
+    }
   }
 }

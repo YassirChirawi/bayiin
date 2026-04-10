@@ -19,6 +19,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
     const { store } = useTenant();
     const { t } = useLanguage(); // NEW
     const { data: warehouses } = useStoreData("warehouses"); // Épique 5
+    const { data: products } = useStoreData("products");     // Catalogue produits
 
     // Custom Hook for Logic
     const { createOrder, updateOrder, loading: actionLoading, error: actionError } = useOrderActions();

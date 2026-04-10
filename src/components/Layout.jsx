@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Outlet, Navigate, useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import { useTenant } from "../context/TenantContext";
@@ -9,6 +9,16 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Copilot from "./Copilot";
 import NotificationBell from "./NotificationBell";
+
+// Loader inline qui garde la sidebar et le header visibles
+const InlinePageLoader = () => (
+    <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin" />
+            <p className="text-sm text-gray-400 font-medium">Chargement...</p>
+        </div>
+    </div>
+);
 
 export default function Layout() {
     const { store, loading } = useTenant();
@@ -96,9 +106,11 @@ export default function Layout() {
                     </div>
                 )}
                 <div className="p-4 md:p-8">
-                    <AnimatePresence mode="wait">
+                    <AnimatePresence>
                         <PageTransition key={location.pathname}>
-                            <Outlet />
+                            <Suspense fallback={<InlinePageLoader />}>
+                                <Outlet />
+                            </Suspense>
                         </PageTransition>
                     </AnimatePresence>
                 </div>

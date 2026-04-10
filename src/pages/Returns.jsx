@@ -1,11 +1,13 @@
 /**
  * Returns.jsx — Module SAV & Retours
  * Manages customer returns with automatic stock reintegration and Quality Vigilance.
+ * All validation is atomic (runTransaction): stock + refunds + order + customer + store stats.
  */
 import { useState, useEffect, useCallback } from 'react';
 import {
     collection, query, where, getDocs, addDoc, doc,
-    updateDoc, serverTimestamp
+    updateDoc, serverTimestamp, runTransaction, increment,
+    orderBy as orderByFS, limit
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useTenant } from '../context/TenantContext';
@@ -53,39 +55,70 @@ function NewReturnModal({ storeId, onClose, onCreated }) {
         productName: '',
         sku: '',
         quantity: 1,
+        amount: '',
         reason: RETURN_REASONS[0],
         condition: 'Non ouvert',
         notes: '',
     });
-    const [orderSearch, setOrderSearch] = useState('');
+    const [orders, setOrders] = useState([]);
+    const [orderFilter, setOrderFilter] = useState('');
     const [foundOrder, setFoundOrder] = useState(null);
-    const [searching, setSearching] = useState(false);
+    const [loadingOrders, setLoadingOrders] = useState(false);
     const [saving, setSaving] = useState(false);
 
-    async function searchOrder() {
-        if (!orderSearch.trim()) return;
-        setSearching(true);
-        try {
-            const snap = await getDocs(
-                query(collection(db, 'orders'),
-                    where('storeId', '==', storeId),
-                    where('orderNumber', '==', orderSearch.trim())
-                )
-            );
-            if (!snap.empty) {
-                const order = { id: snap.docs[0].id, ...snap.docs[0].data() };
-                setFoundOrder(order);
-                setForm(f => ({
-                    ...f,
-                    orderId: order.id,
-                    productName: order.articleName || '',
-                    sku: order.sku || '',
-                    quantity: parseInt(order.quantity) || 1,
-                }));
-            } else {
-                toast.error('Commande introuvable');
-            }
-        } finally { setSearching(false); }
+    // Charger les commandes récentes au montage
+    useEffect(() => {
+        if (!storeId) return;
+        setLoadingOrders(true);
+        getDocs(
+            query(
+                collection(db, 'orders'),
+                where('storeId', '==', storeId),
+                orderByFS('createdAt', 'desc'),
+                limit(100)
+            )
+        ).then(snap => {
+            setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }).finally(() => setLoadingOrders(false));
+    }, [storeId]);
+
+    // Filtrer les commandes selon la saisie
+    const filteredOrders = orders.filter(o => {
+        if (!orderFilter.trim()) return true;
+        const search = orderFilter.toLowerCase();
+        return (
+            (o.orderNumber || '').toLowerCase().includes(search) ||
+            (o.clientName || '').toLowerCase().includes(search) ||
+            (o.clientPhone || '').includes(search)
+        );
+    });
+
+    function selectOrder(orderId) {
+        const order = orders.find(o => o.id === orderId);
+        if (!order) {
+            setFoundOrder(null);
+            setForm(f => ({ ...f, orderId: '', productName: '', sku: '', quantity: 1, amount: '' }));
+            return;
+        }
+        setFoundOrder(order);
+        // Auto-remplir les champs du formulaire
+        const productName = order.products?.length > 0
+            ? order.products.map(p => p.name).join(', ')
+            : (order.articleName || '');
+        const sku = order.products?.length > 0
+            ? (order.products[0].sku || '')
+            : (order.sku || '');
+        const qty = order.products?.length > 0
+            ? order.products.reduce((sum, p) => sum + (parseInt(p.quantity) || 1), 0)
+            : (parseInt(order.quantity) || 1);
+        setForm(f => ({
+            ...f,
+            orderId: order.id,
+            productName,
+            sku,
+            quantity: qty,
+            amount: parseFloat(order.price) || '',
+        }));
     }
 
     async function handleSubmit(e) {
@@ -98,9 +131,11 @@ function NewReturnModal({ storeId, onClose, onCreated }) {
                 orderId: form.orderId,
                 orderNumber: foundOrder?.orderNumber || '',
                 clientName: foundOrder?.clientName || '',
+                customerId: foundOrder?.customerId || null,
                 productName: form.productName,
                 sku: form.sku,
                 quantity: parseInt(form.quantity) || 1,
+                amount: parseFloat(form.amount) || 0,
                 reason: form.reason,
                 condition: form.condition,
                 notes: form.notes,
@@ -134,24 +169,50 @@ function NewReturnModal({ storeId, onClose, onCreated }) {
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-5 space-y-4">
-                    {/* Order Search */}
+                    {/* Order Dropdown */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">N° de commande</label>
-                        <div className="flex gap-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Commande client <span className="text-red-500">*</span>
+                        </label>
+                        {/* Filtre de recherche */}
+                        <div className="relative mb-2">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                             <input
-                                type="text" placeholder="ex: CMD-001"
-                                value={orderSearch} onChange={e => setOrderSearch(e.target.value)}
-                                className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                                type="text"
+                                placeholder="Chercher par N° commande, nom, téléphone..."
+                                value={orderFilter}
+                                onChange={e => setOrderFilter(e.target.value)}
+                                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-300"
                             />
-                            <button type="button" onClick={searchOrder} disabled={searching}
-                                className="px-3 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50">
-                                <Search className="w-4 h-4" />
-                            </button>
                         </div>
+                        {/* Select déroulant */}
+                        <select
+                            value={form.orderId}
+                            onChange={e => selectOrder(e.target.value)}
+                            className="block w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+                            size={Math.min(filteredOrders.length + 1, 6)}
+                        >
+                            <option value="">-- Sélectionner une commande --</option>
+                            {loadingOrders ? (
+                                <option disabled>Chargement...</option>
+                            ) : filteredOrders.length === 0 ? (
+                                <option disabled>Aucune commande trouvée</option>
+                            ) : filteredOrders.map(o => (
+                                <option key={o.id} value={o.id}>
+                                    {o.orderNumber || o.id.slice(0, 8)} — {o.clientName} ({o.clientPhone}) · {parseFloat(o.price || 0).toFixed(0)} MAD
+                                </option>
+                            ))}
+                        </select>
+                        {/* Récapitulatif commande sélectionnée */}
                         {foundOrder && (
-                            <div className="mt-2 bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-sm">
-                                <p className="font-semibold text-indigo-900">{foundOrder.clientName}</p>
-                                <p className="text-indigo-600 text-xs">{foundOrder.articleName} · {foundOrder.orderNumber}</p>
+                            <div className="mt-2 bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-sm flex items-start gap-3">
+                                <CheckCircle className="w-4 h-4 text-indigo-600 mt-0.5 shrink-0" />
+                                <div>
+                                    <p className="font-semibold text-indigo-900">{foundOrder.clientName}</p>
+                                    <p className="text-indigo-600 text-xs">
+                                        {foundOrder.orderNumber} · {foundOrder.status} · {parseFloat(foundOrder.price || 0).toFixed(2)} MAD
+                                    </p>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -178,6 +239,13 @@ function NewReturnModal({ storeId, onClose, onCreated }) {
                                 className="block w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
                         </div>
                         <div>
+                            <label className="block text-xs text-gray-500 mb-1">Montant remboursé (MAD)</label>
+                            <input type="number" min="0" step="0.01" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                                className="block w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-2">
                             <label className="block text-xs text-gray-500 mb-1">Raison</label>
                             <select value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
                                 className="block w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300">
@@ -414,22 +482,120 @@ export default function Returns() {
 
     useEffect(() => { loadReturns(); }, [loadReturns]);
 
+    /**
+     * handleValidate — Transaction atomique
+     * Couvre: stock + refunds (finances) + commande source + client (totalSpent) + stats store
+     */
     async function handleValidate(ret) {
-        const returnRef = doc(db, 'returns', ret.id);
-        let stockReintegrated = false;
-
-        if (ret.condition === 'Non ouvert' && ret.sku) {
-            const pSnap = await getDocs(query(collection(db, 'products'), where('storeId', '==', store.id), where('sku', '==', ret.sku)));
-            if (!pSnap.empty) {
-                const pDoc = pSnap.docs[0];
-                await updateDoc(doc(db, 'products', pDoc.id), { stock: (parseFloat(pDoc.data().stock) || 0) + (parseInt(ret.quantity) || 1) });
-                stockReintegrated = true;
-                toast.success(`Stock réintégré : +${ret.quantity} pour ${ret.productName}`);
+        try {
+            // ---------- PRE-TRANSACTION READS (getDocs ne peut pas être dans runTransaction) ----------
+            let productDocId = null;
+            if (ret.condition === 'Non ouvert' && ret.sku) {
+                const pSnap = await getDocs(
+                    query(collection(db, 'products'),
+                        where('storeId', '==', store.id),
+                        where('sku', '==', ret.sku)
+                    )
+                );
+                if (!pSnap.empty) productDocId = pSnap.docs[0].id;
             }
-        }
 
-        await updateDoc(returnRef, { status: 'validated', stockReintegrated, validatedAt: serverTimestamp() });
-        loadReturns();
+            // ---------- TRANSACTION ATOMIQUE ----------
+            await runTransaction(db, async (transaction) => {
+                // --- PHASE LECTURE ---
+                let productSnap = null;
+                if (productDocId) {
+                    productSnap = await transaction.get(doc(db, 'products', productDocId));
+                }
+
+                let orderSnap = null;
+                if (ret.orderId) {
+                    orderSnap = await transaction.get(doc(db, 'orders', ret.orderId));
+                }
+
+                // Récupérer le customerId depuis le retour ou la commande source
+                const customerId = ret.customerId || orderSnap?.data()?.customerId || null;
+                let customerSnap = null;
+                if (customerId) {
+                    customerSnap = await transaction.get(doc(db, 'customers', customerId));
+                }
+
+                // --- PHASE ÉCRITURE ---
+                const qty = parseInt(ret.quantity) || 1;
+                const returnAmount = parseFloat(ret.amount) || 0;
+
+                // A. Réintégrer le stock (si Non ouvert et produit trouvé)
+                let stockReintegrated = false;
+                if (productSnap?.exists()) {
+                    transaction.update(doc(db, 'products', productDocId), {
+                        stock: increment(qty),
+                        updatedAt: serverTimestamp()
+                    });
+                    stockReintegrated = true;
+                }
+
+                // B. Écriture dans la collection `refunds` (impacte les Finances)
+                const refundRef = doc(collection(db, 'refunds'));
+                transaction.set(refundRef, {
+                    storeId: store.id,
+                    returnId: ret.id,
+                    orderId: ret.orderId || null,
+                    orderNumber: ret.orderNumber || null,
+                    customerId: customerId || null,
+                    clientName: ret.clientName || '',
+                    productName: ret.productName || '',
+                    sku: ret.sku || '',
+                    quantity: qty,
+                    amount: returnAmount,
+                    reason: ret.reason || '',
+                    condition: ret.condition,
+                    date: new Date().toISOString().split('T')[0],
+                    createdAt: serverTimestamp(),
+                });
+
+                // C. Marquer la commande source
+                if (orderSnap?.exists()) {
+                    transaction.update(doc(db, 'orders', ret.orderId), {
+                        hasReturn: true,
+                        returnId: ret.id,
+                        returnDate: new Date().toISOString().split('T')[0],
+                        updatedAt: serverTimestamp()
+                    });
+                }
+
+                // D. Ajuster totalSpent du client
+                if (customerSnap?.exists() && returnAmount > 0) {
+                    transaction.update(doc(db, 'customers', customerId), {
+                        totalSpent: increment(-returnAmount),
+                        updatedAt: serverTimestamp()
+                    });
+                }
+
+                // E. Mettre à jour les stats du store
+                const statsRef = doc(db, 'stores', store.id, 'stats', 'sales');
+                transaction.update(statsRef, {
+                    'totals.totalRefunded': increment(returnAmount),
+                });
+
+                // F. Valider le retour lui-même
+                transaction.update(doc(db, 'returns', ret.id), {
+                    status: 'validated',
+                    stockReintegrated,
+                    refundId: refundRef.id,
+                    validatedAt: serverTimestamp()
+                });
+            });
+
+            if (ret.condition === 'Non ouvert' && productDocId) {
+                toast.success(`✅ Retour validé — Stock réintégré (+${ret.quantity}) & avoir enregistré`);
+            } else {
+                toast.success('✅ Retour validé — Avoir enregistré dans les Finances');
+            }
+            loadReturns();
+        } catch (err) {
+            console.error('Return validation error:', err);
+            toast.error('Erreur lors de la validation du retour');
+        }
     }
 
     async function handleReject(id) {
