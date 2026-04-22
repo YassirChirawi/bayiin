@@ -120,21 +120,21 @@ export default function CustomerModal({ isOpen, onClose, onSave, customer = null
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">{t('label_customer_type') || "Type de Client"}</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{t('label_customer_type')}</label>
                             <select
                                 className="w-full px-3 py-2 border rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
                                 value={formData.customerType}
                                 onChange={(e) => setFormData({ ...formData, customerType: e.target.value })}
                             >
-                                <option value="RETAIL">{t('option_retail') || "Particulier (RETAIL)"}</option>
-                                <option value="PRO">{t('option_pro') || "Professionnel (PRO/Institut)"}</option>
+                                <option value="RETAIL">{t('option_retail')}</option>
+                                <option value="PRO">{t('option_pro')}</option>
                             </select>
                         </div>
                         <Input
-                            label={t('label_ice') || "ICE (Identifiant Commun de l'Entreprise)"}
+                            label={t('label_ice')}
                             value={formData.ice}
                             onChange={(e) => setFormData({ ...formData, ice: e.target.value })}
-                            placeholder={t('placeholder_ice') || "Optionnel"}
+                            placeholder={t('placeholder_ice')}
                         />
                     </div>
 
@@ -186,7 +186,7 @@ export default function CustomerModal({ isOpen, onClose, onSave, customer = null
                                     }
                                 }}
                             >
-                                {t('btn_ai_reengage') || "Générer Séquence (IA)"}
+                                {t('btn_ai_reengage')}
                             </Button>
                         )}
                         <div className="flex gap-3">

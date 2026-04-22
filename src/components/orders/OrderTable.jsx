@@ -160,7 +160,7 @@ export default function OrderTable({
                                         {activeTab === 'carts' ? (
                                             <div className="flex items-center justify-end gap-2">
                                                 <button onClick={(e) => { e.stopPropagation(); handleEdit(order); }} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-sm transition-all active:scale-95 font-medium text-xs">
-                                                    Transformer
+                                                    {t('btn_transform')}
                                                 </button>
                                                 <button onClick={(e) => { e.stopPropagation(); deleteStoreItem(order.id); }} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                                                     <Trash2 className="h-5 w-5" />

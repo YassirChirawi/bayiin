@@ -226,6 +226,8 @@ export const translations = {
         status_annulé: "Cancelled",
         status_pending_catalog: "Panier (Pas encore commandé)",
         status_pending_action: "Action Requise",
+        status_paid: "Paid",
+        status_unpaid: "Unpaid",
 
         // Confirmation Modal
         confirm_title: "Confirmation",
@@ -363,6 +365,8 @@ export const translations = {
         order_status: "Status",
         payment: "Payment",
         catalog_source: "Catalog",
+        btn_transform: "Transform",
+        btn_confirm: "Confirm",
 
         // Customer Profile
         title_customer_profile: "Customer Profile",
@@ -1034,6 +1038,8 @@ export const translations = {
         status_annulé: "Annulé",
         status_pending_catalog: "Panier (Pas encore commandé)",
         status_pending_action: "Action Requise",
+        status_paid: "Payé",
+        status_unpaid: "Non Payé",
 
         // Confirmation Modal
         confirm_title: "Confirmation",
@@ -1171,6 +1177,8 @@ export const translations = {
         order_status: "Statut",
         payment: "Paiement",
         catalog_source: "Catalogue",
+        btn_transform: "Transformer",
+        btn_confirm: "Confirmer",
 
         // Customer Profile
         title_customer_profile: "Profil Client",
@@ -1957,6 +1965,8 @@ export const translations = {
         order_status: "الحالة",
         payment: "الدفع",
         catalog_source: "الكتالوج",
+        btn_transform: "تحويل",
+        btn_confirm: "تأكيد",
 
         // Customer Profile
         title_customer_profile: "ملف الزبون",

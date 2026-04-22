@@ -57,7 +57,7 @@ export default function OrderMobileList({
                         {/* Body: Client & Product Info */}
                         <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                             <div>
-                                <p className="text-xs text-gray-400 mb-1">Customer</p>
+                                <p className="text-xs text-gray-400 mb-1">{t('client')}</p>
                                 <p className="font-semibold text-gray-900 truncate">{order.clientName}</p>
                                 <a href={`tel:${order.clientPhone}`} className="text-indigo-600 text-xs flex items-center gap-1 mt-1">
                                     {order.clientPhone}
@@ -69,7 +69,7 @@ export default function OrderMobileList({
                                 )}
                             </div>
                             <div className="text-right">
-                                <p className="text-xs text-gray-400 mb-1">Total</p>
+                                <p className="text-xs text-gray-400 mb-1">{t('table_total')}</p>
                                 <p className="font-bold text-gray-900 text-base">{totalPrice} <span className="text-xs font-normal">{store?.currency || 'MAD'}</span></p>
                                 <p className="text-xs text-gray-500 truncate mt-1">{order.articleName} (x{order.quantity})</p>
                             </div>
@@ -86,7 +86,7 @@ export default function OrderMobileList({
                                     }`}
                             >
                                 <DollarSign className="h-3.5 w-3.5" />
-                                {order.isPaid ? "PAID" : "UNPAID"}
+                                {order.isPaid ? t('status_paid') : t('status_unpaid')}
                             </button>
 
                             {activeTab === 'carts' ? (
@@ -95,7 +95,7 @@ export default function OrderMobileList({
                                         onClick={() => handleEdit(order)}
                                         className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium shadow-sm active:scale-95 transition-transform"
                                     >
-                                        Confirm
+                                        {t('btn_confirm')}
                                     </button>
                                     <button
                                         onClick={() => deleteStoreItem(order.id)}
