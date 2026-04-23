@@ -501,7 +501,7 @@ export default function Settings() {
     const tabs = [
         { id: "general", label: t('tab_general'), icon: Store },
         { id: "shipping", label: t('tab_shipping'), icon: Truck },
-        { id: "locations", label: "Logistique & Dépôts", icon: Truck },
+        { id: "locations", label: t('tab_locations') || "Logistique & Dépôts", icon: Truck },
         { id: "catalog", label: t('tab_catalog') || 'Catalogue', icon: Package },
         { id: "billing", label: t('tab_billing'), icon: CreditCard },
         { id: "security", label: t('tab_security'), icon: Shield },

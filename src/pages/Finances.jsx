@@ -370,7 +370,7 @@ export default function Finances() {
                         className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg shadow-sm disabled:opacity-50 transition-colors whitespace-nowrap"
                     >
                         <Download className="w-4 h-4" />
-                        {exportingAccounting ? 'Génération...' : 'Export Comptable'}
+                        {exportingAccounting ? (t('generating') || 'Génération...') : (t('btn_export_accounting') || 'Export Comptable')}
                     </button>
                 </div>
             </div>
@@ -577,7 +577,7 @@ export default function Finances() {
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate">TVA à Collecter (20%)</dt>
+                                <dt className="text-sm font-medium text-gray-500 truncate">{t('label_tva_collecter') || "TVA à Collecter (20%)"}</dt>
                                 <dd className="text-2xl font-semibold text-rose-600">{stats.res.tvaCollectee.toFixed(0)} {store?.currency || 'MAD'}</dd>
                             </dl>
                         </div>
@@ -594,7 +594,7 @@ export default function Finances() {
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-red-500 truncate">Remboursements</dt>
+                                <dt className="text-sm font-medium text-red-500 truncate">{t('label_refunds') || "Remboursements"}</dt>
                                 <dd className="text-2xl font-semibold text-red-700">-{stats.res.totalRefunds?.toLocaleString()} {store?.currency || 'MAD'}</dd>
                             </dl>
                         </div>
@@ -609,8 +609,8 @@ export default function Finances() {
                         <Truck className="w-5 h-5 text-amber-600" />
                     </div>
                     <div>
-                        <p className="text-sm font-semibold text-amber-900">Frais d'approche</p>
-                        <p className="text-xs text-amber-600">Douane · Transit · Transport Espagne-Maroc</p>
+                        <p className="text-sm font-semibold text-amber-900">{t('label_import_fees') || "Frais d'approche"}</p>
+                        <p className="text-xs text-amber-600">{t('label_import_fees_desc') || "Douane · Transit · Transport Espagne-Maroc"}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 flex-1 max-w-xs">
@@ -712,7 +712,7 @@ export default function Finances() {
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
                     <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
                         <CreditCard className="w-5 h-5 text-indigo-500" />
-                        Rapprochement Sendit (Factures)
+                        {t('label_sendit_reconciliation') || "Rapprochement Sendit (Factures)"}
                     </h3>
                     <Button
                         size="sm"
@@ -721,13 +721,13 @@ export default function Finances() {
                         disabled={loadingInvoices}
                         className="w-full sm:w-auto justify-center"
                     >
-                        {loadingInvoices ? 'Chargement...' : 'Actualiser'}
+                        {loadingInvoices ? (t('loading') || 'Chargement...') : (t('btn_refresh') || 'Actualiser')}
                     </Button>
                 </div>
 
                 {invoices.length === 0 ? (
                     <div className="text-center py-6 text-gray-500 text-sm">
-                        Aucune facture trouvée pour cette période.
+                        {t('msg_no_invoices') || "Aucune facture trouvée pour cette période."}
                     </div>
                 ) : (
                     <div className="overflow-x-auto">

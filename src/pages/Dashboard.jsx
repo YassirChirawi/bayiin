@@ -360,7 +360,7 @@ export default function Dashboard() {
                         <div className="ml-5 w-0 flex-1">
                             <dl>
                                 <dt className="text-sm font-medium text-gray-500 truncate flex items-center gap-2">
-                                    Total Charges
+                                    {t('kpi_total_expenses') || "Total Charges"}
                                     <HelpTooltip topic="dashboard" />
                                 </dt>
                                 <dd className="text-2xl font-semibold text-gray-900">
@@ -379,14 +379,14 @@ export default function Dashboard() {
                         <div className="ml-5 w-0 flex-1">
                             <dl>
                                 <dt className="text-sm font-medium text-gray-500 truncate flex items-center gap-2">
-                                    Marge Nette
+                                    {t('kpi_net_margin') || "Marge Nette"}
                                     <HelpTooltip topic="dashboard" />
                                 </dt>
                                 <dd className="text-2xl font-semibold text-gray-900">
                                     {statsLoading ? "..." : (dashboardData.netMarginValue.toLocaleString())} DH
                                 </dd>
                                 <dd className="text-sm font-medium text-green-600 mt-1">
-                                    {dashboardData.marginPercentage}% de marge
+                                    {t('label_margin_suffix', { percent: dashboardData.marginPercentage })}
                                 </dd>
                             </dl>
                         </div>
@@ -430,7 +430,7 @@ export default function Dashboard() {
                                 </div>
                             </div>
                             <Link to="/purchases" className="flex-shrink-0 text-xs font-semibold text-indigo-700 hover:text-indigo-900 bg-white border border-indigo-200 px-2 py-1 rounded-lg whitespace-nowrap">
-                                Commander →
+                                {t('btn_order_now') || "Commander →"}
                             </Link>
                         </div>
                     </motion.div>

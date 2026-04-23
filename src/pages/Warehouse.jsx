@@ -120,10 +120,10 @@ export default function Warehouse() {
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                             <BarcodeIcon className="h-6 w-6 text-indigo-600" />
-                            Warehouse & Scan
+                            {t('label_warehouse_scan') || "Warehouse & Scan"}
                         </h1>
                         <p className="mt-1 text-sm text-gray-500">
-                            Scannez un colis (QR Commande) ou un produit (Code-barres EAN/SKU) pour une action rapide.
+                            {t('desc_warehouse_scan') || "Scannez un colis (QR Commande) ou un produit (Code-barres EAN/SKU) pour une action rapide."}
                         </p>
                     </div>
                 </div>
@@ -133,7 +133,7 @@ export default function Warehouse() {
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center">
                         <div id="reader" className="w-full max-w-sm rounded-lg overflow-hidden border-2 border-indigo-100 mb-4"></div>
                         <p className="text-gray-500 text-sm animate-pulse flex items-center gap-2">
-                            <BarcodeIcon className="h-4 w-4" /> Caméra active. Présentez un code.
+                            <BarcodeIcon className="h-4 w-4" /> {t('label_camera_active') || "Caméra active. Présentez un code."}
                         </p>
                     </div>
                 )}
@@ -148,7 +148,7 @@ export default function Warehouse() {
                             </div>
                             <div>
                                 <h2 className="text-lg font-bold text-gray-900">
-                                    {scanType === 'order' ? 'Commande Scannée' : 'Produit Scanné'}
+                                    {scanType === 'order' ? (t('label_order_scanned') || 'Commande Scannée') : (t('label_product_scanned') || 'Produit Scanné')}
                                 </h2>
                                 <p className="text-sm font-mono text-gray-600">
                                     {scanType === 'order' ? `#${scanResult.number}` : scanResult.scannedCode}
@@ -166,7 +166,7 @@ export default function Warehouse() {
                                 </div>
                                 <div className="pt-4 border-t border-gray-100 flex gap-4">
                                     <Button onClick={markOrderShipped} className="flex-1 justify-center bg-indigo-600 text-white hover:bg-indigo-700 py-3" icon={Truck}>
-                                        Expédier Commande
+                                        {t('btn_ship_order') || "Expédier Commande"}
                                     </Button>
                                 </div>
                             </div>
@@ -182,7 +182,7 @@ export default function Warehouse() {
                                 </div>
                                 
                                 <div className="bg-gray-50 p-4 rounded-lg flex justify-between items-center">
-                                    <span className="text-gray-600 font-medium">Stock Actuel :</span>
+                                    <span className="text-gray-600 font-medium">{t('label_stock_current') || "Stock Actuel"} :</span>
                                     <span className={`text-2xl font-bold ${scanResult.stock > 0 ? 'text-green-600' : 'text-red-600'}`}>
                                         {scanResult.stock || 0}
                                     </span>
@@ -194,21 +194,21 @@ export default function Warehouse() {
                                         className="py-4 bg-green-50 text-green-700 rounded-xl border border-green-200 hover:bg-green-100 font-bold text-lg flex flex-col items-center gap-1 shadow-sm transition-all active:scale-95"
                                      >
                                          <span className="text-2xl">+1</span>
-                                         <span className="text-xs font-normal">Entrée Stock</span>
+                                         <span className="text-xs font-normal">{t('label_stock_in') || "Entrée Stock"}</span>
                                      </button>
                                      <button 
                                         onClick={() => updateProductStock(-1)}
                                         className="py-4 bg-red-50 text-red-700 rounded-xl border border-red-200 hover:bg-red-100 font-bold text-lg flex flex-col items-center gap-1 shadow-sm transition-all active:scale-95"
                                      >
                                          <span className="text-2xl">-1</span>
-                                         <span className="text-xs font-normal">Sortie Stock</span>
+                                         <span className="text-xs font-normal">{t('label_stock_out') || "Sortie Stock"}</span>
                                      </button>
                                 </div>
                             </div>
                         )}
 
                         <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-center">
-                             <Button variant="secondary" onClick={handleResetScan} icon={RotateCcw}>Scanner un autre code</Button>
+                             <Button variant="secondary" onClick={handleResetScan} icon={RotateCcw}>{t('btn_scan_another') || "Scanner un autre code"}</Button>
                         </div>
                     </div>
                 )}
