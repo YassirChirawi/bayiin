@@ -118,20 +118,20 @@ function CatalogSettings({ store, setStore, t }) {
                                 </div>
                             ))}
                             <button onClick={addProfile} className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 text-xs font-semibold py-2">
-                                <Plus className="w-3.5 h-3.5" /> Ajouter une gamme
+                                <Plus className="w-3.5 h-3.5" /> {t('label_add_line') || 'Ajouter une gamme'}
                             </button>
                         </div>
                     </div>
 
                     <div>
-                        <h3 className="text-lg font-medium text-gray-900 border-b pb-2 mb-4">Règles de Recommandation (Cross-selling)</h3>
-                        <p className="text-xs text-gray-400 mb-4">Définissez quels produits suggérer selon la gamme sélectionnée.</p>
+                        <h3 className="text-lg font-medium text-gray-900 border-b pb-2 mb-4">{t('section_cross_selling') || 'Règles de Recommandation'}</h3>
+                        <p className="text-xs text-gray-400 mb-4">{t('ai_config_help')}</p>
                         <div className="space-y-4">
                             {Object.keys(settings.lineProfiles || {}).map(lineCode => (
                                 <div key={lineCode} className="border border-gray-100 rounded-xl p-3 bg-gray-50/50">
                                     <div className="flex justify-between items-center mb-2">
-                                        <span className="text-xs font-bold text-gray-600 uppercase">Si le client achète : {settings.lineProfiles[lineCode]} ({lineCode})</span>
-                                        <button onClick={() => addRule(lineCode)} className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-bold tracking-tight uppercase">Suggérer gamme +</button>
+                                        <span className="text-xs font-bold text-gray-600 uppercase">{t('label_if_buying')} {settings.lineProfiles[lineCode]} ({lineCode})</span>
+                                        <button onClick={() => addRule(lineCode)} className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-bold tracking-tight uppercase">{t('btn_suggest_range') || 'Suggérer gamme +'}</button>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         {(settings.complementaryRules?.[lineCode] || []).map(target => (
@@ -140,7 +140,7 @@ function CatalogSettings({ store, setStore, t }) {
                                                 <button onClick={() => removeRule(lineCode, target)} className="text-gray-300 hover:text-rose-500">×</button>
                                             </div>
                                         ))}
-                                        {!(settings.complementaryRules?.[lineCode]?.length) && <span className="text-[10px] text-gray-400 italic">Aucune règle définie (Vente aléatoire activée)</span>}
+                                        {!(settings.complementaryRules?.[lineCode]?.length) && <span className="text-[10px] text-gray-400 italic">{t('msg_no_rules') || 'Aucune règle définie'}</span>}
                                     </div>
                                 </div>
                             ))}
@@ -503,6 +503,7 @@ export default function Settings() {
         { id: "shipping", label: t('tab_shipping') || "Livraison", icon: Truck },
         { id: "locations", label: t('tab_locations') || "Logistique & Dépôts", icon: Truck },
         { id: "catalog", label: t('tab_catalog') || "Catalogue", icon: Package },
+        { id: "ai_config", label: t('tab_ai_config') || "Configuration IA", icon: Sparkles },
         { id: "billing", label: t('tab_billing') || "Plans & Facturation", icon: CreditCard },
         { id: "security", label: t('tab_security') || "Sécurité", icon: Shield },
         { id: "activity", label: t('tab_activity') || "Journal d'Activité", icon: Activity },
@@ -1006,52 +1007,6 @@ export default function Settings() {
                             </div>
                         </div>
 
-                        {/* AI Configuration Section */}
-                        {/* AI Configuration Section */}
-                        <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
-                            <div className="px-4 py-5 sm:p-6">
-                                <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
-                                    <Sparkles className="h-5 w-5 text-indigo-500" />
-                                    {t('section_ai_config') || 'Configuration IA'}
-                                </h3>
-                                <div className="mt-4 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
-                                    <div className="sm:col-span-6">
-                                        <label className="block text-sm font-medium text-gray-700">Gemini API Key</label>
-                                        <div className="mt-1 flex gap-2">
-                                            <input
-                                                type="password"
-                                                value={store?.geminiApiKey || ''}
-                                                onChange={(e) => setStore(prev => ({ ...prev, geminiApiKey: e.target.value }))}
-                                                placeholder="AIza..."
-                                                className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
-                                            />
-                                            <Button
-                                                onClick={async () => {
-                                                    try {
-                                                        await updateDoc(doc(db, "stores", store.id), {
-                                                            geminiApiKey: store.geminiApiKey || ""
-                                                        });
-                                                        toast.success("API Key saved!");
-                                                        // Force reload to apply key instantly if needed, or context updates
-                                                        window.location.reload();
-                                                    } catch (e) {
-                                                        console.error(e);
-                                                        toast.error("Error saving key");
-                                                    }
-                                                }}
-                                                icon={Save}
-                                            >
-                                                {t('btn_save') || 'Enregistrer'}
-                                            </Button>
-                                        </div>
-                                        <p className="mt-2 text-xs text-gray-500">
-                                            {t('ai_config_help') || "Requis pour Beya3 (Copilot). Obtenez-le sur"} <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">Google AI Studio</a>.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
                         <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
                             <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
                                 <SettingsIcon className="h-5 w-5 text-gray-500" />
@@ -1079,8 +1034,54 @@ export default function Settings() {
                             </div>
                         </div>
                     </div>
-                )
-                }
+                )}
+
+                {activeTab === "ai_config" && (
+                    <div className="space-y-6">
+                        <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
+                            <div className="px-4 py-5 sm:p-6">
+                                <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
+                                    <Sparkles className="h-5 w-5 text-indigo-500" />
+                                    {t('section_ai_config') || 'Configuration IA'}
+                                </h3>
+                                <div className="mt-4 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+                                    <div className="sm:col-span-6">
+                                        <label className="block text-sm font-medium text-gray-700">Gemini API Key</label>
+                                        <div className="mt-1 flex gap-2">
+                                            <input
+                                                type="password"
+                                                value={store?.geminiApiKey || ''}
+                                                onChange={(e) => setStore(prev => ({ ...prev, geminiApiKey: e.target.value }))}
+                                                placeholder="AIza..."
+                                                className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                            />
+                                            <Button
+                                                onClick={async () => {
+                                                    try {
+                                                        await updateDoc(doc(db, "stores", store.id), {
+                                                            geminiApiKey: store.geminiApiKey || ""
+                                                        });
+                                                        toast.success("API Key saved!");
+                                                        window.location.reload();
+                                                    } catch (e) {
+                                                        console.error(e);
+                                                        toast.error("Error saving key");
+                                                    }
+                                                }}
+                                                icon={Save}
+                                            >
+                                                {t('btn_save') || 'Enregistrer'}
+                                            </Button>
+                                        </div>
+                                        <p className="mt-2 text-xs text-gray-500">
+                                            {t('ai_config_help') || "Requis pour Beya3 (Copilot). Obtenez-le sur"} <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">Google AI Studio</a>.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {
                     activeTab === "security" && (

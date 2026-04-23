@@ -620,7 +620,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                                 <th className="px-3 py-2">{t('nav_products') || 'Produit'}</th>
                                                 <th className="px-3 py-2">{t('label_qty') || 'Qté'}</th>
                                                 <th className="px-3 py-2">{t('label_pu') || 'P.U'}</th>
-                                                <th className="px-3 py-2">Total</th>
+                                                <th className="px-3 py-2">{t('label_total') || 'Total'}</th>
                                                 <th className="px-3 py-2"></th>
                                             </tr>
                                         </thead>
@@ -685,7 +685,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
 
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-gray-200">
                                 <Input label={t('label_date')} type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} required />
-                                <Input label={`Prix Global (${store?.currency || 'DH'})`} type="number" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} required />
+                                <Input label={`${t('label_global_price') || 'Prix Global'} (${store?.currency || 'DH'})`} type="number" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} required />
                                 <Input label={t('label_shipping')} type="number" value={formData.shippingCost} onChange={e => setFormData({ ...formData, shippingCost: e.target.value })} />
                                 <Input label={t('label_real_cost')} type="number" className="bg-red-50" value={formData.realDeliveryCost} onChange={e => setFormData({ ...formData, realDeliveryCost: e.target.value })} />
                             </div>
