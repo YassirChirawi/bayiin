@@ -499,13 +499,13 @@ export default function Settings() {
 
 
     const tabs = [
-        { id: "general", label: t('tab_general'), icon: Store },
-        { id: "shipping", label: t('tab_shipping'), icon: Truck },
+        { id: "general", label: t('tab_general') || "Général", icon: Store },
+        { id: "shipping", label: t('tab_shipping') || "Livraison", icon: Truck },
         { id: "locations", label: t('tab_locations') || "Logistique & Dépôts", icon: Truck },
-        { id: "catalog", label: t('tab_catalog') || 'Catalogue', icon: Package },
-        { id: "billing", label: t('tab_billing'), icon: CreditCard },
-        { id: "security", label: t('tab_security'), icon: Shield },
-        { id: "activity", label: t('tab_activity'), icon: Activity }, // NEW
+        { id: "catalog", label: t('tab_catalog') || "Catalogue", icon: Package },
+        { id: "billing", label: t('tab_billing') || "Plans & Facturation", icon: CreditCard },
+        { id: "security", label: t('tab_security') || "Sécurité", icon: Shield },
+        { id: "activity", label: t('tab_activity') || "Journal d'Activité", icon: Activity },
     ];
 
     // Biometric Logic
@@ -1012,7 +1012,7 @@ export default function Settings() {
                             <div className="px-4 py-5 sm:p-6">
                                 <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
                                     <Sparkles className="h-5 w-5 text-indigo-500" />
-                                    {t('section_ai_config') || 'AI Configuration'}
+                                    {t('section_ai_config') || 'Configuration IA'}
                                 </h3>
                                 <div className="mt-4 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
                                     <div className="sm:col-span-6">
@@ -1041,11 +1041,11 @@ export default function Settings() {
                                                 }}
                                                 icon={Save}
                                             >
-                                                {t('btn_save') || 'Save'}
+                                                {t('btn_save') || 'Enregistrer'}
                                             </Button>
                                         </div>
                                         <p className="mt-2 text-xs text-gray-500">
-                                            Required for Beya3 (Copilot). Get it from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">Google AI Studio</a>.
+                                            {t('ai_config_help') || "Requis pour Beya3 (Copilot). Obtenez-le sur"} <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">Google AI Studio</a>.
                                         </p>
                                     </div>
                                 </div>

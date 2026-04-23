@@ -33,7 +33,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
 
     // Refund State
     const [showRefundForm, setShowRefundForm] = useState(false);
-    const [refundForm, setRefundForm] = useState({ amount: "", reason: "Retour Partiel" });
+    const [refundForm, setRefundForm] = useState({ amount: "", reason: t('label_retour_partiel') || "Retour Partiel" });
     const [isRefunding, setIsRefunding] = useState(false);
 
     // Form State
@@ -212,12 +212,12 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 reason: refundForm.reason,
                 date: new Date().toISOString()
             });
-            toast.success("Avoir généré avec succès ! Montant déduit des Finances.");
+            toast.success(t('msg_refund_success'));
             setShowRefundForm(false);
-            setRefundForm({ amount: "", reason: "Retour Partiel" });
+            setRefundForm({ amount: "", reason: t('label_retour_partiel') || "Retour Partiel" });
         } catch (error) {
             console.error("Error issuing refund", error);
-            toast.error("Erreur lors de la génération de l'avoir.");
+            toast.error(t('err_refund_failed'));
         } finally {
             setIsRefunding(false);
         }
@@ -608,7 +608,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                         {/* 2. Order Details (Multi-Products) */}
                         <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
                             <div className="flex justify-between items-center mb-3">
-                                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">{t('section_product')} (Panier)</h3>
+                                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">{t('section_product')} ({t('tab_carts') || 'Panier'})</h3>
                             </div>
 
                             {/* Cart List */}
@@ -617,9 +617,9 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                     <table className="w-full text-sm text-left">
                                         <thead className="bg-gray-50 border-b border-gray-200">
                                             <tr>
-                                                <th className="px-3 py-2">Produit</th>
-                                                <th className="px-3 py-2">Qté</th>
-                                                <th className="px-3 py-2">P.U</th>
+                                                <th className="px-3 py-2">{t('nav_products') || 'Produit'}</th>
+                                                <th className="px-3 py-2">{t('label_qty') || 'Qté'}</th>
+                                                <th className="px-3 py-2">{t('label_pu') || 'P.U'}</th>
                                                 <th className="px-3 py-2">Total</th>
                                                 <th className="px-3 py-2"></th>
                                             </tr>
@@ -641,8 +641,8 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                         </tbody>
                                         <tfoot className="bg-indigo-50 border-t border-indigo-100">
                                             <tr>
-                                                <td colSpan="3" className="px-3 py-2 text-right font-bold text-indigo-900">Total Panier :</td>
-                                                <td colSpan="2" className="px-3 py-2 font-bold text-indigo-900">{formData.price} DH</td>
+                                                <td colSpan="3" className="px-3 py-2 text-right font-bold text-indigo-900">{t('label_total_cart') || 'Total Panier'} :</td>
+                                                <td colSpan="2" className="px-3 py-2 font-bold text-indigo-900">{formData.price} {store?.currency || 'DH'}</td>
                                             </tr>
                                         </tfoot>
                                     </table>
@@ -651,7 +651,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
 
                             {/* Add Item Form */}
                             <div className="bg-white p-3 rounded-lg border border-dashed border-gray-300">
-                                <p className="text-xs font-semibold text-gray-500 mb-2">Ajouter un article</p>
+                                <p className="text-xs font-semibold text-gray-500 mb-2">{t('label_add_item') || 'Ajouter un article'}</p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                                     <div>
                                         <select className="w-full px-3 py-2 border rounded-lg text-sm" value={currentProduct.articleId} onChange={handleProductChange}>
@@ -662,9 +662,9 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                     {currentProduct.articleId && products.find(p => p.id === currentProduct.articleId)?.isVariable && (
                                         <div>
                                             <select className="w-full px-3 py-2 border rounded-lg text-sm" value={currentProduct.variantId} onChange={handleVariantChange} required>
-                                                <option value="">Sélectionner une variante...</option>
+                                                <option value="">{t('placeholder_select_variant') || 'Sélectionner une variante...'}</option>
                                                 {products.find(p => p.id === currentProduct.articleId)?.variants?.map(v => (
-                                                    <option key={v.id} value={v.id}>{v.name} (Stock: {v.stock}) - {v.price} DH</option>
+                                                    <option key={v.id} value={v.id}>{v.name} (Stock: {v.stock}) - {v.price} {store?.currency || 'DH'}</option>
                                                 ))}
                                             </select>
                                         </div>
@@ -672,11 +672,11 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                 </div>
                                 {currentProduct.articleId && (
                                     <div className="grid grid-cols-3 gap-3">
-                                        <Input label="Qté" type="number" min="1" value={currentProduct.quantity} onChange={e => setCurrentProduct({ ...currentProduct, quantity: e.target.value })} />
-                                        <Input label="Prix Unit." type="number" value={currentProduct.price} onChange={e => setCurrentProduct({ ...currentProduct, price: e.target.value })} />
+                                        <Input label={t('label_qty') || 'Qté'} type="number" min="1" value={currentProduct.quantity} onChange={e => setCurrentProduct({ ...currentProduct, quantity: e.target.value })} />
+                                        <Input label={t('label_pu') || 'Prix Unit.'} type="number" value={currentProduct.price} onChange={e => setCurrentProduct({ ...currentProduct, price: e.target.value })} />
                                         <div className="flex items-end pb-1">
                                             <Button type="button" onClick={addProductToCart} className="w-full h-[42px] border-transparent bg-indigo-100 text-indigo-700 hover:bg-indigo-200">
-                                                Ajouter au panier
+                                                {t('btn_add_to_cart') || 'Ajouter au panier'}
                                             </Button>
                                         </div>
                                     </div>
@@ -695,7 +695,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                 <div className="mt-4 pt-4 border-t border-gray-200">
                                     <div className="flex items-center gap-2 mb-2">
                                         <Sparkles className="w-4 h-4 text-indigo-500 animate-pulse" />
-                                        <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Recommandations AI (ProductAdvisor)</h4>
+                                        <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wider">{t('section_ai_recommendations') || 'Recommandations AI'}</h4>
                                     </div>
 
                                     {loadingAI ? (
@@ -772,7 +772,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                             </span>
                                         </label>
                                         <Button type="button" variant="secondary" size="sm" onClick={() => setShowPaymentsForm(!showPaymentsForm)} className="text-xs px-2 py-1">
-                                            Acomptes
+                                            {t('label_acomptes') || 'Acomptes'}
                                         </Button>
                                     </div>
                                     {parseFloat(formData.amountPaid) > 0 && parseFloat(formData.amountPaid) < parseFloat(formData.price || 0) && (
@@ -787,8 +787,8 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                             {showPaymentsForm && (
                                 <div className="mt-4 p-4 bg-emerald-50/50 border border-emerald-100 rounded-lg">
                                     <h4 className="text-sm font-bold text-emerald-800 mb-3 flex items-center justify-between">
-                                        Règlements &amp; Acomptes Multiples
-                                        <span className="text-xs font-medium text-emerald-600">Reste à payer : {Math.max(0, parseFloat(formData.price || 0) - parseFloat(formData.amountPaid || 0)).toFixed(2)} DH</span>
+                                        {t('label_multi_payments') || 'Règlements Multiples'}
+                                        <span className="text-xs font-medium text-emerald-600">{t('label_reste_a_payer') || 'Reste à payer'} : {Math.max(0, parseFloat(formData.price || 0) - parseFloat(formData.amountPaid || 0)).toFixed(2)} {store?.currency || 'DH'}</span>
                                     </h4>
                                     
                                     {formData.payments && formData.payments.length > 0 && (

@@ -22,7 +22,7 @@ export function LanguageProvider({ children }) {
             translations[language]?.[key] ??
             translations['fr']?.[key] ??
             translations['en']?.[key] ??
-            key;
+            null;
 
         // Simple interpolation
         if (params && typeof params === 'object') {

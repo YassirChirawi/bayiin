@@ -173,15 +173,15 @@ export default function Orders() {
 
     const handleRequestPickup = async () => {
         const senditOrders = orders.filter(o => bulkActions.selectedOrders.includes(o.id) && o.carrier === 'sendit' && o.trackingId);
-        if (senditOrders.length === 0) return toast.error("Aucune commande Sendit valide sélectionnée.");
+        if (senditOrders.length === 0) return toast.error(t('err_no_sendit_orders'));
         openConfirmation({
-            title: "Confirmer Ramassage", message: `Demander le ramassage pour ${senditOrders.length} colis ?`,
+            title: t('confirm_ramassage'), message: `${t('confirm_ramassage')} (${senditOrders.length} ${t('orders')}) ?`,
             onConfirm: async () => {
                 setIsPickupLoading(true);
                 try {
                     const token = await authenticateSendit(store.senditPublicKey, store.senditSecretKey);
                     await requestSenditPickup(token, store, senditOrders.map(o => o.trackingId));
-                    toast.success("Demande de ramassage envoyée !");
+                    toast.success(t('msg_pickup_requested'));
                     bulkActions.setSelectedOrders([]);
                 } catch (error) { toast.error(error.message); } finally { setIsPickupLoading(false); }
             }
@@ -247,7 +247,7 @@ export default function Orders() {
             {/* Modals */}
             <OrderModal isOpen={isModalOpen} onClose={() => {setIsModalOpen(false); setEditingOrder(null);}} onSave={() => {setIsModalOpen(false); setEditingOrder(null);}} order={editingOrder} />
             <ConfirmationModal isOpen={confirmationModal.isOpen} onClose={closeConfirmation} onConfirm={confirmationModal.onConfirm} title={confirmationModal.title} message={confirmationModal.message} isDestructive={confirmationModal.isDestructive} />
-            <ImportModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} onImport={handleImport} title="Import Orders" templateHeaders={["Client", "Phone", "Address", "City", "Product", "Quantity", "Price", "Cost Price", "Status", "Date"]} />
+            <ImportModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} onImport={handleImport} title={t('btn_import')} templateHeaders={["Client", "Phone", "Address", "City", "Product", "Quantity", "Price", "Cost Price", "Status", "Date"]} />
             <TrackingTimelineModal isOpen={isTrackingModalOpen} onClose={() => setIsTrackingModalOpen(false)} trackingData={trackingData} provider={trackingProvider} />
 
             {qrOrder && (
