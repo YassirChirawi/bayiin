@@ -503,7 +503,6 @@ export default function Settings() {
         { id: "shipping", label: t('tab_shipping') || "Livraison", icon: Truck },
         { id: "locations", label: t('tab_locations') || "Logistique & Dépôts", icon: Truck },
         { id: "catalog", label: t('tab_catalog') || "Catalogue", icon: Package },
-        { id: "ai_config", label: t('tab_ai_config') || "Configuration IA", icon: Sparkles },
         { id: "billing", label: t('tab_billing') || "Plans & Facturation", icon: CreditCard },
         { id: "security", label: t('tab_security') || "Sécurité", icon: Shield },
         { id: "activity", label: t('tab_activity') || "Journal d'Activité", icon: Activity },
@@ -1036,52 +1035,7 @@ export default function Settings() {
                     </div>
                 )}
 
-                {activeTab === "ai_config" && (
-                    <div className="space-y-6">
-                        <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
-                            <div className="px-4 py-5 sm:p-6">
-                                <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
-                                    <Sparkles className="h-5 w-5 text-indigo-500" />
-                                    {t('section_ai_config') || 'Configuration IA'}
-                                </h3>
-                                <div className="mt-4 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
-                                    <div className="sm:col-span-6">
-                                        <label className="block text-sm font-medium text-gray-700">Gemini API Key</label>
-                                        <div className="mt-1 flex gap-2">
-                                            <input
-                                                type="password"
-                                                value={store?.geminiApiKey || ''}
-                                                onChange={(e) => setStore(prev => ({ ...prev, geminiApiKey: e.target.value }))}
-                                                placeholder="AIza..."
-                                                className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
-                                            />
-                                            <Button
-                                                onClick={async () => {
-                                                    try {
-                                                        await updateDoc(doc(db, "stores", store.id), {
-                                                            geminiApiKey: store.geminiApiKey || ""
-                                                        });
-                                                        toast.success("API Key saved!");
-                                                        window.location.reload();
-                                                    } catch (e) {
-                                                        console.error(e);
-                                                        toast.error("Error saving key");
-                                                    }
-                                                }}
-                                                icon={Save}
-                                            >
-                                                {t('btn_save') || 'Enregistrer'}
-                                            </Button>
-                                        </div>
-                                        <p className="mt-2 text-xs text-gray-500">
-                                            {t('ai_config_help') || "Requis pour Beya3 (Copilot). Obtenez-le sur"} <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">Google AI Studio</a>.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
+
 
                 {
                     activeTab === "security" && (

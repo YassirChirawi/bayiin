@@ -55,7 +55,7 @@ export default function ForecastingWidget({ products, orders }) {
                             />
                             <Sparkles className="w-4 h-4 text-indigo-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
                         </div>
-                        <p className="text-xs font-black text-gray-300 uppercase tracking-widest animate-pulse">Gemini calcule le Run Rate...</p>
+                        <p className="text-xs font-black text-gray-300 uppercase tracking-widest animate-pulse">L'IA calcule le Run Rate...</p>
                     </div>
                 ) : forecast.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -63,13 +63,13 @@ export default function ForecastingWidget({ products, orders }) {
                             <AlertTriangle className="w-8 h-8 text-indigo-300" />
                         </div>
                         <p className="text-sm text-gray-500 font-bold px-6 leading-relaxed">
-                            L'IA est en veille pour économiser votre quota gratuit.
+                            L'IA est en veille pour économiser les ressources.
                         </p>
                         <p className="text-xs text-gray-400 mt-2 px-6">
                             Cliquez sur le bouton ci-dessous pour analyser vos historiques et prédire les ruptures de stock.
                         </p>
                         <button onClick={handleRunForecast} className="mt-5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-2">
-                            <Sparkles className="w-4 h-4" /> Lancer l'analyse (Gemini)
+                            <Sparkles className="w-4 h-4" /> Lancer l'analyse (AI)
                         </button>
                     </div>
                 ) : (
@@ -111,7 +111,7 @@ export default function ForecastingWidget({ products, orders }) {
                 <div className="flex items-center gap-2 justify-center">
                     <div className="w-1.5 h-1.5 rounded-full bg-indigo-200" />
                     <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">
-                        AI Model: Gemini 1.5 Flash
+                        AI Model: Llama 3.1 (Groq)
                     </p>
                     <div className="w-1.5 h-1.5 rounded-full bg-indigo-200" />
                 </div>

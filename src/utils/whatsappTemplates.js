@@ -1,4 +1,24 @@
 
+
+/**
+ * Replaces all {variable} placeholders in a template string.
+ *
+ * Rules:
+ *  - Known variables are replaced with the provided value.
+ *  - Unknown / missing variables are left as-is (e.g. {tracking} stays {tracking}).
+ *  - An empty/null template returns an empty string without throwing.
+ *
+ * @param {string} template - Template string with {placeholder} syntax
+ * @param {Object} data     - Key→value map of replacements
+ * @returns {string}
+ */
+export const renderTemplate = (template, data = {}) => {
+    if (!template) return '';
+    return template.replace(/\{(\w+)\}/g, (match, key) => {
+        return Object.prototype.hasOwnProperty.call(data, key) ? (data[key] ?? '') : match;
+    });
+};
+
 /**
  * WhatsApp Message Templates for Customer Segments
  * Keys must match the 'messageKey' returned by aiSegmentation.js

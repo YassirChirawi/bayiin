@@ -15,7 +15,6 @@ export const useAnalytics = () => {
             window.gtag = gtag;
             gtag('js', new Date());
             gtag('config', GA_MEASUREMENT_ID);
-            console.log("Analytics initialized:", GA_MEASUREMENT_ID);
         }
     }, []);
 
@@ -27,7 +26,6 @@ export const useAnalytics = () => {
                 page_path: location.pathname,
                 page_title: document.title
             });
-            console.log("Analytics page_view:", location.pathname);
         }
     }, [location]);
 
@@ -38,7 +36,6 @@ export const useAnalytics = () => {
                 event_label: label,
                 value: value
             });
-            console.log("Analytics event:", { action, category, label, value });
         }
     };
 

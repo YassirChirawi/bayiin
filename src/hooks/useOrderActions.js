@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { db } from '../lib/firebase';
-import { runTransaction, doc, serverTimestamp, increment, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { runTransaction, doc, getDoc, serverTimestamp, increment, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { ORDER_STATUS } from '../utils/constants';
 import { useTenant } from '../context/TenantContext';
 import { authenticateOlivraison, createOlivraisonPackage } from '../lib/olivraison';
@@ -20,7 +20,7 @@ export const useOrderActions = () => {
     // Helpers to determine if stock should be adjusted
     const shouldRestock = (oldStatus, newStatus) => {
         const isCancelledOrReturned = [ORDER_STATUS.CANCELLED, ORDER_STATUS.RETURNED, ORDER_STATUS.NO_ANSWER].includes(newStatus);
-        const wasActive = ![ORDER_STATUS.CANCELLED, ORDER_STATUS.RETURNED, ORDER_STATUS.NO_ANSWER].includes(oldStatus);
+        const wasActive = ![ORDER_STATUS.CANCELLED, ORDER_STATUS.RETURNED, ORDER_STATUS.NO_ANSWER, 'pending_catalog'].includes(oldStatus);
         return wasActive && isCancelledOrReturned;
     };
 
@@ -518,12 +518,16 @@ export const useOrderActions = () => {
         setLoading(true);
         setError(null);
         try {
-            if (!store.olivraisonApiKey || !store.olivraisonSecretKey) {
+            // Load secrets
+            const configDoc = await getDoc(doc(db, "stores", store.id, "private", "config"));
+            const secrets = configDoc.exists() ? configDoc.data() : {};
+
+            if (!secrets.olivraisonApiKey || !secrets.olivraisonSecretKey) {
                 throw new Error("O-Livraison API keys not configured in Settings.");
             }
 
             // 1. Authenticate
-            const token = await authenticateOlivraison(store.olivraisonApiKey, store.olivraisonSecretKey);
+            const token = await authenticateOlivraison(secrets.olivraisonApiKey, secrets.olivraisonSecretKey);
 
             // 2. Create Package
             const result = await createOlivraisonPackage(token, order, store);
@@ -554,12 +558,16 @@ export const useOrderActions = () => {
         setLoading(true);
         setError(null);
         try {
-            if (!store.senditPublicKey || !store.senditSecretKey) {
+            // Load secrets
+            const configDoc = await getDoc(doc(db, "stores", store.id, "private", "config"));
+            const secrets = configDoc.exists() ? configDoc.data() : {};
+
+            if (!secrets.senditPublicKey || !secrets.senditSecretKey) {
                 throw new Error("Sendit API keys not configured in Settings.");
             }
 
             // 1. Authenticate (Benefit from caching inside senditService)
-            const token = await authenticateSendit(store.senditPublicKey, store.senditSecretKey);
+            const token = await authenticateSendit(secrets.senditPublicKey, secrets.senditSecretKey);
 
             // 2. Create Package
             const result = await createSenditPackage(token, order, store);
@@ -587,5 +595,23 @@ export const useOrderActions = () => {
         }
     };
 
-    return { createOrder, updateOrder, sendToOlivraison, sendToSendit, loading, error };
+    const updateOrderStatus = async (orderId, newStatus) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const orderRef = doc(db, "orders", orderId);
+            const orderSnap = await getDoc(orderRef);
+            if (!orderSnap.exists()) throw new Error("Order not found");
+            const oldData = { id: orderSnap.id, ...orderSnap.data() };
+            const newData = { ...oldData, status: newStatus };
+            return await updateOrder(orderId, oldData, newData);
+        } catch (err) {
+            console.error("Update Status Error:", err);
+            setError(err.message);
+            setLoading(false);
+            return false;
+        }
+    };
+
+    return { createOrder, updateOrder, updateOrderStatus, sendToOlivraison, sendToSendit, loading, error };
 };

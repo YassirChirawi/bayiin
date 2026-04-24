@@ -36,7 +36,6 @@ const executeAction = async (actionNode, payload, store, delayMs = 0) => {
                 followUpDate: dateStr,
                 followUpNote: followUpNote
             });
-            console.log(`[Automation] Action ${actionNode.name} scheduled for ${dateStr} for order ${payload.id}`);
             return; // Exit here. The action is scheduled in the DB, not executed immediately.
         }
 
@@ -49,7 +48,6 @@ const executeAction = async (actionNode, payload, store, delayMs = 0) => {
                 }
                 const token = await authenticateSendit(store.senditPublicKey, store.senditSecretKey);
                 await createSenditPackage(token, payload, store);
-                console.log(`Automation: Package created for order ${payload.id || 'unknown'}`);
                 break;
 
             case 'send_whatsapp': {
@@ -71,14 +69,11 @@ const executeAction = async (actionNode, payload, store, delayMs = 0) => {
                     message = message.replace(/{tracking}/g, trackingLink || '(Lien non disponible)');
                 }
 
-                console.log(`Automation: WhatsApp message triggered for phone ${payload.clientPhone}`);
-                
                 if (payload.clientPhone) {
                     const cleanPhone = payload.clientPhone.replace(/[^\d+]/g, '');
                     const encodedMessage = encodeURIComponent(message);
                     try {
                         const link = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
-                        console.log("Would normally window.open here:", link);
                         // window.open may fail in background processes, but we trigger it if in frontend context
                         if (typeof window !== 'undefined' && delayMs === 0) {
                              window.open(link, '_blank');
@@ -93,11 +88,10 @@ const executeAction = async (actionNode, payload, store, delayMs = 0) => {
             }
 
             case 'request_pickup':
-                console.log(`Automation: Sendit pickup requested`);
                 break;
 
             default:
-                console.log(`Automation: Unknown action ${actionNode.id}`);
+                // Unknown action
         }
     } catch (error) {
         console.error(`Automation Engine Error executing ${actionNode.id}:`, error);
@@ -129,8 +123,6 @@ export const runAutomations = async (triggerType, payload, store) => {
 
         if (automationsToRun.length === 0) return;
 
-        console.log(`[Automation Engine] Found ${automationsToRun.length} automations for ${triggerType}`);
-
         for (const auto of automationsToRun) {
             const nodes = auto.nodes || [];
             if (nodes.length < 2) continue; // Need at least trigger and action
@@ -160,7 +152,6 @@ export const runAutomations = async (triggerType, payload, store) => {
             }
 
             if (!conditionsPassed) {
-                console.log(`[Automation] ${auto.name} skipped: condition not met.`);
                 continue;
             }
 

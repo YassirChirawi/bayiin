@@ -13,6 +13,10 @@ initializeApp();
 // Connect to the named database used by the frontend
 const db = getFirestore('comsaas');
 
+// Copilot AI Function (Groq Proxy)
+const { copilotChat } = require('./copilot');
+exports.copilotChat = copilotChat;
+
 /**
  * Custom Claims Sync
  * Whenever a user document is written, sync their role to Firebase Auth JWT claims.
@@ -138,12 +142,16 @@ exports.handleWooCommerceOrder = functions.https.onRequest(async (req, res) => {
     }
     const storeData = storeDoc.data();
 
+    // 1b. Get Private Config (Secrets)
+    const privateDoc = await db.collection('stores').doc(storeId).collection('private').doc('config').get();
+    const privateData = privateDoc.exists ? privateDoc.data() : {};
+
     // 2. Verify Signature
     const wooService = new WooService(
         process.env.WOOCOMMERCE_URL || storeData.wooUrl,
-        process.env.WOOCOMMERCE_CONSUMER_KEY || storeData.wooConsumerKey,
-        process.env.WOOCOMMERCE_CONSUMER_SECRET || storeData.wooConsumerSecret,
-        process.env.WOOCOMMERCE_WEBHOOK_SECRET || storeData.wooWebhookSecret
+        process.env.WOOCOMMERCE_CONSUMER_KEY || privateData.wooConsumerKey || storeData.wooConsumerKey,
+        process.env.WOOCOMMERCE_CONSUMER_SECRET || privateData.wooConsumerSecret || storeData.wooConsumerSecret,
+        process.env.WOOCOMMERCE_WEBHOOK_SECRET || privateData.wooWebhookSecret || storeData.wooWebhookSecret
     );
 
     const signature = req.headers['x-wc-webhook-signature'];
@@ -417,7 +425,8 @@ exports.onOrderWrite = onDocumentWritten({
             // Inactive statuses do not consume stock
             // NOTE: 'retour en cours' still consumes stock (driver is returning to store, not yet restocked)
             // Stock is only released once the driver confirms drop-off and the status becomes 'retour'
-            if (['retour', 'annulé'].includes(o.status)) return 0;
+            // 'pending_catalog' is a draft status and should not deduct stock yet.
+            if (['retour', 'annulé', 'pending_catalog'].includes(o.status)) return 0;
             return parseInt(o.quantity) || 0;
         };
 

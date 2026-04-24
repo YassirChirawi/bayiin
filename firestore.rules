@@ -65,6 +65,11 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/stores/$(storeId)).data.ownerId == request.auth.uid;
     }
 
+    // Check if the user is staff for the store
+    function isStoreStaff(storeId) {
+      return getUserData().storeId == storeId && request.auth.token.role == 'staff';
+    }
+
     // Check if user is a Franchise Admin (JWT Custom Claim)
     function isFranchiseAdmin() {
       return request.auth.token.role == 'franchise_admin';
@@ -90,9 +95,14 @@ service cloud.firestore {
     // Stores collection
     match /stores/{storeId} {
       allow create: if request.auth != null;
-      allow read: if true; // Public access for Catalog Branding
-      allow update: if request.auth != null && (( (belongsToStore(storeId) || resource.data.ownerId == request.auth.uid) && isValidStoreUpdate(request.resource.data)) || isSuperAdmin());
-      allow delete: if request.auth != null && isSuperAdmin();
+      // Public access for Branding (Catalog), but we should eventually limit fields
+      allow read: if true; 
+      allow update, delete: if isStoreOwner(storeId) || isSuperAdmin();
+
+      // NEW: Restricted sub-collection for API Keys and sensitive config
+      match /private/{document=**} {
+        allow read, write: if isStoreOwner(storeId) || isSuperAdmin();
+      }
       
       match /stats/{statId} {
          allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(storeId)));
@@ -174,6 +184,14 @@ service cloud.firestore {
        allow create: if true;
        allow read: if request.auth != null && (belongsToStore(resource.data.storeId) || isStoreOwner(resource.data.storeId) || isSuperAdmin());
     }
+
+    // Incidents
+    match /incidents/{incidentId} {
+      allow read: if isStoreOwner(resource.data.storeId) || belongsToStore(resource.data.storeId) || isSuperAdmin();
+      allow create: if request.auth != null;
+      allow update, delete: if isStoreOwner(resource.data.storeId) || isSuperAdmin();
+    }
+
     // Custom Events (Planning)
     match /events/{eventId} {
        allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId)));
@@ -193,16 +211,24 @@ service cloud.firestore {
         allow write: if request.auth != null && isSuperAdmin();
     }
 
-    match /incidents/{incidentId} {
-      allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId)));
-      allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || isSuperAdmin());
-      allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || isSuperAdmin());
+    // Assets
+    match /assets/{assetId} {
+      allow read: if isStoreOwner(resource.data.storeId) || belongsToStore(resource.data.storeId) || isSuperAdmin();
+      allow create: if request.auth != null;
+      allow update, delete: if isStoreOwner(resource.data.storeId) || isSuperAdmin();
     }
 
-    match /assets/{assetId} {
-      allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId)));
-      allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || isSuperAdmin());
-      allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || isSuperAdmin());
+    // Custom Events (Planning)
+    match /events/{eventId} {
+       allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId)));
+       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
+    }
+    // Product Collections (groupings used in Products page)
+    match /collections/{collectionId} {
+       allow read: if true; // Public for catalog
+       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
     }
 
     // Franchises collection

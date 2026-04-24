@@ -1,132 +1,142 @@
-// src/services/aiService.js
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { SYSTEM_PERSONA_INSTRUCTIONS, SHIPPING_INFO, SALES_SCRIPTS, FAQ, GROWTH_MODULES } from './knowledge.js';
+const COPILOT_URL = import.meta.env.VITE_COPILOT_URL || 
+  "http://localhost:5001/bayiin/us-central1/copilotChat";
 
-// Initialize Gemini API
-let genAI = null;
-let model = null;
+/**
+ * Generic AI Response Generator
+ * Used by other services for specific prompts
+ */
+export async function generateAIResponse(prompt) {
+  return await generateCopilotResponse([{ role: "user", content: prompt }]);
+}
 
-export const initializeAI = (apiKey) => {
-    if (!apiKey) return;
-    try {
-        genAI = new GoogleGenerativeAI(apiKey);
-        // gemini-1.5-flash: available on free tier (use gemini-2.0-flash if on paid plan)
-        model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
-    } catch (error) {
-        console.error("Failed to initialize AI:", error);
-    }
-};
-
-// Lite RAG: Construct context from knowledge base
-const constructContext = (userMsg) => {
-    let context = "";
-    const lowerMsg = userMsg.toLowerCase();
-
-    if (lowerMsg.includes("livraison") || lowerMsg.includes("frais") || lowerMsg.includes("expédition")) {
-        context += `\n[INFO LOGISTIQUE]: ${JSON.stringify(SHIPPING_INFO)}`;
-    }
-
-    if (lowerMsg.includes("client") || lowerMsg.includes("message") || lowerMsg.includes("sms") || lowerMsg.includes("whatsapp")) {
-        context += `\n[SCRIPTS DE VENTE]: ${JSON.stringify(SALES_SCRIPTS)}`;
-    }
-
-    if (lowerMsg.includes("roas") || lowerMsg.includes("pub") || lowerMsg.includes("facebook") || lowerMsg.includes("instagram")) {
-        context += `\n[MODULE GROWTH]: ${GROWTH_MODULES.META_ADS}`;
-    }
-
-    FAQ.forEach(item => {
-        if (lowerMsg.includes(item.q.toLowerCase()) || lowerMsg.includes(item.a.toLowerCase())) {
-            context += `\n[FAQ SIMILAIRE]: Q: ${item.q} R: ${item.a}`;
-        }
+export async function generateCopilotResponse(
+  messages,
+  businessContext = null,
+  storeName = "BayIIn Store",
+  onChunk = null
+) {
+  try {
+    const response = await fetch(COPILOT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages, businessContext, storeName })
     });
 
-    return context;
-};
+    if (!response.ok) throw new Error("Copilot function error");
 
-/**
- * Core AI call. Throws on API errors so callers handle them properly.
- * - Returns a friendly message if no model is initialized.
- * - Throws an Error with isRateLimit=true on 429, with a user-readable message.
- * - Re-throws other errors (do NOT return error strings — callers that JSON.parse() would crash).
- */
-export const generateAIResponse = async (prompt) => {
-    if (!model) {
-        return "Oups ! Je n'ai pas encore ma clé API pour réfléchir. 🗝️ Peux-tu la configurer dans les paramètres ? (Tu peux la trouver sur Google AI Studio)";
-    }
+    // Streaming reader
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = "";
 
-    try {
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        return response.text();
-    } catch (error) {
-        console.error("Gemini Error:", error);
-        // 429 — rate limit exceeded: surface a specific, friendly message
-        if (error?.message?.includes('429') || error?.status === 429) {
-            const retryMatch = error.message?.match(/(\d+)s/);
-            const retryIn = retryMatch ? ` Réessaie dans ${retryMatch[1]}s.` : '';
-            const friendly = `⏳ Quota API dépassé.${retryIn} (Limite du plan gratuit Gemini atteinte)`;
-            throw Object.assign(new Error(friendly), { isRateLimit: true });
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const lines = decoder.decode(value).split("\n");
+      for (const line of lines) {
+        if (line.startsWith("data: ") && line !== "data: [DONE]") {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.delta) {
+              fullText += data.delta;
+              onChunk?.(fullText);
+            }
+          } catch (e) {
+            console.warn("Error parsing stream chunk:", e);
+          }
         }
-        // Re-throw other errors — callers that JSON.parse() the result have their own catch blocks
-        throw error;
-    }
-};
-
-/**
- * Main Copilot Function
- */
-export const generateCopilotResponse = async (msg, history = [], productContext = null) => {
-    let fullPrompt = `${SYSTEM_PERSONA_INSTRUCTIONS}\n`;
-
-    const knowledgeContext = constructContext(msg);
-    if (knowledgeContext) {
-        fullPrompt += `\nUTILISE CES INFORMATIONS SI PERTIENT:\n${knowledgeContext}\n`;
-    }
-
-    if (productContext && productContext.length > 0) {
-        const snippet = productContext.slice(0, 10).map(p => `${p.name} (${p.price} DH)`).join(", ");
-        fullPrompt += `\n[CONTEXTE PRODUITS (Magasin)]:\nVoici quelques produits: ${snippet}...\n`;
-    }
-
-    fullPrompt += `
-    [CAPACITÉS D'ACTION]:
-    Tu peux créer des commandes si l'utilisateur te le demande explicitement avec les détails (Nom, Tel, Ville, Produit, Prix).
-    Si tu as toutes les infos, génère un bloc JSON unique à la fin de ta réponse (invisible pour l'utilisateur) sous ce format :
-    
-    \`\`\`json
-    {
-      "action": "CREATE_ORDER",
-      "data": {
-        "clientName": "Nom Client",
-        "clientPhone": "06XXXXXXXX",
-        "clientCity": "Ville",
-        "clientAddress": "Adresse (ou Ville par défaut)",
-        "articleName": "Nom Produit",
-        "price": 123,
-        "quantity": 1,
-        "note": "Mentionne si c'est pour Sendit ou une info spéciale"
       }
     }
-    \`\`\`
 
-    Règle pour la note :
-    - Si l'utilisateur mentionne "Sendit", commence la note par "Via Sendit".
-    - Sinon, utilise le format standard.
-    `;
+    return fullText;
+  } catch (error) {
+    console.error("Copilot AI Error:", error);
+    throw error;
+  }
+}
 
-    const recentHistory = history.slice(-5);
-    if (recentHistory.length > 0) {
-        fullPrompt += `\n[HISTORIQUE RECENT]:\n${recentHistory.map(m => `${m.role === 'user' ? 'Utilisateur' : 'Beya3'}: ${m.content}`).join("\n")}\n`;
-    }
+/**
+ * Marketing: generateAdsCopy
+ */
+export async function generateAdsCopy(productName) {
+  const prompt = `Génère 3 textes publicitaires (Ads Copy) percutants pour Meta/Instagram pour le produit: ${productName}. 
+  Chaque texte doit avoir un angle différent (émotionnel, bénéfice direct, urgence).
+  Utilise des emojis et garde un ton professionnel mais engageant en français.`;
+  return await generateAIResponse(prompt);
+}
 
-    fullPrompt += `\nUtilisateur: ${msg}\nBeya3:`;
+/**
+ * Automations: generateWhatsAppTemplate
+ */
+export async function generateWhatsAppTemplate(userPrompt, language = 'fr') {
+  const prompt = `Rédige un modèle de message WhatsApp court et professionnel pour une boutique en ligne.
+  Contexte de l'utilisateur: ${userPrompt}
+  Langue: ${language}
+  Utilise des placeholders comme {name}, {product}, {total} si nécessaire. 
+  Réponds UNIQUEMENT avec le texte du message.`;
+  return await generateAIResponse(prompt);
+}
 
-    try {
-        return await generateAIResponse(fullPrompt);
-    } catch (error) {
-        return error.message || "Une erreur est survenue avec l'IA. Vérifie ta clé API dans les paramètres.";
-    }
-};
+/**
+ * Dashboard: generateStockForecast
+ */
+export async function generateStockForecast(products, orders) {
+  const prompt = `Analyses les produits et commandes suivants pour prédire les ruptures de stock (Run Rate).
+  Produits: ${JSON.stringify(products.slice(0, 10).map(p => ({ sku: p.sku, name: p.name, stock: p.stock })))}
+  Commandes récentes: ${JSON.stringify(orders.slice(0, 20).map(o => ({ sku: o.sku, date: o.date })))}
+
+  Retourne UNIQUEMENT un tableau JSON d'objets avec:
+  - sku: le SKU du produit
+  - urgency: 'Haut' ou 'Moyen'
+  - rationale: une phrase expliquant pourquoi (ex: "Ventes en hausse de 20% cette semaine")
+  - suggestedQuantity: nombre suggéré à commander
+
+  Format: [{"sku": "...", "urgency": "...", "rationale": "...", "suggestedQuantity": 10}]`;
+
+  const response = await generateAIResponse(prompt);
+  try {
+    const jsonMatch = response.match(/\[.*\]/s);
+    return JSON.parse(jsonMatch ? jsonMatch[0] : response);
+  } catch (e) {
+    console.error("Failed to parse forecast JSON:", e);
+    return [];
+  }
+}
+
+/**
+ * Finances: generateFinancialInsight
+ */
+export async function generateFinancialInsight(stats) {
+  const prompt = `Tu es un CFO expert. Analyse ces indicateurs financiers d'une boutique e-commerce :
+  Revenu: ${stats.deliveredRevenue} MAD
+  Profit Net: ${stats.netResult} MAD
+  Marge: ${stats.margin}%
+  ROAS: ${stats.roas}
+  CAC: ${stats.cac} MAD
+  
+  Donne 3 points d'analyse clairs et des recommandations concrètes pour améliorer la rentabilité.
+  Sois précis, professionnel et direct (en français).`;
+  return await generateAIResponse(prompt);
+}
+
+/**
+ * Finances: analyzeFinancialScenario (CFO Simulator)
+ */
+export async function analyzeFinancialScenario(currentStats, scenario, projections) {
+  const prompt = `Analyse ce scénario de simulation financière (What-If) pour une boutique e-commerce.
+  Données actuelles: ${JSON.stringify(currentStats)}
+  Changements appliqués: Ads(${scenario.adSpend}%), Prix(${scenario.price}%), COGS(${scenario.cogs}%)
+  Projections résultantes: Revenu(${projections.revenue}), Profit(${projections.profit}), Marge(${projections.margin}%)
+  
+  Explique la viabilité, les risques et les opportunités de ce scénario en 3 paragraphes courts.
+  Sois critique (détecte si les projections sont irréalistes) et constructif.`;
+  return await generateAIResponse(prompt);
+}
+
+/**
+ * Rules-based AI Utilities (No API call needed)
+ */
 
 // Algorithme de Scoring (Anti-Retour) - Rules-based
 export const evaluateOrderRisk = (order) => {
@@ -155,26 +165,6 @@ export const evaluateOrderRisk = (order) => {
     else if (score > 20) riskLevel = "Moyen";
 
     return { score, riskLevel, reasons };
-};
-
-export const generateFinancialInsight = async (stats) => {
-    const prompt = `
-    Agis comme Beya3, Head of Growth. Analyse ces chiffres financiers pour la période sélectionnée :
-    - Chiffre d'affaires Livré : ${stats.deliveredRevenue} DH
-    - Chiffre d'affaires Encaissé : ${stats.realizedRevenue} DH
-    - Dépenses Totales : ${stats.totalExpenses} DH
-    - Marge Nette : ${stats.margin}%
-    - ROAS : ${stats.roas}
-    - CAC : ${stats.cac} DH
-    
-    Donne-moi 3 points clés (Top, Flop, Opportunité) et un conseil actionnable pour améliorer la rentabilité. Sois bref et percutant.
-    `;
-
-    try {
-        return await generateAIResponse(prompt);
-    } catch (error) {
-        return error.message || "Erreur analyse financière.";
-    }
 };
 
 /**
@@ -228,138 +218,3 @@ export const detectFinancialLeaks = (orders, cac = 0) => {
     };
 };
 
-/**
- * Analyzes a financial scenario from the CFO Simulator
- */
-export const analyzeFinancialScenario = async (baseStats, scenario, projections) => {
-    const prompt = `
-    Agis comme un Directeur Financier (CFO) expert pour un E-commerce. Analyse ce scénario simulé :
-    
-    SCÉNARIO:
-    - Budget Pub: ${scenario.adSpend > 0 ? '+' : ''}${scenario.adSpend}%
-    - Prix de Vente: ${scenario.price > 0 ? '+' : ''}${scenario.price}%
-    - Coût Produit (COGS): ${scenario.cogs > 0 ? '+' : ''}${scenario.cogs}%
-
-    RÉSULTATS PROJETÉS:
-    - Chiffre d'affaires: ${projections.revenue.toFixed(0)} DH (vs ${baseStats.realizedRevenue} DH)
-    - Profit Net: ${projections.profit.toFixed(0)} DH (vs ${baseStats.netResult} DH)
-    - Marge Nette: ${projections.margin.toFixed(1)}% (vs ${baseStats.margin}%)
-
-    TA MISSION:
-    1. Donne un verdict immédiat (Risqué, Rentable, ou Prudent).
-    2. Explique pourquoi en 1 phrase simple.
-    3. Donne un conseil stratégique pour sécuriser ce plan.
-
-    Réponds en français, ton amical et professionnel (style Beya3).
-    `;
-
-    try {
-        return await generateAIResponse(prompt);
-    } catch (error) {
-        return error.message || "Erreur simulation CFO.";
-    }
-};
-
-/**
- * Generates a custom WhatsApp message template using AI based on user instructions.
- */
-export const generateWhatsAppTemplate = async (instructions, language = 'fr') => {
-    const langInstructions = language === 'darija'
-        ? "Réponds EXCLUSIVEMENT en Darija marocaine (en caractères latins/français)."
-        : "Réponds EXCLUSIVEMENT en Français professionnel et chaleureux.";
-
-    const prompt = `
-    Tu es un expert en e-commerce et relation client. Ton but est d'écrire UN SEUL message WhatsApp parfait pour une automatisation.
-
-    INSTRUCTIONS DU CLIENT: "${instructions}"
-
-    CONSIGNES STRICTES:
-    1. ${langInstructions}
-    2. Utilise les variables dynamiques suivantes là où c'est pertinent :
-       - {name} : Nom du client
-       - {product} : Nom du produit acheté
-       - {city} : Ville de livraison
-       - {total} : Montant de la commande
-       - {payment_method} : Méthode de paiement
-       - {store_name} : Nom de la boutique (pour signer le message)
-       - {tracking} : Lien de suivi de livraison (si pertinent)
-    3. Le message doit être direct, clair, utiliser quelques emojis, et prêt à être envoyé.
-    4. Retourne UNIQUEMENT le texte du message, sans guillemets, sans commentaires avant ou après. Ne dis pas "Voici le message", donne juste le message.
-    `;
-
-    try {
-        return await generateAIResponse(prompt);
-    } catch (error) {
-        return error.message || "Erreur génération message WhatsApp.";
-    }
-};
-
-/**
- * AI ProductAdvisor — suggest complementary products based on parameters.
- */
-export const suggestComplementaryProducts = async (sku, productList = [], storeName = "notre boutique") => {
-    const names = productList.slice(0, 15).map(p => `${p.sku || '?'} — ${p.name}`).join('\n');
-    const prompt = `
-Tu es un expert de vente pour ${storeName}. Analysez l'article "${sku}" et suggère les produits complémentaires parmi cette liste pour créer une offre complète pour le client :
-${names}
-
-Réponds en 3 bullet points maximum, en français, en citant les références et les bénéfices de l'association.
-`;
-    try {
-        return await generateAIResponse(prompt);
-    } catch (error) {
-        return error.message || "Erreur suggestion produits.";
-    }
-};
-
-/**
- * AI Stock Forecasting — predict critical ruptures based on run rate.
- * @returns {Promise<Object[]>} array of {sku, rationale, suggestedQuantity, urgency}
- */
-export const generateStockForecast = async (products = [], orders = [], storeName = "la boutique") => {
-    const productsData = products.slice(0, 20).map(p => ({
-        name: p.name,
-        sku: p.sku,
-        stock: p.stock,
-        min: p.min_stock_alert || 5
-    }));
-
-    const prompt = `
-        Rôle : Expert Logistique de ${storeName}.
-        Données : ${JSON.stringify(productsData)}
-        Analyse les stocks et prédis les ruptures imminentes. 
-        Format : JSON array uniquement [{sku, rationale, suggestedQuantity, urgency: 'Haut'|'Moyen'}].
-        Sois court et pro.
-    `;
-
-    try {
-        const text = await generateAIResponse(prompt);
-        // Robustly extract the first JSON array from the response,
-        // even if the model adds prose or markdown fences around it.
-        const match = text.match(/(\[\s*\{[\s\S]*?\}\s*\])/m);
-        if (!match) return [];
-        return JSON.parse(match[1]);
-    } catch (e) {
-        console.error("Forecasting AI Error:", e);
-        return [];
-    }
-};
-
-/**
- * AI Ads Generator — Creates Meta/Instagram ad copies.
- */
-export const generateAdsCopy = async (productName, targetAudience = "L'audience cible de BayIIn") => {
-    const prompt = `Agis comme un expert Media Buyer Facebook/Instagram Ads. Rédige 3 textes publicitaires (Copywriting) ultra-performants pour vendre ce produit : "${productName}".
-Cible : ${targetAudience}.
-Chaque proposition doit contenir :
-- Une phrase d'accroche irrésistible (Hook)
-- Le corps du texte avec les bénéfices clés (Body)
-- Un appel à l'action clair (CTA)
-Utilise un langage persuasif, des émojis et un formatage aéré pour Meta/Instagram Ads. Ne dis pas bonjour ni au revoir, donne juste les textes.`;
-
-    try {
-        return await generateAIResponse(prompt);
-    } catch (error) {
-        return error.message || "Erreur génération publicité.";
-    }
-};

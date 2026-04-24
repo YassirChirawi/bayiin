@@ -40,8 +40,8 @@ import PublicCatalog from "./pages/PublicCatalog";
 import DeliveryApp from "./pages/DeliveryApp";
 import DriverApplication from "./pages/DriverApplication";
 import FranchiseApplication from "./pages/FranchiseApplication";
-import Assets from "./pages/Assets";
-import Marketing from "./pages/Marketing";
+const Assets = lazy(() => import("./pages/Assets"));
+const Marketing = lazy(() => import("./pages/Marketing"));
 
 // 🚀 Lazy-loaded heavy pages (code splitting — reduces initial bundle ~40%)
 const Finances = lazy(() => import("./pages/Finances"));

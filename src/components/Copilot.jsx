@@ -172,7 +172,7 @@ export default function Copilot() {
                             </div>
                             <div className="mt-2 text-center">
                                 <p className="text-[10px] text-gray-400 flex items-center justify-center gap-1">
-                                    <Sparkles className="w-3 h-3" /> Powered by Gemini AI
+                                    <Sparkles className="w-3 h-3" /> Powered by Llama 3.1 (Groq)
                                 </p>
                             </div>
                         </form>

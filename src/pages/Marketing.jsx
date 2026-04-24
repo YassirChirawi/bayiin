@@ -33,7 +33,7 @@ export default function Marketing() {
             const copy = await generateAdsCopy(name);
             setAdsCopy(copy);
         } catch(e) {
-            toast.error("Erreur Gemini");
+            toast.error("Erreur IA");
         } finally {
             setIsGeneratingAds(false);
         }

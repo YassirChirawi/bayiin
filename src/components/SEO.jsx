@@ -1,9 +1,9 @@
 import { Helmet } from 'react-helmet-async';
 
 export default function SEO({ title, description, keywords, image, url }) {
-    const siteTitle = "Commerce SaaS";
+    const siteTitle = "BayIIn";
     const fullTitle = title ? `${title} | ${siteTitle}` : siteTitle;
-    const siteDescription = "The all-in-one platform to track orders, manage customers, and grow your business.";
+    const siteDescription = "بايعين - La plateforme n°1 pour le e-commerce local au Maroc. Gérez vos commandes, livreurs et finances en toute simplicité.";
 
     return (
         <Helmet>

@@ -18,7 +18,7 @@ export const generateAlerts = (orders, expenses) => {
     // We look at the whole dataset passed (which should be last 2 months from Context)
     // Use a wide date range to ensure we cover the data
     const dateRange = { start: '2000-01-01', end: new Date().toISOString() };
-    const stats = calculateFinancialStats(orders, expenses, dateRange);
+    const stats = calculateFinancialStats(orders, expenses, [], dateRange);
     const cac = parseFloat(stats.res.cac) || 0;
 
     // 2. Detect Leaks

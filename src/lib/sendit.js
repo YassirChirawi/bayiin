@@ -27,7 +27,6 @@ const senditService = {
         }
 
         try {
-            console.log("Authenticating with Sendit...");
             const response = await fetch(`${API_BASE}/login`, {
                 method: 'POST',
                 headers: {

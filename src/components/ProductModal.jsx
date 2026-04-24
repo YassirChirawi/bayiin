@@ -419,21 +419,21 @@ export default function ProductModal({ isOpen, onClose, onSave, product = null, 
                                     onClick={() => setFormData(prev => ({ ...prev, isVariable: false, isBundle: false }))}
                                     className={`px-3 py-1.5 min-w-max text-xs font-semibold rounded-md transition-colors ${!formData.isVariable && !formData.isBundle ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
                                 >
-                                    Stock Simple
+                                    {t('btn_simple_product')}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setFormData(prev => ({ ...prev, isVariable: true, isBundle: false }))}
                                     className={`px-3 py-1.5 min-w-max text-xs font-semibold rounded-md transition-colors ${formData.isVariable && !formData.isBundle ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500'}`}
                                 >
-                                    Stock Variable (Attributs)
+                                    {t('btn_variable_product')}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setFormData(prev => ({ ...prev, isVariable: false, isBundle: true }))}
                                     className={`px-3 py-1.5 min-w-max text-xs font-semibold rounded-md transition-colors ${formData.isBundle ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-500'}`}
                                 >
-                                    <Package className="w-3 h-3 inline mr-1" /> Pack / Bundle
+                                    <Package className="w-3 h-3 inline mr-1" /> {t('btn_bundle_product')}
                                 </button>
                             </div>
                         </div>

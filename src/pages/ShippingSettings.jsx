@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTenant } from "../context/TenantContext";
 import { useLanguage } from "../context/LanguageContext";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { toast } from "react-hot-toast";
 import { Save, Truck, Info, Globe, RefreshCw, ShieldCheck, Key } from "lucide-react";
@@ -26,15 +26,30 @@ export default function ShippingSettings() {
     });
 
     useEffect(() => {
-        if (!store) return;
-        setOlivraisonKeys({
-            apiKey: store.olivraisonApiKey || "",
-            secretKey: store.olivraisonSecretKey || "",
-        });
-        setSenditKeys({
-            publicKey: store.senditPublicKey || "",
-            secretKey: store.senditSecretKey || "",
-        });
+        if (!store?.id) return;
+
+        // Load private config
+        const loadPrivateConfig = async () => {
+            try {
+                const configDoc = await getDoc(doc(db, "stores", store.id, "private", "config"));
+                if (configDoc.exists()) {
+                    const privateData = configDoc.data();
+                    setOlivraisonKeys({
+                        apiKey: privateData.olivraisonApiKey || "",
+                        secretKey: privateData.olivraisonSecretKey || "",
+                    });
+                    setSenditKeys({
+                        publicKey: privateData.senditPublicKey || "",
+                        secretKey: privateData.senditSecretKey || "",
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to load private config:", err);
+            }
+        };
+
+        loadPrivateConfig();
+
         setSenditSender({
             name: store.senditSenderName || "",
             phone: store.senditSenderPhone || "",
@@ -67,12 +82,13 @@ export default function ShippingSettings() {
         if (!store?.id) return;
         setLoading(true);
         try {
-            await updateDoc(doc(db, "stores", store.id), {
+            await updateDoc(doc(db, "stores", store.id, "private", "config"), {
                 olivraisonApiKey: olivraisonKeys.apiKey,
                 olivraisonSecretKey: olivraisonKeys.secretKey,
             });
             toast.success(t('msg_olivraison_saved'));
         } catch (e) {
+            console.error(e);
             toast.error(t('err_save_failed'));
         } finally {
             setLoading(false);
@@ -83,9 +99,14 @@ export default function ShippingSettings() {
         if (!store?.id) return;
         setSenditInfoLoading(true);
         try {
-            await updateDoc(doc(db, "stores", store.id), {
+            // Update keys in private config
+            await updateDoc(doc(db, "stores", store.id, "private", "config"), {
                 senditPublicKey: senditKeys.publicKey,
                 senditSecretKey: senditKeys.secretKey,
+            });
+
+            // Update sender info in main store document (public info)
+            await updateDoc(doc(db, "stores", store.id), {
                 senditSenderName: senditSender.name,
                 senditSenderPhone: senditSender.phone,
                 senditSenderAddress: senditSender.address,
@@ -93,6 +114,7 @@ export default function ShippingSettings() {
             });
             toast.success("Configuration Sendit enregistrée ✓");
         } catch (e) {
+            console.error(e);
             toast.error(t('err_save_failed'));
         } finally {
             setSenditInfoLoading(false);

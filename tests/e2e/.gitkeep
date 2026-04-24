@@ -1,0 +1,3 @@
+# E2E tests (Playwright + Chromium)
+# Place your .spec.js files here.
+# Run with: npm run test:e2e
