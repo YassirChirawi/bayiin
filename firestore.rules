@@ -12,8 +12,9 @@ service cloud.firestore {
 
     // Check if the user belongs to the store they are trying to access
     function belongsToStore(storeId) {
-       // Ideally, we verify against the user document, but for read speed rules
-       // often rely on custom claims. Here we stick to document lookup as users are < 100 per store.
+       // Primary check: JWT Claim (Fastest, supports queries)
+       if (request.auth.token.storeId == storeId) { return true; }
+       // Fallback: Document lookup (for fresh users/role changes)
        return getUserData().storeId == storeId;
     }
 
@@ -162,14 +163,14 @@ service cloud.firestore {
 
     // Expenses
     match /expenses/{expenseId} {
-       allow read, write: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
-       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow read, update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || belongsToStore(resource.data.storeId) || isSuperAdmin());
+       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || belongsToStore(request.resource.data.storeId) || isSuperAdmin());
     }
 
     // Customers
     match /customers/{customerId} {
-       allow read, write: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
-       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow read, update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || belongsToStore(resource.data.storeId) || isSuperAdmin());
+       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || belongsToStore(request.resource.data.storeId) || isSuperAdmin());
     }
 
     // Team Management

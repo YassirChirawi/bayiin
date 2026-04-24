@@ -8,6 +8,10 @@
         ],
         "rewrites": [
             {
+                "source": "/api/copilot",
+                "function": "copilotChat"
+            },
+            {
                 "source": "**",
                 "destination": "/index.html"
             }

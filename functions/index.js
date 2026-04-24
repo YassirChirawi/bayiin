@@ -39,6 +39,7 @@ exports.onUserWrite = onDocumentWritten({
     try {
         await getAuth().setCustomUserClaims(userId, {
             role,
+            storeId: userData?.storeId || null,
             ...(franchiseId ? { franchiseId } : {})
         });
         console.log(`[CustomClaims] Synced role="${role}" for user ${userId}`);
