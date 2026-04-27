@@ -12,10 +12,9 @@ service cloud.firestore {
 
     // Check if the user belongs to the store they are trying to access
     function belongsToStore(storeId) {
-       // Primary check: JWT Claim (Fastest, supports queries)
-       if (request.auth.token.storeId == storeId) { return true; }
-       // Fallback: Document lookup (for fresh users/role changes)
-       return getUserData().storeId == storeId;
+       // Primary check: JWT Claim (Fastest, supports queries) OR Fallback: Document lookup
+       return (request.auth != null && request.auth.token.storeId == storeId) || 
+              (request.auth != null && getUserData().storeId == storeId);
     }
 
     // Type Checks
@@ -31,9 +30,6 @@ service cloud.firestore {
 
     // Validate Store Write
     function isValidStoreUpdate(data) {
-       // Must prevent editing 'subscriptionStatus' directly unless via Admin SDK (backend)
-       // But owner might need to update logo/address.
-       // We restrict 'plan' and 'subscriptionStatus' updates.
        return !data.diff(resource.data).affectedKeys().hasAny(['plan', 'subscriptionStatus', 'stripeCustomerId']);
     }
 
@@ -51,35 +47,34 @@ service cloud.firestore {
        return data.storeId == getUserData().storeId &&
               isNumber(data.price) && data.price >= 0 &&
               isNumber(data.quantity) && data.quantity > 0 &&
-              ("status" in data == false || data.status in ['reçu', 'confirmation', 'packing', 'ramassage', 'livraison', 'reporté', 'livré', 'retour', 'retour en cours', 'annulé', 'pas de réponse']) &&
+              (!("status" in data) || data.status in ['reçu', 'confirmation', 'packing', 'ramassage', 'livraison', 'reporté', 'livré', 'retour', 'retour en cours', 'annulé', 'pas de réponse']) &&
               (!("isPaid" in data) || data.isPaid is bool) &&
               (!("realDeliveryCost" in data) || (isNumber(data.realDeliveryCost) && data.realDeliveryCost >= 0));
     }
 
-    // Check if user is Super Admin (JWT Custom Claim — set by onUserWrite Cloud Function)
+    // Check if user is Super Admin
     function isSuperAdmin() {
-      return request.auth.token.role == 'super_admin';
+      return request.auth != null && request.auth.token.role == 'super_admin';
     }
 
     // Check if the user owns the store
     function isStoreOwner(storeId) {
-      return get(/databases/$(database)/documents/stores/$(storeId)).data.ownerId == request.auth.uid;
+      return request.auth != null && get(/databases/$(database)/documents/stores/$(storeId)).data.ownerId == request.auth.uid;
     }
 
     // Check if the user is staff for the store
     function isStoreStaff(storeId) {
-      return getUserData().storeId == storeId && request.auth.token.role == 'staff';
+      return request.auth != null && getUserData().storeId == storeId && request.auth.token.role == 'staff';
     }
 
-    // Check if user is a Franchise Admin (JWT Custom Claim)
+    // Check if user is a Franchise Admin
     function isFranchiseAdmin() {
-      return request.auth.token.role == 'franchise_admin';
+      return request.auth != null && request.auth.token.role == 'franchise_admin';
     }
 
     // Check if a store belongs to the franchise admin's franchise
     function inSameFranchise(storeId) {
-      let storeData = get(/databases/$(database)/documents/stores/$(storeId)).data;
-      return request.auth.token.franchiseId == storeData.franchiseId;
+      return request.auth != null && request.auth.token.franchiseId == get(/databases/$(database)/documents/stores/$(storeId)).data.franchiseId;
     }
 
     // --- RULES ---
@@ -87,20 +82,18 @@ service cloud.firestore {
     // Users collection
     match /users/{userId} {
       allow read: if request.auth != null && (request.auth.uid == userId || isSuperAdmin());
-      allow create: if request.auth != null && request.auth.uid == userId; // Initial creation
+      allow create: if request.auth != null && request.auth.uid == userId;
       allow update: if request.auth != null && request.auth.uid == userId && 
                     !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
-      allow write: if request.auth != null && isSuperAdmin(); // Super admin can do anything
+      allow write: if request.auth != null && isSuperAdmin();
     }
 
     // Stores collection
     match /stores/{storeId} {
       allow create: if request.auth != null;
-      // Public access for Branding (Catalog), but we should eventually limit fields
       allow read: if true; 
       allow update, delete: if isStoreOwner(storeId) || isSuperAdmin();
 
-      // NEW: Restricted sub-collection for API Keys and sensitive config
       match /private/{document=**} {
         allow read, write: if isStoreOwner(storeId) || isSuperAdmin();
       }
@@ -121,12 +114,12 @@ service cloud.firestore {
 
     // Products
     match /products/{productId} {
-       allow read: if true; // Public access for Catalog
+       allow read: if true;
        allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
        allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId)));
     }
 
-    // Warehouses (Épique 5)
+    // Warehouses
     match /warehouses/{warehouseId} {
        allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
        allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
@@ -139,25 +132,19 @@ service cloud.firestore {
          isStoreOwner(resource.data.storeId) ||
          resource.data.storeId == getUserData().storeId ||
          isSuperAdmin() ||
-         // Franchise admin can read all stores in their franchise
          (isFranchiseAdmin() && inSameFranchise(resource.data.storeId)) ||
-         // Livreur reads via token — no auth required
          resource.data.livreurToken == request.auth.token.uid
        );
-       // Livreur read via token
-       // (Security note: because drivers are unauthenticated, anyone with the token can read the order. 
-       // We allow any document with a token to be read, and rely on the unguessable token as the secret)
        allow read: if resource.data.livreurToken != null;
                       
        allow create: if (request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin()))
-                        || (request.resource.data.status == 'pending_catalog');
-                        
+                         || (request.resource.data.status == 'pending_catalog');
+                         
        allow update: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId)));
        
-       // Allow livreur to update status and add notes via token (no auth, but document must already have the token)
        allow update: if resource.data.livreurToken != null &&
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'statusHistory', 'isPaid', 'driverNote']);
-                        
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'statusHistory', 'isPaid', 'driverNote']);
+                         
        allow delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
     }
 
@@ -193,15 +180,15 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || belongsToStore(resource.data.storeId) || isSuperAdmin());
     }
 
-    // Custom Events (Planning)
+    // Custom Events
     match /events/{eventId} {
        allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId)));
        allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
        allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
     }
-    // Product Collections (groupings used in Products page)
+    // Product Collections
     match /collections/{collectionId} {
-       allow read: if true; // Public for catalog
+       allow read: if true;
        allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
        allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
     }
@@ -219,9 +206,6 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || belongsToStore(resource.data.storeId) || isSuperAdmin());
     }
 
-    // NOTE: match /events and match /collections blocks above (lines 196–207) are the canonical definitions.
-    // Duplicate blocks removed to prevent maintenance drift.
-
     // Franchises collection
     match /franchises/{franchiseId} {
         allow read: if request.auth != null && (
@@ -231,7 +215,7 @@ service cloud.firestore {
         allow write: if request.auth != null && isSuperAdmin();
     }
 
-    // Driver Applications — anyone can create (public recruitment form)
+    // Driver Applications
     match /driverApplications/{appId} {
         allow create: if true;
         allow read, update, delete: if request.auth != null && (
@@ -241,7 +225,7 @@ service cloud.firestore {
         );
     }
 
-    // Drivers — store owners can manage their driver team
+    // Drivers
     match /drivers/{driverId} {
         allow read: if request.auth != null && (
             isSuperAdmin() ||
@@ -260,7 +244,7 @@ service cloud.firestore {
         );
     }
 
-    // Employees (RH — Vendeurs/Vendeuses) — store owners and staff can manage
+    // Employees
     match /employees/{employeeId} {
         allow read: if request.auth != null && (
             isSuperAdmin() ||
@@ -279,7 +263,6 @@ service cloud.firestore {
             isStoreOwner(resource.data.storeId)
         );
 
-        // Subcollection: absences
         match /absences/{absenceId} {
             allow read, write: if request.auth != null && (
                 isSuperAdmin() ||
@@ -288,7 +271,6 @@ service cloud.firestore {
             );
         }
 
-        // Subcollection: payroll_history
         match /payroll_history/{payrollId} {
             allow read, write: if request.auth != null && (
                 isSuperAdmin() ||
@@ -298,7 +280,7 @@ service cloud.firestore {
         }
     }
 
-    // Purchase Orders (Module Achats) — store owners and staff can manage
+    // Purchase Orders
     match /purchase_orders/{orderId} {
         allow read: if request.auth != null && (
             isSuperAdmin() ||
@@ -317,7 +299,6 @@ service cloud.firestore {
             isStoreOwner(resource.data.storeId)
         );
 
-        // Subcollection: receptions
         match /receptions/{receptionId} {
             allow read, write: if request.auth != null && (
                 isSuperAdmin() ||
@@ -327,7 +308,7 @@ service cloud.firestore {
         }
     }
 
-    // SAV Returns — store owners and staff can manage
+    // SAV Returns
     match /returns/{returnId} {
         allow read: if request.auth != null && (
             isSuperAdmin() ||
@@ -346,8 +327,7 @@ service cloud.firestore {
             isStoreOwner(resource.data.storeId)
         );
     }
-    // SAV Refunds — generated automatically when a return is validated
-    // Linked to the Finances module (P&L / Remboursements KPI)
+    // SAV Refunds
     match /refunds/{refundId} {
         allow read: if request.auth != null && (
             isSuperAdmin() ||
