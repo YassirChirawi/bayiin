@@ -9,26 +9,13 @@ import { logActivity } from '../utils/logger'; // NEW
 import { useAuth } from '../context/AuthContext'; // NEW
 import { runAutomations } from '../utils/automationEngine'; // NEW
 import { useAudit } from './useAudit'; // NEW
-
+import { shouldRestock, shouldDeductStock, calculateStockDeltas } from '../utils/orderLogic'; // PURE LOGIC
 export const useOrderActions = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const { store } = useTenant();
     const { user } = useAuth();
     const { logAction } = useAudit();
-
-    // Helpers to determine if stock should be adjusted
-    const shouldRestock = (oldStatus, newStatus) => {
-        const isCancelledOrReturned = [ORDER_STATUS.CANCELLED, ORDER_STATUS.RETURNED, ORDER_STATUS.NO_ANSWER].includes(newStatus);
-        const wasActive = ![ORDER_STATUS.CANCELLED, ORDER_STATUS.RETURNED, ORDER_STATUS.NO_ANSWER, 'pending_catalog'].includes(oldStatus);
-        return wasActive && isCancelledOrReturned;
-    };
-
-    const shouldDeductStock = (oldStatus, newStatus) => {
-        const wasCancelledOrReturned = [ORDER_STATUS.CANCELLED, ORDER_STATUS.RETURNED, ORDER_STATUS.NO_ANSWER, 'pending_catalog'].includes(oldStatus);
-        const isActive = ![ORDER_STATUS.CANCELLED, ORDER_STATUS.RETURNED, ORDER_STATUS.NO_ANSWER, 'pending_catalog'].includes(newStatus);
-        return wasCancelledOrReturned && isActive;
-    };
 
     const createOrder = async (orderData) => {
         setLoading(true);
@@ -244,43 +231,7 @@ export const useOrderActions = () => {
             const deduct = shouldDeductStock(oldData.status, newData.status);
             
             // Build list of stock net changes needed
-            const netChanges = {}; // { productId_variantId: { id, variantId, netChange } }
-
-            const addChange = (id, variantId, amount) => {
-                if (!id) return;
-                const key = variantId ? `${id}_${variantId}` : id;
-                if (!netChanges[key]) netChanges[key] = { id, variantId, netChange: 0 };
-                netChanges[key].netChange += amount;
-            };
-
-            const getItems = (data) => {
-                let items = [];
-                if (data.products && data.products.length > 0) items = [...data.products];
-                else if (data.articleId) items.push({ id: data.articleId, variantId: data.variantId, quantity: data.quantity });
-                return items;
-            };
-            if (restock) {
-                // Order cancelled -> Add back everything
-                getItems(oldData).forEach(item => addChange(item.id, item.variantId, parseInt(item.quantity) || 1));
-            } else if (deduct) {
-                // Order reactivated -> Deduct everything
-                getItems(newData).forEach(item => addChange(item.id, item.variantId, -(parseInt(item.quantity) || 1)));
-            } else if (![ORDER_STATUS.CANCELLED, ORDER_STATUS.RETURNED, ORDER_STATUS.NO_ANSWER, 'pending_catalog'].includes(oldData.status)) {
-                // Order remained Active. Diff the items.
-                // Restock old items
-                getItems(oldData).forEach(item => addChange(item.id, item.variantId, parseInt(item.quantity) || 1));
-                // Deduct new items
-                getItems(newData).forEach(item => addChange(item.id, item.variantId, -(parseInt(item.quantity) || 1)));
-            }
-
-            const finalAdjustments = Object.values(netChanges).filter(adj => adj.netChange !== 0);
-
-            // Group by Product ID because a product might have multiple variant changes
-            const groupedByProduct = {};
-            finalAdjustments.forEach(adj => {
-                if (!groupedByProduct[adj.id]) groupedByProduct[adj.id] = [];
-                groupedByProduct[adj.id].push(adj);
-            });
+            const groupedByProduct = calculateStockDeltas(oldData, newData);
 
             await runTransaction(db, async (transaction) => {
                 const orderRef = doc(db, "orders", orderId);
