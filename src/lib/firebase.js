@@ -1,7 +1,12 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore, enableMultiTabIndexedDbPersistence } from "firebase/firestore";
+import {
+    initializeFirestore,
+    persistentLocalCache,
+    persistentMultipleTabManager,
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getMessaging, isSupported } from "firebase/messaging";
 
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -16,16 +21,25 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-export const db = getFirestore(app, "comsaas");
 
-// Enable Offline Persistence (multi-tab safe — handles multiple open tabs)
-enableMultiTabIndexedDbPersistence(db).catch((err) => {
-    if (err.code === 'unimplemented') {
-        console.warn('Firestore offline persistence not supported by this browser.');
-    }
-    // 'failed-precondition' is now handled by multi-tab mode automatically
-});
+// Offline persistence with multi-tab support (Firebase SDK v11+ API)
+// persistentMultipleTabManager handles concurrent tabs gracefully.
+// Falls back to memory cache on unsupported browsers automatically.
+export const db = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+    }),
+}, "comsaas");
 
 export const storage = getStorage(app);
+
+// Initialize messaging conditionally to prevent crashes in environments without supported push
+export let messaging = null;
+isSupported().then((supported) => {
+    if (supported) {
+        messaging = getMessaging(app);
+    }
+}).catch((err) => console.warn("Messaging not supported", err));
+
 export default app;
 

@@ -39,8 +39,10 @@ Tu peux effectuer des ACTIONS réelles. Format strict :
 Actions disponibles :
 - CREATE_ORDER : { productName, clientName, phone, price, quantity }
 - UPDATE_ORDER_STATUS : { orderId, newStatus }
+- SHIP_ORDER : { orderId, carrier } (carrier: "olivraison" ou "sendit")
 - CREATE_EXPENSE : { label, amount, category }
-- SEND_WHATSAPP : { phone, templateKey, variables }
+- ANALYZE_FINANCES : { period } (period: "this_month", "last_month")
+- SEND_WHATSAPP : { phone, message }
 
 Règles :
 - Utilise UNIQUEMENT les données du contexte pour répondre

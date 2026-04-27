@@ -4,7 +4,8 @@ import {
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     signInWithPopup,
-    signOut
+    signOut,
+    sendEmailVerification
 } from "firebase/auth";
 import { auth, googleProvider } from "../lib/firebase";
 
@@ -33,8 +34,14 @@ export const AuthProvider = ({ children }) => {
         return signInWithPopup(auth, googleProvider);
     };
 
-    const signup = (email, password) => {
-        return createUserWithEmailAndPassword(auth, email, password);
+    const signup = async (email, password) => {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        try {
+            await sendEmailVerification(userCredential.user);
+        } catch (err) {
+            console.error("Failed to send verification email:", err);
+        }
+        return userCredential;
     };
 
     const logout = () => {

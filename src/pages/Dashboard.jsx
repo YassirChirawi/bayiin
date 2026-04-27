@@ -12,6 +12,7 @@ import { db } from "../lib/firebase";
 import { toast } from "react-hot-toast";
 import { useLanguage } from "../context/LanguageContext"; // NEW
 import { useReconciliation } from "../hooks/useReconciliation";
+import { useNotifications } from "../context/NotificationContext";
 
 import TrialAlert from "../components/TrialAlert";
 import HelpTooltip from "../components/HelpTooltip";
@@ -26,6 +27,7 @@ import { vibrate } from "../utils/haptics";
 export default function Dashboard() {
     const { store } = useTenant();
     const { t } = useLanguage(); // NEW
+    const { fcmPermission, requestFcmPermission } = useNotifications();
 
 
 
@@ -229,6 +231,26 @@ export default function Dashboard() {
                 </button>
             </div>
 
+            {/* Notification Prompt */}
+            {fcmPermission === 'default' && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center justify-between shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-indigo-100 p-2 rounded-full">
+                            <AlertTriangle className="h-5 w-5 text-indigo-600" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-bold text-indigo-900">Activer les notifications</h3>
+                            <p className="text-xs text-indigo-700">Restez informé des nouvelles commandes et alertes stock.</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={requestFcmPermission}
+                        className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                    >
+                        Activer
+                    </button>
+                </div>
+            )}
 
 
             {

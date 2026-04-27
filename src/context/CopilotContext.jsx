@@ -51,9 +51,24 @@ export const CopilotProvider = ({ children }) => {
     const totalProfit = monthlyOrders.reduce((acc, o) => acc + (o.status === 'livré' ? (parseFloat(o.profit) || 0) : 0), 0);
     const totalReturns = monthlyOrders.filter(o => o.status === 'retour').length;
 
-    const businessContext = {
-        products: products.map(p => ({ name: p.name, price: p.price, cost: p.costPrice, stock: p.stock })),
-        orders: orders.map(o => ({ id: o.id, status: o.status, price: o.price, date: o.date, productName: o.articleName })),
+    const { createOrder, updateOrderStatus, sendToOlivraison, sendToSendit } = useOrderActions();
+
+    // 1. CONTEXTE BUSINESS ENRICHI
+    const businessContext = useMemo(() => ({
+        store: store ? { name: store.name, plan: store.plan, currency: "DH" } : null,
+        orders: orders?.slice(0, 50).map(o => ({ 
+            id: o.id, 
+            status: o.status, 
+            price: o.price, 
+            date: o.date, 
+            productName: o.articleName || o.productName 
+        })),
+        products: products?.slice(0, 20).map(p => ({
+            name: p.name,
+            price: p.price,
+            cost: p.costPrice || 0,
+            stock: p.stock
+        })),
         stats: { 
             totalRevenue, 
             totalProfit, 
@@ -61,9 +76,7 @@ export const CopilotProvider = ({ children }) => {
             totalReturns 
         },
         clientCount: customers.length
-    };
-
-    const { createOrder, updateOrderStatus } = useOrderActions();
+    }), [store, orders, products, totalRevenue, totalProfit, monthlyOrders.length, totalReturns, customers.length]);
 
     const processAction = async (action) => {
         if (!action) return null;
@@ -89,6 +102,23 @@ export const CopilotProvider = ({ children }) => {
                     await updateOrderStatus(action.data.orderId, action.data.newStatus);
                     return `✅ Statut de la commande mis à jour vers "${action.data.newStatus}".`;
 
+                case "CANCEL_ORDER":
+                    await updateOrderStatus(action.data.orderId, "annulé");
+                    return "✅ Commande annulée.";
+
+                case "SHIP_ORDER":
+                    const orderToShip = orders.find(o => o.id === action.data.orderId);
+                    if (!orderToShip) return "❌ Commande introuvable.";
+                    
+                    if (action.data.carrier === "olivraison") {
+                        await sendToOlivraison(orderToShip);
+                        return `🚚 Commande #${orderToShip.orderNumber} expédiée via O-Livraison !`;
+                    } else if (action.data.carrier === "sendit") {
+                        await sendToSendit(orderToShip);
+                        return `🚚 Commande #${orderToShip.orderNumber} expédiée via Sendit !`;
+                    }
+                    return "❌ Transporteur non supporté.";
+
                 case "CREATE_EXPENSE":
                     await addDoc(collection(db, "expenses"), {
                         ...action.data,
@@ -97,6 +127,14 @@ export const CopilotProvider = ({ children }) => {
                         createdAt: serverTimestamp()
                     });
                     return `✅ Dépense de ${action.data.amount} DH enregistrée (${action.data.label}).`;
+
+                case "ANALYZE_FINANCES":
+                    const analysis = await analyzeFinancialScenario(
+                        { revenue: totalRevenue, profit: totalProfit },
+                        { adSpend: 0, price: 0, cogs: 0 },
+                        { revenue: totalRevenue, profit: totalProfit, margin: (totalProfit/totalRevenue)*100 }
+                    );
+                    return `📈 Analyse : ${analysis}`;
 
                 case "SEND_WHATSAPP":
                     const message = action.data.message || "Bonjour !";

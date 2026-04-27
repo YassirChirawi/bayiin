@@ -6,6 +6,7 @@ import { detectFinancialLeaks } from '../services/aiService';
 import { getSenditInvoices } from '../lib/sendit';
 import { useTenant } from './TenantContext';
 import { useAuth } from './AuthContext';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 
 const NotificationContext = createContext();
 
@@ -19,6 +20,9 @@ export const NotificationProvider = ({ children }) => {
     const [alerts, setAlerts] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [loading, setLoading] = useState(false);
+    
+    // FCM Push Notifications
+    const { token: fcmToken, permissionStatus: fcmPermission, requestPermission: requestFcmPermission } = usePushNotifications();
 
     // Fetch Orders for Audit (Last 30 days)
     // We fetch a lightweight version or just rely on existing hooks if possible, 
@@ -177,7 +181,10 @@ export const NotificationProvider = ({ children }) => {
         dismissAlert: (id) => {
             setAlerts(prev => prev.filter(a => a.id !== id));
             setUnreadCount(prev => Math.max(0, prev - 1));
-        }
+        },
+        fcmToken,
+        fcmPermission,
+        requestFcmPermission
     };
 
     return (

@@ -85,6 +85,10 @@ exports.setUserRole = functions.https.onCall(async (data, context) => {
 
 /**
  * Stripe Webhook Handler
+ * Events handled:
+ *   - checkout.session.completed      → Activate subscription
+ *   - customer.subscription.deleted   → Expire subscription
+ *   - invoice.payment_failed          → Mark as past_due
  */
 exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
     const sig = req.headers['stripe-signature'];
@@ -99,31 +103,99 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
         }
         event = stripe.webhooks.constructEvent(req.rawBody, sig, endpointSecret);
     } catch (err) {
-        console.error(`Webhook Error: ${err.message}`);
+        console.error(`Stripe Webhook signature error: ${err.message}`);
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    if (event.type === 'checkout.session.completed') {
-        const session = event.data.object;
-        const storeId = session.client_reference_id;
+    console.log(`[Stripe Webhook] Event received: ${event.type}`);
 
-        if (storeId) {
-            try {
-                await db.collection('stores').doc(storeId).update({
-                    subscriptionStatus: 'active',
-                    plan: session.amount_total === 7900 ? 'starter' : 'pro',
-                    lastPaymentDate: FieldValue.serverTimestamp(),
-                    stripeCustomerId: session.customer,
-                    stripeSubscriptionId: session.subscription
+    try {
+        // ------------------------------------------------------------------
+        // 1. Checkout completed → Activate subscription
+        // ------------------------------------------------------------------
+        if (event.type === 'checkout.session.completed') {
+            const session = event.data.object;
+            const storeId = session.client_reference_id;
+
+            if (!storeId) {
+                console.warn('[Stripe] checkout.session.completed: missing client_reference_id');
+                return res.json({ received: true });
+            }
+
+            // Prefer plan set in metadata (set when creating checkout session).
+            // Fall back to amount-based detection for backward compatibility.
+            const planFromMeta = session.metadata && session.metadata.plan;
+            const planFromAmount = session.amount_total === 7900 ? 'starter' : 'pro';
+            const plan = planFromMeta || planFromAmount;
+
+            await db.collection('stores').doc(storeId).update({
+                subscriptionStatus: 'active',
+                plan,
+                lastPaymentDate: FieldValue.serverTimestamp(),
+                stripeCustomerId: session.customer,
+                stripeSubscriptionId: session.subscription,
+            });
+            console.log(`[Stripe] Store ${storeId} activated — plan: ${plan}`);
+        }
+
+        // ------------------------------------------------------------------
+        // 2. Subscription deleted (cancelled / non-renewed) → Expire
+        // ------------------------------------------------------------------
+        else if (event.type === 'customer.subscription.deleted') {
+            const subscription = event.data.object;
+            const customerId = subscription.customer;
+
+            // Find the store by Stripe customer ID
+            const storesSnap = await db.collection('stores')
+                .where('stripeCustomerId', '==', customerId)
+                .limit(1)
+                .get();
+
+            if (!storesSnap.empty) {
+                const storeDoc = storesSnap.docs[0];
+                await storeDoc.ref.update({
+                    subscriptionStatus: 'expired',
+                    subscriptionExpiredAt: FieldValue.serverTimestamp(),
                 });
-            } catch (error) {
-                console.error('Error updating Firestore:', error);
+                console.log(`[Stripe] Store ${storeDoc.id} subscription expired.`);
+            } else {
+                console.warn(`[Stripe] subscription.deleted: no store found for customerId ${customerId}`);
             }
         }
+
+        // ------------------------------------------------------------------
+        // 3. Invoice payment failed → Mark as past_due (grace period)
+        // ------------------------------------------------------------------
+        else if (event.type === 'invoice.payment_failed') {
+            const invoice = event.data.object;
+            const customerId = invoice.customer;
+
+            const storesSnap = await db.collection('stores')
+                .where('stripeCustomerId', '==', customerId)
+                .limit(1)
+                .get();
+
+            if (!storesSnap.empty) {
+                const storeDoc = storesSnap.docs[0];
+                await storeDoc.ref.update({
+                    subscriptionStatus: 'past_due',
+                    lastPaymentFailedAt: FieldValue.serverTimestamp(),
+                });
+                console.log(`[Stripe] Store ${storeDoc.id} payment failed — status: past_due`);
+            } else {
+                console.warn(`[Stripe] invoice.payment_failed: no store found for customerId ${customerId}`);
+            }
+        }
+
+    } catch (error) {
+        console.error(`[Stripe] Error processing event ${event.type}:`, error);
+        // Still return 200 to Stripe to prevent infinite retries for non-transient errors
+        return res.status(200).json({ received: true, error: error.message });
     }
 
     res.json({ received: true });
 });
+
 
 /**
  * WooCommerce Webhook Handler
@@ -252,9 +324,25 @@ exports.handleWooCommerceOrder = functions.https.onRequest(async (req, res) => {
  * Efficiently track Revenue and Order Counts without downloading all docs.
  */
 
-// Helper to calculate order value
-const getOrderValue = (order) => (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
+/**
+ * Calculate the total value of an order.
+ * Supports both:
+ *   - Multi-product orders: sum of products[].price * products[].quantity
+ *   - Legacy single-product orders: order.price * order.quantity
+ */
+const getOrderValue = (order) => {
+    if (!order) return 0;
+    // Multi-product order (products array present and non-empty)
+    if (Array.isArray(order.products) && order.products.length > 0) {
+        return order.products.reduce((sum, item) => {
+            return sum + (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 1);
+        }, 0);
+    }
+    // Legacy single-product order
+    return (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
+};
 const getDateKey = (dateString) => dateString || new Date().toISOString().split('T')[0];
+
 
 exports.onOrderWrite = onDocumentWritten({
     document: "orders/{orderId}",
@@ -757,25 +845,29 @@ exports.syncStockToWooCommerce = onDocumentWritten({
     const storeId = after.storeId;
     if (!storeId) return;
 
-    // Get Store Config
+    // Get Store Config (public doc — only for wooUrl and activation check)
     const storeDoc = await db.collection('stores').doc(storeId).get();
     if (!storeDoc.exists) return;
     const storeData = storeDoc.data();
 
-    // Check if WooCommerce integration is active
-    if (!storeData.wooUrl || !storeData.wooConsumerKey) return;
+    // Get Private Config (WooCommerce credentials — stored in secured subcollection)
+    const privateDoc = await db.collection('stores').doc(storeId).collection('private').doc('config').get();
+    const privateData = privateDoc.exists ? privateDoc.data() : {};
 
-    const wooService = new WooService(
-        process.env.WOOCOMMERCE_URL || storeData.wooUrl,
-        process.env.WOOCOMMERCE_CONSUMER_KEY || storeData.wooConsumerKey,
-        process.env.WOOCOMMERCE_CONSUMER_SECRET || storeData.wooConsumerSecret
-    );
+    // Check if WooCommerce integration is active
+    const wooUrl = process.env.WOOCOMMERCE_URL || storeData.wooUrl;
+    const wooKey = process.env.WOOCOMMERCE_CONSUMER_KEY || privateData.wooConsumerKey || storeData.wooConsumerKey;
+    const wooSecret = process.env.WOOCOMMERCE_CONSUMER_SECRET || privateData.wooConsumerSecret || storeData.wooConsumerSecret;
+
+    if (!wooUrl || !wooKey) return;
+
+    const wooService = new WooService(wooUrl, wooKey, wooSecret);
 
     try {
         await wooService.updateStock(after.sku, after.stock);
-        console.log(`Synced stock for SKU ${after.sku} to WooCommerce: ${after.stock}`);
+        console.log(`[WooSync] Synced SKU ${after.sku} stock=${after.stock} for store ${storeId}`);
     } catch (error) {
-        console.error(`Failed to sync stock to WooCommerce for SKU ${after.sku}:`, error);
+        console.error(`[WooSync] Failed to sync SKU ${after.sku} for store ${storeId}:`, error);
     }
 });
 

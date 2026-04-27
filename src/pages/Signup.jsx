@@ -29,7 +29,7 @@ export default function Signup() {
         try {
             setLoading(true);
             await signup(email, password);
-            toast.success(t('account_created'));
+            toast.success(t('account_created') + " Veuillez vérifier votre boîte mail.");
             navigate("/onboarding");
         } catch (err) {
             const message = getFriendlyErrorMessage(err);

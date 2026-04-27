@@ -188,9 +188,9 @@ service cloud.firestore {
 
     // Incidents
     match /incidents/{incidentId} {
-      allow read: if isStoreOwner(resource.data.storeId) || belongsToStore(resource.data.storeId) || isSuperAdmin();
-      allow create: if request.auth != null;
-      allow update, delete: if isStoreOwner(resource.data.storeId) || isSuperAdmin();
+      allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || belongsToStore(resource.data.storeId) || isSuperAdmin());
+      allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || belongsToStore(request.resource.data.storeId) || isSuperAdmin());
+      allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || belongsToStore(resource.data.storeId) || isSuperAdmin());
     }
 
     // Custom Events (Planning)
@@ -214,23 +214,13 @@ service cloud.firestore {
 
     // Assets
     match /assets/{assetId} {
-      allow read: if isStoreOwner(resource.data.storeId) || belongsToStore(resource.data.storeId) || isSuperAdmin();
-      allow create: if request.auth != null;
-      allow update, delete: if isStoreOwner(resource.data.storeId) || isSuperAdmin();
+      allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || belongsToStore(resource.data.storeId) || isSuperAdmin());
+      allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || belongsToStore(request.resource.data.storeId) || isSuperAdmin());
+      allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || belongsToStore(resource.data.storeId) || isSuperAdmin());
     }
 
-    // Custom Events (Planning)
-    match /events/{eventId} {
-       allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId)));
-       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
-       allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
-    }
-    // Product Collections (groupings used in Products page)
-    match /collections/{collectionId} {
-       allow read: if true; // Public for catalog
-       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
-       allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
-    }
+    // NOTE: match /events and match /collections blocks above (lines 196–207) are the canonical definitions.
+    // Duplicate blocks removed to prevent maintenance drift.
 
     // Franchises collection
     match /franchises/{franchiseId} {

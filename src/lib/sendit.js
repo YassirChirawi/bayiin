@@ -3,7 +3,6 @@ import { doc, getDoc } from 'firebase/firestore';
 
 const API_BASE = "https://app.sendit.ma/api/v1";
 
-let tokenCache = {}; // { publicKey: { token, expiration } }
 let cachedDistricts = null;
 
 /**
@@ -20,10 +19,18 @@ const senditService = {
         }
 
         const now = new Date();
-        const cached = tokenCache[publicKey];
+        const sessionKey = `sendit_token_${publicKey}`;
 
-        if (cached && cached.token && cached.expiration && now < cached.expiration) {
-            return cached.token;
+        try {
+            const stored = sessionStorage.getItem(sessionKey);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (parsed.token && parsed.expiration && now < new Date(parsed.expiration)) {
+                    return parsed.token;
+                }
+            }
+        } catch (e) {
+            console.warn("Could not read sendit token from sessionStorage", e);
         }
 
         try {
@@ -51,10 +58,15 @@ const senditService = {
             }
 
             // Set expiration (23 hours)
-            tokenCache[publicKey] = {
-                token: token,
-                expiration: new Date(new Date().getTime() + 23 * 60 * 60 * 1000)
-            };
+            const expirationDate = new Date(now.getTime() + 23 * 60 * 60 * 1000);
+            try {
+                sessionStorage.setItem(sessionKey, JSON.stringify({
+                    token: token,
+                    expiration: expirationDate.toISOString()
+                }));
+            } catch (e) {
+                console.warn("Could not save sendit token to sessionStorage", e);
+            }
 
             return token;
         } catch (error) {

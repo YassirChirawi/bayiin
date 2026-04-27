@@ -35,13 +35,13 @@ import Team from "./pages/Team";
 import Help from "./pages/Help";
 import Planning from "./pages/Planning";
 import Warehouse from "./pages/Warehouse";
-import SupportAI from "./pages/SupportAI";
 import PublicCatalog from "./pages/PublicCatalog";
 import DeliveryApp from "./pages/DeliveryApp";
 import DriverApplication from "./pages/DriverApplication";
 import FranchiseApplication from "./pages/FranchiseApplication";
 const Assets = lazy(() => import("./pages/Assets"));
 const Marketing = lazy(() => import("./pages/Marketing"));
+const SupportAI = lazy(() => import("./pages/SupportAI"));
 
 // 🚀 Lazy-loaded heavy pages (code splitting — reduces initial bundle ~40%)
 const Finances = lazy(() => import("./pages/Finances"));
