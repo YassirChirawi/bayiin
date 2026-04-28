@@ -466,6 +466,9 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
             costPrice: parseFloat(formData.costPrice) || 0,
             shippingCost: parseFloat(formData.shippingCost) || 0,
             realDeliveryCost: parseFloat(formData.realDeliveryCost) || 0,
+            // Legacy fallbacks for components relying on single articleId/Name
+            articleId: formData.articleId || (formData.products?.[0]?.id || ""),
+            articleName: formData.articleName || (formData.products?.[0]?.name || ""),
         };
 
         let success = false;
@@ -483,7 +486,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 // Generate fresh message to be sure (using latest formData)
                 const message = getWhatsappMessage(formData.status, formData, store);
                 const link = createRawWhatsAppLink(formData.clientPhone, message);
-                window.open(link, '_blank');
+                window.open(link, '_blank', 'noopener,noreferrer');
             }
 
             onSave();
@@ -600,7 +603,12 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                     <datalist id="cities">{MOROCCAN_CITIES.map(c => <option key={c} value={c} />)}</datalist>
                                 </div>
                                 <div className="md:col-span-3">
-                                    <Input label={t('label_address')} value={formData.clientAddress} onChange={e => setFormData({ ...formData, clientAddress: e.target.value })} required />
+                                    <Input 
+                                        label={`${t('label_address')} *`} 
+                                        value={formData.clientAddress} 
+                                        onChange={e => setFormData({ ...formData, clientAddress: e.target.value })} 
+                                        required 
+                                    />
                                 </div>
                             </div>
                         </div>

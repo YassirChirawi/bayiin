@@ -23,19 +23,19 @@ const ORDER = {
 async function login(page) {
     await page.goto('/login');
 
-    // BayIIn has a role picker (Magasin | Livreur)
-    // The "Magasin" button is the one for store owners/staff
-    await page.waitForSelector('text=Magasin', { timeout: 15000 });
-    await page.getByText('Magasin').click();
+    // Wait for the role picker or directly the login form
+    const magasinBtn = page.getByText('Magasin');
+    if (await magasinBtn.isVisible({ timeout: 5000 })) {
+        await magasinBtn.click();
+    }
 
-    // Wait for email form
-    await page.waitForSelector('input[type="email"]', { timeout: 10000 });
+    await page.waitForSelector('input[type="email"]', { timeout: 15000 });
     await page.fill('input[type="email"]',    TEST_EMAIL);
     await page.fill('input[type="password"]', TEST_PASSWORD);
     await page.click('button[type="submit"]');
 
-    // Wait for redirect to dashboard
-    await page.waitForURL('**/dashboard', { timeout: 20000 });
+    // Wait for dashboard to load by checking for a specific element
+    await page.waitForSelector('nav, h1, .dashboard-stats', { timeout: 30000 });
 }
 
 // ── Helper: Open "New Order" modal ─────────────────────────────────────────

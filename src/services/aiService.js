@@ -217,3 +217,25 @@ export const detectFinancialLeaks = (orders, cac = 0) => {
     };
 };
 
+/**
+ * Marketing: predictChurn
+ * Calculates the probability of a customer not returning.
+ */
+export const predictChurn = (customer) => {
+    if (!customer.lastOrderDate) return { probability: 0, reason: "Nouveau client" };
+    
+    const lastOrder = new Date(customer.lastOrderDate);
+    const now = new Date();
+    const daysSinceLastOrder = (now - lastOrder) / (1000 * 60 * 60 * 24);
+    
+    let probability = 0;
+    if (daysSinceLastOrder > 90) probability = 0.9;
+    else if (daysSinceLastOrder > 60) probability = 0.6;
+    else if (daysSinceLastOrder > 30) probability = 0.3;
+    
+    return {
+        probability,
+        isAtRisk: probability > 0.5,
+        daysSinceLastOrder: Math.floor(daysSinceLastOrder)
+    };
+};

@@ -13,16 +13,23 @@ export const getTopProducts = (orders) => {
         // Strict Filter: Only Delivered
         if (order.status !== ORDER_STATUS.DELIVERED) return;
 
-        const name = order.articleName || "Unknown Product";
-        const qty = parseInt(order.quantity) || 0;
-        const revenue = parseFloat(order.price) * qty || 0;
+        const items = (order.products && order.products.length > 0) 
+            ? order.products 
+            : [{ name: order.articleName || "Unknown Product", quantity: order.quantity || 1, price: order.price || 0 }];
 
-        if (!productStats[name]) {
-            productStats[name] = { name, quantity: 0, revenue: 0 };
-        }
+        items.forEach(item => {
+            const name = item.name || "Unknown Product";
+            const qty = parseInt(item.quantity) || 0;
+            const price = parseFloat(item.price) || 0;
+            const revenue = price * qty;
 
-        productStats[name].quantity += qty;
-        productStats[name].revenue += revenue;
+            if (!productStats[name]) {
+                productStats[name] = { name, quantity: 0, revenue: 0 };
+            }
+
+            productStats[name].quantity += qty;
+            productStats[name].revenue += revenue;
+        });
     });
 
     // Convert to Array and Sort by Quantity Descending

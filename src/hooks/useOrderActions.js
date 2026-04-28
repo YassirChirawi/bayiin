@@ -186,9 +186,9 @@ export const useOrderActions = () => {
 
                 // Update Store Stats (statusCounts)
                 const statsRef = doc(db, "stores", store.id, "stats", "sales");
-                transaction.update(statsRef, {
+                transaction.set(statsRef, {
                     [`statusCounts.${ORDER_STATUS.RECEIVED}`]: increment(1)
-                });
+                }, { merge: true });
             });
 
             logAction('ORDER_CREATE', `Created order for ${orderData.clientName || 'Unknown'}`, {
@@ -441,7 +441,7 @@ export const useOrderActions = () => {
                     }
                 }
                 if (Object.keys(statsUpdates).length > 0) {
-                    transaction.update(statsRef, statsUpdates);
+                    transaction.set(statsRef, statsUpdates, { merge: true });
                 }
             });
 

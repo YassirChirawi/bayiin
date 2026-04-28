@@ -82,15 +82,6 @@ export default function OrderFilters({
                     />
                 </div>
 
-                <label className="flex items-center gap-2 cursor-pointer ml-2">
-                    <input
-                        type="checkbox"
-                        checked={showTrash}
-                        onChange={(e) => setShowTrash(e.target.checked)}
-                        className="rounded text-indigo-600 focus:ring-indigo-500 rounded-md"
-                    />
-                    <span className="text-sm font-medium text-gray-700">{t('label_trash')}</span>
-                </label>
             </div>
 
             {/* Right: Record limit & Create */}

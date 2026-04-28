@@ -41,8 +41,8 @@ export default function Finances() {
 
     // Default Date Range
     const [dateRange, setDateRange] = useState({
-        start: startOfMonth(new Date()).toISOString().split('T')[0],
-        end: new Date().toISOString().split('T')[0]
+        start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
+        end: format(new Date(), 'yyyy-MM-dd')
     });
 
     // Load Collections for Dropdown
