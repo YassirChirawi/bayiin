@@ -220,11 +220,17 @@ exports.handleWooCommerceOrder = functions.https.onRequest(async (req, res) => {
     const privateData = privateDoc.exists ? privateDoc.data() : {};
 
     // 2. Verify Signature
+    const webhookSecret = process.env.WOOCOMMERCE_WEBHOOK_SECRET || privateData.wooWebhookSecret || storeData.wooWebhookSecret;
+    if (!webhookSecret) {
+        console.error("WooCommerce Webhook: Missing Webhook Secret for store", storeId);
+        return res.status(500).send("Webhook secret not configured");
+    }
+
     const wooService = new WooService(
         process.env.WOOCOMMERCE_URL || storeData.wooUrl,
         process.env.WOOCOMMERCE_CONSUMER_KEY || privateData.wooConsumerKey || storeData.wooConsumerKey,
         process.env.WOOCOMMERCE_CONSUMER_SECRET || privateData.wooConsumerSecret || storeData.wooConsumerSecret,
-        process.env.WOOCOMMERCE_WEBHOOK_SECRET || privateData.wooWebhookSecret || storeData.wooWebhookSecret
+        webhookSecret
     );
 
     const signature = req.headers['x-wc-webhook-signature'];
@@ -349,21 +355,17 @@ exports.onOrderWrite = onDocumentWritten({
     database: "comsaas",
     region: "us-central1",
 }, async (event) => {
-    console.log("onOrderWrite triggered", event.params.orderId);
-
     // v2 change object is in event.data
     const change = event.data;
-    if (!change) return; // Should not happen on write?
+    if (!change) return;
 
     const before = change.before.exists ? change.before.data() : null;
     const after = change.after.exists ? change.after.data() : null;
 
-    // Get storeId from either (should be same)
     const storeId = after ? after.storeId : before.storeId;
-    console.log("StoreId:", storeId);
 
     if (!storeId) {
-        console.error("No storeId found in order");
+        console.error("No storeId found in order", event.params.orderId);
         return null;
     }
 
@@ -503,7 +505,11 @@ exports.onOrderWrite = onDocumentWritten({
     // Orders created/updated from the BayIIn dashboard set _stockManagedByClient = true.
     // Server-sourced orders (WooCommerce, public catalog) do NOT set this flag,
     // so they rely entirely on this Cloud Function for stock deduction.
-    const skipStock = (after?._stockManagedByClient === true) || (before?._stockManagedByClient === true);
+    // [FIX] Carrier webhooks (Sendit/O-Livraison) update the order but don't handle stock.
+    // We allow them to bypass the skipStock check if the status has changed.
+    const isStatusChange = oldStatus !== newStatus;
+    const isCarrierUpdate = after?._updatedBy === 'carrier';
+    const skipStock = ((after?._stockManagedByClient === true) || (before?._stockManagedByClient === true)) && (!isCarrierUpdate || !isStatusChange);
 
     if (!skipStock) {
         const oldProductId = before?.articleId;
@@ -546,7 +552,6 @@ exports.onOrderWrite = onDocumentWritten({
     }
 
     // Execute Update
-    console.log("Updates:", JSON.stringify(updates));
     const statsPromise = statsRef.set(updates, { merge: true });
 
     // Commit batch for Stock (and any other potential batch ops)
@@ -667,7 +672,8 @@ exports.senditWebhook = functions.https.onRequest(async (req, res) => {
             // Update Logic
             const updates = {
                 carrierStatus: status, // Keep raw carrier status for reference
-                lastCarrierUpdate: FieldValue.serverTimestamp()
+                lastCarrierUpdate: FieldValue.serverTimestamp(),
+                _updatedBy: 'carrier' // Flag for onOrderWrite stock sync
             };
 
             // Only update internal status if mapping exists and it's different
@@ -795,7 +801,8 @@ exports.olivraisonWebhook = functions.https.onRequest(async (req, res) => {
 
             const updates = {
                 carrierStatus: String(status),
-                lastCarrierUpdate: FieldValue.serverTimestamp()
+                lastCarrierUpdate: FieldValue.serverTimestamp(),
+                _updatedBy: 'carrier'
             };
 
             // Only update internal status if mapping exists and differs

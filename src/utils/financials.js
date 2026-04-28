@@ -87,8 +87,11 @@ export const calculateFinancialStats = (orders, expenses, refunds = [], dateRang
             // Or full COGS if we want to be conservative. The current implementation uses full COGS.
             // Let's stick to full COGS liability if ANY payment is received, as per business requirement.
             res.totalCOGS += cogs;
-            res.totalRealDelivery += delivery; // Move delivery cost to realized if we got cash? 
-            // Actually, delivery is always a cost if it's shipped.
+        }
+
+        // Delivery Costs: Incurred if shipped (delivered, returned, or manually recorded)
+        if (['livré', 'retour', 'livraison', 'ramassage'].includes(o.status) || delivery > 0) {
+            res.totalRealDelivery += delivery;
         }
     });
 
