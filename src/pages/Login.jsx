@@ -7,6 +7,7 @@ import Input from "../components/Input";
 import { getFriendlyErrorMessage } from "../utils/firebaseErrors";
 import { toast } from "react-hot-toast";
 import { ArrowRight, CheckCircle, Store, Truck, ChevronLeft } from "lucide-react";
+import { vibrate } from "../utils/haptics";
 
 // ── Token entry for drivers ────────────────────────────────────────────────
 function DriverTokenEntry({ onBack }) {
@@ -216,9 +217,11 @@ export default function Login() {
         try {
             setLoading(true);
             await login(email, password);
+            vibrate('success');
             toast.success(t('welcome_back_toast'));
             navigate('/dashboard');
         } catch (err) {
+            vibrate('error');
             toast.error(getFriendlyErrorMessage(err));
         } finally {
             setLoading(false);
@@ -229,9 +232,11 @@ export default function Login() {
         try {
             setLoading(true);
             await loginWithGoogle();
+            vibrate('success');
             toast.success(t('welcome_back_toast'));
             navigate('/dashboard');
         } catch (err) {
+            vibrate('error');
             toast.error(getFriendlyErrorMessage(err));
         } finally {
             setLoading(false);

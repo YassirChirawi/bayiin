@@ -45,6 +45,13 @@ export default defineConfig({
     headers: {
       "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
       "Cross-Origin-Embedder-Policy": "unsafe-none"
+    },
+    proxy: {
+      '/api/copilot': {
+        target: 'https://us-central1-commerce-saas-62f32.cloudfunctions.net',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/copilot/, '/copilotChat')
+      }
     }
   },
   test: {

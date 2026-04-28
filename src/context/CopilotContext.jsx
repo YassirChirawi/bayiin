@@ -8,6 +8,7 @@ import { createRawWhatsAppLink } from "../utils/whatsappTemplates";
 import { db } from "../lib/firebase";
 import { collection, addDoc, serverTimestamp, query, where, limit, orderBy } from "firebase/firestore";
 import toast from "react-hot-toast";
+import { vibrate } from "../utils/haptics";
 
 const CopilotContext = createContext();
 
@@ -96,10 +97,12 @@ export const CopilotProvider = ({ children }) => {
                         note: action.data.note || ""
                     };
                     await createOrder(orderData);
+                    vibrate('success');
                     return "✅ Commande créée avec succès !";
 
                 case "UPDATE_ORDER_STATUS":
                     await updateOrderStatus(action.data.orderId, action.data.newStatus);
+                    vibrate('success');
                     return `✅ Statut de la commande mis à jour vers "${action.data.newStatus}".`;
 
                 case "CANCEL_ORDER":
@@ -139,6 +142,7 @@ export const CopilotProvider = ({ children }) => {
                 case "SEND_WHATSAPP":
                     const message = action.data.message || "Bonjour !";
                     const url = createRawWhatsAppLink(action.data.phone, message);
+                    vibrate('success');
                     window.open(url, '_blank');
                     return "📱 Lien WhatsApp généré et ouvert !";
 
@@ -155,10 +159,14 @@ export const CopilotProvider = ({ children }) => {
         }
     };
 
-    const togglePanel = () => setIsOpen(prev => !prev);
+    const togglePanel = () => {
+        vibrate('soft');
+        setIsOpen(prev => !prev);
+    };
 
     const sendMessage = async (text) => {
         if (!text.trim()) return;
+        vibrate('soft');
 
         const userMsg = { id: Date.now(), role: 'user', content: text };
         const updatedHistory = [...messages, userMsg];

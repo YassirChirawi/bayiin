@@ -5,6 +5,7 @@ import { db } from "../lib/firebase";
 import { createRawWhatsAppLink } from "../utils/whatsappTemplates";
 import { Package, Search, Filter, ShoppingBag, MapPin, ShoppingCart, X, Plus, Minus, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { vibrate } from "../utils/haptics";
 
 export default function PublicCatalog() {
     const { storeId } = useParams();
@@ -65,6 +66,7 @@ export default function PublicCatalog() {
             }
             return [...prev, { ...product, quantity: 1 }];
         });
+        vibrate('soft');
         setIsCartOpen(true);
     };
 
@@ -146,6 +148,7 @@ export default function PublicCatalog() {
             }
 
             const url = createRawWhatsAppLink(store.phone, message);
+            vibrate('success');
             window.open(url, '_blank');
 
             // 4. Clear Cart
@@ -294,6 +297,7 @@ export default function PublicCatalog() {
                                                 <img
                                                     src={product.photoUrl}
                                                     alt={product.name}
+                                                    loading="lazy"
                                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                                 />
                                             ) : (

@@ -10,6 +10,7 @@ import { useBiometrics } from "../hooks/useBiometrics"; // NEW
 import { toast } from "react-hot-toast";
 import { Navigate } from "react-router-dom"; // Security
 import { format } from "date-fns"; // For Audit Dates
+import { vibrate } from "../utils/haptics";
 
 import { PLANS, createCheckoutSession } from "../lib/stripeService";
 import { DEFAULT_TEMPLATES, DARIJA_TEMPLATES } from "../utils/whatsappTemplates";
@@ -31,8 +32,10 @@ function CatalogSettings({ store, setStore, t }) {
         try {
             await updateDoc(doc(db, "stores", store.id), { settings });
             setStore(prev => ({ ...prev, settings }));
+            vibrate('success');
             toast.success("Configurations du catalogue enregistrées !");
         } catch (e) {
+            vibrate('error');
             console.error(e);
             toast.error("Erreur de sauvegarde");
         } finally {
@@ -196,9 +199,11 @@ function LocationSettings({ store, t }) {
                     user: { id: 'system', name: 'Transfert Manager' }
                 });
             });
+            vibrate('success');
             toast.success("Transfert réussi !");
             setTransfer({ prodId: '', from: '', to: '', qty: 0 });
         } catch (e) {
+            vibrate('error');
             console.error(e);
             toast.error(e.message || "Erreur de transfert");
         } finally {
@@ -448,8 +453,10 @@ export default function Settings() {
             try {
                 await updateDoc(doc(db, "stores", store.id), { logoUrl: url });
                 setStore(prev => ({ ...prev, logoUrl: url }));
+                vibrate('success');
                 toast.success(t('msg_logo_updated'));
             } catch (err) {
+                vibrate('error');
                 console.error("Error updating logo:", err);
                 toast.error(t('err_logo_update'));
             }
@@ -529,8 +536,10 @@ export default function Settings() {
             if (success) {
                 localStorage.setItem('biometricEnabled', 'true');
                 setBiometricEnabled(true);
+                vibrate('success');
                 toast.success(t('msg_biometric_enabled'));
             } else {
+                vibrate('error');
                 toast.error(t('err_biometric_failed'));
             }
         } else {

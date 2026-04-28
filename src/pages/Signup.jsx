@@ -6,6 +6,7 @@ import Button from "../components/Button";
 import Input from "../components/Input";
 import { getFriendlyErrorMessage } from "../utils/firebaseErrors";
 import { toast } from "react-hot-toast";
+import { vibrate } from "../utils/haptics";
 
 export default function Signup() {
     const [email, setEmail] = useState("");
@@ -22,6 +23,7 @@ export default function Signup() {
         e.preventDefault();
 
         if (password !== confirmPassword) {
+            vibrate('error');
             toast.error(t('passwords_mismatch'));
             return;
         }
@@ -29,9 +31,11 @@ export default function Signup() {
         try {
             setLoading(true);
             await signup(email, password);
+            vibrate('success');
             toast.success(t('account_created') + " Veuillez vérifier votre boîte mail.");
             navigate("/onboarding");
         } catch (err) {
+            vibrate('error');
             const message = getFriendlyErrorMessage(err);
             toast.error(message);
         } finally {
@@ -111,9 +115,11 @@ export default function Signup() {
                                 try {
                                     setLoading(true);
                                     await loginWithGoogle();
+                                    vibrate('success');
                                     toast.success(t('welcome_toast'));
                                     navigate("/onboarding");
                                 } catch (err) {
+                                    vibrate('error');
                                     const message = getFriendlyErrorMessage(err);
                                     toast.error(message);
                                 } finally {
