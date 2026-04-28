@@ -169,49 +169,52 @@ export const CopilotProvider = ({ children }) => {
         vibrate('soft');
 
         const userMsg = { id: Date.now(), role: 'user', content: text };
-        const updatedHistory = [...messages, userMsg];
         setMessages(prev => [...prev, userMsg]);
         setLoading(true);
         setIsStreaming(true);
 
-        // Placeholder for streaming message
         const streamId = Date.now() + 1;
-        setMessages(prev => [...prev, { id: streamId, role: 'assistant', content: "..." }]);
+        setMessages(prev => [...prev, { id: streamId, role: 'assistant', content: "" }]);
 
         try {
-            const finalResponse = await generateCopilotResponse(
-                updatedHistory, 
-                businessContext,
-                store?.name,
-                (chunk) => {
-                    setMessages(prev => prev.map(m => 
-                        m.id === streamId ? { ...m, content: chunk } : m
-                    ));
-                }
-            );
+            // 1. GENERATE LOCAL RESPONSE
+            // We use the local heuristic engine instead of the external API
+            const { generateLocalResponse } = await import("../services/localCopilot");
+            const fullResponse = generateLocalResponse(text, businessContext);
 
-            // DETECT ACTION
-            const action = extractActionFromResponse(finalResponse);
-            let actionFeedback = null;
-            let displayContent = finalResponse;
-
-            if (action) {
-                // Remove JSON from display if it's there
-                displayContent = finalResponse.replace(/```json[\s\S]*?```/g, "").trim();
-                actionFeedback = await processAction(action);
+            // 2. SIMULATE TYING EFFECT (Character by Character)
+            // This maintains the "AI" feel without the latency/404 of an external API
+            let currentText = "";
+            const words = fullResponse.split(" ");
+            
+            for (let i = 0; i < words.length; i++) {
+                currentText += (i === 0 ? "" : " ") + words[i];
+                
+                // Update message in state
+                setMessages(prev => prev.map(m => 
+                    m.id === streamId ? { ...m, content: currentText } : m
+                ));
+                
+                // Random typing speed simulation
+                await new Promise(resolve => setTimeout(resolve, 20 + Math.random() * 40));
             }
 
-            setMessages(prev => prev.map(m => 
-                m.id === streamId ? { 
-                    ...m, 
-                    content: displayContent + (actionFeedback ? `\n\n*${actionFeedback}*` : "") 
-                } : m
-            ));
+            // 3. DETECT ACTION (Optional - keeping the parser for future compatibility)
+            const action = extractActionFromResponse(fullResponse);
+            if (action) {
+                const actionFeedback = await processAction(action);
+                if (actionFeedback) {
+                    setMessages(prev => prev.map(m => 
+                        m.id === streamId ? { ...m, content: currentText + `\n\n*${actionFeedback}*` } : m
+                    ));
+                }
+            }
 
         } catch (error) {
-            console.error("Copilot Error:", error);
-            toast.error("Oups, je suis un peu fatiguée... Réessaie plus tard ! 😴");
-            setMessages(prev => prev.filter(m => m.id !== streamId));
+            console.error("Copilot Local Error:", error);
+            setMessages(prev => prev.map(m => 
+                m.id === streamId ? { ...m, content: "Oups, j'ai eu un petit bug interne... Réessaie ! 😅" } : m
+            ));
         } finally {
             setLoading(false);
             setIsStreaming(false);

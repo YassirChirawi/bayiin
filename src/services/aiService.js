@@ -1,4 +1,4 @@
-const COPILOT_URL = import.meta.env.VITE_COPILOT_URL || "/api/copilot";
+const COPILOT_URL = import.meta.env.VITE_COPILOT_URL || "/api/copilotChat";
 
 /**
  * Generic AI Response Generator
