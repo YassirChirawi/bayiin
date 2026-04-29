@@ -2,7 +2,7 @@ import { useTenant } from "../context/TenantContext";
 import { useStoreData } from "../hooks/useStoreData";
 import { useStoreStats } from "../hooks/useStoreStats";
 import { Link } from "react-router-dom";
-import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, RotateCcw, CheckCircle, RefreshCw, Check, X, Calendar, Clock, Truck, Sparkles, Activity } from "lucide-react";
+import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, RotateCcw, CheckCircle, RefreshCw, Check, X, Calendar, Clock, Truck, Sparkles, Activity, Package } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion"; // Added Calendar, Clock, Truck
 import { useMemo, useState } from "react";
 import { format, subDays } from "date-fns";
@@ -87,6 +87,10 @@ export default function Dashboard() {
     ], []);
     const { data: orderTasks, loading: loadingOrderTasks } = useStoreData("orders", tasksConstraints);
     const { data: customEvents, loading: loadingEvents } = useStoreData("events");
+    
+    // 4. Recent Stock Movements (Audit Trail)
+    const stockLogsConstraints = useMemo(() => [orderBy("timestamp", "desc"), limit(5)], []);
+    const { data: stockLogs, loading: loadingStockLogs } = useStoreData(`stores/${store.id}/stock_logs`, stockLogsConstraints);
 
     // Merge and Memoize All Tasks
     const allTasks = useMemo(() => {
@@ -197,7 +201,7 @@ export default function Dashboard() {
 
     if (!store) return null;
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
-    const isLoading = statsLoading || ordersLoading || loadingOrderTasks || loadingEvents;
+    const isLoading = statsLoading || ordersLoading || loadingOrderTasks || loadingEvents || loadingStockLogs;
 
     if (isLoading) {
         return (
@@ -606,6 +610,45 @@ export default function Dashboard() {
                                         </div>
                                     )
                                 })}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Recent Stock Movements Audit Trail */}
+                    <div className="glass-panel p-6 rounded-xl border-gray-100">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                <Activity className="h-5 w-5 text-indigo-600" />
+                                {t('title_recent_stock_movements') || "Mouvements de Stock Récents"}
+                            </h3>
+                            <Link to="/warehouse" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">{t('btn_view_warehouse') || "Voir Entrepôt"}</Link>
+                        </div>
+
+                        {!stockLogs || stockLogs.length === 0 ? (
+                            <p className="text-sm text-gray-500 italic py-4">Aucun mouvement récent enregistré.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {stockLogs.map(log => (
+                                    <div key={log.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-lg ${log.delta > 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                                                <Package className="h-4 w-4" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-semibold text-gray-900">
+                                                    {log.delta > 0 ? '+' : ''}{log.delta} unités
+                                                </p>
+                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider">{log.reason?.replace('_', ' ')}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-medium text-gray-400">
+                                                {log.timestamp ? format(log.timestamp.toDate(), 'HH:mm:ss') : 'Just now'}
+                                            </p>
+                                            {log.orderId && <p className="text-[10px] text-indigo-600">Order #{log.orderId.slice(-6)}</p>}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>

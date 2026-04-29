@@ -9,9 +9,12 @@ import Button from "../components/Button";
 import { Package, ShoppingBag, Barcode as BarcodeIcon, Truck, CheckCircle, RotateCcw } from "lucide-react";
 import { vibrate } from "../utils/haptics";
 import { useLanguage } from "../context/LanguageContext";
+import { logStockMovement } from "../lib/stockAudit";
+import { useAuth } from "../context/AuthContext";
 
 export default function Warehouse() {
     const { store } = useTenant();
+    const { user } = useAuth();
     const { t } = useLanguage();
     const [scanResult, setScanResult] = useState(null);
     const [scanType, setScanType] = useState(null); // 'order' or 'product'
@@ -105,6 +108,17 @@ export default function Warehouse() {
             });
             // Update local state to reflect change immediately before resetting
             setScanResult(prev => ({ ...prev, stock: (parseInt(prev.stock) || 0) + amount }));
+            
+            // Log movement
+            logStockMovement(store.id, {
+                productId: scanResult.id,
+                variantId: null,
+                warehouseId: 'default', // Ideally select WH, but default for now
+                delta: amount,
+                reason: 'MANUAL_SCAN',
+                userId: user?.uid || 'system'
+            });
+
             vibrate('success');
             toast.success(`Stock mis à jour (${amount > 0 ? '+' : ''}${amount})`);
         } catch (e) {

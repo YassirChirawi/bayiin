@@ -33,20 +33,6 @@ export const CopilotProvider = ({ children }) => {
         }
     }, [messages, store?.id]);
 
-    // BRIEF D'OUVERTURE
-    useEffect(() => {
-        if (!store?.id) return;
-        const hasSavedHistory = localStorage.getItem(`copilot_history_${store.id}`);
-        if (hasSavedHistory && JSON.parse(hasSavedHistory).length > 0) return; // Ne pas écraser l'historique existant
-
-        if (orders.length > 0 || products.length > 0) {
-            const brief = generateOpeningBrief(businessContext);
-            if (brief) {
-                setMessages([{ id: 'brief-' + Date.now(), role: 'assistant', content: brief }]);
-            }
-        }
-    }, [orders.length, products.length, store?.id, businessContext]);
-
     // ENRICHED CONTEXT
     const productConstraints = useMemo(() => [orderBy("createdAt", "desc"), limit(20)], []);
     const orderConstraints = useMemo(() => [orderBy("createdAt", "desc"), limit(50)], []);
@@ -88,6 +74,20 @@ export const CopilotProvider = ({ children }) => {
         },
         clientCount: customers.length
     }), [store, orders, products, totalRevenue, totalProfit, monthlyOrders.length, totalReturns, customers.length]);
+
+    // BRIEF D'OUVERTURE (must be after orders/products/businessContext declarations)
+    useEffect(() => {
+        if (!store?.id) return;
+        const hasSavedHistory = localStorage.getItem(`copilot_history_${store.id}`);
+        if (hasSavedHistory && JSON.parse(hasSavedHistory).length > 0) return;
+
+        if (orders.length > 0 || products.length > 0) {
+            const brief = generateOpeningBrief(businessContext);
+            if (brief) {
+                setMessages([{ id: 'brief-' + Date.now(), role: 'assistant', content: brief }]);
+            }
+        }
+    }, [orders.length, products.length, store?.id, businessContext]);
 
     const processAction = async (action) => {
         if (!action) return null;

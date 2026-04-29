@@ -11,6 +11,7 @@ import { runAutomations } from '../utils/automationEngine'; // NEW
 import { useAudit } from './useAudit'; // NEW
 import { shouldRestock, shouldDeductStock, calculateStockDeltas } from '../utils/orderLogic'; // PURE LOGIC
 import { logAudit } from '../lib/audit';
+import { logStockMovement } from '../lib/stockAudit';
 import { isValidTransition } from '../utils/orderStateMachine';
 import { toast } from 'react-hot-toast';
 export const useOrderActions = () => {
@@ -225,6 +226,20 @@ export const useOrderActions = () => {
             });
 
             runAutomations('order_created', { ...orderData, status: ORDER_STATUS.RECEIVED }, store).catch(console.error);
+            
+            // --- STOCK AUDIT LOG ---
+            itemsToProcess.forEach(item => {
+                logStockMovement(store.id, {
+                    productId: item.id,
+                    variantId: item.variantId || null,
+                    warehouseId: orderData.warehouseId || 'default',
+                    delta: -(parseInt(item.quantity) || 1),
+                    reason: 'ORDER_CREATE',
+                    orderId: newOrderRef.id,
+                    userId: user?.uid || 'system'
+                });
+            });
+
             setLoading(false);
             return true;
         } catch (err) {
@@ -480,6 +495,34 @@ export const useOrderActions = () => {
                 if (Object.keys(statsUpdates).length > 0) {
                     transaction.set(statsRef, statsUpdates, { merge: true });
                 }
+
+                // --- DRIVER STATS AUTOMATION ---
+                if (oldData.driverId && oldData.status !== newData.status) {
+                    const driverRef = doc(db, "drivers", oldData.driverId);
+                    const driverUpdates = {};
+
+                    // Handle Delivery -> Delivered
+                    if (newData.status === 'livré' && oldData.status !== 'livré') {
+                        driverUpdates["stats.totalDelivered"] = increment(1);
+                        driverUpdates["stats.totalCOD"] = increment(parseFloat(newData.price) || 0);
+                    } 
+                    // Handle move AWAY from Delivered
+                    else if (oldData.status === 'livré' && newData.status !== 'livré') {
+                        driverUpdates["stats.totalDelivered"] = increment(-1);
+                        driverUpdates["stats.totalCOD"] = increment(-(parseFloat(oldData.price) || 0));
+                    }
+
+                    // Handle Returns
+                    if (newData.status === 'retour' && oldData.status !== 'retour') {
+                        driverUpdates["stats.totalReturned"] = increment(1);
+                    } else if (oldData.status === 'retour' && newData.status !== 'retour') {
+                        driverUpdates["stats.totalReturned"] = increment(-1);
+                    }
+
+                    if (Object.keys(driverUpdates).length > 0) {
+                        transaction.update(driverRef, driverUpdates);
+                    }
+                }
             });
 
             if (oldData.status !== newData.status) {
@@ -499,6 +542,21 @@ export const useOrderActions = () => {
                 });
 
                 runAutomations('order_updated', { ...newData, id: orderId }, store).catch(console.error);
+
+                // --- STOCK AUDIT LOG ---
+                for (const [productId, productAdjs] of Object.entries(groupedByProduct)) {
+                    for (const adj of productAdjs) {
+                        logStockMovement(store.id, {
+                            productId,
+                            variantId: adj.variantId || null,
+                            warehouseId: adj.warehouseId || 'default',
+                            delta: adj.netChange,
+                            reason: 'ORDER_UPDATE',
+                            orderId,
+                            userId: user?.uid || 'system'
+                        });
+                    }
+                }
             }
 
             setLoading(false);
