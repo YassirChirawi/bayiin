@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useMemo } from "react";
-import { generateCopilotResponse } from "../services/aiService";
+import { analyzeFinancialScenario } from "../services/aiService";
+import { generateOpeningBrief } from "../services/localCopilot";
 import { useStoreData } from "../hooks/useStoreData";
 import { useTenant } from "./TenantContext";
 import { useOrderActions } from "../hooks/useOrderActions";
@@ -19,13 +20,7 @@ export const CopilotProvider = ({ children }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState(() => {
         const saved = localStorage.getItem(`copilot_history_${store?.id}`);
-        return saved ? JSON.parse(saved) : [
-            {
-                id: 'welcome',
-                role: 'assistant',
-                content: "Salam ! C'est Beya3, ton assistant Head of Growth 🚀. On analyse tes ventes ou on lance une pub aujourd'hui ? 🔥"
-            }
-        ];
+        return saved ? JSON.parse(saved) : [];
     });
     const [loading, setLoading] = useState(false);
     const [isStreaming, setIsStreaming] = useState(false);
@@ -36,6 +31,20 @@ export const CopilotProvider = ({ children }) => {
             localStorage.setItem(`copilot_history_${store.id}`, JSON.stringify(messages.slice(-50)));
         }
     }, [messages, store?.id]);
+
+    // BRIEF D'OUVERTURE
+    useEffect(() => {
+        if (!store?.id) return;
+        const hasSavedHistory = localStorage.getItem(`copilot_history_${store.id}`);
+        if (hasSavedHistory && JSON.parse(hasSavedHistory).length > 0) return; // Ne pas écraser l'historique existant
+
+        if (orders.length > 0 || products.length > 0) {
+            const brief = generateOpeningBrief(businessContext);
+            if (brief) {
+                setMessages([{ id: 'brief-' + Date.now(), role: 'assistant', content: brief }]);
+            }
+        }
+    }, [orders.length, products.length, store?.id, businessContext]);
 
     // ENRICHED CONTEXT
     const productConstraints = useMemo(() => [orderBy("createdAt", "desc"), limit(20)], []);
@@ -222,13 +231,13 @@ export const CopilotProvider = ({ children }) => {
     };
 
     const clearHistory = () => {
-        const welcome = {
-            id: 'welcome',
-            role: 'assistant',
-            content: "On repart à zéro ! Qu'est-ce qu'on fait de beau aujourd'hui ? ✨"
-        };
-        setMessages([welcome]);
         localStorage.removeItem(`copilot_history_${store?.id}`);
+        const brief = generateOpeningBrief(businessContext);
+        setMessages([{
+            id: 'brief-' + Date.now(),
+            role: 'assistant',
+            content: brief || "On repart à zéro ! Qu'est-ce qu'on fait aujourd'hui ? ✨"
+        }]);
     };
 
     return (

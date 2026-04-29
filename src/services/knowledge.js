@@ -72,3 +72,62 @@ RÈGLES D'OR :
 3. Ne donne jamais de conseils juridiques ou médicaux.
 4. Si tu ne sais pas, dis-le honnêtement (ex: "Je n'ai pas cette info pour le moment, mais on peut regarder autre chose ! 🧐").
 `;
+
+// ============================================================
+// BEYA3 KNOWLEDGE BASE — Expert knowledge for e-commerce Maroc
+// ============================================================
+
+export const EXPERT_KNOWLEDGE = {
+  marketing: [
+    "Lance tes pubs le mardi ou jeudi soir entre 20h-23h — c'est le pic d'engagement au Maroc.",
+    "Un ROAS > 3x est le minimum viable. En dessous, coupe la pub et revoir l'offre.",
+    "Teste toujours 3 visuels différents sur le même audience avant de scaler.",
+    "Les vidéos UGC (clients réels) convertissent 2x mieux que les visuels studio.",
+    "Ajoute un compte à rebours dans ta pub : l'urgence augmente le CTR de 30%.",
+    "Cible d'abord tes clients existants (Custom Audience) — le CAC est 5x moins cher.",
+    "Un hook fort dans les 3 premières secondes de ta vidéo = tout. Sans ça, personne regarde.",
+    "Retargeting : montre une pub différente aux gens qui ont vu ta page produit sans acheter.",
+  ],
+  finance: [
+    "Vise une marge nette de 25-35% minimum en e-commerce Maroc.",
+    "Ton CAC (Coût d'Acquisition Client) ne doit pas dépasser 30% de la valeur de commande.",
+    "Calcule ton point mort : (Charges fixes) / (Marge sur coût variable). C'est le nombre de commandes à faire chaque mois.",
+    "Un taux de retour > 20% mange ta marge. Chaque retour = livraison + produit bloqué.",
+    "Négocie les frais de livraison dès 50 colis/mois — les transporteurs font des remises.",
+    "Sépare ton argent business de ton argent perso dès le 1er DH. Ouvre un compte dédié.",
+    "Le cashflow prime sur le profit. Une boutique rentable peut couler si le cash manque.",
+    "Réinvestis 20% de ton profit net en pub chaque mois pour maintenir la croissance.",
+  ],
+  cro: [
+    "Ajoute des avis clients avec photos sur ta fiche produit — conversion +25%.",
+    "Réduis le nombre d'étapes de commande. Chaque clic supplémentaire = -10% de conversion.",
+    "Propose la livraison gratuite dès un certain montant — augmente le panier moyen.",
+    "Un pop-up de sortie avec -10% récupère 5-8% des visiteurs qui allaient partir.",
+    "Affiche le stock restant ('Plus que 3 en stock !') pour créer l'urgence.",
+    "Les photos produit sur fond blanc + lifestyle ensemble augmentent la confiance.",
+    "Réponds aux messages WhatsApp en moins d'1h — la rapidité = confiance = vente.",
+  ],
+  logistics: [
+    "Confirme chaque commande par appel avant expédition — réduit les retours de 40%.",
+    "Regroupe tes expéditions sur 2 jours par semaine pour optimiser les coûts.",
+    "Prends des photos de l'emballage avant livraison — preuve en cas de litige.",
+    "Envoie un message WhatsApp avec le code de suivi dès l'expédition.",
+    "Un emballage soigné = client qui poste sur Instagram = pub gratuite.",
+    "Négocie le retour gratuit avec tes transporteurs si tu dépasses 100 colis/mois.",
+  ],
+  platform: [
+    "Utilise les filtres de statut dans les commandes pour traiter en batch (ex: tous les 'Reçu' d'un coup).",
+    "Configure tes templates WhatsApp dans Paramètres pour notifier automatiquement tes clients.",
+    "Le Dashboard te montre ton profit en temps réel — vérifie-le chaque matin.",
+    "Ajoute les coûts produits dans la fiche article pour que le profit soit calculé automatiquement.",
+    "Utilise la section CRM pour noter les préférences de tes clients fidèles.",
+    "Les rapports Finances montrent ton ROAS si tu renseignes tes dépenses publicitaires.",
+    "Active les notifications de stock faible pour ne jamais être en rupture sans le savoir.",
+  ],
+};
+
+// Retourne un conseil aléatoire par domaine
+export function getRandomAdvice(domain) {
+  const list = EXPERT_KNOWLEDGE[domain] || EXPERT_KNOWLEDGE.finance;
+  return list[Math.floor(Math.random() * list.length)];
+}

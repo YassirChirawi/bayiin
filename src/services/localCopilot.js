@@ -1,4 +1,4 @@
-import { EXPERT_KNOWLEDGE, getRandomAdvice } from "./knowledgeBase";
+import { EXPERT_KNOWLEDGE, getRandomAdvice } from "./knowledge";
 
 /**
  * Local Heuristic Engine for Beya3
@@ -39,6 +39,74 @@ export const generateLocalResponse = (text, context) => {
             data: { phone, message }
         };
         return `Je génère le lien WhatsApp pour envoyer ce message à **${phone}**.\n\n\`\`\`json\n${JSON.stringify(action, null, 2)}\n\`\`\``;
+    }
+
+    // Pattern: Analyse mes finances
+    const analyzeFinancesMatch = input.match(/(?:analyse|simule)\s+(?:mes\s+)?(?:finances|rentabilit[ée]|sc[ée]nario)/i);
+    if (analyzeFinancesMatch) {
+        const action = {
+            action: "ANALYZE_FINANCES",
+            data: {}
+        };
+        return `Je lance une analyse financière détaillée de ta boutique.\n\n\`\`\`json\n${JSON.stringify(action, null, 2)}\n\`\`\``;
+    }
+
+    // Pattern: Annule la commande #123
+    const cancelOrderMatch = input.match(/(?:annule|cancel)\s+(?:la\s+)?commande\s+#?([a-z0-9]+)/i);
+    if (cancelOrderMatch) {
+        const [_, orderId] = cancelOrderMatch;
+        const action = {
+            action: "CANCEL_ORDER",
+            data: { orderId }
+        };
+        return `Je m'occupe d'annuler la commande **#${orderId}**.\n\n\`\`\`json\n${JSON.stringify(action, null, 2)}\n\`\`\``;
+    }
+
+    // Pattern: Expédie la commande #123 via [olivraison/sendit]
+    const shipOrderMatch = input.match(/(?:expédie|ship|envoie)\s+(?:la\s+)?commande\s+#?([a-z0-9]+)\s+(?:via|par|avec)\s+(olivraison|sendit)/i);
+    if (shipOrderMatch) {
+        const [_, orderId, carrier] = shipOrderMatch;
+        const action = {
+            action: "SHIP_ORDER",
+            data: { orderId, carrier: carrier.toLowerCase() }
+        };
+        return `Je prépare l'expédition de la commande **#${orderId}** via **${carrier}**.\n\n\`\`\`json\n${JSON.stringify(action, null, 2)}\n\`\`\``;
+    }
+
+    // Pattern: Ajoute une dépense de [Montant] DH pour [Label]
+    const createExpenseMatch = input.match(/(?:ajoute|crée|nouvelle)\s+(?:une\s+)?dépense\s+(?:de\s+)?(\d+)(?:\s*dh)?\s+(?:pour\s+)?(.+)/i);
+    if (createExpenseMatch) {
+        const [_, amount, label] = createExpenseMatch;
+        const action = {
+            action: "CREATE_EXPENSE",
+            data: { amount: parseFloat(amount), label: label.trim(), category: "Autre" }
+        };
+        return `D'accord, j'enregistre la dépense de **${amount} DH** pour **${label.trim()}**.\n\n\`\`\`json\n${JSON.stringify(action, null, 2)}\n\`\`\``;
+    }
+
+    // Pattern: Donne-moi les statistiques de [Métrique]
+    const analyticsMatch = input.match(/(?:donne|affiche|montre)[-\s]*(?:moi\s+)?(?:les\s+)?(?:statistiques|stats|analytics|donn[ée]es)\s+(?:de\s+|sur\s+|pour\s+)?(.+)/i);
+    if (analyticsMatch) {
+        const [_, metric] = analyticsMatch;
+        const action = {
+            action: "GET_ANALYTICS",
+            data: { metric: metric.trim() }
+        };
+        return `Je récupère les statistiques pour **${metric.trim()}**.\n\n\`\`\`json\n${JSON.stringify(action, null, 2)}\n\`\`\``;
+    }
+
+    // RAPPORT HEBDOMADAIRE
+    if (
+        input.includes("rapport") || 
+        input.includes("bilan") || 
+        input.includes("semaine") || 
+        input.includes("résumé") ||
+        input.includes("resume") ||
+        input.includes("hebdo") ||
+        input.includes("cette semaine") ||
+        input.includes("weekly")
+    ) {
+        return generateWeeklyReport(context);
     }
 
     // 1. GREETINGS
@@ -127,5 +195,140 @@ ${getRandomAdvice('logistics')}`;
     }
 
     // DEFAULT
-    return "Je ne suis pas sûre de comprendre cette demande, mais je peux t'aider avec tes **ventes**, tes **finances**, tes **stocks** ou tes **campagnes marketing**. Pose-moi une question précise ! ✨";
 };
+
+export function generateOpeningBrief(ctx) {
+  if (!ctx?.stats) return null;
+
+  const alerts = [];
+  const { totalRevenue, totalProfit, totalOrders, totalReturns } = ctx.stats;
+  const orders = ctx.orders || [];
+  const products = ctx.products || [];
+
+  // 1. Commandes en attente depuis +24h
+  const now = new Date();
+  const pending = orders.filter(o => {
+    if (!["reçu", "confirmation"].includes(o.status)) return false;
+    if (!o.date) return false;
+    const orderDate = new Date(o.date);
+    const hoursOld = (now - orderDate) / (1000 * 60 * 60);
+    return hoursOld > 24;
+  });
+  if (pending.length > 0) {
+    alerts.push(`⚠️ **${pending.length} commande${pending.length > 1 ? 's' : ''} en attente** depuis plus de 24h`);
+  }
+
+  // 2. Taux de retour élevé
+  const returnRate = totalOrders > 0 ? (totalReturns / totalOrders) * 100 : 0;
+  if (returnRate > 15) {
+    alerts.push(`📉 **Taux de retour élevé : ${returnRate.toFixed(0)}%** — au-dessus du seuil critique`);
+  }
+
+  // 3. Stock critique (< 3 unités)
+  const criticalStock = products.filter(p => p.stock !== undefined && p.stock > 0 && p.stock <= 3);
+  if (criticalStock.length > 0) {
+    alerts.push(`🔴 **Stock critique** : ${criticalStock.map(p => `${p.name} (${p.stock})`).join(", ")}`);
+  }
+
+  // 4. Rupture totale
+  const outOfStock = products.filter(p => p.stock !== undefined && p.stock <= 0);
+  if (outOfStock.length > 0) {
+    alerts.push(`❌ **Rupture de stock** : ${outOfStock.slice(0, 2).map(p => p.name).join(", ")}${outOfStock.length > 2 ? ` +${outOfStock.length - 2} autres` : ''}`);
+  }
+
+  // 5. Bon chiffre du jour
+  const margin = totalRevenue > 0 ? ((totalProfit / totalRevenue) * 100).toFixed(0) : 0;
+
+  // Construction du brief
+  const storeName = ctx.store?.name || "ta boutique";
+  const month = new Date().toLocaleString("fr-FR", { month: "long" });
+
+  let brief = `Salam ! Voici ton brief du jour pour **${storeName}** 📋\n\n`;
+
+  if (alerts.length > 0) {
+    brief += alerts.join("\n") + "\n\n";
+  }
+
+  brief += `💰 **${month}** : ${totalRevenue.toLocaleString("fr-FR")} DH de CA · ${totalProfit.toLocaleString("fr-FR")} DH de profit · Marge ${margin}%\n\n`;
+
+  if (alerts.length === 0) {
+    brief += `✅ Tout roule ! Aucune alerte aujourd'hui.\n\n`;
+  }
+
+  brief += `Par quoi on commence ? 🚀`;
+  return brief;
+}
+
+export function generateWeeklyReport(ctx) {
+  const orders = ctx.orders || [];
+  const products = ctx.products || [];
+  const { totalRevenue, totalProfit, totalOrders, totalReturns } = ctx.stats || {};
+
+  // Calculs semaine en cours vs semaine dernière
+  const now = new Date();
+  const startOfThisWeek = new Date(now);
+  startOfThisWeek.setDate(now.getDate() - now.getDay());
+  startOfThisWeek.setHours(0, 0, 0, 0);
+
+  const startOfLastWeek = new Date(startOfThisWeek);
+  startOfLastWeek.setDate(startOfLastWeek.getDate() - 7);
+
+  const thisWeekOrders = orders.filter(o => o.date && new Date(o.date) >= startOfThisWeek);
+  const lastWeekOrders = orders.filter(o => {
+    if (!o.date) return false;
+    const d = new Date(o.date);
+    return d >= startOfLastWeek && d < startOfThisWeek;
+  });
+
+  const thisWeekRevenue = thisWeekOrders.filter(o => o.status === 'livré')
+    .reduce((acc, o) => acc + (parseFloat(o.price) || 0), 0);
+  const lastWeekRevenue = lastWeekOrders.filter(o => o.status === 'livré')
+    .reduce((acc, o) => acc + (parseFloat(o.price) || 0), 0);
+
+  const thisWeekProfit = thisWeekOrders.filter(o => o.status === 'livré')
+    .reduce((acc, o) => acc + (parseFloat(o.profit) || 0), 0);
+
+  const revenueTrend = lastWeekRevenue > 0
+    ? (((thisWeekRevenue - lastWeekRevenue) / lastWeekRevenue) * 100).toFixed(0)
+    : null;
+  const trendEmoji = revenueTrend > 0 ? "📈" : revenueTrend < 0 ? "📉" : "➡️";
+
+  // Top produit cette semaine
+  const salesByProduct = {};
+  thisWeekOrders.forEach(o => {
+    const name = o.productName || o.articleName;
+    if (name) salesByProduct[name] = (salesByProduct[name] || 0) + 1;
+  });
+  const topProduct = Object.entries(salesByProduct).sort((a, b) => b[1] - a[1])[0];
+
+  // Commandes par statut cette semaine
+  const delivered = thisWeekOrders.filter(o => o.status === 'livré').length;
+  const returned = thisWeekOrders.filter(o => o.status === 'retour').length;
+  const pending = thisWeekOrders.filter(o => ['reçu', 'confirmation'].includes(o.status)).length;
+
+  // Marge
+  const margin = thisWeekRevenue > 0
+    ? ((thisWeekProfit / thisWeekRevenue) * 100).toFixed(0)
+    : 0;
+
+  // Conseils selon les données
+  const tips = [];
+  if (returned > delivered * 0.2) tips.push("📞 Ton taux de retour est élevé cette semaine — confirme par téléphone avant d'expédier.");
+  if (pending > 3) tips.push(`⚡ ${pending} commandes en attente — traite-les aujourd'hui pour améliorer ton délai.`);
+  if (margin < 20 && thisWeekRevenue > 0) tips.push("💡 Ta marge est sous 20% — vérifie tes coûts produits ou augmente tes prix.");
+  if (tips.length === 0) tips.push("✅ Bonne semaine ! Continue sur cette lancée et pense à scaler ta pub sur tes best-sellers.");
+
+  const weekDates = `${startOfThisWeek.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} → aujourd'hui`;
+
+  return `📊 **Rapport hebdomadaire — ${weekDates}**
+
+**Chiffre d'affaires** : ${thisWeekRevenue.toLocaleString("fr-FR")} DH ${revenueTrend !== null ? `(${revenueTrend > 0 ? '+' : ''}${revenueTrend}% vs sem. dernière) ${trendEmoji}` : ''}
+**Profit net** : ${thisWeekProfit.toLocaleString("fr-FR")} DH · Marge **${margin}%**
+**Commandes** : ${thisWeekOrders.length} total · ${delivered} livrées · ${returned} retours · ${pending} en attente
+${topProduct ? `**Meilleur produit** : ${topProduct[0]} (${topProduct[1]} ventes)` : ''}
+
+---
+
+**💡 Mes recommandations :**
+${tips.join("\n")}`;
+}
