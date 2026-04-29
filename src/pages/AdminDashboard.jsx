@@ -15,6 +15,7 @@ export default function AdminDashboard() {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('stores');
     const [searchTerm, setSearchTerm] = useState("");
+    const [qaProgress, setQaProgress] = useState({});
 
     // Custom Hook
     const { stats, stores, usersList, franchises, broadcastData, loading, refreshData, setStores, setUsersList } = useAdminData(user);
@@ -116,6 +117,30 @@ export default function AdminDashboard() {
     const filteredFranchises = (franchises || []).filter(f =>
         f.name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    // Fetch QA Progress
+    const fetchQaProgress = async () => {
+        const progress = {};
+        for (const store of stores) {
+            try {
+                const snap = await getDocs(collection(db, "stores", store.id, "qa_runs"));
+                if (!snap.empty) {
+                    const currentRun = snap.docs.find(d => d.id === 'current')?.data();
+                    if (currentRun && currentRun.tests) {
+                        const total = 50; // Approximated total tests
+                        const completed = Object.values(currentRun.tests).filter(t => t.status === 'ok').length;
+                        progress[store.id] = { completed, total, updatedAt: currentRun.updatedAt };
+                    }
+                }
+            } catch (e) { console.error(e); }
+        }
+        setQaProgress(progress);
+    };
+
+    useState(() => {
+        if (activeTab === 'qa') fetchQaProgress();
+    }, [activeTab, stores]);
+
 
     if (loading) return (
         <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -221,7 +246,7 @@ export default function AdminDashboard() {
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 min-h-[500px]">
                     <div className="border-b border-gray-100 px-6 pt-6 bg-white rounded-t-2xl sticky top-0 z-10">
                         <nav className="-mb-px flex space-x-8">
-                            {['stores', 'users', 'franchises', 'broadcast'].map((tab) => (
+                            {['stores', 'users', 'franchises', 'qa', 'broadcast'].map((tab) => (
                                 <button
                                     key={tab}
                                     onClick={() => setActiveTab(tab)}
@@ -232,7 +257,7 @@ export default function AdminDashboard() {
                                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
                                     `}
                                 >
-                                    {tab}
+                                    {tab === 'qa' ? 'QA Recette' : tab}
                                 </button>
                             ))}
                         </nav>
@@ -442,7 +467,54 @@ export default function AdminDashboard() {
                             </div>
                         )}
 
-                        {/* BROADCAST TAB */}
+                        {/* QA TAB */}
+                        {activeTab === 'qa' && (
+                            <div className="space-y-6">
+                                <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-2xl mb-8">
+                                    <h3 className="text-lg font-bold text-indigo-900 mb-2">Suivi Global de la Recette</h3>
+                                    <p className="text-sm text-indigo-700">Surveillez l'état d'avancement des tests sur toutes les boutiques clientes.</p>
+                                </div>
+                                <div className="grid grid-cols-1 gap-6">
+                                    {stores.map(store => {
+                                        const progress = qaProgress[store.id] || { completed: 0, total: 50 };
+                                        const percentage = Math.round((progress.completed / progress.total) * 100);
+                                        return (
+                                            <div key={store.id} className="bg-white p-6 rounded-2xl border border-gray-100 flex items-center justify-between hover:shadow-md transition-all">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="h-12 w-12 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 font-bold">
+                                                        {store.name?.[0]}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-gray-900">{store.name}</h4>
+                                                        <p className="text-xs text-gray-500">ID: {store.id}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex-1 max-w-md px-12">
+                                                    <div className="flex justify-between text-xs mb-1 font-bold">
+                                                        <span className="text-indigo-600">{percentage}% complété</span>
+                                                        <span className="text-gray-400">{progress.completed} / {progress.total} tests</span>
+                                                    </div>
+                                                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className="h-full bg-indigo-500 transition-all duration-1000"
+                                                            style={{ width: `${percentage}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <Button 
+                                                    size="sm" 
+                                                    variant="secondary" 
+                                                    icon={ExternalLink}
+                                                    onClick={() => navigate(`/qa?storeId=${store.id}`)}
+                                                >
+                                                    Détails
+                                                </Button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
 
                         {activeTab === 'broadcast' && (
                             <div className="max-w-2xl mx-auto py-8">

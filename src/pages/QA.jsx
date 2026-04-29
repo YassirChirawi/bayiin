@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTenant } from "../context/TenantContext";
+import { useSearchParams } from "react-router-dom";
 import { QA_MODULES } from "../data/qaTests";
 import { collection, addDoc, getDoc, setDoc, doc, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
@@ -22,17 +23,22 @@ import Button from "../components/Button";
 import { vibrate } from "../utils/haptics";
 
 export default function QA() {
-    const { store } = useTenant();
+    const { store: currentStore } = useTenant();
+    const [searchParams] = useSearchParams();
+    const adminStoreId = searchParams.get('storeId');
+    const targetStoreId = adminStoreId || currentStore?.id;
+    const isReadOnly = !!adminStoreId;
+
     const [results, setResults] = useState({});
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [expandedModules, setExpandedModules] = useState([QA_MODULES[0].id]);
 
     useEffect(() => {
-        if (!store?.id) return;
+        if (!targetStoreId) return;
         const fetchResults = async () => {
             try {
-                const snap = await getDoc(doc(db, "stores", store.id, "qa_runs", "current"));
+                const snap = await getDoc(doc(db, "stores", targetStoreId, "qa_runs", "current"));
                 if (snap.exists()) {
                     setResults(snap.data().tests || {});
                 }
@@ -43,7 +49,7 @@ export default function QA() {
             }
         };
         fetchResults();
-    }, [store?.id]);
+    }, [targetStoreId]);
 
     const toggleModule = (id) => {
         setExpandedModules(prev => 
@@ -52,6 +58,7 @@ export default function QA() {
     };
 
     const updateTest = (testId, status, comment = null) => {
+        if (isReadOnly) return;
         const currentComment = comment !== null ? comment : (results[testId]?.comment || "");
         
         if (status === 'ok' && (!currentComment || currentComment.trim().length < 5)) {
@@ -71,6 +78,7 @@ export default function QA() {
     };
 
     const updateComment = (testId, comment) => {
+        if (isReadOnly) return;
         const newResults = { ...results, [testId]: { 
             ...(results[testId] || {}),
             comment,
@@ -80,13 +88,13 @@ export default function QA() {
     };
 
     const handleSave = async () => {
-        if (!store?.id) return;
+        if (isReadOnly || !targetStoreId) return;
         setSaving(true);
         try {
-            await setDoc(doc(db, "stores", store.id, "qa_runs", "current"), {
+            await setDoc(doc(db, "stores", targetStoreId, "qa_runs", "current"), {
                 tests: results,
                 updatedAt: serverTimestamp(),
-                testerId: store.ownerId || 'unknown'
+                testerId: currentStore?.ownerId || 'admin'
             });
             toast.success("Progression QA sauvegardée !");
             vibrate('success');
@@ -101,7 +109,8 @@ export default function QA() {
 
     const [seeding, setSeeding] = useState(false);
     const seedDemoData = async () => {
-        if (!store?.id || !window.confirm("Voulez-vous peupler la boutique avec des données de test (Produits & Clients) ?")) return;
+        if (isReadOnly) return;
+        if (!targetStoreId || !window.confirm("Voulez-vous peupler la boutique avec des données de test (Produits & Clients) ?")) return;
         setSeeding(true);
         try {
             // Seed Products
@@ -115,7 +124,7 @@ export default function QA() {
             for (const p of products) {
                 await addDoc(collection(db, "products"), {
                     ...p,
-                    storeId: store.id,
+                    storeId: targetStoreId,
                     isVariable: false,
                     photoUrl: "",
                     createdAt: serverTimestamp(),
@@ -133,7 +142,7 @@ export default function QA() {
             for (const c of customers) {
                 await addDoc(collection(db, "customers"), {
                     ...c,
-                    storeId: store.id,
+                    storeId: targetStoreId,
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp()
                 });
@@ -147,7 +156,7 @@ export default function QA() {
                 date.setDate(date.getDate() - (i % 7)); // Spread over 7 days
                 
                 await addDoc(collection(db, "orders"), {
-                    storeId: store.id,
+                    storeId: targetStoreId,
                     customerName: customers[i % customers.length].name,
                     customerPhone: customers[i % customers.length].phone,
                     price: 150 + (i * 20),
@@ -170,10 +179,11 @@ export default function QA() {
             for (const e of expenses) {
                 await addDoc(collection(db, "expenses"), {
                     ...e,
-                    storeId: store.id,
+                    storeId: targetStoreId,
                     createdAt: serverTimestamp()
                 });
             }
+
 
             toast.success("Toute la plateforme a été peuplée avec succès !");
             vibrate('success');
@@ -237,17 +247,21 @@ export default function QA() {
                     </div>
                 </div>
                 <div className="mt-8 flex flex-wrap gap-4 pt-6 border-t border-gray-100">
-                    <Button onClick={handleSave} isLoading={saving} icon={Save}>
-                        Sauvegarder l'état actuel
-                    </Button>
-                    <Button 
-                        onClick={seedDemoData} 
-                        isLoading={seeding} 
-                        icon={Database}
-                        className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
-                    >
-                        Générer Données Démo
-                    </Button>
+                    {!isReadOnly && (
+                        <>
+                            <Button onClick={handleSave} isLoading={saving} icon={Save}>
+                                Sauvegarder l'état actuel
+                            </Button>
+                            <Button 
+                                onClick={seedDemoData} 
+                                isLoading={seeding} 
+                                icon={Database}
+                                className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                            >
+                                Générer Données Démo
+                            </Button>
+                        </>
+                    )}
                     <a 
                         href="https://docs.google.com/document/d/..." 
                         target="_blank" 
@@ -324,6 +338,7 @@ export default function QA() {
                                                                         className="w-full text-xs p-2 border border-gray-100 rounded-lg bg-gray-50/50 focus:bg-white focus:ring-1 focus:ring-indigo-200 transition-all"
                                                                         rows={1}
                                                                         value={results[test.id]?.comment || ""}
+                                                                        readOnly={isReadOnly}
                                                                         onChange={(e) => updateComment(test.id, e.target.value)}
                                                                     />
                                                                 </div>
@@ -341,22 +356,22 @@ export default function QA() {
                                                             <td className="px-6 py-4">
                                                                 <div className="flex justify-center gap-2">
                                                                     <button 
-                                                                        onClick={() => updateTest(test.id, 'ok')}
-                                                                        className={`p-2 rounded-lg transition-all ${status === 'ok' ? 'bg-green-500 text-white shadow-sm' : 'bg-gray-100 text-gray-300 hover:text-green-500'}`}
+                                                                        onClick={() => !isReadOnly && updateTest(test.id, 'ok')}
+                                                                        className={`p-2 rounded-lg transition-all ${status === 'ok' ? 'bg-green-500 text-white shadow-sm' : 'bg-gray-100 text-gray-300 hover:text-green-500'} ${isReadOnly ? 'cursor-default' : ''}`}
                                                                         title="Passer"
                                                                     >
                                                                         <CheckCircle2 size={18} />
                                                                     </button>
                                                                     <button 
-                                                                        onClick={() => updateTest(test.id, 'fail')}
-                                                                        className={`p-2 rounded-lg transition-all ${status === 'fail' ? 'bg-red-500 text-white shadow-sm' : 'bg-gray-100 text-gray-300 hover:text-red-500'}`}
+                                                                        onClick={() => !isReadOnly && updateTest(test.id, 'fail')}
+                                                                        className={`p-2 rounded-lg transition-all ${status === 'fail' ? 'bg-red-500 text-white shadow-sm' : 'bg-gray-100 text-gray-300 hover:text-red-500'} ${isReadOnly ? 'cursor-default' : ''}`}
                                                                         title="Échec"
                                                                     >
                                                                         <XCircle size={18} />
                                                                     </button>
                                                                     <button 
-                                                                        onClick={() => updateTest(test.id, 'pending')}
-                                                                        className={`p-2 rounded-lg transition-all ${status === 'pending' ? 'bg-indigo-500 text-white shadow-sm' : 'bg-gray-100 text-gray-300 hover:text-indigo-500'}`}
+                                                                        onClick={() => !isReadOnly && updateTest(test.id, 'pending')}
+                                                                        className={`p-2 rounded-lg transition-all ${status === 'pending' ? 'bg-indigo-500 text-white shadow-sm' : 'bg-gray-100 text-gray-300 hover:text-indigo-500'} ${isReadOnly ? 'cursor-default' : ''}`}
                                                                         title="À faire"
                                                                     >
                                                                         <AlertCircle size={18} />
