@@ -47,7 +47,18 @@ const executeAction = async (actionNode, payload, store, delayMs = 0) => {
                     return;
                 }
                 const token = await authenticateSendit(store.senditPublicKey, store.senditSecretKey);
-                await createSenditPackage(token, payload, store);
+                const result = await createSenditPackage(token, payload, store);
+                
+                // Save tracking info back to the order
+                if (result && result.trackingID) {
+                    const orderRef = doc(db, `stores/${store.id}/orders`, payload.id);
+                    await updateDoc(orderRef, {
+                        trackingId: result.trackingID,
+                        carrierStatus: result.status,
+                        status: 'livraison', // Auto-move to delivery status
+                        _updatedBy: 'automation'
+                    });
+                }
                 break;
 
             case 'send_whatsapp': {

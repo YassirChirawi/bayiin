@@ -504,7 +504,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
             <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl overflow-hidden my-8 md:my-0 relative">
                 <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 sticky top-0 z-10">
                     <h2 className="text-xl font-bold text-gray-900">
-                        {order ? `${t('modal_edit_order')} #${order.orderNumber || ''}` : t('modal_new_order')}
+                        {order ? `${t('modal_edit_order')} #${order.orderNumber || order.id?.substring(0, 8)}` : t('modal_new_order')}
                     </h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
                         <X className="h-6 w-6" />

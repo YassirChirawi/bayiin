@@ -90,7 +90,7 @@ export default function OrderTable({
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex flex-col">
                                             <span className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                                                {order.orderNumber}
+                                                #{order.orderNumber || order.id?.substring(0, 8)}
                                             </span>
                                             <span className="text-xs text-gray-500 font-medium">
                                                 {order.date}

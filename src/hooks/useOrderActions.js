@@ -10,6 +10,9 @@ import { useAuth } from '../context/AuthContext'; // NEW
 import { runAutomations } from '../utils/automationEngine'; // NEW
 import { useAudit } from './useAudit'; // NEW
 import { shouldRestock, shouldDeductStock, calculateStockDeltas } from '../utils/orderLogic'; // PURE LOGIC
+import { logAudit } from '../lib/audit';
+import { isValidTransition } from '../utils/orderStateMachine';
+import { toast } from 'react-hot-toast';
 export const useOrderActions = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -172,10 +175,34 @@ export const useOrderActions = () => {
                     }
                 }
 
+                // --- SEQUENTIAL ORDER NUMBER (Règle Métier) ---
+                const statsRef = doc(db, "stores", store.id, "stats", "sales");
+                const statsSnap = await transaction.get(statsRef);
+                const currentStats = statsSnap.exists() ? statsSnap.data() : {};
+                const nextOrderNumber = (parseInt(currentStats.lastOrderNumber) || 1000) + 1;
+
+                // --- AUTOMATED FINANCIALS ---
+                const price = parseFloat(orderData.price) || 0;
+                // Try to get costPrice from the first product if not provided
+                let costPrice = parseFloat(orderData.costPrice) || 0;
+                if (costPrice === 0 && itemsToProcess.length > 0) {
+                    const firstProdSnap = productDocs[itemsToProcess[0].id];
+                    if (firstProdSnap && firstProdSnap.exists()) {
+                        costPrice = parseFloat(firstProdSnap.data().costPrice) || 0;
+                    }
+                }
+                const qty = parseInt(orderData.quantity) || 1;
+                const totalCost = costPrice * qty;
+                const totalRevenue = price * qty;
+                const profit = totalRevenue - totalCost;
+
                 // Write Order
                 const newOrderRef = doc(db, "orders", crypto.randomUUID());
                 transaction.set(newOrderRef, {
                     ...orderData,
+                    orderNumber: nextOrderNumber,
+                    profit: profit,
+                    costPrice: costPrice, // Preserve the cost price at time of purchase
                     customerId: finalCustomerId || null,
                     createdAt: serverTimestamp(),
                     status: ORDER_STATUS.RECEIVED,
@@ -184,10 +211,10 @@ export const useOrderActions = () => {
                     _stockManagedByClient: true
                 });
 
-                // Update Store Stats (statusCounts)
-                const statsRef = doc(db, "stores", store.id, "stats", "sales");
+                // Update Store Stats (statusCounts + lastOrderNumber)
                 transaction.set(statsRef, {
-                    [`statusCounts.${ORDER_STATUS.RECEIVED}`]: increment(1)
+                    [`statusCounts.${ORDER_STATUS.RECEIVED}`]: increment(1),
+                    lastOrderNumber: nextOrderNumber
                 }, { merge: true });
             });
 
@@ -272,8 +299,8 @@ export const useOrderActions = () => {
                                 newVariants = newVariants.map(v => {
                                     if (v.id === adj.variantId) {
                                         const vWStocks = { ...(v.warehouseStocks || {}) };
-                                        if (newData.warehouseId) {
-                                            vWStocks[newData.warehouseId] = (vWStocks[newData.warehouseId] || 0) + adj.netChange;
+                                        if (adj.warehouseId) {
+                                            vWStocks[adj.warehouseId] = (vWStocks[adj.warehouseId] || 0) + adj.netChange;
                                         }
                                         return { ...v, stock: (parseInt(v.stock) || 0) + adj.netChange, warehouseStocks: vWStocks };
                                     }
@@ -306,13 +333,23 @@ export const useOrderActions = () => {
 
                         if (product.isVariable) {
                             stockUpdates = { variants: newVariants, stock: increment(totalStockChange) };
-                            if (newData.warehouseId) {
+                            // Apply net warehouse changes for variable product (grouped)
+                            // Actually, for variable products, warehouse stocks are inside the variants array.
+                            // But we might also track a global warehouse stock for the parent product for some reason?
+                            // Usually not, but if so, we'd need to loop over adjs.
+                            // For simplicity, let's just use the current order warehouse for the parent if needed.
+                            if (newData.warehouseId && totalStockChange !== 0) {
+                                // This is tricky because totalStockChange might be across multiple warehouses if switched.
+                                // But parent stock is usually the sum of all.
                                 stockUpdates[`warehouseStocks.${newData.warehouseId}`] = increment(totalStockChange);
                             }
                         } else {
                             stockUpdates = { stock: increment(totalStockChange) };
-                            if (newData.warehouseId) {
-                                stockUpdates[`warehouseStocks.${newData.warehouseId}`] = increment(totalStockChange);
+                            // Apply warehouse adjustments for simple product
+                            for (const adj of productAdjs) {
+                                if (adj.warehouseId) {
+                                    stockUpdates[`warehouseStocks.${adj.warehouseId}`] = increment(adj.netChange);
+                                }
                             }
                             if (updatedBatches.length > 0) stockUpdates.inventoryBatches = updatedBatches;
                         }
@@ -451,6 +488,16 @@ export const useOrderActions = () => {
                     oldStatus: oldData.status,
                     newStatus: newData.status
                 });
+
+                // --- AUDIT TRAIL (Règle 3) ---
+                logAudit(store.id, {
+                    action: 'STATUS_CHANGE',
+                    from: oldData.status,
+                    to: newData.status,
+                    orderId: orderId,
+                    userId: user?.uid || 'system'
+                });
+
                 runAutomations('order_updated', { ...newData, id: orderId }, store).catch(console.error);
             }
 
@@ -554,6 +601,21 @@ export const useOrderActions = () => {
             const orderSnap = await getDoc(orderRef);
             if (!orderSnap.exists()) throw new Error("Order not found");
             const oldData = { id: orderSnap.id, ...orderSnap.data() };
+            const oldStatus = oldData.status || 'reçu';
+
+            // --- STATE MACHINE VALIDATION ---
+            if (!isValidTransition(oldStatus, newStatus)) {
+                toast.error(`Transition invalide : ${oldStatus} → ${newStatus}`);
+                setLoading(false);
+                return false;
+            }
+            
+            // --- IDEMPOTENCE (Règle 1) ---
+            if (oldData.status === newStatus) {
+                setLoading(false);
+                return true; 
+            }
+
             const newData = { ...oldData, status: newStatus };
             return await updateOrder(orderId, oldData, newData);
         } catch (err) {

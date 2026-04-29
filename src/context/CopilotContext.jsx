@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useMemo } from "react";
+import { createContext, useContext, useState, useEffect, useMemo, useRef } from "react";
 import { analyzeFinancialScenario } from "../services/aiService";
 import { generateOpeningBrief } from "../services/localCopilot";
 import { useStoreData } from "../hooks/useStoreData";
@@ -24,6 +24,7 @@ export const CopilotProvider = ({ children }) => {
     });
     const [loading, setLoading] = useState(false);
     const [isStreaming, setIsStreaming] = useState(false);
+    const lastActionTime = useRef(0);
 
     // PERSISTENCE
     useEffect(() => {
@@ -90,6 +91,14 @@ export const CopilotProvider = ({ children }) => {
 
     const processAction = async (action) => {
         if (!action) return null;
+        
+        // --- RATE LIMITING (Règle 4) ---
+        const now = Date.now();
+        if (now - lastActionTime.current < 3000) {
+            console.warn("Rate limited action:", action.action);
+            return "⏳ Action ignorée : Vous envoyez des demandes trop rapidement. Merci d'attendre 3 secondes.";
+        }
+        lastActionTime.current = now;
         
         try {
             switch (action.action) {

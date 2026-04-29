@@ -583,6 +583,24 @@ exports.onOrderWrite = onDocumentWritten({
         }
     }
 
+    // 6. AUDIT LOGGING
+    // Log status changes in the store's audit trail
+    if (oldStatus !== newStatus && storeId) {
+        const auditRef = db.collection('stores').doc(storeId).collection('audit_logs').doc();
+        const auditPromise = auditRef.set({
+            orderId: event.params.orderId,
+            orderNumber: after?.orderNumber || before?.orderNumber || event.params.orderId,
+            fromStatus: oldStatus || 'CREATED',
+            toStatus: newStatus || 'DELETED',
+            userId: after?._updatedBy === 'carrier' ? 'CARRIER_WEBHOOK' : (after?._updatedBy || 'SYSTEM'),
+            userName: after?._updatedBy === 'carrier' ? 'Livreur (Webhook)' : 'Automate Système',
+            timestamp: FieldValue.serverTimestamp(),
+            source: after?._updatedBy === 'carrier' ? 'Webhook' : 'Cloud Function'
+        }).catch(e => console.warn('Audit logging failed:', e.message));
+        
+        return Promise.all([statsPromise, batchPromise, customerSpentPromise, auditPromise]);
+    }
+
     return Promise.all([statsPromise, batchPromise, customerSpentPromise]);
 });
 

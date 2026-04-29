@@ -63,41 +63,58 @@ export const calculateStockDeltas = (oldData, newData) => {
     const wasActive = ![ORDER_STATUS.CANCELLED, ORDER_STATUS.RETURNED, ORDER_STATUS.NO_ANSWER, 'pending_catalog'].includes(oldData.status);
     const isActive = ![ORDER_STATUS.CANCELLED, ORDER_STATUS.RETURNED, ORDER_STATUS.NO_ANSWER, 'pending_catalog'].includes(newData.status);
 
-    const netChanges = {}; // { [productId_variantId]: { id, variantId, netChange } }
-
-    const addChange = (id, variantId, amount) => {
-        if (!id || amount === 0) return;
-        const key = variantId ? `${id}_${variantId}` : id;
-        if (!netChanges[key]) {
-            netChanges[key] = { id, variantId, netChange: 0 };
-        }
-        netChanges[key].netChange += amount;
-    };
+    const warehouseChanged = oldData.warehouseId !== newData.warehouseId;
+    const netChanges = []; // Array of { id, variantId, netChange, warehouseId }
 
     if (restock) {
-        // Active -> Cancelled: Add back all old items
-        getOrderItems(oldData).forEach(item => addChange(item.id, item.variantId, item.quantity));
+        // Active -> Cancelled: Add back all old items to the warehouse they were in
+        getOrderItems(oldData).forEach(item => {
+            netChanges.push({ id: item.id, variantId: item.variantId, netChange: item.quantity, warehouseId: oldData.warehouseId });
+        });
     } else if (deduct) {
-        // Cancelled -> Active: Deduct all new items
-        getOrderItems(newData).forEach(item => addChange(item.id, item.variantId, -item.quantity));
+        // Cancelled -> Active: Deduct all new items from the new warehouse
+        getOrderItems(newData).forEach(item => {
+            netChanges.push({ id: item.id, variantId: item.variantId, netChange: -item.quantity, warehouseId: newData.warehouseId });
+        });
     } else if (wasActive && isActive) {
-        // Active -> Active: Diff the items (e.g. quantity changed, or item removed)
-        // 1. Add back old items
-        getOrderItems(oldData).forEach(item => addChange(item.id, item.variantId, item.quantity));
-        // 2. Deduct new items
-        getOrderItems(newData).forEach(item => addChange(item.id, item.variantId, -item.quantity));
-    }
-    // Note: Cancelled -> Cancelled means NO stock change (it's already in stock)
-
-    // Filter out zero net changes and group by product ID
-    const groupedByProduct = {};
-    Object.values(netChanges).forEach(adj => {
-        if (adj.netChange !== 0) {
-            if (!groupedByProduct[adj.id]) {
-                groupedByProduct[adj.id] = [];
-            }
-            groupedByProduct[adj.id].push(adj);
+        if (warehouseChanged) {
+            // Warehouse changed: Return all to old WH, Deduct all from new WH
+            getOrderItems(oldData).forEach(item => {
+                netChanges.push({ id: item.id, variantId: item.variantId, netChange: item.quantity, warehouseId: oldData.warehouseId });
+            });
+            getOrderItems(newData).forEach(item => {
+                netChanges.push({ id: item.id, variantId: item.variantId, netChange: -item.quantity, warehouseId: newData.warehouseId });
+            });
+        } else {
+            // Same Warehouse: Just diff the quantities
+            const diffs = {}; // key -> { id, variantId, netChange }
+            getOrderItems(oldData).forEach(item => {
+                const key = item.variantId ? `${item.id}_${item.variantId}` : item.id;
+                diffs[key] = { id: item.id, variantId: item.variantId, netChange: item.quantity };
+            });
+            getOrderItems(newData).forEach(item => {
+                const key = item.variantId ? `${item.id}_${item.variantId}` : item.id;
+                if (diffs[key]) {
+                    diffs[key].netChange -= item.quantity;
+                } else {
+                    diffs[key] = { id: item.id, variantId: item.variantId, netChange: -item.quantity };
+                }
+            });
+            Object.values(diffs).forEach(d => {
+                if (d.netChange !== 0) {
+                    netChanges.push({ ...d, warehouseId: newData.warehouseId });
+                }
+            });
         }
+    }
+
+    // Group by product ID for efficient batch updates
+    const groupedByProduct = {};
+    netChanges.forEach(adj => {
+        if (!groupedByProduct[adj.id]) {
+            groupedByProduct[adj.id] = [];
+        }
+        groupedByProduct[adj.id].push(adj);
     });
 
     return groupedByProduct;

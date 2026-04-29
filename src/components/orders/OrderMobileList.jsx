@@ -45,7 +45,7 @@ export default function OrderMobileList({
                                     {isSelected ? <CheckSquare className="h-6 w-6 text-indigo-600" /> : <Square className="h-6 w-6" />}
                                 </button>
                                 <div>
-                                    <h3 className="font-bold text-gray-900">{order.orderNumber}</h3>
+                                    <h3 className="font-bold text-gray-900">#{order.orderNumber || order.id?.substring(0, 8)}</h3>
                                     <p className="text-xs text-gray-500">{order.date}</p>
                                 </div>
                             </div>

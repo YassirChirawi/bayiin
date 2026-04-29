@@ -1,6 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+// import prerender from 'vite-plugin-prerender'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -15,7 +20,7 @@ export default defineConfig({
       manifest: {
         name: 'BayIIn',
         short_name: 'BayIIn',
-        description: 'Complete Retail Management System for Modern Commerce',
+        description: 'بايعين - Plateforme de gestion retail n°1 au Maroc',
         theme_color: '#4f46e5',
         background_color: '#ffffff',
         display: 'standalone',
@@ -39,7 +44,13 @@ export default defineConfig({
           }
         ]
       }
+    }),
+    /*
+    prerender({
+      routes: ['/', '/login', '/register', '/pricing'],
+      staticDir: path.join(__dirname, 'dist'),
     })
+    */
   ],
   server: {
     headers: {

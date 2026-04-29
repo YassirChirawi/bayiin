@@ -86,6 +86,26 @@ export default function Signup() {
                             onChange={(e) => setConfirmPassword(e.target.value)}
                             placeholder="••••••••"
                         />
+
+                        <div className="flex items-start pt-2">
+                            <div className="flex items-center h-5">
+                                <input
+                                    id="terms"
+                                    name="terms"
+                                    type="checkbox"
+                                    required
+                                    className="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded cursor-pointer"
+                                />
+                            </div>
+                            <div className="ml-3 text-sm">
+                                <label htmlFor="terms" className="text-gray-600 cursor-pointer">
+                                    {t('agree_terms_part1') || "J'accepte les"}{" "}
+                                    <Link to="/terms" target="_blank" className="font-semibold text-indigo-600 hover:text-indigo-500 underline decoration-indigo-200 underline-offset-4">
+                                        {t('terms_link_text') || "Conditions Générales d'Utilisation"}
+                                    </Link>
+                                </label>
+                            </div>
+                        </div>
                     </div>
 
                     <div>

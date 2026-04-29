@@ -20,6 +20,11 @@ export function useOrderFilters(activeTab, showTrash, defaultLimit = 50) {
             if (isPhone) {
                 return [where("clientPhone", "==", activeSearch)];
             } else {
+                // Try searching as number first if it looks like one, or exact string
+                const orderNum = parseInt(activeSearch);
+                if (!isNaN(orderNum)) {
+                    return [where("orderNumber", "==", orderNum)];
+                }
                 return [where("orderNumber", "==", activeSearch)];
             }
         }
@@ -45,7 +50,7 @@ export function useOrderFilters(activeTab, showTrash, defaultLimit = 50) {
                 const lowerSearch = searchTerm.toLowerCase();
                 return (
                     o.clientName?.toLowerCase().includes(lowerSearch) ||
-                    o.orderNumber?.toLowerCase().includes(lowerSearch) ||
+                    String(o.orderNumber || '').toLowerCase().includes(lowerSearch) ||
                     o.clientPhone?.includes(searchTerm)
                 );
             });

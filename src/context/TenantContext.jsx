@@ -132,9 +132,30 @@ export const TenantProvider = ({ children }) => {
         }
     };
 
+    const isStoreActive = (s) => {
+        if (!s) return false;
+        if (s.plan === 'pro' && s.subscriptionStatus === 'active') return true;
+        
+        // Grace period : 7 jours après expiration
+        if (s.subscriptionStatus === 'past_due' && s.currentPeriodEnd) {
+            const expiredAt = new Date(s.currentPeriodEnd * 1000); // timestamp Stripe
+            const gracePeriodEnd = new Date(expiredAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+            return new Date() < gracePeriodEnd;
+        }
+        
+        return s.plan === 'free' || !s.plan; 
+    };
+
+    const active = isStoreActive(store);
+    const isGracePeriod = store?.subscriptionStatus === 'past_due' && active;
+    const isSubscriptionExpired = store && !active;
+
     return (
         <TenantContext.Provider value={{
             store, setStore, stores, loading, switchStore, refreshStores: loadStores,
+            isSubscriptionExpired,
+            isGracePeriod,
+            isStoreActive: active,
             // Franchise
             isFranchiseAdmin, franchise, franchiseStores,
         }}>

@@ -16,10 +16,12 @@ import TopProductsChart from "../components/charts/TopProductsChart";
 import CityRevenueChart from "../components/charts/CityRevenueChart";
 import { motion } from "framer-motion";
 import { getTopProducts, getCityStats, getHighReturnCities, getRetentionStats } from "../utils/analytics";
-import { generateFinancialInsight, detectFinancialLeaks, analyzeFinancialScenario } from "../services/aiService";
 import { calculateFinancialStats } from "../utils/financials";
 import { getSenditInvoices } from "../lib/sendit";
 import CFOSimulator from "../components/CFOSimulator";
+import { reconcileStoreStats } from "../utils/reconcileStats";
+import { db } from "../lib/firebase";
+import { RefreshCw } from "lucide-react";
 
 export default function Finances() {
     const { store } = useTenant();
@@ -187,6 +189,19 @@ export default function Finances() {
             console.error("Failed to fetch invoices", error);
         } finally {
             setLoadingInvoices(false);
+        }
+    };
+
+    const [isSyncing, setIsSyncing] = useState(false);
+    const handleSyncStats = async () => {
+        setIsSyncing(true);
+        try {
+            await reconcileStoreStats(db, store.id);
+            toast.success(t('msg_stats_synced') || "Statistiques synchronisées !");
+        } catch (err) {
+            toast.error(t('err_sync_failed') || "Erreur de synchronisation.");
+        } finally {
+            setIsSyncing(false);
         }
     };
 
@@ -372,6 +387,16 @@ export default function Finances() {
                         <Download className="w-4 h-4" />
                         {exportingAccounting ? (t('generating') || 'Génération...') : (t('btn_export_accounting') || 'Export Comptable')}
                     </button>
+
+                    <Button 
+                        variant="secondary" 
+                        icon={RefreshCw} 
+                        onClick={handleSyncStats} 
+                        disabled={isSyncing}
+                        className={isSyncing ? 'animate-spin' : ''}
+                    >
+                        {isSyncing ? '' : (t('btn_sync_stats') || 'Sync Stats')}
+                    </Button>
                 </div>
             </div>
 
