@@ -134,13 +134,16 @@ export const TenantProvider = ({ children }) => {
 
     const isStoreActive = (s) => {
         if (!s) return false;
-        if (s.plan === 'pro' && s.subscriptionStatus === 'active') return true;
-        
-        // Grace period : 7 jours après expiration
-        if (s.subscriptionStatus === 'past_due' && s.currentPeriodEnd) {
-            const expiredAt = new Date(s.currentPeriodEnd * 1000); // timestamp Stripe
-            const gracePeriodEnd = new Date(expiredAt.getTime() + 7 * 24 * 60 * 60 * 1000);
-            return new Date() < gracePeriodEnd;
+        // Pro plan is always active unless explicitly cancelled/expired
+        if (s.plan === 'pro') {
+            if (s.subscriptionStatus === 'canceled' || s.subscriptionStatus === 'expired') return false;
+            // Grace period : 7 jours après expiration Stripe
+            if (s.subscriptionStatus === 'past_due' && s.currentPeriodEnd) {
+                const expiredAt = new Date(s.currentPeriodEnd * 1000);
+                const gracePeriodEnd = new Date(expiredAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+                return new Date() < gracePeriodEnd;
+            }
+            return true; // active, or no subscriptionStatus (promo code, manual activation)
         }
         
         return s.plan === 'free' || !s.plan; 
