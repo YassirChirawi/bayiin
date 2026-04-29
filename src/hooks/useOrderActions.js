@@ -51,8 +51,12 @@ export const useOrderActions = () => {
                 }
             }
 
+            const newOrderRef = doc(db, "orders", crypto.randomUUID());
+
             await runTransaction(db, async (transaction) => {
-                // --- 1. READ PHASE ---
+                // === 1. READ PHASE (ALL reads MUST happen before ANY writes) ===
+                
+                // Read product docs
                 const productDocs = {};
                 for (const item of itemsToProcess) {
                     if (!productDocs[item.id]) {
@@ -60,7 +64,29 @@ export const useOrderActions = () => {
                     }
                 }
 
-                // --- 2. WRITE PHASE ---
+                // Read bundle component docs (if any product is a bundle)
+                const bundleComponentDocs = {};
+                for (const item of itemsToProcess) {
+                    const snap = productDocs[item.id];
+                    if (snap && snap.exists()) {
+                        const product = snap.data();
+                        if (product.isBundle && product.bundleItems) {
+                            for (const component of product.bundleItems) {
+                                if (!bundleComponentDocs[component.productId] && !productDocs[component.productId]) {
+                                    bundleComponentDocs[component.productId] = await transaction.get(doc(db, "products", component.productId));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Read stats doc for sequential order number
+                const statsRef = doc(db, "stores", store.id, "stats", "sales");
+                const statsSnap = await transaction.get(statsRef);
+                const currentStats = statsSnap.exists() ? statsSnap.data() : {};
+                const nextOrderNumber = (parseInt(currentStats.lastOrderNumber) || 1000) + 1;
+
+                // === 2. WRITE PHASE (No more reads after this point) ===
                 let finalCustomerId = customerId || existingCustomerId;
                 
                 // Write Customer
@@ -146,11 +172,11 @@ export const useOrderActions = () => {
                         if (product.isBundle && product.bundleItems) {
                             for (const component of product.bundleItems) {
                                 const compRef = doc(db, "products", component.productId);
-                                const compSnap = await transaction.get(compRef); // Fetching in write phase (allowed if no reads after this)
-                                if (compSnap.exists()) {
+                                const compSnap = bundleComponentDocs[component.productId] || productDocs[component.productId];
+                                if (compSnap && compSnap.exists()) {
                                     const compData = compSnap.data();
                                     const totalDeduct = qty * (parseInt(component.qty) || 1);
-                                                                        // Apply deduction to component (supporting simple or batches)
+                                    // Apply deduction to component (supporting simple or batches)
                                     let compUpdates = { stock: increment(-totalDeduct) };
                                     if (orderData.warehouseId) {
                                         compUpdates[`warehouseStocks.${orderData.warehouseId}`] = increment(-totalDeduct);
@@ -176,12 +202,6 @@ export const useOrderActions = () => {
                     }
                 }
 
-                // --- SEQUENTIAL ORDER NUMBER (Règle Métier) ---
-                const statsRef = doc(db, "stores", store.id, "stats", "sales");
-                const statsSnap = await transaction.get(statsRef);
-                const currentStats = statsSnap.exists() ? statsSnap.data() : {};
-                const nextOrderNumber = (parseInt(currentStats.lastOrderNumber) || 1000) + 1;
-
                 // --- AUTOMATED FINANCIALS ---
                 const price = parseFloat(orderData.price) || 0;
                 // Try to get costPrice from the first product if not provided
@@ -198,7 +218,6 @@ export const useOrderActions = () => {
                 const profit = totalRevenue - totalCost;
 
                 // Write Order
-                const newOrderRef = doc(db, "orders", crypto.randomUUID());
                 transaction.set(newOrderRef, {
                     ...orderData,
                     orderNumber: nextOrderNumber,
@@ -293,7 +312,23 @@ export const useOrderActions = () => {
                     }
                 }
 
-                // --- 2. WRITE PHASE ---
+                // Pre-fetch bundle component docs
+                const bundleComponentDocs = {};
+                for (const productId of Object.keys(groupedByProduct)) {
+                    const snap = productDocs[productId];
+                    if (snap && snap.exists()) {
+                        const product = snap.data();
+                        if (product.isBundle && product.bundleItems) {
+                            for (const component of product.bundleItems) {
+                                if (!bundleComponentDocs[component.productId] && !productDocs[component.productId]) {
+                                    bundleComponentDocs[component.productId] = await transaction.get(doc(db, "products", component.productId));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- 2. WRITE PHASE (No more reads after this point) ---
                 
                 // Stock Adjustments
                 for (const [productId, productAdjs] of Object.entries(groupedByProduct)) {
@@ -375,9 +410,8 @@ export const useOrderActions = () => {
                         if (product.isBundle && product.bundleItems) {
                             for (const component of product.bundleItems) {
                                 const compRef = doc(db, "products", component.productId);
-                                // For updateOrder, we might not have pre-fetched all components in productDocs
-                                const compSnap = productDocs[component.productId] || await transaction.get(compRef);
-                                if (compSnap.exists()) {
+                                const compSnap = productDocs[component.productId] || bundleComponentDocs[component.productId];
+                                if (compSnap && compSnap.exists()) {
                                     const compData = compSnap.data();
                                     // totalStockChange is the net change for the bundle product itself
                                     const netCompChange = totalStockChange * (parseInt(component.qty) || 1);
