@@ -52,6 +52,7 @@ const Purchases = lazy(() => import("./pages/Purchases"));
 const Returns = lazy(() => import("./pages/Returns"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const FranchiseDashboard = lazy(() => import("./pages/FranchiseDashboard"));
+const QA = lazy(() => import("./pages/QA"));
 
 // Simple page-level loading fallback
 const PageLoader = () => (
@@ -186,6 +187,7 @@ function App() {
                           <Route path="/returns" element={<Returns />} />
                           <Route path="/marketing" element={<Marketing />} />
                           <Route path="/assets" element={<Assets />} />
+                          <Route path="/qa" element={<QA />} />
                         </Route>
 
                         <Route path="*" element={<NotFound />} />

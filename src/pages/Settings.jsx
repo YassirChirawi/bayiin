@@ -1,6 +1,6 @@
 import { useTenant } from "../context/TenantContext";
 import { useLanguage } from "../context/LanguageContext"; // NEW
-import { User, Store, CreditCard, Check, Zap, Shield, Save, Settings as SettingsIcon, Truck, Users, Lock, Activity, Sparkles, Package, Trash2, Plus } from "lucide-react";
+import { User, Store, CreditCard, Check, Zap, Shield, Save, Settings as SettingsIcon, Truck, Users, Lock, Activity, Sparkles, Package, Trash2, Plus, ShieldCheck, ClipboardCheck } from "lucide-react";
 import { doc, updateDoc, collection, query, getDocs, orderBy, limit, setDoc, addDoc, serverTimestamp, where, runTransaction, increment } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Button from "../components/Button";
@@ -18,6 +18,7 @@ import { DEFAULT_TEMPLATES, DARIJA_TEMPLATES } from "../utils/whatsappTemplates"
 import { useReconciliation } from "../hooks/useReconciliation";
 import { useStoreData } from "../hooks/useStoreData";
 import ShippingSettings from "./ShippingSettings";
+import { Link } from "react-router-dom";
 
 function CatalogSettings({ store, setStore, t }) {
     const [settings, setSettings] = useState(store?.settings || {
@@ -512,8 +513,10 @@ export default function Settings() {
         { id: "catalog", label: t('tab_catalog') || "Catalogue", icon: Package },
         { id: "billing", label: t('tab_billing') || "Plans & Facturation", icon: CreditCard },
         { id: "security", label: t('tab_security') || "Sécurité", icon: Shield },
+        { id: "qa", label: "Recette QA", icon: ShieldCheck },
         { id: "activity", label: t('tab_activity') || "Journal d'Activité", icon: Activity },
     ];
+
 
     // Biometric Logic
     const { isAvailable, register } = useBiometrics();
@@ -1102,6 +1105,100 @@ export default function Settings() {
                         </div>
                     )
                 }
+
+                {activeTab === "qa" && (
+                    <div className="space-y-6">
+                        <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="p-3 bg-indigo-100 text-indigo-600 rounded-2xl">
+                                    <ShieldCheck size={32} />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-900">Module de Recette QA</h3>
+                                    <p className="text-sm text-gray-500">Activez le mode testeur pour valider chaque fonctionnalité de la plateforme.</p>
+                                </div>
+                            </div>
+
+                            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6 mb-8">
+                                <div className="flex items-center justify-between">
+                                    <div className="max-w-md">
+                                        <h4 className="font-bold text-indigo-900 mb-1">Mode Testeur (Bêta)</h4>
+                                        <p className="text-xs text-indigo-700 leading-relaxed">
+                                            En activant ce mode, vous aurez accès à une interface dédiée pour cocher les tests, 
+                                            suivre la progression de la recette et garantir que tout est prêt pour le LIVE.
+                                        </p>
+                                    </div>
+                                    <button 
+                                        onClick={async () => {
+                                            const newVal = !store.testerMode;
+                                            setStore(prev => ({ ...prev, testerMode: newVal }));
+                                            await updateDoc(doc(db, "stores", store.id), { testerMode: newVal });
+                                            toast.success(newVal ? "Mode Testeur activé !" : "Mode Testeur désactivé");
+                                            vibrate('success');
+                                        }}
+                                        className={`relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${store.testerMode ? 'bg-indigo-600' : 'bg-gray-200'}`}
+                                    >
+                                        <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 ${store.testerMode ? 'translate-x-5' : 'translate-x-0'}`} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {store.testerMode && (
+                                <div className="space-y-4">
+                                    <div className="bg-amber-50 border border-amber-100 rounded-xl p-6">
+                                        <div className="flex items-center justify-between">
+                                            <div className="max-w-md">
+                                                <h4 className="font-bold text-amber-900 mb-1">Guidage Interactif (Assistance)</h4>
+                                                <p className="text-xs text-amber-700 leading-relaxed">
+                                                    Affiche un assistant flottant sur toutes les pages pour vous guider étape par étape 
+                                                    selon la checklist. Idéal pour les nouveaux testeurs.
+                                                </p>
+                                            </div>
+                                            <button 
+                                                onClick={async () => {
+                                                    const newVal = !store.guidedQaMode;
+                                                    setStore(prev => ({ ...prev, guidedQaMode: newVal }));
+                                                    await updateDoc(doc(db, "stores", store.id), { guidedQaMode: newVal });
+                                                    toast.success(newVal ? "Guidage activé !" : "Guidage désactivé");
+                                                    vibrate('success');
+                                                }}
+                                                className={`relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${store.guidedQaMode ? 'bg-amber-500' : 'bg-gray-200'}`}
+                                            >
+                                                <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 ${store.guidedQaMode ? 'translate-x-5' : 'translate-x-0'}`} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex justify-center">
+                                        <Link 
+                                            to="/qa" 
+                                            className="inline-flex items-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 hover:-translate-y-1 active:scale-95"
+                                        >
+                                            <ClipboardCheck size={20} />
+                                            Accéder à la Checklist QA
+                                        </Link>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-white p-4 rounded-xl border border-gray-100">
+                                <h4 className="text-xs font-bold text-gray-400 uppercase mb-2 tracking-widest">Conseil</h4>
+                                <p className="text-sm text-gray-600">
+                                    Utilisez un compte de test séparé pour vos essais afin de ne pas polluer vos statistiques financières réelles.
+                                </p>
+                            </div>
+                            <div className="bg-white p-4 rounded-xl border border-gray-100">
+                                <h4 className="text-xs font-bold text-gray-400 uppercase mb-2 tracking-widest">Feedback</h4>
+                                <p className="text-sm text-gray-600">
+                                    Chaque test échoué devrait être documenté avec une capture d'écran pour faciliter la correction.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
             </div >
         </div >
     );

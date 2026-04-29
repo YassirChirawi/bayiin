@@ -1,6 +1,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { Outlet, Navigate, useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
+import QAGuide from "./QAGuide";
 import { useTenant } from "../context/TenantContext";
 import { Loader2, Menu, ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -147,6 +148,7 @@ export default function Layout() {
                     </AnimatePresence>
                 </div>
                 <Copilot />
+                <QAGuide />
             </main>
         </div>
     );

@@ -26,7 +26,8 @@ import {
     UserCheck,
     RotateCcw,
     Megaphone,
-    Barcode
+    Barcode,
+    ClipboardCheck
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useReconciliation } from "../hooks/useReconciliation";
@@ -69,6 +70,9 @@ export default function Sidebar({ isOpen, onClose }) {
             { name: t('finances'), href: '/finances', icon: DollarSign },
             { name: t('team'), href: '/team', icon: UserPlus },
             { name: t('settings'), href: '/settings', icon: Settings },
+        ] : []),
+        ...(store?.testerMode ? [
+            { name: 'Recette QA', href: '/qa', icon: ClipboardCheck },
         ] : []),
     ];
 
