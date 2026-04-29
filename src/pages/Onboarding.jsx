@@ -44,8 +44,8 @@ export default function Onboarding() {
     }, [stores, navigate, location.state]);
 
     const handleNext = () => {
-        if (step === 1 && !formData.name) return toast.error("Store name is required");
-        if (step === 2 && !formData.phone) return toast.error("Phone number is mandatory");
+        if (step === 1 && !formData.name) return toast.error(t('error_store_name_required') || "Le nom du magasin est obligatoire");
+        if (step === 2 && !formData.phone) return toast.error(t('error_phone_required') || "Le numéro de téléphone est obligatoire");
         vibrate('soft');
         setStep(prev => prev + 1);
     };
@@ -61,7 +61,7 @@ export default function Onboarding() {
         const url = await uploadImage(file, `logos/${user.uid}_${Date.now()}`);
         if (url) {
             setFormData(prev => ({ ...prev, logoUrl: url }));
-            toast.success("Logo uploaded!");
+            toast.success(t('logo_uploaded') || "Logo téléchargé !");
         }
     };
 
@@ -113,12 +113,12 @@ export default function Onboarding() {
 
             setStore({ id: storeId, ...storeData });
             vibrate('success');
-            toast.success("Store setup complete!");
+            toast.success(t('setup_complete') || "Configuration terminée !");
             navigate("/dashboard");
 
         } catch (error) {
             console.error(error);
-            toast.error("Setup failed: " + error.message);
+            toast.error((t('setup_failed') || "Erreur de configuration") + ": " + error.message);
         } finally {
             setLoading(false);
         }
@@ -140,7 +140,7 @@ export default function Onboarding() {
                             <div key={s} className={`h-2 flex-1 mx-1 rounded-full ${s <= step ? 'bg-indigo-600' : 'bg-gray-100'}`} />
                         ))}
                     </div>
-                    <p className="text-center text-sm text-gray-500">Step {step} of 3</p>
+                    <p className="text-center text-sm text-gray-500">{t('step_of') || `Étape ${step} sur 3`}</p>
                 </div>
 
                 <AnimatePresence mode="wait">
@@ -195,11 +195,11 @@ export default function Onboarding() {
                                 <div className="bg-rose-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <Phone className="h-8 w-8 text-rose-600" />
                                 </div>
-                                <h2 className="text-2xl font-bold text-gray-900">Contact Info</h2>
-                                <p className="text-gray-500 text-sm">How can customers reach you?</p>
+                                <h2 className="text-2xl font-bold text-gray-900">{t('onboarding_contact_title') || "Informations de Contact"}</h2>
+                                <p className="text-gray-500 text-sm">{t('onboarding_contact_desc') || "Comment vos clients peuvent-ils vous joindre ?"}</p>
                             </div>
                             <Input
-                                label="Phone Number (WhatsApp) *"
+                                label={t('label_phone_whatsapp') || "Numéro WhatsApp *"}
                                 required
                                 value={formData.phone}
                                 onChange={e => setFormData({ ...formData, phone: e.target.value })}
@@ -207,13 +207,13 @@ export default function Onboarding() {
                             />
                             <div className="grid grid-cols-2 gap-4">
                                 <Input
-                                    label="City"
+                                    label={t('label_city') || "Ville"}
                                     value={formData.city}
                                     onChange={e => setFormData({ ...formData, city: e.target.value })}
                                     placeholder="Casablanca"
                                 />
                                 <Input
-                                    label="Address"
+                                    label={t('label_address') || "Adresse"}
                                     value={formData.address}
                                     onChange={e => setFormData({ ...formData, address: e.target.value })}
                                     placeholder="Hay Riad..."
@@ -238,8 +238,8 @@ export default function Onboarding() {
                                 <div className="bg-amber-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <Upload className="h-8 w-8 text-amber-600" />
                                 </div>
-                                <h2 className="text-2xl font-bold text-gray-900">Add a Logo</h2>
-                                <p className="text-gray-500 text-sm">Make your store stand out.</p>
+                                <h2 className="text-2xl font-bold text-gray-900">{t('onboarding_logo_title') || "Ajoutez votre Logo"}</h2>
+                                <p className="text-gray-500 text-sm">{t('onboarding_logo_desc') || "Démarquez votre boutique."}</p>
                             </div>
 
                             <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-2xl p-8 hover:bg-gray-50 transition-all cursor-pointer relative group">
@@ -265,7 +265,7 @@ export default function Onboarding() {
                                 />
                                 <div className="flex items-center gap-2 text-sm text-indigo-600 font-bold">
                                     <Sparkles className="w-4 h-4" />
-                                    {uploading ? "Uploading..." : "Click to upload logo"}
+                                    {uploading ? (t('uploading') || "Envoi en cours...") : (t('click_upload_logo') || "Cliquez pour télécharger votre logo")}
                                 </div>
                             </div>
 

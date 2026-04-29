@@ -23,9 +23,9 @@ export default function Footer() {
                             {t('footer_description')}
                         </p>
                         <div className="flex gap-4">
-                            <SocialIcon icon={Facebook} href="#" />
+                            <SocialIcon icon={Facebook} href="https://www.facebook.com/bayiin.shop" />
                             <SocialIcon icon={Instagram} href="https://www.instagram.com/bayiin_os/" />
-                            <SocialIcon icon={Linkedin} href="#" />
+                            <SocialIcon icon={Linkedin} href="https://www.linkedin.com/company/bayiin" />
                         </div>
                     </div>
 
@@ -46,7 +46,7 @@ export default function Footer() {
                         <ul className="space-y-3">
                             <li><Link to="/privacy" className="hover:text-indigo-400 transition-colors">{t('footer_legal_privacy')}</Link></li>
                             <li><Link to="/terms" className="hover:text-indigo-400 transition-colors">{t('footer_legal_terms')}</Link></li>
-                            <li><a href="#" className="hover:text-indigo-400 transition-colors">{t('footer_legal_cookies')}</a></li>
+                            <li><Link to="/privacy" className="hover:text-indigo-400 transition-colors">{t('footer_legal_cookies')}</Link></li>
                         </ul>
                     </div>
 

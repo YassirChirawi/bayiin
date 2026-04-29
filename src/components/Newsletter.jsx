@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Mail, Loader2, CheckCircle2 } from 'lucide-react';
@@ -22,11 +23,11 @@ export default function Newsletter() {
             });
             setStatus('success');
             setEmail('');
-            setMessage("Thanks for joining! We'll be in touch soon.");
+            setMessage("Merci de votre inscription ! Nous vous contacterons bientôt.");
         } catch (error) {
             console.error("Error adding lead:", error);
             setStatus('error');
-            setMessage("Something went wrong. Please try again.");
+            setMessage("Une erreur est survenue. Veuillez réessayer.");
         }
     };
 
@@ -42,9 +43,9 @@ export default function Newsletter() {
                 <div className="inline-flex items-center justify-center p-3 bg-indigo-500/20 rounded-xl mb-8 backdrop-blur-sm border border-indigo-500/30">
                     <Mail className="w-6 h-6 text-indigo-300" />
                 </div>
-                <h2 className="text-3xl md:text-4xl font-bold mb-6">Join the waiting list</h2>
+                <h2 className="text-3xl md:text-4xl font-bold mb-6">Rejoignez la liste d'attente</h2>
                 <p className="text-indigo-200 text-lg mb-10 max-w-2xl mx-auto">
-                    Get early access to new features, exclusive tips on growing your business, and special offers.
+                    Accédez en avant-première aux nouvelles fonctionnalités et recevez des conseils exclusifs pour développer votre business.
                 </p>
 
                 {status === 'success' ? (
@@ -61,7 +62,7 @@ export default function Newsletter() {
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                placeholder="Enter your email"
+                                placeholder="Entrez votre email"
                                 className="w-full px-6 py-4 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 backdrop-blur-sm transition-all"
                                 required
                             />
@@ -74,10 +75,10 @@ export default function Newsletter() {
                             {status === 'loading' ? (
                                 <>
                                     <Loader2 className="w-5 h-5 animate-spin" />
-                                    Joining...
+                                    Inscription...
                                 </>
                             ) : (
-                                "Join Now"
+                                "S'inscrire"
                             )}
                         </button>
                     </form>
@@ -86,7 +87,7 @@ export default function Newsletter() {
                     <p className="mt-4 text-red-400 text-sm">{message}</p>
                 )}
                 <p className="mt-6 text-slate-500 text-sm">
-                    We care about your data in our <a href="#" className="underline hover:text-indigo-400">privacy policy</a>.
+                    Nous respectons vos données. Consultez notre <Link to="/privacy" className="underline hover:text-indigo-400">politique de confidentialité</Link>.
                 </p>
             </div>
         </section>
