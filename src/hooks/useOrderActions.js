@@ -80,11 +80,12 @@ export const useOrderActions = () => {
                     }
                 }
 
-                // Read stats doc for sequential order number
+                // Read stats doc for sequential numbers
                 const statsRef = doc(db, "stores", store.id, "stats", "sales");
                 const statsSnap = await transaction.get(statsRef);
                 const currentStats = statsSnap.exists() ? statsSnap.data() : {};
                 const nextOrderNumber = (parseInt(currentStats.lastOrderNumber) || 1000) + 1;
+                const nextCustomerNumber = (parseInt(currentStats.lastCustomerNumber) || 5000) + 1;
 
                 // === 2. WRITE PHASE (No more reads after this point) ===
                 let finalCustomerId = customerId || existingCustomerId;
@@ -102,6 +103,7 @@ export const useOrderActions = () => {
                     finalCustomerId = newCustomerRef.id;
                     transaction.set(newCustomerRef, {
                         storeId: store.id,
+                        customerNumber: nextCustomerNumber, // NEW UNIQUE ID
                         name: orderData.clientName,
                         phone: orderData.clientPhone,
                         address: orderData.clientAddress || "",
@@ -113,6 +115,8 @@ export const useOrderActions = () => {
                         createdAt: serverTimestamp(),
                         updatedAt: serverTimestamp()
                     });
+                    // Increment customer number in stats
+                    transaction.set(statsRef, { lastCustomerNumber: nextCustomerNumber }, { merge: true });
                 }
 
                 // Write Products
@@ -328,6 +332,12 @@ export const useOrderActions = () => {
                     }
                 }
 
+                // Read stats doc for sequential numbers
+                const statsRef = doc(db, "stores", store.id, "stats", "sales");
+                const statsSnap = await transaction.get(statsRef);
+                const currentStats = statsSnap.exists() ? statsSnap.data() : {};
+                const nextCustomerNumber = (parseInt(currentStats.lastCustomerNumber) || 5000) + 1;
+
                 // --- 2. WRITE PHASE (No more reads after this point) ---
                 
                 // Stock Adjustments
@@ -490,6 +500,7 @@ export const useOrderActions = () => {
                     finalCustomerId = newCustRef.id;
                     transaction.set(newCustRef, {
                         storeId: store.id,
+                        customerNumber: nextCustomerNumber,
                         name: newData.clientName,
                         phone: newData.clientPhone,
                         address: newData.clientAddress || "",
@@ -501,6 +512,8 @@ export const useOrderActions = () => {
                         createdAt: serverTimestamp(),
                         updatedAt: serverTimestamp()
                     });
+                    // Increment customer number in stats
+                    transaction.set(statsRef, { lastCustomerNumber: nextCustomerNumber }, { merge: true });
                 }
 
                 // Update Order
@@ -512,7 +525,6 @@ export const useOrderActions = () => {
                 });
 
                 // Update Global Store Stats
-                const statsRef = doc(db, "stores", store.id, "stats", "sales");
                 const statsUpdates = {};
                 if (oldData.status !== newData.status) {
                     statsUpdates[`statusCounts.${oldData.status || 'reçu'}`] = increment(-1);

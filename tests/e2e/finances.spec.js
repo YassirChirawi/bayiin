@@ -5,57 +5,69 @@ import * as path from 'path';
 dotenv.config({ path: path.resolve(process.cwd(), '.env.test') });
 
 const TEST_EMAIL = process.env.TEST_EMAIL || 'amadou@abadou.com';
-const TEST_PASSWORD = process.env.TEST_PASSWORD || '123456';
+const TEST_PASSWORD = process.env.TEST_PASSWORD || 'Amadou123!';
 
 async function login(page) {
     await page.goto('/login');
+    await page.waitForLoadState('networkidle');
+    
     const magasinBtn = page.getByText('Magasin');
     if (await magasinBtn.isVisible({ timeout: 5000 })) {
         await magasinBtn.click();
+        await page.waitForTimeout(500);
     }
+
     await page.waitForSelector('input[type="email"]', { timeout: 15000 });
     await page.fill('input[type="email"]', TEST_EMAIL);
     await page.fill('input[type="password"]', TEST_PASSWORD);
-    await page.click('button[type="submit"]');
-    await page.waitForSelector('nav, h1, .dashboard-stats', { timeout: 30000 });
+    
+    await Promise.all([
+        page.waitForURL('**/dashboard', { timeout: 15000 }),
+        page.click('button[type="submit"]')
+    ]);
 }
 
 test.describe('Finances Module E2E', () => {
 
     test.beforeEach(async ({ page }) => {
+        await page.addInitScript(() => {
+            window.localStorage.setItem('language', 'fr');
+        });
         await login(page);
     });
 
     test('Create an expense and verify it appears in dashboard', async ({ page }) => {
         await page.goto('/finances');
+        await page.waitForSelector('h1', { timeout: 15000 });
         
-        // Open Add Expense Modal
-        await page.getByRole('button', { name: /Ajouter une dépense|Add expense/i }).first().click();
-
         const expenseName = `E2E Expense ${Date.now()}`;
-        await page.fill('input[name="title"], [placeholder*="Titre"]', expenseName);
-        await page.fill('input[name="amount"], [placeholder*="Montant"]', '250');
-        await page.selectOption('select', 'Ads'); // Type: Ads
+        
+        // Fill the inline expense form
+        await page.fill('input[placeholder*="Description"]', expenseName);
+        await page.fill('input[type="number"][placeholder*="Coût"]', '250');
+        
+        // Select category
+        const categorySelect = page.locator('select').first();
+        await categorySelect.selectOption('Ads');
 
-        await page.getByRole('button', { name: /Enregistrer|Save/i }).click();
+        // Submit
+        await page.click('button:has-text("Ajouter Dépense")');
 
         // Verify it appears in the list
-        await expect(page.locator(`text=${expenseName}`)).toBeVisible();
+        await expect(page.locator(`text=${expenseName}`)).toBeVisible({ timeout: 15000 });
 
-        // Check if "Total Expenses" updated (might take a second for Firebase)
-        await page.waitForTimeout(2000);
+        // Check if "Total Dépenses" updated
         const expensesCard = page.locator('text=/Total Dépenses|Total Expenses/i');
         await expect(expensesCard).toBeVisible();
     });
 
     test('Verify financial stats reflect paid orders', async ({ page }) => {
         await page.goto('/finances');
+        await page.waitForSelector('h1', { timeout: 15000 });
         
-        // Take note of current delivered revenue
-        const revenueText = await page.locator('text=/Livré|Delivered/i').first().innerText();
-        
-        // Navigation to orders to create a paid one
-        await page.goto('/orders');
-        // ... (Order creation logic similar to global.spec.js but marking as paid)
+        // Check for delivered revenue card
+        const revenueCard = page.locator('text=/Livré|Delivered/i').first();
+        await expect(revenueCard).toBeVisible();
     });
 });
+

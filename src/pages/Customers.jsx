@@ -349,7 +349,14 @@ export default function Customers() {
                                 <motion.tr key={customer.id} variants={itemVariants} className="hover:bg-gray-50">
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex flex-col">
-                                            <div className="text-sm font-medium text-gray-900">{customer.name}</div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm font-medium text-gray-900">{customer.name}</span>
+                                                {customer.customerNumber && (
+                                                    <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200">
+                                                        #{customer.customerNumber}
+                                                    </span>
+                                                )}
+                                            </div>
                                             {/* SEGMENT BADGE */}
                                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium w-fit mt-1 ${segment.color}`}>
                                                 {segment.icon} {segment.label}

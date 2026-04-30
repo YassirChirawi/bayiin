@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-hot-toast";
-import { X, Save, Search, UserCheck, AlertCircle, Sparkles } from "lucide-react";
+import { X, Save, Search, UserCheck, AlertCircle, Sparkles, Users } from "lucide-react";
 import Button from "./Button";
 import Input from "./Input";
 import { useStoreData } from "../hooks/useStoreData";
-import { collection, query, where, getDocs, doc, addDoc } from "firebase/firestore"; // Minimized imports
+import { collection, query, where, getDocs, doc, addDoc, limit, increment, serverTimestamp } from "firebase/firestore"; // Minimized imports
 import { db } from "../lib/firebase";
 import { useTenant } from "../context/TenantContext";
 import { getWhatsappMessage, createRawWhatsAppLink } from "../utils/whatsappTemplates";
@@ -268,7 +269,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
 
     // Real-time phone search debounce
     useEffect(() => {
-        // Only search if length >= 3 and NO customer is currently selected, AND it's not matching exactly what's typed (meaning user just selected)
+        // Only search if length >= 3 and NO customer is currently selected
         if (!formData.clientPhone || formData.clientPhone.length < 3 || formData.customerId) {
             setPhoneSuggestions([]);
             return;
@@ -278,18 +279,33 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
             setIsSearchingPhone(true);
             try {
                 const customersRef = collection(db, "customers");
-                // Firebase prefix search
+                const searchTerm = formData.clientPhone.replace(/\D/g, ''); // Normalize input for search
+                
                 const q = query(
                     customersRef,
                     where("storeId", "==", store.id),
-                    where("phone", ">=", formData.clientPhone),
-                    where("phone", "<=", formData.clientPhone + "\uf8ff"),
+                    where("phone", ">=", searchTerm),
+                    where("phone", "<=", searchTerm + "\uf8ff"),
                     limit(5)
                 );
                 const querySnapshot = await getDocs(q);
                 const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 
-                // If the only result is exactly the phone typed, auto-select or just show if names differ
+                // --- AUTO-DETECTION: Exact Match ---
+                // Normalize search term
+                const cleanTyped = formData.clientPhone.replace(/\D/g, '');
+                
+                // Find if any result is an exact match for the typed phone (after normalization)
+                const exactMatch = results.find(cust => {
+                    const cleanCustPhone = (cust.phone || '').replace(/\D/g, '');
+                    return cleanCustPhone === cleanTyped;
+                });
+                
+                if (cleanTyped.length >= 10 && exactMatch) {
+                    selectCustomer(exactMatch);
+                    toast.success(t('msg_customer_found') || "Client reconnu !");
+                }
+
                 setPhoneSuggestions(results);
             } catch (err) {
                 console.error("Error searching phones:", err);
@@ -300,7 +316,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
 
         const timeoutId = setTimeout(fetchPhones, 300);
         return () => clearTimeout(timeoutId);
-    }, [formData.clientPhone, formData.customerId, store.id]);
+    }, [formData.clientPhone, formData.customerId, store.id, t]);
 
     const selectCustomer = (cust) => {
         setFormData(prev => ({
@@ -497,12 +513,37 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
     };
 
 
-    if (!isOpen) return null;
-
     return (
-        <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto sm:p-6">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl overflow-hidden my-8 md:my-0 relative">
-                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 sticky top-0 z-10">
+        <AnimatePresence>
+            {isOpen && (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden">
+                    {/* Backdrop */}
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={onClose}
+                        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                    />
+
+                    {/* Modal Container */}
+                    <motion.div
+                        initial={{ y: "100%", opacity: 0.5 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: "100%", opacity: 0 }}
+                        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                        drag="y"
+                        dragConstraints={{ top: 0 }}
+                        dragElastic={0.2}
+                        onDragEnd={(_, info) => {
+                            if (info.offset.y > 150) onClose();
+                        }}
+                        className="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden relative z-10 flex flex-col"
+                    >
+                        {/* Drag Handle (Mobile only) */}
+                        <div className="sm:hidden w-12 h-1.5 bg-gray-300 rounded-full mx-auto my-3 flex-shrink-0" />
+
+                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 sticky top-0 z-20">
                     <h2 className="text-xl font-bold text-gray-900">
                         {order ? `${t('modal_edit_order')} #${order.orderNumber || order.id?.substring(0, 8)}` : t('modal_new_order')}
                     </h2>
@@ -511,8 +552,9 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                     </button>
                 </div>
 
-                <div className="relative">
-                    {stockWarning && stockWarning.show && (
+                <div className="flex-1 overflow-y-auto p-0 relative">
+                    <div className="p-6 pt-2">
+                        {stockWarning && stockWarning.show && (
                         <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg shadow-sm">
                             <div className="flex items-start gap-3">
                                 <AlertCircle className="h-6 w-6 text-red-600 mt-1" />
@@ -566,8 +608,16 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                             <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">{t('section_client')}</h3>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="relative">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="block text-sm font-medium text-gray-700">{t('label_phone')}</label>
+                                        {formData.customerId && (
+                                            <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full animate-pulse flex items-center gap-1">
+                                                <Users className="w-3 h-3" />
+                                                {t('badge_customer_found') || "CLIENT RECONNU"}
+                                            </span>
+                                        )}
+                                    </div>
                                     <Input 
-                                        label={t('label_phone')} 
                                         value={formData.clientPhone} 
                                         onChange={e => {
                                             // Any change to phone resets customerId manually linked
@@ -577,7 +627,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                         placeholder="0600000000" 
                                         maxLength={10} 
                                     />
-                                    {isSearchingPhone && <div className="absolute right-3 top-[34px] w-4 h-4 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin"></div>}
+                                    {isSearchingPhone && <div className="absolute right-3 top-[38px] w-4 h-4 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin"></div>}
                                     {phoneSuggestions.length > 0 && !formData.customerId && (
                                         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                                             {phoneSuggestions.map(cust => (
@@ -596,7 +646,13 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                         </div>
                                     )}
                                 </div>
-                                <Input label={t('label_name')} value={formData.clientName} onChange={e => setFormData({ ...formData, clientName: e.target.value })} required />
+                                <Input 
+                                    label={t('label_name')} 
+                                    value={formData.clientName} 
+                                    onChange={e => setFormData({ ...formData, clientName: e.target.value })} 
+                                    required 
+                                    placeholder={t('placeholder_customer_name') || "Nom Complet"} 
+                                />
                                 <div className="space-y-1">
                                     <label className="block text-sm font-medium text-gray-700">{t('label_city')}</label>
                                     <input list="cities" className="w-full px-3 py-2 border rounded-lg" value={formData.clientCity} onChange={e => setFormData({ ...formData, clientCity: e.target.value })} required placeholder={t('select_city_placeholder')} />
@@ -608,6 +664,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                                         value={formData.clientAddress} 
                                         onChange={e => setFormData({ ...formData, clientAddress: e.target.value })} 
                                         required 
+                                        placeholder={t('placeholder_address') || "Adresse..."}
                                     />
                                 </div>
                             </div>
@@ -909,8 +966,11 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                             </div>
                         </div>
                     </form>
+                        </div>
+                    </div>
+                </motion.div>
                 </div>
-            </div>
-        </div>
+            )}
+        </AnimatePresence>
     );
 }
