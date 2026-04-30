@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 // Helper for Login to handle the new Role Picker
 async function login(page, email, password) {
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
     
     // 1. Handle Role Picker if visible
     const magasinBtn = page.getByText('Magasin');

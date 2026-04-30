@@ -136,7 +136,9 @@ export default function OrderTable({
                                                 {t('status_pending_action') || "Pending Action"}
                                             </span>
                                         ) : (
-                                            <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md border cursor-pointer hover:opacity-80 transition-opacity ${getOrderStatusConfig(order.status).color.replace('bg-', 'bg-opacity-20 bg-').replace('text-', 'text-')}`}>
+                                            <span 
+                                                data-testid="order-status-badge"
+                                                className={`px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md border cursor-pointer hover:opacity-80 transition-opacity ${getOrderStatusConfig(order.status).color.replace('bg-', 'bg-opacity-20 bg-').replace('text-', 'text-')}`}>
                                                 {t(`status_${order.status.toLowerCase().replace(/\s+/g, '_')}`) || getOrderStatusConfig(order.status).label}
                                             </span>
                                         )}

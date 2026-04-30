@@ -97,7 +97,7 @@ export default function OrderFilters({
                     <option value={500}>500 Récents (Lent)</option>
                 </select>
                 <div className="hidden sm:block">
-                    <Button onClick={() => setIsModalOpen(true)} icon={Plus}>
+                    <Button id="new-order-button" onClick={() => setIsModalOpen(true)} icon={Plus}>
                         {t('btn_new_order')}
                     </Button>
                 </div>

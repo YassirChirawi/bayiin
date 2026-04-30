@@ -276,6 +276,7 @@ export default function Orders() {
             {/* Floating Action Button for Mobile */}
             <div className="md:hidden fixed bottom-20 right-6 z-30">
                 <button
+                    id="new-order-fab"
                     onClick={() => setIsModalOpen(true)}
                     className="flex items-center justify-center w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-all active:scale-95"
                     aria-label={t('btn_new_order')}

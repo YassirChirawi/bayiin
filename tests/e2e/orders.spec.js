@@ -21,14 +21,12 @@ const ORDER = {
 // ── Helper: Login ─────────────────────────────────────────────────────────────
 async function login(page) {
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     const magasinBtn = page.getByText('Magasin');
-    if (await magasinBtn.isVisible({ timeout: 5000 })) {
-        await magasinBtn.click();
-        await page.waitForTimeout(500);
-    }
-
+    await magasinBtn.waitFor({ state: 'visible', timeout: 10000 });
+    await magasinBtn.click();
+    
     await page.waitForSelector('input[type="email"]', { timeout: 15000 });
     await page.fill('input[type="email"]',    TEST_EMAIL);
     await page.fill('input[type="password"]', TEST_PASSWORD);
@@ -39,26 +37,29 @@ async function login(page) {
     ]);
 }
 
-async function openNewOrderModal(page) {
-    await page.goto('/orders');
-    await page.waitForLoadState('networkidle');
-    
-    const newOrderBtn = page.getByRole('button', { name: /Nouvelle|New/i }).first();
-    await newOrderBtn.waitFor({ state: 'visible', timeout: 15000 });
-    
-    // Retry click if modal doesn't open
-    await newOrderBtn.click();
-    
-    // Wait for modal title
-    await page.waitForSelector('h2:has-text("commande"), h2:has-text("Order")', { timeout: 15000 });
-}
-
 test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
         window.localStorage.setItem('language', 'fr');
     });
+    // Inject CSS to hide ALL possible blocking widgets
+    await page.addStyleTag({ content: `
+        [data-testid="qa-guide"], .qa-guide-container, #qa-guide-id, #tidio-chat, .qa-widget, #launcher { display: none !important; visibility: hidden !important; pointer-events: none !important; }
+    ` });
     await login(page);
 });
+
+async function openNewOrderModal(page) {
+    await page.goto('/orders');
+    await page.waitForLoadState('load');
+    
+    const newOrderBtn = page.locator('#new-order-button, #new-order-fab');
+    await expect(newOrderBtn.first()).toBeVisible({ timeout: 10000 });
+    await newOrderBtn.first().click({ force: true });
+    
+    // Wait for modal to appear via test ID
+    await page.waitForSelector('[data-testid="order-modal"]', { state: 'visible', timeout: 15000 });
+    await page.waitForTimeout(500);
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 // TEST 1 — Création d'une commande
@@ -68,33 +69,30 @@ test.describe('TEST 1 — Création d\'une commande', () => {
     test('Créer une commande et la voir dans la liste avec statut "Confirmé"', async ({ page }) => {
         await openNewOrderModal(page);
 
-        // ── Fill client info ──────────────────────────────────────────────
-        await page.locator('input[placeholder="0600000000"]').fill(ORDER.phone);
-        await page.waitForTimeout(600); // debounce
+        // Fill client info using IDs
+        await page.fill('#order-client-phone', ORDER.phone);
+        await page.waitForTimeout(500);
+        await page.fill('#order-client-name', ORDER.clientName);
+        await page.fill('#order-client-city', ORDER.city);
+        await page.fill('#order-client-address', ORDER.address);
 
-        await page.locator('input[placeholder*="Jean Dupont"]').fill(ORDER.clientName);
-        await page.locator('input[list="cities"]').fill(ORDER.city);
-        await page.locator('input[placeholder*="Adresse"]').fill(ORDER.address);
-
-        // ── Select first available product ───────────────────────────────
-        const productSelect = page.locator('select').first();
+        // Select product
+        const modal = page.locator('[data-testid="order-modal"]');
+        const productSelect = modal.locator('select').first();
         await productSelect.waitFor({ state: 'visible', timeout: 10000 });
         await productSelect.selectOption({ index: 1 });
+        await page.waitForTimeout(500);
         
-        await page.waitForTimeout(800);
-        const addToCartBtn = page.getByText(/Ajouter au panier|Add to cart/i);
+        const addToCartBtn = modal.locator('button:has-text("Ajouter")');
         if (await addToCartBtn.isVisible()) {
             await addToCartBtn.click();
         }
 
-        // ── Set status to "Confirmé" ───────────────────────────────────────
-        // Finding the second select (status)
-        await page.locator('select').nth(1).selectOption({ label: /Confirmé/i });
-
-        // ── Submit ────────────────────────────────────────────────────────
-        await page.getByRole('button', { name: /Enregistrer|Save|Valider/i }).click();
-
-        // ── Verify order appears in the list ──────────────────────────────
+        // Set status and submit
+        await modal.locator('#order-status-select').selectOption({ label: /Confirmé/i });
+        await modal.locator('#order-submit-button').click();
+        
+        // Verify it appears in the list
         await page.waitForSelector(`text=${ORDER.clientName}`, { timeout: 20000 });
         await expect(page.locator(`text=${ORDER.clientName}`).first()).toBeVisible();
     });
@@ -114,53 +112,55 @@ test.describe('TEST 2 — Changement de statut', () => {
         await firstOrderRow.waitFor({ timeout: 10000 });
         await firstOrderRow.click();
 
-        await page.waitForSelector('select', { timeout: 10000 });
-
-        // ── Change status to "En Livraison" ──────────────────────────────
-        const statusSelect = page.locator('select').nth(1);
-        await statusSelect.selectOption('livraison');
-        await page.getByRole('button', { name: /Enregistrer|Save|Valider/i }).click();
+        await page.waitForSelector('[data-testid="order-modal"]', { timeout: 10000 });
+        const modal = page.locator('[data-testid="order-modal"]');
+        
+        // "En Livraison"
+        await modal.locator('#order-status-select').selectOption('livraison');
+        await modal.locator('#order-submit-button').click();
         await page.waitForSelector('text=/En Livraison|livraison/i', { timeout: 15000 });
 
-        // ── Re-open and change to "Livré" ───────────────────────────────
+        // "Livré"
         await page.locator('tbody tr').first().click();
-        await page.waitForSelector('select', { timeout: 10000 });
-        await page.locator('select').nth(1).selectOption('livré');
-        await page.getByRole('button', { name: /Enregistrer|Save|Valider/i }).click();
+        await page.waitForSelector('[data-testid="order-modal"]', { timeout: 10000 });
+        await modal.locator('#order-status-select').selectOption('livré');
+        await modal.locator('#order-submit-button').click();
 
-        // ── Verify "Livré" badge ──────────────────────────────────────────
+        // Verify
         await page.waitForSelector('text=/Livré/i', { timeout: 15000 });
         await expect(page.locator('text=/Livré/i').first()).toBeVisible();
     });
 
 });
+
 // ═════════════════════════════════════════════════════════════════════════════
 // TEST 3 — Retour commande
 // ═════════════════════════════════════════════════════════════════════════════
 test.describe('TEST 3 — Retour commande', () => {
 
     test('Créer une commande, l\'expédier puis la retourner — stock remis à jour', async ({ page }) => {
+        const clientRetourName = 'Client Retour E2E ' + Date.now();
+        
         // ── Step 1: Create a fresh order ─────────────────────────────────
         await openNewOrderModal(page);
 
-        await page.locator('input[placeholder="0600000000"]').fill('0611111111');
+        await page.fill('#order-client-phone', '0611111111');
         await page.waitForTimeout(500);
-        await page.locator('input[placeholder*="Jean Dupont"]').fill('Client Retour E2E');
-        await page.locator('input[list="cities"]').fill('Rabat');
-        await page.locator('input[placeholder*="Adresse"]').fill('5 Avenue du Retour');
+        await page.fill('#order-client-name', clientRetourName);
+        await page.fill('#order-client-city', 'Rabat');
+        await page.fill('#order-client-address', '5 Avenue du Retour');
 
-        // Select first available product
-        const productSelect = page.locator('select').first();
+        const modal = page.locator('[data-testid="order-modal"]');
+        const productSelect = modal.locator('select').first();
         await productSelect.waitFor({ state: 'visible', timeout: 10000 });
         await productSelect.selectOption({ index: 1 });
-        await page.waitForTimeout(800);
+        await page.waitForTimeout(500);
         
-        const addBtn = page.getByText(/Ajouter au panier|Add to cart/i);
+        const addBtn = modal.locator('button:has-text("Ajouter")');
         if (await addBtn.isVisible()) await addBtn.click();
 
-        // Submit new order
-        await page.getByRole('button', { name: /Enregistrer|Save|Valider/i }).click();
-        await page.waitForSelector(`text=Client Retour E2E`, { timeout: 20000 });
+        await modal.locator('#order-submit-button').click();
+        await page.waitForSelector(`text=${clientRetourName}`, { timeout: 20000 });
 
         // ── Step 2: Note the initial stock level ──────────────────────────
         await page.goto('/products');
@@ -170,26 +170,26 @@ test.describe('TEST 3 — Retour commande', () => {
 
         // ── Step 3: Change to "En Livraison" ──────────────────────────────
         await page.goto('/orders');
-        await page.waitForSelector('text=Client Retour E2E', { timeout: 15000 });
-        await page.locator('tr').filter({ hasText: 'Client Retour E2E' }).first().click();
+        await page.waitForSelector(`text=${clientRetourName}`, { timeout: 15000 });
+        await page.locator('tr').filter({ hasText: clientRetourName }).first().click();
         
-        await page.waitForSelector('select', { timeout: 10000 });
-        await page.locator('select').nth(1).selectOption('livraison');
-        await page.getByRole('button', { name: /Enregistrer|Save|Valider/i }).click();
-        await page.waitForTimeout(1500);
+        await page.waitForSelector('[data-testid="order-modal"]', { timeout: 10000 });
+        await modal.locator('#order-status-select').selectOption('livraison');
+        await modal.locator('#order-submit-button').click();
+        await page.waitForTimeout(1000);
 
         // ── Step 4: Change to "Retour" ────────────────────────────────────
-        await page.locator('tr').filter({ hasText: 'Client Retour E2E' }).first().click();
-        await page.waitForSelector('select', { timeout: 10000 });
-        await page.locator('select').nth(1).selectOption('retour');
-        await page.getByRole('button', { name: /Enregistrer|Save|Valider/i }).click();
+        await page.locator('tr').filter({ hasText: clientRetourName }).first().click();
+        await page.waitForSelector('[data-testid="order-modal"]', { timeout: 10000 });
+        await modal.locator('#order-status-select').selectOption('retour');
+        await modal.locator('#order-submit-button').click();
 
         // ── Step 5: Verify status ─────────────────────────────────────────
         await page.waitForSelector('text=/Retour/i', { timeout: 15000 });
 
         // ── Step 6: Verify stock incremented ──────────────────────────────
         await page.goto('/products');
-        await page.waitForTimeout(5000); // Wait for Cloud Function
+        await page.waitForTimeout(2000); 
         await page.reload();
         
         const updatedStockText = await page.locator('tbody tr').first().locator('td').nth(3).textContent() ?? '0';
@@ -199,4 +199,3 @@ test.describe('TEST 3 — Retour commande', () => {
     });
 
 });
-

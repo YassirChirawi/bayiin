@@ -99,6 +99,7 @@ export default function QAGuide() {
                 initial={{ x: 300, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: 300, opacity: 0 }}
+                data-testid="qa-guide"
                 className={`fixed bottom-6 right-6 z-[9999] w-80 bg-white shadow-2xl rounded-2xl border border-indigo-100 overflow-hidden ${minimized ? 'h-14' : ''} transition-all duration-300`}
             >
                 {/* Header */}
