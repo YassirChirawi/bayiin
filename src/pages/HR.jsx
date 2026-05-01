@@ -14,7 +14,7 @@ import {
     ChevronDown, ChevronUp, Phone, MapPin, Briefcase, Star,
     Clock, CheckCircle, AlertTriangle, Upload, ShieldCheck,
     TrendingUp, RefreshCcw, Edit2, Save, Car, Award,
-    Home, Contact, GraduationCap, Camera, HeartPulse, Mail, Shield, RefreshCcw
+    Home, Contact, GraduationCap, Camera, HeartPulse, Mail, Shield
 } from 'lucide-react';
 import ProFeatureGuard from '../components/ProFeatureGuard';
 

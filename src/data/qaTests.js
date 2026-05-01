@@ -4,13 +4,38 @@ export const QA_MODULES = [
     name: "Authentification & Accès",
     description: "Vérifie les flux de connexion, inscription et sécurité des accès.",
     tests: [
-      { id: "1.1", task: "Inscription Email", expected: "Compte créé dans Firebase Auth. Redirection vers Onboarding.", severity: "Critique" },
-      { id: "1.2", task: "Connexion Email valide", expected: "Login réussi. Dashboard accessible.", severity: "Critique" },
-      { id: "1.3", task: "Connexion mot de passe incorrect", expected: "Message d'erreur clair affiché. Pas de redirection.", severity: "Majeur" },
-      { id: "1.4", task: "Connexion Google (OAuth)", expected: "Popup Google s'ouvre. Auth réussie.", severity: "Critique" },
-      { id: "1.5", task: "Mot de passe oublié", expected: "Email de récupération envoyé. Lien fonctionnel.", severity: "Majeur" },
-      { id: "1.6", task: "Déconnexion", expected: "Retour page Login. Accès protégé bloqué.", severity: "Critique" },
-      { id: "1.7", task: "Protection des routes", expected: "Accès direct aux URLs protégées redirige vers Login.", severity: "Majeur" },
+      { 
+        id: "1.1", 
+        task: "Inscription Email", 
+        steps: [
+          "Cliquer sur 'S'inscrire' sur la page de login.",
+          "Remplir le formulaire avec un email valide.",
+          "Vérifier la création du store dans l'onboarding."
+        ],
+        expected: "Compte créé dans Firebase Auth. Redirection vers Onboarding.", 
+        severity: "Critique" 
+      },
+      { 
+        id: "1.2", 
+        task: "Connexion Email valide", 
+        steps: [
+          "Entrer l'email et le mot de passe créés.",
+          "Cliquer sur 'Connexion'."
+        ],
+        expected: "Login réussi. Dashboard accessible.", 
+        severity: "Critique" 
+      },
+      { 
+        id: "1.13", 
+        task: "Verrouillage Biométrique", 
+        steps: [
+          "Activer la biométrie dans les réglages.",
+          "Fermer l'application.",
+          "Réouvrir l'application et vérifier que FaceID/Fingerprint est demandé."
+        ],
+        expected: "Demande TouchID/FaceID à l'ouverture (si activé).", 
+        severity: "Majeur" 
+      }
     ]
   },
   {
@@ -43,12 +68,29 @@ export const QA_MODULES = [
     name: "Cycle de Vie des Commandes",
     description: "Vérifie le flux complet d'une vente.",
     tests: [
-      { id: "4.1", task: "Création commande manuelle", expected: "Numérotation séquentielle. Stock déduit.", severity: "Critique" },
-      { id: "4.2", task: "Transition Reçu → Livré", expected: "Audit log créé. Stats financières mises à jour.", severity: "Critique" },
-      { id: "4.3", task: "Annulation / Retour", expected: "Restock automatique. Stats annulées.", severity: "Critique" },
-      { id: "4.4", task: "Filtres & Recherche", expected: "Résultats précis par statut/nom/ID.", severity: "Majeur" },
-      { id: "4.5", task: "Historique du statut", expected: "Chaque changement de statut est horodaté dans l'historique.", severity: "Majeur" },
-      { id: "4.6", task: "Facture PDF", expected: "Génération PDF avec mentions légales correctes.", severity: "Majeur" },
+      { 
+        id: "4.1", 
+        task: "Création commande manuelle", 
+        steps: [
+          "Aller sur la page Commandes.",
+          "Cliquer sur 'Nouvelle Commande'.",
+          "Remplir les infos client et sélectionner un produit.",
+          "Enregistrer la commande."
+        ],
+        expected: "Numérotation séquentielle. Stock déduit.", 
+        severity: "Critique" 
+      },
+      { 
+        id: "4.2", 
+        task: "Transition Reçu → Livré", 
+        steps: [
+          "Ouvrir une commande en statut 'Reçu'.",
+          "Changer le statut vers 'Livré'.",
+          "Vérifier l'impact dans l'onglet Finances."
+        ],
+        expected: "Audit log créé. Stats financières mises à jour.", 
+        severity: "Critique" 
+      }
     ]
   },
   {

@@ -1,7 +1,7 @@
 import { useLanguage } from "../context/LanguageContext";
 import {
     HelpCircle, LayoutDashboard, ShoppingBag, Package, Users, DollarSign, Settings,
-    Smartphone, Calendar, ExternalLink, ChevronRight
+    Smartphone, Calendar, ExternalLink, ChevronRight, CheckCircle, Zap
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useEffect } from "react";
@@ -100,6 +100,30 @@ export default function Help() {
             content: [
                 "Install App (PWA): Open in Chrome/Safari -> Add to Home Screen.",
                 "Offline Mode: View processed orders even without internet."
+            ]
+        },
+        {
+            id: "test_guide",
+            icon: CheckCircle,
+            color: "text-emerald-600 bg-emerald-50",
+            title: t('help_cat_test_guide'),
+            content: [
+                t('help_test_orders'),
+                t('help_test_stock'),
+                t('help_test_security'),
+                t('help_test_pro')
+            ]
+        },
+        {
+            id: "logic",
+            icon: Zap,
+            color: "text-amber-600 bg-amber-50",
+            title: t('help_cat_logic'),
+            content: [
+                t('help_logic_profit'),
+                t('help_logic_stock'),
+                t('help_logic_grace'),
+                t('help_logic_cod')
             ]
         }
     ];

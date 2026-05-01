@@ -16,7 +16,8 @@ import {
     FileText,
     ExternalLink,
     Database,
-    Zap
+    Zap,
+    Star
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import Button from "../components/Button";
@@ -85,6 +86,17 @@ export default function QA() {
             timestamp: new Date().toISOString() 
         } };
         setResults(newResults);
+    };
+
+    const updateRating = (testId, rating) => {
+        if (isReadOnly) return;
+        const newResults = { ...results, [testId]: { 
+            ...(results[testId] || {}),
+            uxRating: rating,
+            timestamp: new Date().toISOString() 
+        } };
+        setResults(newResults);
+        vibrate('soft');
     };
 
     const handleSave = async () => {
@@ -318,8 +330,9 @@ export default function QA() {
                                             <thead>
                                                 <tr className="bg-gray-50/50 text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">
                                                     <th className="px-6 py-3">ID</th>
-                                                    <th className="px-6 py-3">Cas de Test</th>
+                                                    <th className="px-6 py-3">Cas de Test & Étapes</th>
                                                     <th className="px-6 py-3">Résultat Attendu</th>
+                                                    <th className="px-6 py-3 text-center">Expérience (UX)</th>
                                                     <th className="px-6 py-3 text-center">Sévérité</th>
                                                     <th className="px-6 py-3 text-center">Statut</th>
                                                 </tr>
@@ -327,14 +340,25 @@ export default function QA() {
                                             <tbody className="divide-y divide-gray-50">
                                                 {module.tests.map((test) => {
                                                     const status = results[test.id]?.status || 'pending';
+                                                    const uxRating = results[test.id]?.uxRating || 0;
                                                     return (
                                                         <tr key={test.id} className={`group hover:bg-gray-50/50 transition-colors ${status === 'ok' ? 'opacity-60' : ''}`}>
                                                             <td className="px-6 py-4 text-xs font-mono font-bold text-gray-400">{test.id}</td>
                                                             <td className="px-6 py-4">
                                                                 <p className="text-sm font-bold text-gray-900">{test.task}</p>
-                                                                <div className="mt-2">
+                                                                {test.steps && (
+                                                                    <div className="mt-2 space-y-1">
+                                                                        {test.steps.map((step, idx) => (
+                                                                            <p key={idx} className="text-[10px] text-gray-500 flex items-center gap-1.5">
+                                                                                <span className="w-4 h-4 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-[8px] font-bold">{idx + 1}</span>
+                                                                                {step}
+                                                                            </p>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                                <div className="mt-3">
                                                                     <textarea 
-                                                                        placeholder="Ce que j'ai fait (1-2 phrases)..."
+                                                                        placeholder="Preuve de test (minimum 5 car.)..."
                                                                         className="w-full text-xs p-2 border border-gray-100 rounded-lg bg-gray-50/50 focus:bg-white focus:ring-1 focus:ring-indigo-200 transition-all"
                                                                         rows={1}
                                                                         value={results[test.id]?.comment || ""}
@@ -343,7 +367,23 @@ export default function QA() {
                                                                     />
                                                                 </div>
                                                             </td>
-                                                            <td className="px-6 py-4 text-sm text-gray-500 italic">{test.expected}</td>
+                                                            <td className="px-6 py-4 text-sm text-gray-500 italic max-w-xs">{test.expected}</td>
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex flex-col items-center gap-1">
+                                                                    <div className="flex gap-0.5">
+                                                                        {[1, 2, 3, 4, 5].map((star) => (
+                                                                            <button
+                                                                                key={star}
+                                                                                onClick={() => !isReadOnly && updateRating(test.id, star)}
+                                                                                className={`p-0.5 transition-colors ${uxRating >= star ? 'text-amber-400' : 'text-gray-200 hover:text-amber-200'}`}
+                                                                            >
+                                                                                <Star size={16} fill={uxRating >= star ? "currentColor" : "none"} />
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">UX Rating</span>
+                                                                </div>
+                                                            </td>
                                                             <td className="px-6 py-4 text-center">
                                                                 <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
                                                                     test.severity === 'Critique' ? 'bg-red-50 text-red-600' :

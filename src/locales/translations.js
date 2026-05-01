@@ -1015,6 +1015,8 @@ export const translations = {
         help_cat_planning: "Planning & Événements",
         help_cat_settings: "Paramètres & Équipe",
         help_cat_mobile: "App Mobile (PWA)",
+        help_cat_test_guide: "Guide de Test (QA)",
+        help_cat_logic: "Circuits Logiques & FAQ",
 
         // Dashboard Guide
         help_dash_intro: "Le centre de contrôle pour suivre la santé du business.",
@@ -1057,8 +1059,21 @@ export const translations = {
         help_settings_intro: "Configuration de la boutique.",
         help_settings_identity: "Identité : Logo, Nom, Devise.",
         help_settings_whatsapp: "WhatsApp : Choix de la langue (Français Standard ou Darija).",
-        help_settings_security: "Biométrie : Verrouillage FaceID/TouchID.",
+        help_settings_security: "Biométrie : Verrouillage FaceID/TouchID pour une sécurité maximale.",
         help_settings_team: "Équipe : Invitez du Staff (accès restreint) ou Managers.",
+        help_pro_preview: "Mode Aperçu PRO : Explorez les fonctionnalités avancées avant de passer au plan supérieur.",
+
+        // Test Guide
+        help_test_orders: "Test Cycle de vie : Création -> Expédition -> Livraison -> Profit.",
+        help_test_stock: "Test Stock : Vérifiez que le stock baisse à la commande et remonte à l'annulation.",
+        help_test_security: "Test Sécurité : Vérifiez le verrouillage après 2 min d'inactivité.",
+        help_test_pro: "Test PRO : Vérifiez que les actions RH/Assets sont bloquées en mode aperçu.",
+
+        // Logic Guide
+        help_logic_profit: "Profit Net = Revenu Livré - Coûts (Produits + Livraison + Pubs).",
+        help_logic_stock: "Le stock est décompté dès la commande pour éviter les surventes.",
+        help_logic_grace: "Le délai de grâce biométrique est de 2 minutes pour éviter les verrouillages intempestifs.",
+        help_logic_cod: "Suivi COD : Argent en transit (Livreur) vs Argent encaissé (Banque).",
 
 
         // Orders
@@ -1745,8 +1760,13 @@ export const translations = {
         faq_integration_a: "Oui, nous intégrons les principaux services de livraison au Maroc pour automatiser vos expéditions et le suivi de vos colis.",
         faq_security_q: "Mes données sont-elles sécurisées ?",
         faq_security_a: "La sécurité est notre priorité. Vos données sont chiffrées et stockées sur des serveurs sécurisés. Nous respectons scrupuleusement la loi 09-08 sur la protection des données.",
-        faq_import_q: "Puis-je importer mes produits depuis une autre plateforme ?",
         faq_import_a: "Oui, nous proposons un outil d'importation facile via fichier CSV pour transférer votre catalogue produits en quelques clics.",
+        faq_biometrics_q: "Comment activer le verrouillage biométrique ?",
+        faq_biometrics_a: "Vous pouvez l'activer dès votre connexion via la fenêtre de configuration rapide, ou à tout moment dans Paramètres > Sécurité. Il utilise FaceID ou votre Empreinte Digitale pour protéger l'accès à vos données financières.",
+        faq_pro_preview_q: "Pourquoi certaines pages sont-elles grisées ou en 'Mode Aperçu' ?",
+        faq_pro_preview_a: "Ces fonctionnalités (RH, Automatisations, Assets, Scan Entrepôt) font partie du plan PRO. Vous pouvez explorer l'interface en mode aperçu pour voir leur potentiel, mais les actions de modification sont réservées aux comptes premium.",
+        faq_grace_period_q: "Qu'est-ce que le délai de grâce biométrique ?",
+        faq_grace_period_a: "Pour éviter de vous demander votre empreinte à chaque fois que vous changez brièvement d'application, un délai de grâce de 2 minutes est appliqué avant le verrouillage effectif.",
 
         // Footer
         footer_description: "La solution complète pour les e-commerçants marocains. Simplifiez votre gestion, augmentez vos ventes et gagnez du temps.",
