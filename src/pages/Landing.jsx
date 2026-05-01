@@ -4,6 +4,7 @@ import SEO from "../components/SEO";
 import { motion } from "framer-motion";
 import Footer from "../components/Footer";
 import FAQ from "../components/FAQ";
+import ContactSection from "../components/ContactSection";
 import LiveAppPreview from "../components/LiveAppPreview";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -32,7 +33,7 @@ export default function Landing() {
                             <Link to="/" className="hover:text-indigo-600 transition-colors">{t('nav_home')}</Link>
                             <a href="#features" className="hover:text-indigo-600 transition-colors">{t('nav_features')}</a>
                             <a href="#pricing" className="hover:text-indigo-600 transition-colors">{t('nav_pricing')}</a>
-                            {/* <a href="#testimonials" className="hover:text-indigo-600 transition-colors">Avis</a> */}
+                            <a href="#contact" className="hover:text-indigo-600 transition-colors">Contact</a>
                         </div>
 
                         <div className="flex items-center gap-4">
@@ -64,6 +65,8 @@ export default function Landing() {
                             <Link to="/signup" className="hidden sm:flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5">
                                 {t('nav_signup')} <ArrowRight className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
                             </Link>
+                            {/* Hidden admin access — visible on hover only */}
+                            <Link to="/admin" title="Administration" className="opacity-0 hover:opacity-40 transition-opacity duration-300 text-slate-400 hover:text-slate-600 text-lg select-none">🔑</Link>
                         </div>
                     </div>
                 </div>
@@ -560,6 +563,8 @@ export default function Landing() {
                     </div>
                 </div>
             </section>
+
+            <ContactSection />
 
             <div className="bg-slate-900 border-t border-slate-800">
                 <Footer />

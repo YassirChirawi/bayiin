@@ -194,6 +194,37 @@ Tu as eu **${returns} retours** ce mois-ci.
 ${getRandomAdvice('logistics')}`;
     }
 
+    // 8. HELP / PLATFORM HOW-TO — Rich Knowledge Base
+    const helpIntents = [
+        { keys: ["commande", "créer", "nouvelle commande", "new order"], answer: "**Comment créer une commande :**\n1. Allez dans **Commandes** → cliquez sur **Nouvelle Commande**.\n2. Entrez le numéro de téléphone du client (10 chiffres).\n3. Si le client existe, ses infos s'auto-remplissent.\n4. Sélectionnez le produit et la quantité.\n5. Choisissez le statut initial (Reçu recommandé).\n6. Enregistrez — le stock est automatiquement déduit." },
+        { keys: ["statut", "changer statut", "workflow"], answer: "**Workflow des statuts :**\n🔵 **Reçu** → ✅ **Confirmation** → 📦 **Préparation** → 🚚 **Livraison** → ✅ **Livré** (argent encaissé)\nOu : **Retour / Annulé** si le client refuse.\nChaque changement de statut peut déclencher un message WhatsApp automatique." },
+        { keys: ["whatsapp", "message automatique", "template"], answer: "**Messages WhatsApp :**\nBayIIn génère un message pré-rempli en un clic selon le statut (Confirmation, Livraison, Retour).\nVous pouvez choisir entre le Français standard ou le Darija dans **Paramètres → WhatsApp**." },
+        { keys: ["produit", "ajouter produit", "variante", "stock"], answer: "**Gestion des produits :**\n- **Produit simple** : nom, prix, coût, stock.\n- **Avec variantes** : créez des options (Taille, Couleur) et générez les combinaisons automatiquement.\n- **Bundle/Pack** : le stock de chaque composant est déduit à la vente.\n- L'alerte stock bas s'active sous 5 unités (configurable)." },
+        { keys: ["finance", "profit", "bénéfice", "marge", "roas", "cac"], answer: "**Calcul du profit :**\nProfit Net = CA (Livré) - Coût Produit - Frais Livraison - Publicité.\nLes KPIs disponibles : ROAS, CAC, Marge nette, CA journalier.\nAjoutez vos dépenses publicitaires dans **Finances → Gestion des Dépenses**." },
+        { keys: ["client", "crm", "fiche client", "ltv"], answer: "**CRM Clients :**\nChaque client a une fiche avec : historique d'achat, LTV (valeur vie), segment (VIP/À risque).\nLe numéro de téléphone sert d'identifiant unique. L'adresse s'auto-complète pour les clients existants." },
+        { keys: ["livreur", "driver", "livraison interne", "transport"], answer: "**Système de livraison interne :**\n1. Publiez votre lien de candidature livreur.\n2. Validez les candidats depuis **Livreurs**.\n3. Assignez les commandes à vos livreurs.\n4. Chaque livreur a une app mobile avec ses commandes du jour et navigation GPS." },
+        { keys: ["entrepôt", "scan", "code barre", "qr code"], answer: "**Module Entrepôt & Scan (PRO) :**\nScannez le QR d'une commande pour l'expédier directement.\nScannez un code-barres produit pour voir le stock et mettre à jour rapidement." },
+        { keys: ["automatisation", "automation", "scénario", "déclencheur"], answer: "**Automatisations (PRO) :**\nCréez des scénarios : Déclencheur (nouvelle commande, changement de statut) → Condition → Action (envoyer WhatsApp, mettre à jour statut).\nExemple : quand une commande passe en 'Livré', envoyer automatiquement un message de remerciement." },
+        { keys: ["rh", "employé", "salaire", "contrat"], answer: "**RH & Employés (PRO) :**\nGérez les fiches employés, contrats, documents RIB/CIN/CNSS.\nSuivez les présences et les avances sur salaire depuis le module RH." },
+        { keys: ["paramètre", "configuration", "devise", "logo"], answer: "**Configuration boutique :**\n- Logo : Paramètres → Général → Logo\n- Devise : MAD, EUR, USD supportés\n- WhatsApp templates : Paramètres → WhatsApp\n- Équipe : Paramètres → Équipe (inviter staff/manager)" },
+        { keys: ["pwa", "installer", "application", "mobile", "smartphone"], answer: "**Installer BayIIn sur votre téléphone :**\n1. Ouvrez bayiin.shop sur Chrome (Android) ou Safari (iPhone).\n2. Appuyez sur **'Ajouter à l'écran d'accueil'**.\n3. L'app s'installe comme une app native, fonctionne hors-ligne pour consultation.\nPour iOS : icône de partage → 'Sur l'écran d'accueil'." },
+        { keys: ["sécurité", "faceid", "biométrie", "verrouillage"], answer: "**Sécurité & Biométrie :**\nActivez le verrouillage biométrique dans **Paramètres → Sécurité**.\nFaceID ou empreinte digitale sera demandé à chaque ouverture de l'app sur cet appareil." },
+        { keys: ["catalogue", "lien public", "partager"], answer: "**Catalogue public :**\nChaque boutique a un lien public unique : `bayiin.shop/catalog/[ID]`.\nPartagez ce lien avec vos clients pour qu'ils puissent commander directement via WhatsApp." },
+        { keys: ["import", "csv", "exporter"], answer: "**Import/Export :**\n- **Commandes** : importez via CSV (colonnes : téléphone, produit, prix, statut).\n- **Produits** : importez en masse depuis un fichier CSV.\n- **Export** : exportez vos commandes au format CSV depuis la page Commandes." },
+        { keys: ["franchise", "multi boutique", "réseau"], answer: "**Mode Franchise :**\nAvec le compte Franchise, gérez plusieurs boutiques depuis un seul tableau de bord consolidé.\nComparez les performances, CA et stocks de chaque point de vente en temps réel." },
+    ];
+
+    for (const item of helpIntents) {
+        if (item.keys.some(k => input.includes(k))) {
+            return `📚 ${item.answer}\n\n_Besoin d'aide supplémentaire ? Contactez le support WhatsApp : **+212 6 00 00 00 00**_`;
+        }
+    }
+
+    // 9. SUPPORT / CONTACT
+    if (input.includes("support") || input.includes("problème") || input.includes("bug") || input.includes("contact") || input.includes("aide") || input.includes("whatsapp support")) {
+        return "📞 **Support BayIIn**\n\nPour toute assistance, contactez notre équipe :\n\n**WhatsApp** : [+212 6 00 00 00 00](https://wa.me/212600000000)\n**Email** : support@bayiin.shop\n\nHoraires : **Lundi – Samedi, 9h – 20h**\nRéponse garantie en moins de **2 heures** ⚡\n\nOu utilisez le formulaire de contact dans **Aide → Nous contacter**.";
+    }
+
     // DEFAULT
 };
 

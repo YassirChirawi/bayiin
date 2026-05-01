@@ -16,6 +16,8 @@ export default function AdminDashboard() {
     const [activeTab, setActiveTab] = useState('stores');
     const [searchTerm, setSearchTerm] = useState("");
     const [qaProgress, setQaProgress] = useState({});
+    const [contacts, setContacts] = useState([]);
+    const [contactsLoading, setContactsLoading] = useState(false);
 
     // Custom Hook
     const { stats, stores, usersList, franchises, broadcastData, loading, refreshData, setStores, setUsersList } = useAdminData(user);
@@ -141,6 +143,17 @@ export default function AdminDashboard() {
         if (activeTab === 'qa' && stores.length > 0) {
             fetchQaProgress();
         }
+        if (activeTab === 'contacts') {
+            setContactsLoading(true);
+            getDocs(collection(db, 'contact_requests'))
+                .then(snap => {
+                    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    data.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                    setContacts(data);
+                })
+                .catch(console.error)
+                .finally(() => setContactsLoading(false));
+        }
     }, [activeTab, stores]);
 
 
@@ -247,8 +260,8 @@ export default function AdminDashboard() {
                 {/* Main Content Areas */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 min-h-[500px]">
                     <div className="border-b border-gray-100 px-6 pt-6 bg-white rounded-t-2xl sticky top-0 z-10">
-                        <nav className="-mb-px flex space-x-8">
-                            {['stores', 'users', 'franchises', 'qa', 'broadcast'].map((tab) => (
+                        <nav className="-mb-px flex space-x-6 overflow-x-auto">
+                            {['stores', 'users', 'franchises', 'qa', 'contacts', 'broadcast'].map((tab) => (
                                 <button
                                     key={tab}
                                     onClick={() => setActiveTab(tab)}
@@ -259,7 +272,7 @@ export default function AdminDashboard() {
                                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
                                     `}
                                 >
-                                    {tab === 'qa' ? 'QA Recette' : tab}
+                                    {tab === 'qa' ? 'QA Recette' : tab === 'contacts' ? '📬 Contacts' : tab}
                                 </button>
                             ))}
                         </nav>
@@ -267,7 +280,7 @@ export default function AdminDashboard() {
 
                     <div className="p-6">
                         {/* Control Bar for Lists */}
-                        {activeTab !== 'broadcast' && (
+                        {activeTab !== 'broadcast' && activeTab !== 'contacts' && (
                             <div className="mb-6 flex flex-col sm:flex-row justify-between gap-4">
                                 <div className="w-full sm:w-72">
                                     <Input
@@ -465,6 +478,65 @@ export default function AdminDashboard() {
                                 </table>
                                 {filteredFranchises.length === 0 && (
                                     <div className="p-12 text-center text-gray-500">No franchises found.</div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* CONTACTS TAB */}
+                        {activeTab === 'contacts' && (
+                            <div className="space-y-4">
+                                <div className="bg-indigo-50 border border-indigo-100 p-5 rounded-2xl">
+                                    <h3 className="font-bold text-indigo-900">📬 Demandes de contact & devis</h3>
+                                    <p className="text-sm text-indigo-700 mt-1">Toutes les demandes soumises depuis la landing page ou le centre d'aide.</p>
+                                </div>
+                                {contactsLoading ? (
+                                    <div className="flex justify-center py-12"><div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full" /></div>
+                                ) : contacts.length === 0 ? (
+                                    <div className="text-center py-16 text-gray-400">Aucune demande reçue pour le moment.</div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {contacts.map(c => (
+                                            <div key={c.id} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-all">
+                                                <div className="flex items-start justify-between gap-4 flex-wrap">
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${c.type === 'support' ? 'bg-blue-100 text-blue-700' : c.type === 'devis' ? 'bg-indigo-100 text-indigo-700' : c.type === 'integration' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>{c.type || 'contact'}</span>
+                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${c.status === 'done' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{c.status === 'done' ? '✅ Traité' : '🆕 Nouveau'}</span>
+                                                            <span className="text-xs text-gray-400">{c.createdAt?.toDate ? c.createdAt.toDate().toLocaleString('fr-FR') : '—'}</span>
+                                                        </div>
+                                                        <p className="font-bold text-gray-900">{c.name || 'Anonyme'}</p>
+                                                        <p className="text-sm text-gray-500">{c.company ? `${c.company} · ` : ''}{c.email}</p>
+                                                        {c.budget && <p className="text-xs text-gray-400 mt-0.5">Budget : {c.budget}</p>}
+                                                        {c.storeCount && c.storeCount !== '1' && <p className="text-xs text-gray-400">Boutiques : {c.storeCount}</p>}
+                                                        {c.message && <p className="text-sm text-gray-600 mt-2 bg-gray-50 p-3 rounded-xl italic">"{c.message}"</p>}
+                                                        {c.integrationOptions?.length > 0 && (
+                                                            <div className="flex flex-wrap gap-1 mt-2">
+                                                                {c.integrationOptions.map(o => <span key={o} className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">{o}</span>)}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                                                        {c.phone && (
+                                                            <a href={`https://wa.me/${c.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"
+                                                                className="flex items-center gap-1.5 text-xs font-bold text-white bg-[#25D366] hover:bg-[#1DAE57] px-3 py-1.5 rounded-xl transition-colors">
+                                                                📱 {c.phone}
+                                                            </a>
+                                                        )}
+                                                        <button
+                                                            onClick={async () => {
+                                                                const { updateDoc: ud, doc: fd } = await import('firebase/firestore');
+                                                                await ud(fd(db, 'contact_requests', c.id), { status: c.status === 'done' ? 'new' : 'done' });
+                                                                setContacts(prev => prev.map(x => x.id === c.id ? { ...x, status: x.status === 'done' ? 'new' : 'done' } : x));
+                                                            }}
+                                                            className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-colors ${c.status === 'done' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                                        >
+                                                            {c.status === 'done' ? 'Rouvrir' : 'Marquer traité'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 )}
                             </div>
                         )}
