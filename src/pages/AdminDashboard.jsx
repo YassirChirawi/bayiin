@@ -123,15 +123,40 @@ export default function AdminDashboard() {
     // Fetch QA Progress
     const fetchQaProgress = async () => {
         const progress = {};
+        // Load QA test definitions for task/severity metadata
+        const { QA_MODULES: QA_MODS } = await import('../data/qaTests');
+        const testMeta = {};
+        QA_MODS.forEach(mod => mod.tests.forEach(t => { testMeta[t.id] = t; }));
+
         for (const store of stores) {
             try {
                 const snap = await getDocs(collection(db, "stores", store.id, "qa_runs"));
                 if (!snap.empty) {
                     const currentRun = snap.docs.find(d => d.id === 'current')?.data();
-                    if (currentRun && currentRun.tests) {
-                        const total = 49; // Total tests from qaTests.js
-                        const completed = Object.values(currentRun.tests).filter(t => t.status === 'ok').length;
-                        progress[store.id] = { completed, total, updatedAt: currentRun.updatedAt };
+                    if (currentRun?.tests) {
+                        const entries = Object.entries(currentRun.tests);
+                        const total = Object.keys(testMeta).length || 49;
+                        const completed = entries.filter(([, t]) => t.status === 'ok').length;
+                        const failed = entries.filter(([, t]) => t.status === 'fail').length;
+
+                        // UX Rating average (only rated entries)
+                        const rated = entries.filter(([, t]) => t.uxRating > 0);
+                        const avgUxRating = rated.length > 0
+                            ? rated.reduce((s, [, t]) => s + t.uxRating, 0) / rated.length
+                            : 0;
+
+                        // Failed tests with metadata
+                        const failedTests = entries
+                            .filter(([, t]) => t.status === 'fail')
+                            .map(([id, t]) => ({
+                                id,
+                                task: testMeta[id]?.task || id,
+                                severity: testMeta[id]?.severity || 'Mineur',
+                                bugDescription: t.bugDescription || '',
+                                comment: t.comment || '',
+                            }));
+
+                        progress[store.id] = { completed, total, failed, avgUxRating, failedTests, updatedAt: currentRun.updatedAt };
                     }
                 }
             } catch (e) { console.error(e); }
@@ -544,49 +569,84 @@ export default function AdminDashboard() {
                         {/* QA TAB */}
                         {activeTab === 'qa' && (
                             <div className="space-y-6">
-                                <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-2xl mb-8">
-                                    <h3 className="text-lg font-bold text-indigo-900 mb-2">Suivi Global de la Recette</h3>
-                                    <p className="text-sm text-indigo-700">Surveillez l'état d'avancement des tests sur toutes les boutiques clientes.</p>
+                                <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-2xl">
+                                    <h3 className="text-lg font-bold text-indigo-900 mb-1">Suivi Global de la Recette QA</h3>
+                                    <p className="text-sm text-indigo-700">Vue en temps réel des résultats, bugs signalés et notes UX par boutique.</p>
                                 </div>
-                                <div className="grid grid-cols-1 gap-6">
-                                    {stores.map(store => {
-                                        const progress = qaProgress[store.id] || { completed: 0, total: 50 };
-                                        const percentage = Math.round((progress.completed / progress.total) * 100);
-                                        return (
-                                            <div key={store.id} className="bg-white p-6 rounded-2xl border border-gray-100 flex items-center justify-between hover:shadow-md transition-all">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="h-12 w-12 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 font-bold">
-                                                        {store.name?.[0]}
-                                                    </div>
-                                                    <div>
-                                                        <h4 className="font-bold text-gray-900">{store.name}</h4>
-                                                        <p className="text-xs text-gray-500">ID: {store.id}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex-1 max-w-md px-12">
-                                                    <div className="flex justify-between text-xs mb-1 font-bold">
-                                                        <span className="text-indigo-600">{percentage}% complété</span>
-                                                        <span className="text-gray-400">{progress.completed} / {progress.total} tests</span>
-                                                    </div>
-                                                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                                        <div 
-                                                            className="h-full bg-indigo-500 transition-all duration-1000"
-                                                            style={{ width: `${percentage}%` }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <Button 
-                                                    size="sm" 
-                                                    variant="secondary" 
-                                                    icon={ExternalLink}
-                                                    onClick={() => navigate(`/qa?storeId=${store.id}`)}
-                                                >
-                                                    Détails
-                                                </Button>
+
+                                {stores.length === 0 ? (
+                                    <div className="text-center py-12 text-gray-400">Aucune boutique trouvée.</div>
+                                ) : stores.map(store => {
+                                    const p = qaProgress[store.id];
+                                    if (!p) return (
+                                        <div key={store.id} className="bg-white p-5 rounded-2xl border border-gray-100 flex items-center gap-4">
+                                            <div className="h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center font-bold text-gray-400">{store.name?.[0]}</div>
+                                            <div className="flex-1">
+                                                <p className="font-bold text-gray-900">{store.name}</p>
+                                                <p className="text-xs text-gray-400">Aucun test commencé</p>
                                             </div>
-                                        );
-                                    })}
-                                </div>
+                                            <Button size="sm" variant="secondary" icon={ExternalLink} onClick={() => navigate(`/qa?storeId=${store.id}`)}>Ouvrir QA</Button>
+                                        </div>
+                                    );
+
+                                    const { completed, total, failed = 0, avgUxRating, failedTests = [], updatedAt } = p;
+                                    const pct = Math.round((completed / total) * 100);
+
+                                    return (
+                                        <div key={store.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-md transition-all">
+                                            {/* Store Header */}
+                                            <div className="p-5 flex flex-wrap items-center gap-4">
+                                                <div className="h-11 w-11 rounded-xl bg-indigo-50 flex items-center justify-center font-black text-indigo-600 text-lg">{store.name?.[0]}</div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold text-gray-900">{store.name}</p>
+                                                    {updatedAt && <p className="text-[10px] text-gray-400">Mis à jour : {new Date(updatedAt.seconds * 1000).toLocaleString('fr-FR')}</p>}
+                                                </div>
+                                                {/* KPI Pills */}
+                                                <div className="flex flex-wrap gap-2">
+                                                    <span className="px-2 py-1 rounded-full text-[11px] font-bold bg-green-100 text-green-700">{completed} ✅ validés</span>
+                                                    {failed > 0 && <span className="px-2 py-1 rounded-full text-[11px] font-bold bg-red-100 text-red-700">{failed} ❌ bugs</span>}
+                                                    {avgUxRating > 0 && <span className="px-2 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-700">⭐ {avgUxRating.toFixed(1)} UX moy.</span>}
+                                                    <span className="px-2 py-1 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-700">{total - completed - failed} ⏳ en attente</span>
+                                                </div>
+                                                <Button size="sm" variant="secondary" icon={ExternalLink} onClick={() => navigate(`/qa?storeId=${store.id}`)}>Voir QA</Button>
+                                            </div>
+
+                                            {/* Progress bar */}
+                                            <div className="px-5 pb-4">
+                                                <div className="flex justify-between text-xs mb-1 font-bold">
+                                                    <span className="text-indigo-600">{pct}% complété</span>
+                                                    <span className="text-gray-400">{completed} / {total}</span>
+                                                </div>
+                                                <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden flex">
+                                                    <div className="h-full bg-green-500 transition-all duration-700" style={{ width: `${pct}%` }} />
+                                                    {failed > 0 && <div className="h-full bg-red-400 transition-all duration-700" style={{ width: `${Math.round((failed / total) * 100)}%` }} />}
+                                                </div>
+                                            </div>
+
+                                            {/* Bug list */}
+                                            {failedTests.length > 0 && (
+                                                <div className="border-t border-red-50 bg-red-50/50 px-5 py-4">
+                                                    <p className="text-xs font-bold text-red-700 mb-3 flex items-center gap-1.5">🐛 Bugs signalés ({failedTests.length})</p>
+                                                    <div className="space-y-2">
+                                                        {failedTests.map(t => (
+                                                            <div key={t.id} className="bg-white rounded-xl p-3 border border-red-100">
+                                                                <div className="flex items-start justify-between gap-2">
+                                                                    <div className="min-w-0">
+                                                                        <span className="text-[10px] font-mono text-gray-400 mr-1">{t.id}</span>
+                                                                        <span className="text-xs font-bold text-gray-900">{t.task}</span>
+                                                                        {t.bugDescription && <p className="text-xs text-red-600 mt-1 italic">"{t.bugDescription}"</p>}
+                                                                        {t.comment && <p className="text-[10px] text-gray-400 mt-0.5">Preuve : {t.comment}</p>}
+                                                                    </div>
+                                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${t.severity === 'Critique' ? 'bg-red-100 text-red-700' : t.severity === 'Majeur' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'}`}>{t.severity}</span>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
 

@@ -1,23 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useTenant } from "../context/TenantContext";
 import { useSearchParams } from "react-router-dom";
 import { QA_MODULES } from "../data/qaTests";
 import { collection, addDoc, getDoc, setDoc, doc, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { 
-    ShieldCheck, 
-    ChevronDown, 
-    ChevronUp, 
-    CheckCircle2, 
-    XCircle, 
-    AlertCircle, 
-    Save,
-    RotateCcw,
-    FileText,
-    ExternalLink,
-    Database,
-    Zap,
-    Star
+import {
+    ShieldCheck, ChevronDown, ChevronUp, CheckCircle2, XCircle,
+    AlertCircle, Save, RotateCcw, FileText, ExternalLink,
+    Database, Star, Bug, Zap, CheckCheck, Filter
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import Button from "../components/Button";
@@ -33,7 +23,10 @@ export default function QA() {
     const [results, setResults] = useState({});
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [autoSaved, setAutoSaved] = useState(false);
     const [expandedModules, setExpandedModules] = useState([QA_MODULES[0].id]);
+    const [statusFilter, setStatusFilter] = useState('all'); // 'all'|'pending'|'fail'|'ok'
+    const saveTimerRef = useRef(null);
 
     useEffect(() => {
         if (!targetStoreId) return;
@@ -53,50 +46,77 @@ export default function QA() {
     }, [targetStoreId]);
 
     const toggleModule = (id) => {
-        setExpandedModules(prev => 
+        setExpandedModules(prev =>
             prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]
         );
     };
 
-    const updateTest = (testId, status, comment = null) => {
-        if (isReadOnly) return;
-        const currentComment = comment !== null ? comment : (results[testId]?.comment || "");
-        
-        if (status === 'ok' && (!currentComment || currentComment.trim().length < 5)) {
-            toast.error("Veuillez fournir une preuve de test (minimum 5 caractères) !");
-            vibrate('error');
-            return;
-        }
+    // ── Autosave (debounce 3s) ──────────────────────────────────────────────
+    const doSave = useCallback(async (data) => {
+        if (isReadOnly || !targetStoreId) return;
+        try {
+            await setDoc(doc(db, "stores", targetStoreId, "qa_runs", "current"), {
+                tests: data,
+                updatedAt: serverTimestamp(),
+                testerId: currentStore?.ownerId || 'admin'
+            });
+            setAutoSaved(true);
+            setTimeout(() => setAutoSaved(false), 2000);
+        } catch (e) { console.error('autosave', e); }
+    }, [isReadOnly, targetStoreId, currentStore]);
 
-        const newResults = { ...results, [testId]: { 
-            ...(results[testId] || {}),
-            status, 
-            comment: currentComment,
-            timestamp: new Date().toISOString() 
-        } };
+    const scheduleAutosave = useCallback((data) => {
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(() => doSave(data), 3000);
+    }, [doSave]);
+
+    const patchResults = (newResults) => {
         setResults(newResults);
+        if (!isReadOnly) scheduleAutosave(newResults);
+    };
+
+    // ── Test mutations ──────────────────────────────────────────────────────
+    const updateTest = (testId, status) => {
+        if (isReadOnly) return;
+        const comment = results[testId]?.comment || "";
+        if (status === 'ok' && comment.trim().length < 5) {
+            toast.error("Ajoutez une preuve (min 5 car.) avant de valider !");
+            vibrate('error'); return;
+        }
+        patchResults({ ...results, [testId]: { ...(results[testId] || {}), status, timestamp: new Date().toISOString() } });
         vibrate('soft');
     };
 
     const updateComment = (testId, comment) => {
         if (isReadOnly) return;
-        const newResults = { ...results, [testId]: { 
-            ...(results[testId] || {}),
-            comment,
-            timestamp: new Date().toISOString() 
-        } };
-        setResults(newResults);
+        patchResults({ ...results, [testId]: { ...(results[testId] || {}), comment, timestamp: new Date().toISOString() } });
+    };
+
+    const updateBug = (testId, bugDescription) => {
+        if (isReadOnly) return;
+        patchResults({ ...results, [testId]: { ...(results[testId] || {}), bugDescription, timestamp: new Date().toISOString() } });
     };
 
     const updateRating = (testId, rating) => {
         if (isReadOnly) return;
-        const newResults = { ...results, [testId]: { 
-            ...(results[testId] || {}),
-            uxRating: rating,
-            timestamp: new Date().toISOString() 
-        } };
-        setResults(newResults);
+        patchResults({ ...results, [testId]: { ...(results[testId] || {}), uxRating: rating, timestamp: new Date().toISOString() } });
         vibrate('soft');
+    };
+
+    const validateModule = (moduleTests) => {
+        if (isReadOnly) return;
+        const unproven = moduleTests.filter(t => !(results[t.id]?.comment?.trim().length >= 5));
+        if (unproven.length > 0) {
+            toast.error(`${unproven.length} test(s) n'ont pas encore de preuve. Remplissez d'abord les commentaires.`);
+            vibrate('error'); return;
+        }
+        const patch = { ...results };
+        moduleTests.forEach(t => {
+            patch[t.id] = { ...(patch[t.id] || {}), status: 'ok', timestamp: new Date().toISOString() };
+        });
+        patchResults(patch);
+        toast.success('Module entier validé ✅');
+        vibrate('success');
     };
 
     const handleSave = async () => {
@@ -108,11 +128,10 @@ export default function QA() {
                 updatedAt: serverTimestamp(),
                 testerId: currentStore?.ownerId || 'admin'
             });
-            toast.success("Progression QA sauvegardée !");
+            toast.success('Progression QA sauvegardée !');
             vibrate('success');
         } catch (e) {
-            console.error(e);
-            toast.error("Erreur lors de la sauvegarde");
+            toast.error('Erreur lors de la sauvegarde');
             vibrate('error');
         } finally {
             setSaving(false);
@@ -251,38 +270,29 @@ export default function QA() {
                             <p className="text-xs text-gray-400 mt-1">{progress.completed} / {progress.total} tests validés</p>
                         </div>
                         <div className="w-48 h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div 
-                                className="h-full bg-indigo-600 transition-all duration-500" 
-                                style={{ width: `${progress.percent}%` }}
-                            />
+                            <div className="h-full bg-indigo-600 transition-all duration-500" style={{ width: `${progress.percent}%` }} />
                         </div>
+                        {autoSaved && <span className="text-[10px] text-green-500 font-bold animate-pulse">💾 Sauvegardé auto</span>}
                     </div>
                 </div>
-                <div className="mt-8 flex flex-wrap gap-4 pt-6 border-t border-gray-100">
-                    {!isReadOnly && (
-                        <>
-                            <Button onClick={handleSave} isLoading={saving} icon={Save}>
-                                Sauvegarder l'état actuel
-                            </Button>
-                            <Button 
-                                onClick={seedDemoData} 
-                                isLoading={seeding} 
-                                icon={Database}
-                                className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
-                            >
-                                Générer Données Démo
-                            </Button>
-                        </>
-                    )}
-                    <a 
-                        href="https://docs.google.com/document/d/..." 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors"
-                    >
-                        <FileText size={18} /> Documentation QA
-                        <ExternalLink size={14} className="opacity-50" />
-                    </a>
+
+                {/* Status Filter */}
+                <div className="mt-6 flex flex-wrap gap-2 pt-5 border-t border-gray-100">
+                    <span className="text-xs font-bold text-gray-400 uppercase flex items-center gap-1 mr-2"><Filter size={12}/> Filtrer :</span>
+                    {[['all','Tous','bg-gray-100 text-gray-700'],['pending','À faire','bg-indigo-100 text-indigo-700'],['fail','Échoués','bg-red-100 text-red-700'],['ok','Validés','bg-green-100 text-green-700']].map(([val,label,cls]) => (
+                        <button key={val} onClick={() => setStatusFilter(val)}
+                            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${statusFilter === val ? cls + ' ring-2 ring-offset-1 ring-current' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>
+                            {label}
+                        </button>
+                    ))}
+                    <div className="ml-auto flex gap-2">
+                        {!isReadOnly && (
+                            <>
+                                <Button onClick={handleSave} isLoading={saving} icon={Save} size="sm">Sauvegarder</Button>
+                                <Button onClick={seedDemoData} isLoading={seeding} icon={Database} size="sm" className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100">Données Démo</Button>
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -290,9 +300,15 @@ export default function QA() {
             <div className="space-y-4">
                 {QA_MODULES.map((module) => {
                     const isExpanded = expandedModules.includes(module.id);
-                    const moduleTests = module.tests;
-                    const completedInModule = moduleTests.filter(t => results[t.id]?.status === 'ok').length;
-                    const isModuleComplete = completedInModule === moduleTests.length;
+                    const allModuleTests = module.tests;
+                    // Apply filter
+                    const moduleTests = statusFilter === 'all'
+                        ? allModuleTests
+                        : allModuleTests.filter(t => (results[t.id]?.status || 'pending') === statusFilter);
+                    if (statusFilter !== 'all' && moduleTests.length === 0) return null;
+                    const completedInModule = allModuleTests.filter(t => results[t.id]?.status === 'ok').length;
+                    const failedInModule = allModuleTests.filter(t => results[t.id]?.status === 'fail').length;
+                    const isModuleComplete = completedInModule === allModuleTests.length;
 
                     return (
                         <div 
@@ -312,13 +328,18 @@ export default function QA() {
                                         <p className="text-xs text-gray-500">{module.description}</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-6">
-                                    <div className="hidden sm:block text-right">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Score</p>
-                                        <p className={`text-sm font-black ${isModuleComplete ? 'text-green-600' : 'text-gray-900'}`}>
-                                            {completedInModule} / {moduleTests.length}
-                                        </p>
+                                <div className="flex items-center gap-4">
+                                    <div className="hidden sm:flex items-center gap-3 text-xs font-bold">
+                                        <span className="text-green-600">{completedInModule}✅</span>
+                                        {failedInModule > 0 && <span className="text-red-500">{failedInModule}❌</span>}
+                                        <span className="text-gray-400">/ {allModuleTests.length}</span>
                                     </div>
+                                    {!isReadOnly && isExpanded && (
+                                        <button onClick={(e) => { e.stopPropagation(); validateModule(allModuleTests); }}
+                                            className="hidden sm:flex items-center gap-1 text-[10px] font-bold px-2 py-1 bg-green-50 text-green-700 rounded-lg border border-green-200 hover:bg-green-100 transition-colors">
+                                            <CheckCheck size={12}/> Tout valider
+                                        </button>
+                                    )}
                                     {isExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
                                 </div>
                             </button>
@@ -342,7 +363,7 @@ export default function QA() {
                                                     const status = results[test.id]?.status || 'pending';
                                                     const uxRating = results[test.id]?.uxRating || 0;
                                                     return (
-                                                        <tr key={test.id} className={`group hover:bg-gray-50/50 transition-colors ${status === 'ok' ? 'opacity-60' : ''}`}>
+                                                        <tr key={test.id} className={`group hover:bg-gray-50/50 transition-colors ${status === 'ok' ? 'opacity-60' : ''} ${status === 'fail' ? 'bg-red-50/30' : ''}`}>
                                                             <td className="px-6 py-4 text-xs font-mono font-bold text-gray-400">{test.id}</td>
                                                             <td className="px-6 py-4">
                                                                 <p className="text-sm font-bold text-gray-900">{test.task}</p>
@@ -356,15 +377,25 @@ export default function QA() {
                                                                         ))}
                                                                     </div>
                                                                 )}
-                                                                <div className="mt-3">
-                                                                    <textarea 
-                                                                        placeholder="Preuve de test (minimum 5 car.)..."
-                                                                        className="w-full text-xs p-2 border border-gray-100 rounded-lg bg-gray-50/50 focus:bg-white focus:ring-1 focus:ring-indigo-200 transition-all"
-                                                                        rows={1}
+                                                                <div className="mt-3 space-y-2">
+                                                                    <textarea
+                                                                        placeholder="✏️ Preuve de test (min 5 car.) — ex: J'ai cliqué sur X et vu Y..."
+                                                                        className="w-full text-xs p-2 border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:ring-1 focus:ring-indigo-300 transition-all resize-none"
+                                                                        rows={2}
                                                                         value={results[test.id]?.comment || ""}
                                                                         readOnly={isReadOnly}
                                                                         onChange={(e) => updateComment(test.id, e.target.value)}
                                                                     />
+                                                                    {status === 'fail' && (
+                                                                        <textarea
+                                                                            placeholder="🐛 Description du bug — comportement observé, étapes pour reproduire..."
+                                                                            className="w-full text-xs p-2 border border-red-200 rounded-lg bg-red-50 focus:bg-white focus:ring-1 focus:ring-red-300 transition-all resize-none"
+                                                                            rows={2}
+                                                                            value={results[test.id]?.bugDescription || ""}
+                                                                            readOnly={isReadOnly}
+                                                                            onChange={(e) => updateBug(test.id, e.target.value)}
+                                                                        />
+                                                                    )}
                                                                 </div>
                                                             </td>
                                                             <td className="px-6 py-4 text-sm text-gray-500 italic max-w-xs">{test.expected}</td>
