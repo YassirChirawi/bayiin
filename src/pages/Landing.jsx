@@ -1,4 +1,5 @@
-import { ArrowRight, Check, ShoppingBag, Package, Users, DollarSign, Settings, Truck, TrendingUp, ShieldCheck, Phone, PenTool, Smartphone, Zap, Globe, Star, Quote, LayoutDashboard, BarChart3, Lock, ShoppingCart, CreditCard, Building2, Link as LinkIcon, UserPlus, QrCode } from "lucide-react";
+import { ArrowRight, Check, ShoppingBag, Package, Users, DollarSign, Settings, Truck, TrendingUp, ShieldCheck, Phone, PenTool, Smartphone, Zap, Globe, Star, Quote, LayoutDashboard, BarChart3, Lock, ShoppingCart, CreditCard, Building2, Link as LinkIcon, UserPlus, QrCode, ChevronUp } from "lucide-react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import SEO from "../components/SEO";
 import { motion } from "framer-motion";
@@ -11,6 +12,19 @@ import { useLanguage } from "../context/LanguageContext";
 export default function Landing() {
     const { t, language, setLanguage } = useLanguage();
     const isRTL = language === 'ar';
+    const [showScrollTop, setShowScrollTop] = useState(false);
+
+    useEffect(() => {
+        const handleScroll = () => {
+            setShowScrollTop(window.scrollY > 400);
+        };
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    const scrollToTop = () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
 
     return (
         <div className={`bg-slate-50 min-h-screen font-sans text-slate-900 overflow-x-hidden ${isRTL ? 'font-arabic' : ''}`} dir={isRTL ? 'rtl' : 'ltr'}>
@@ -644,6 +658,21 @@ export default function Landing() {
             <div className="bg-slate-900 border-t border-slate-800">
                 <Footer />
             </div>
+
+            {/* Scroll to Top Button */}
+            <motion.button
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{ 
+                    opacity: showScrollTop ? 1 : 0, 
+                    scale: showScrollTop ? 1 : 0.5,
+                    y: showScrollTop ? 0 : 20
+                }}
+                onClick={scrollToTop}
+                className={`fixed bottom-8 ${isRTL ? 'left-8' : 'right-8'} z-50 p-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl shadow-2xl shadow-indigo-200 transition-all hover:-translate-y-1 active:scale-95 group ${!showScrollTop && 'pointer-events-none'}`}
+                aria-label="Monter en haut"
+            >
+                <ChevronUp className="w-6 h-6 group-hover:animate-bounce" />
+            </motion.button>
         </div>
     );
 }
