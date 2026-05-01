@@ -30,7 +30,7 @@ export default function Landing() {
                         </Link>
 
                         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
-                            <Link to="/" className="hover:text-indigo-600 transition-colors">{t('nav_home')}</Link>
+                            <a href="#hero" className="hover:text-indigo-600 transition-colors">{t('nav_home')}</a>
                             <a href="#features" className="hover:text-indigo-600 transition-colors">{t('nav_features')}</a>
                             <a href="#pricing" className="hover:text-indigo-600 transition-colors">{t('nav_pricing')}</a>
                             <a href="#beta" className="flex items-center gap-1.5 text-amber-600 font-bold hover:text-amber-700 transition-colors">
@@ -76,7 +76,7 @@ export default function Landing() {
             </nav>
 
             {/* Hero Section */}
-            <section className="pt-40 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center relative overflow-hidden">
+            <section id="hero" className="pt-40 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center relative overflow-hidden">
                 {/* Background Icons Pattern */}
                 <div className="absolute inset-0 z-0 select-none overflow-hidden pointer-events-none">
                     <div className="absolute top-10 left-10 text-indigo-500/10 rotate-12 transform"><ShoppingBag className="w-24 h-24" /></div>
@@ -97,13 +97,38 @@ export default function Landing() {
                     transition={{ duration: 0.6 }}
                     className="relative z-10"
                 >
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white text-indigo-600 text-sm font-medium mb-8 border border-indigo-50 shadow-sm hover:shadow-md transition-shadow cursor-default">
-                        <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                        </span>
-                        {t('hero_badge')}
+                    {/* Sliding badges — cycles between live status and beta offer */}
+                    <div className="relative inline-flex h-9 mb-8 overflow-hidden">
+                        <div className="flex flex-col animate-[slideUp_6s_ease-in-out_infinite]">
+                            {/* Slide 1: Live status */}
+                            <div className="h-9 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white text-indigo-600 text-sm font-medium border border-indigo-50 shadow-sm whitespace-nowrap">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                </span>
+                                {t('hero_badge')}
+                            </div>
+                            {/* Slide 2: Beta offer */}
+                            <div className="h-9 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-bold shadow-lg shadow-amber-200 whitespace-nowrap">
+                                🎁 Testez la plateforme &rarr; <strong>1 mois offert</strong>
+                            </div>
+                            {/* Slide 3: repeat slide 1 for seamless loop */}
+                            <div className="h-9 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white text-indigo-600 text-sm font-medium border border-indigo-50 shadow-sm whitespace-nowrap">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                </span>
+                                {t('hero_badge')}
+                            </div>
+                        </div>
                     </div>
+                    <style>{`
+                        @keyframes slideUp {
+                            0%, 40%   { transform: translateY(0); }
+                            50%, 90%  { transform: translateY(-36px); }
+                            100%      { transform: translateY(-72px); }
+                        }
+                    `}</style>
 
                     {/* Arabic Caption always visible or context specific? User wants fully translated. */}
                     <p className="text-3xl md:text-5xl text-slate-800 mb-6 max-w-4xl mx-auto leading-relaxed font-arabic font-bold drop-shadow-sm" dir="rtl">
@@ -567,35 +592,25 @@ export default function Landing() {
                 </div>
             </section>
 
-            {/* ═══ BETA TESTER PROGRAM ═══════════════════════════════════════ */}
+
+            <ContactSection />
+
+            {/* ═══ BETA TESTER PROGRAM — LAST SECTION ══════════════════════════ */}
             <section id="beta" className="py-24 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 relative overflow-hidden">
-                {/* Background glow */}
                 <div className="absolute inset-0 pointer-events-none">
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-3xl" />
                 </div>
                 <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                     <div className="grid md:grid-cols-2 gap-12 items-center">
-                        {/* Left — Offer */}
                         <div>
-                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 text-amber-400 text-sm font-bold border border-amber-500/20 mb-6">
-                                🎁 Programme Beta Testeur
-                            </div>
+                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 text-amber-400 text-sm font-bold border border-amber-500/20 mb-6">🎁 Programme Beta Testeur</div>
                             <h2 className="text-4xl md:text-5xl font-extrabold text-white mb-4 leading-tight">
                                 Testez BayIIn,<br />
-                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-400">
-                                    obtenez 1 mois gratuit
-                                </span>
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-400">obtenez 1 mois gratuit</span>
                             </h2>
-                            <p className="text-slate-400 text-lg mb-8">
-                                Aidez-nous à améliorer la plateforme en effectuant notre checklist de 49 tests. En échange, recevez un code unique pour <strong className="text-white">1 mois d'abonnement offert</strong>.
-                            </p>
+                            <p className="text-slate-400 text-lg mb-8">Aidez-nous à améliorer la plateforme en effectuant notre checklist de 49 tests. En échange, recevez un code unique pour <strong className="text-white">1 mois d'abonnement offert</strong>.</p>
                             <div className="space-y-4 mb-8">
-                                {[
-                                    { step: "01", text: "Créez un compte gratuit sur BayIIn" },
-                                    { step: "02", text: "Activez le Mode Testeur dans Paramètres → Recette QA" },
-                                    { step: "03", text: "Effectuez les 49 tests avec des preuves réelles (min 20 min)" },
-                                    { step: "04", text: "Réclamez votre code 🏆 — 1 mois offert automatiquement" },
-                                ].map(({ step, text }) => (
+                                {[{step:"01",text:"Créez un compte gratuit sur BayIIn"},{step:"02",text:"Activez le Mode Testeur dans Paramètres → Recette QA"},{step:"03",text:"Effectuez les 49 tests avec des preuves réelles (min 20 min)"},{step:"04",text:"Réclamez votre code 🏆 — 1 mois offert automatiquement"}].map(({step,text})=>(
                                     <div key={step} className="flex items-start gap-4">
                                         <span className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-600 text-white text-xs font-black flex items-center justify-center">{step}</span>
                                         <p className="text-slate-300 pt-1">{text}</p>
@@ -603,48 +618,28 @@ export default function Landing() {
                                 ))}
                             </div>
                             <div className="flex flex-wrap gap-3">
-                                <a href="/signup" className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-amber-900/30 hover:-translate-y-0.5">
-                                    🚀 Commencer les tests
-                                    <ArrowRight className="w-4 h-4" />
-                                </a>
-                                <a href="#contact" className="inline-flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl border border-white/10 transition-all">
-                                    En savoir plus
-                                </a>
+                                <a href="/signup" className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-amber-900/30 hover:-translate-y-0.5">🚀 Commencer les tests <ArrowRight className="w-4 h-4" /></a>
+                                <a href="#contact" className="inline-flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl border border-white/10 transition-all">En savoir plus</a>
                             </div>
                         </div>
-                        {/* Right — Stats Card */}
                         <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-sm">
                             <h3 className="text-white font-bold text-lg mb-6">Ce que vous testez :</h3>
                             <div className="space-y-3">
-                                {[
-                                    { icon: "🛍️", label: "Gestion des commandes", tests: "12 tests" },
-                                    { icon: "📦", label: "Produits & Stock", tests: "8 tests" },
-                                    { icon: "👥", label: "CRM Clients", tests: "6 tests" },
-                                    { icon: "💰", label: "Finances & Analytics", tests: "7 tests" },
-                                    { icon: "🚚", label: "Livraison & Livreurs", tests: "6 tests" },
-                                    { icon: "⚙️", label: "Paramètres & Sécurité", tests: "10 tests" },
-                                ].map(({ icon, label, tests }) => (
+                                {[{icon:"🛍️",label:"Gestion des commandes",tests:"12 tests"},{icon:"📦",label:"Produits & Stock",tests:"8 tests"},{icon:"👥",label:"CRM Clients",tests:"6 tests"},{icon:"💰",label:"Finances & Analytics",tests:"7 tests"},{icon:"🚚",label:"Livraison & Livreurs",tests:"6 tests"},{icon:"⚙️",label:"Paramètres & Sécurité",tests:"10 tests"}].map(({icon,label,tests})=>(
                                     <div key={label} className="flex items-center justify-between py-2.5 border-b border-white/5">
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-xl">{icon}</span>
-                                            <span className="text-slate-300 text-sm font-medium">{label}</span>
-                                        </div>
+                                        <div className="flex items-center gap-3"><span className="text-xl">{icon}</span><span className="text-slate-300 text-sm font-medium">{label}</span></div>
                                         <span className="text-indigo-400 text-xs font-bold">{tests}</span>
                                     </div>
                                 ))}
                             </div>
                             <div className="mt-6 p-4 bg-amber-500/10 rounded-2xl border border-amber-500/20">
-                                <p className="text-amber-400 text-sm font-bold text-center">
-                                    🏆 Code généré automatiquement à 80% de complétion
-                                </p>
+                                <p className="text-amber-400 text-sm font-bold text-center">🏆 Code généré automatiquement à 80% de complétion</p>
                                 <p className="text-slate-400 text-xs text-center mt-1">Anti-triche actif — tests vérifiés par notre système</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
-
-            <ContactSection />
 
             <div className="bg-slate-900 border-t border-slate-800">
                 <Footer />
