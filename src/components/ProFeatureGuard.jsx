@@ -1,8 +1,16 @@
 import React from 'react';
 import { Sparkles, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useTenant } from '../context/TenantContext';
 
 export default function ProFeatureGuard({ children, title }) {
+    const { store } = useTenant();
+
+    // Bypass for testers
+    if (store?.testerMode) {
+        return <>{children}</>;
+    }
+
     return (
         <div className="relative">
             {/* PRO Banner */}

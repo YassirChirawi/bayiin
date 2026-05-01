@@ -149,17 +149,17 @@ export default function Sidebar({ isOpen, onClose }) {
                                     flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors
                                     ${isActive
                                         ? 'bg-indigo-50 text-indigo-600'
-                                        : item.isLocked 
+                                        : (item.isLocked && !store?.testerMode)
                                             ? 'text-gray-400 hover:bg-gray-50/50' 
                                             : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
                                 `}
                             >
-                                <item.icon className={`mr-3 h-5 w-5 ${item.isLocked ? 'text-gray-300' : ''}`} />
+                                <item.icon className={`mr-3 h-5 w-5 ${(item.isLocked && !store?.testerMode) ? 'text-gray-300' : ''}`} />
                                 <span className="flex-1">{item.name}</span>
                                 {item.badge && (
                                     <span className={`
                                         ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded-md
-                                        ${item.isLocked ? 'bg-gray-100 text-gray-400 border border-gray-200' : 'bg-indigo-100 text-indigo-600'}
+                                        ${(item.isLocked && !store?.testerMode) ? 'bg-gray-100 text-gray-400 border border-gray-200' : 'bg-indigo-100 text-indigo-600'}
                                     `}>
                                         {item.badge}
                                     </span>

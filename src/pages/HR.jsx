@@ -824,10 +824,11 @@ export default function HR() {
                             <RefreshCcw className="h-5 w-5" />
                         </button>
                         <button 
-                            disabled
-                            className="flex items-center gap-1.5 bg-gray-400 text-white text-sm font-semibold px-3 py-2 rounded-xl cursor-not-allowed transition-colors"
+                            onClick={() => setShowModal(true)}
+                            disabled={!store?.testerMode}
+                            className={`flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-xl transition-colors ${!store?.testerMode ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
                         >
-                            <UserPlus className="w-4 h-4" /> Nouvel Employé (PRO)
+                            <UserPlus className="w-4 h-4" /> Nouvel Employé {!store?.testerMode && "(PRO)"}
                         </button>
                     </div>
                 </div>

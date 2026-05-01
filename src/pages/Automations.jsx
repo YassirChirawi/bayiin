@@ -600,11 +600,12 @@ export default function Automations() {
 
                     {view === 'list' ? (
                         <button
-                            disabled
-                            className="flex items-center gap-2 bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed shadow-sm"
+                            onClick={handleCreateNew}
+                            disabled={!store?.testerMode}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg shadow-sm transition-all ${!store?.testerMode ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
                         >
                             <Plus className="w-4 h-4" />
-                            Nouveau Scénario (PRO)
+                            {t('btn_new_scenario') || 'Nouveau Scénario'} {!store?.testerMode && "(PRO)"}
                         </button>
                     ) : (
                         <button
@@ -789,11 +790,12 @@ export default function Automations() {
                                     Test Auto
                                 </button>
                                 <button
-                                    disabled
-                                    className="flex items-center gap-2 px-6 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed font-medium text-sm shadow-sm"
+                                    onClick={handleSave}
+                                    disabled={!store?.testerMode && currentAuto.nodes.length < 2}
+                                    className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium text-sm shadow-sm transition-all ${(!store?.testerMode && currentAuto.nodes.length < 2) ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}
                                 >
                                     <CheckCircle2 className="w-4 h-4" />
-                                    Activer (PRO)
+                                    {t('btn_activate') || 'Activer'} {!store?.testerMode && "(PRO)"}
                                 </button>
                             </div>
                         </div>

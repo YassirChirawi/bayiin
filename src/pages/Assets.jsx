@@ -6,8 +6,10 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import toast from 'react-hot-toast';
 import ProFeatureGuard from '../components/ProFeatureGuard';
+import { useTenant } from '../context/TenantContext';
 
 export default function Assets() {
+    const { store } = useTenant();
     const { data: assets, addStoreItem, deleteStoreItem, loading } = useStoreData('assets');
     const [showNew, setShowNew] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -63,10 +65,11 @@ export default function Assets() {
                         <p className="text-sm text-gray-500 mt-1">Inventaire et suivi du matériel professionnel (échéances, garanties).</p>
                     </div>
                     <button
-                        disabled
-                        className="px-4 py-2.5 bg-gray-400 text-white rounded-xl text-sm font-bold flex items-center gap-2 cursor-not-allowed transition-all"
+                        onClick={() => setShowNew(true)}
+                        disabled={!store?.testerMode}
+                        className={`px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${!store?.testerMode ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
                     >
-                        <Plus className="w-4 h-4" /> Nouvel Asset (PRO)
+                        <Plus className="w-4 h-4" /> Nouvel Asset {!store?.testerMode && "(PRO)"}
                     </button>
                 </div>
 
@@ -108,8 +111,9 @@ export default function Assets() {
                                             {asset.serialNumber && <p className="text-[10px] text-gray-400 font-mono mt-1">S/N: {asset.serialNumber}</p>}
                                         </div>
                                         <button
-                                            disabled
-                                            className="opacity-0 group-hover:opacity-100 p-2 text-gray-300 cursor-not-allowed transition-all"
+                                            onClick={() => deleteStoreItem(asset.id)}
+                                            disabled={!store?.testerMode}
+                                            className={`opacity-0 group-hover:opacity-100 p-2 text-gray-300 transition-all ${store?.testerMode ? 'hover:text-red-600' : 'cursor-not-allowed'}`}
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </button>

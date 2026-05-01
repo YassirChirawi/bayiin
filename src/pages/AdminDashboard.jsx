@@ -127,7 +127,7 @@ export default function AdminDashboard() {
                 if (!snap.empty) {
                     const currentRun = snap.docs.find(d => d.id === 'current')?.data();
                     if (currentRun && currentRun.tests) {
-                        const total = 50; // Approximated total tests
+                        const total = 49; // Total tests from qaTests.js
                         const completed = Object.values(currentRun.tests).filter(t => t.status === 'ok').length;
                         progress[store.id] = { completed, total, updatedAt: currentRun.updatedAt };
                     }
@@ -137,8 +137,10 @@ export default function AdminDashboard() {
         setQaProgress(progress);
     };
 
-    useState(() => {
-        if (activeTab === 'qa') fetchQaProgress();
+    useEffect(() => {
+        if (activeTab === 'qa' && stores.length > 0) {
+            fetchQaProgress();
+        }
     }, [activeTab, stores]);
 
 

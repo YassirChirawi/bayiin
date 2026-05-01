@@ -180,8 +180,13 @@ export default function Warehouse() {
                                         <p className="text-sm text-gray-600 font-mono mt-1">{scanResult.phone}</p>
                                     </div>
                                     <div className="pt-4 border-t border-gray-100 flex gap-4">
-                                        <Button disabled className="flex-1 justify-center bg-gray-400 text-white py-3 cursor-not-allowed" icon={Truck}>
-                                            {t('btn_ship_order') || "Expédier Commande"} (PRO)
+                                        <Button 
+                                            onClick={markOrderShipped}
+                                            disabled={!store?.testerMode} 
+                                            className={`flex-1 justify-center py-3 ${!store?.testerMode ? 'bg-gray-400 text-white cursor-not-allowed' : ''}`} 
+                                            icon={Truck}
+                                        >
+                                            {t('btn_ship_order') || "Expédier Commande"} {!store?.testerMode && "(PRO)"}
                                         </Button>
                                     </div>
                                 </div>
@@ -205,18 +210,20 @@ export default function Warehouse() {
                                     
                                     <div className="pt-4 border-t border-gray-100 grid grid-cols-2 gap-4">
                                          <button 
-                                            disabled
-                                            className="py-4 bg-gray-50 text-gray-400 rounded-xl border border-gray-200 font-bold text-lg flex flex-col items-center gap-1 cursor-not-allowed"
+                                            onClick={() => store?.testerMode && updateProductStock(1)}
+                                            disabled={!store?.testerMode}
+                                            className={`py-4 rounded-xl border font-bold text-lg flex flex-col items-center gap-1 transition-all ${!store?.testerMode ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-100'}`}
                                          >
                                              <span className="text-2xl">+1</span>
-                                             <span className="text-xs font-normal">PRO</span>
+                                             {!store?.testerMode && <span className="text-xs font-normal">PRO</span>}
                                          </button>
                                          <button 
-                                            disabled
-                                            className="py-4 bg-gray-50 text-gray-400 rounded-xl border border-gray-200 font-bold text-lg flex flex-col items-center gap-1 cursor-not-allowed"
+                                            onClick={() => store?.testerMode && updateProductStock(-1)}
+                                            disabled={!store?.testerMode}
+                                            className={`py-4 rounded-xl border font-bold text-lg flex flex-col items-center gap-1 transition-all ${!store?.testerMode ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'}`}
                                          >
                                              <span className="text-2xl">-1</span>
-                                             <span className="text-xs font-normal">PRO</span>
+                                             {!store?.testerMode && <span className="text-xs font-normal">PRO</span>}
                                          </button>
                                     </div>
                                 </div>
