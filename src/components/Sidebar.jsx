@@ -93,9 +93,9 @@ export default function Sidebar({ isOpen, onClose }) {
 
             {/* Sidebar */}
             <div className={`
-                fixed inset-y-0 left-0 z-40 w-64 glass-sidebar transform transition-transform duration-200 ease-in-out
-                md:translate-x-0 md:static md:h-screen md:flex md:flex-col
-                ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+                fixed inset-y-0 left-0 z-40 w-72 glass-sidebar transform transition-transform duration-300 ease-in-out
+                md:translate-x-0 md:static md:h-screen md:flex md:flex-col md:w-64
+                ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}
             `}>
                 <div className="p-4 border-b border-gray-200 flex flex-col gap-4">
                     <div className="flex justify-between items-start">
@@ -120,7 +120,7 @@ export default function Sidebar({ isOpen, onClose }) {
                     </button>
                 </div>
 
-                <nav id="tour-nav" className="flex-1 p-4 space-y-1 overflow-y-auto">
+                <nav id="tour-nav" className="flex-1 p-3 space-y-0.5 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
                     {navigation.map((item) => {
                         const isActive = pathname.startsWith(item.href);
                         return item.special ? (
@@ -128,15 +128,15 @@ export default function Sidebar({ isOpen, onClose }) {
                             <Link
                                 key={item.href}
                                 to={item.href}
-                                onClick={() => onClose && onClose()}
+                                onClick={() => { vibrate('soft'); onClose && onClose(); }}
                                 className={`
-                    flex items-center px-4 py-2 text-sm font-semibold rounded-lg transition-all mb-2
+                    flex items-center px-4 py-3.5 text-sm font-semibold rounded-xl transition-all mb-2
                     ${isActive
                                         ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md'
                                         : 'bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 hover:from-indigo-100 hover:to-purple-100 border border-indigo-100'}
                   `}
                             >
-                                <item.icon className="mr-3 h-5 w-5" />
+                                <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
                                 {item.name}
                                 {!isActive && <span className="ml-auto text-xs bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full">HQ</span>}
                             </Link>
@@ -144,9 +144,9 @@ export default function Sidebar({ isOpen, onClose }) {
                             <Link
                                 key={item.href}
                                 to={item.href}
-                                onClick={() => onClose && onClose()}
+                                onClick={() => { vibrate('soft'); onClose && onClose(); }}
                                 className={`
-                                    flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors
+                                    flex items-center px-4 py-3.5 text-sm font-medium rounded-xl transition-colors min-h-[48px]
                                     ${isActive
                                         ? 'bg-indigo-50 text-indigo-600'
                                         : (item.isLocked && !store?.testerMode)
@@ -154,7 +154,7 @@ export default function Sidebar({ isOpen, onClose }) {
                                             : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
                                 `}
                             >
-                                <item.icon className={`mr-3 h-5 w-5 ${(item.isLocked && !store?.testerMode) ? 'text-gray-300' : ''}`} />
+                                <item.icon className={`mr-3 h-5 w-5 flex-shrink-0 ${(item.isLocked && !store?.testerMode) ? 'text-gray-300' : ''}`} />
                                 <span className="flex-1">{item.name}</span>
                                 {item.badge && (
                                     <span className={`

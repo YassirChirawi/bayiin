@@ -1,6 +1,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { Outlet, Navigate, useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
+import BottomNav from "./BottomNav";
 import QAGuide from "./QAGuide";
 import { useTenant } from "../context/TenantContext";
 import { Loader2, Menu, ArrowLeft } from "lucide-react";
@@ -78,12 +79,6 @@ export default function Layout() {
                 </div>
                 <div className="flex gap-2">
                     <NotificationBell />
-                    <button
-                        onClick={() => setIsMobileMenuOpen(true)}
-                        className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                    >
-                        <Menu className="h-6 w-6" />
-                    </button>
                 </div>
             </div>
 
@@ -138,7 +133,8 @@ export default function Layout() {
                         <p className="font-medium text-sm md:text-base">{announcement.message}</p>
                     </div>
                 )}
-                <div className="p-4 md:p-8">
+                {/* Extra bottom padding on mobile for bottom nav */}
+                <div className="p-4 pb-24 md:pb-8 md:p-8">
                     <AnimatePresence>
                         <PageTransition key={location.pathname}>
                             <Suspense fallback={<InlinePageLoader />}>
@@ -149,6 +145,7 @@ export default function Layout() {
                 </div>
                 <Copilot />
                 <QAGuide />
+                <BottomNav onOpenMenu={() => setIsMobileMenuOpen(true)} />
             </main>
         </div>
     );
