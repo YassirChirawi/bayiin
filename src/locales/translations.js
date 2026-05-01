@@ -571,6 +571,14 @@ export const translations = {
         err_biometric_failed: "Biometric registration failed.",
         err_user_id_not_found: "Error: User ID not found.",
 
+        biometric_setup_title: "Enable {type}?",
+        biometric_setup_desc: "Access your dashboard faster and more securely next time you visit.",
+        btn_enable_now: "Enable Now",
+        btn_maybe_later: "Maybe Later",
+        bio_type_face: "Face ID",
+        bio_type_fingerprint: "Fingerprint",
+        bio_type_generic: "Biometrics",
+
 
         // Shipping
         page_title_shipping: "Shipping Settings",
@@ -1481,6 +1489,14 @@ export const translations = {
         msg_biometric_disabled: "Verrouillage biométrique désactivé.",
         err_biometric_failed: "Échec de l'enregistrement biométrique.",
         err_user_id_not_found: "Erreur : ID utilisateur non trouvé.",
+
+        biometric_setup_title: "Activer {type} ?",
+        biometric_setup_desc: "Accédez à votre tableau de bord plus rapidement et en toute sécurité lors de votre prochaine visite.",
+        btn_enable_now: "Activer maintenant",
+        btn_maybe_later: "Peut-être plus tard",
+        bio_type_face: "Face ID",
+        bio_type_fingerprint: "Empreinte Digitale",
+        bio_type_generic: "Biométrie",
 
 
         // Shipping

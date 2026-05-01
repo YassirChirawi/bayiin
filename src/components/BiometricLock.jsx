@@ -1,115 +1,141 @@
 import { useState, useEffect } from 'react';
 import { useBiometrics } from '../hooks/useBiometrics';
-import Button from './Button'; // Assuming we have a Button component
+import { useLanguage } from '../context/LanguageContext';
+import Button from './Button';
 import { Shield, Lock, ScanFace, Fingerprint } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { vibrate } from '../utils/haptics';
 
 export default function BiometricLock({ children }) {
     const [isLocked, setIsLocked] = useState(false);
     const { verify, getBiometricType } = useBiometrics();
-    const [biometricType, setBiometricType] = useState('unknown');
+    const { t } = useLanguage();
+    const [bioInfo, setBioInfo] = useState({ id: 'unknown', labelKey: 'bio_type_generic', icon: 'Shield' });
 
     useEffect(() => {
-        setBiometricType(getBiometricType());
+        setBioInfo(getBiometricType());
     }, []);
 
-    // ... existing checkLockError logic ...
-
-    // Dynamic UI
-    const getIcon = () => {
-        if (biometricType === 'face') return ScanFace; // Need to import this or use similar
-        if (biometricType === 'fingerprint') return Fingerprint; // Need to import this
-        return Shield;
-    };
-
-    const getLabel = () => {
-        if (biometricType === 'face') return "Face ID";
-        if (biometricType === 'fingerprint') return "Empreinte"; // "Biométrie pouce" based on user req
-        return "Biométrie";
-    }
-
     useEffect(() => {
-        const checkLockError = async () => {
+        const checkLockStatus = async () => {
             const biometricEnabled = localStorage.getItem('biometricEnabled') === 'true';
-
-            // Check if we have a saved "last active" time
             const lastActive = localStorage.getItem('lastActive');
             const now = Date.now();
-            const GRACE_PERIOD = 60 * 1000; // 1 Minute
+            const GRACE_PERIOD = 2 * 60 * 1000; 
 
             if (biometricEnabled) {
-                // If it's a fresh load (no lastActive) OR time diff > 1 min, LOCK.
                 if (!lastActive || (now - parseInt(lastActive)) > GRACE_PERIOD) {
                     setIsLocked(true);
                 }
             }
         };
-        checkLockError();
+        checkLockStatus();
 
         const handleVisibilityChange = () => {
             const biometricEnabled = localStorage.getItem('biometricEnabled') === 'true';
             if (!biometricEnabled) return;
 
             if (document.hidden) {
-                // App went to background: Save timestamp
                 localStorage.setItem('lastActive', Date.now().toString());
             } else {
-                // App came to foreground: Check time
                 const lastActive = localStorage.getItem('lastActive');
                 const now = Date.now();
-                const GRACE_PERIOD = 60 * 1000; // 1 Minute
+                const GRACE_PERIOD = 2 * 60 * 1000; 
 
                 if (lastActive && (now - parseInt(lastActive)) > GRACE_PERIOD) {
                     setIsLocked(true);
-                    // Clear timestamp so we don't loop or if they unlock we set a new one? 
-                    // Actually, if we lock, we wait for unlock. 
-                    // Upon unlock (handleUnlock), we should probably reset/update lastActive or just rely on next background event?
-                    // Let's rely on next background event, BUT we must ensure we don't spam lock.
-                    // Once locked, isLocked is true.
                 }
             }
         };
 
         document.addEventListener("visibilitychange", handleVisibilityChange);
-
-        // Also update timestamp periodically while active? 
-        // No, "backgrounding" is the trigger. 
-        // But what if they close the tab? "checkLockError" handles fresh load.
-
         return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-
     }, []);
 
     const handleUnlock = async () => {
         const success = await verify();
         if (success) {
+            vibrate('success');
             setIsLocked(false);
         } else {
-            // Optional: fallback to PIN or password?
-            // For now, retry.
+            vibrate('error');
         }
     };
 
-    if (isLocked) {
-        return (
-            <div className="fixed inset-0 z-[100] bg-indigo-900 flex flex-col items-center justify-center p-4">
-                <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center space-y-6">
-                    <div className="mx-auto bg-indigo-100 w-20 h-20 rounded-full flex items-center justify-center">
-                        {(() => {
-                            const Icon = getIcon();
-                            return <Icon className="w-10 h-10 text-indigo-600" />;
-                        })()}
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-900">App Locked</h2>
-                        <p className="text-gray-500 mt-2">Veuillez vous authentifier.</p>
-                    </div>
-                    <Button onClick={handleUnlock} className="w-full justify-center" size="lg" icon={Shield}>
-                        Déverrouiller avec {getLabel()}
-                    </Button>
-                </div>
-            </div>
-        );
-    }
+    const IconComponent = {
+        ScanFace,
+        Fingerprint,
+        Shield
+    }[bioInfo.icon] || Shield;
 
-    return children;
+    return (
+        <>
+            <AnimatePresence>
+                {isLocked && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[999] bg-slate-950/90 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.8, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                            className="max-w-xs w-full space-y-8"
+                        >
+                            <div className="relative mx-auto w-24 h-24">
+                                <motion.div 
+                                    animate={{ 
+                                        scale: [1, 1.05, 1],
+                                        opacity: [0.5, 0.8, 0.5]
+                                    }}
+                                    transition={{ duration: 3, repeat: Infinity }}
+                                    className="absolute inset-0 bg-indigo-500/20 rounded-full blur-2xl"
+                                />
+                                <div className="relative bg-white/5 border border-white/10 w-24 h-24 rounded-[2rem] flex items-center justify-center shadow-2xl backdrop-blur-md">
+                                    <IconComponent className="w-12 h-12 text-indigo-400" />
+                                </div>
+                                <motion.div 
+                                    initial={{ opacity: 0, scale: 0 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    transition={{ delay: 0.4 }}
+                                    className="absolute -bottom-1 -right-1 bg-emerald-500 rounded-full p-1.5 shadow-lg"
+                                >
+                                    <Lock className="w-4 h-4 text-white" />
+                                </motion.div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <h2 className="text-2xl font-bold text-white tracking-tight">Accès Sécurisé</h2>
+                                <p className="text-slate-400 text-sm leading-relaxed">
+                                    L'application est verrouillée pour protéger vos données financières.
+                                </p>
+                            </div>
+
+                            <div className="pt-4">
+                                <Button 
+                                    onClick={handleUnlock} 
+                                    className="w-full h-14 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-lg shadow-lg shadow-indigo-500/25 transition-all active:scale-95"
+                                    icon={IconComponent}
+                                >
+                                    Déverrouiller
+                                </Button>
+                                
+                                <p className="mt-6 text-xs text-slate-500 font-medium uppercase tracking-widest">
+                                    Utilisation de {t(bioInfo.labelKey)}
+                                </p>
+                            </div>
+                        </motion.div>
+
+                        <div className="absolute bottom-10 flex items-center gap-2 opacity-30 grayscale">
+                            <img src="/logo.png" alt="BayIIn" className="h-6 w-auto" />
+                            <span className="text-white font-bold tracking-tighter text-lg">BayIIn</span>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {children}
+        </>
+    );
 }

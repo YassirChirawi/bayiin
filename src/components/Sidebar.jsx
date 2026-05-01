@@ -58,12 +58,12 @@ export default function Sidebar({ isOpen, onClose }) {
         { name: t('orders'), href: '/orders', icon: ShoppingBag },
         { name: t('products'), href: '/products', icon: Package },
         { name: t('customers'), href: '/customers', icon: Users },
-        { name: t('automations') || 'Automations', href: '/automations', icon: Workflow },
-        { name: t('nav_warehouse') || 'Entrepôt & Scan', href: '/warehouse', icon: Barcode },
+        { name: t('automations') || 'Automations', href: '/automations', icon: Workflow, isLocked: true, badge: 'PRO' },
+        { name: t('nav_warehouse') || 'Entrepôt & Scan', href: '/warehouse', icon: Barcode, isLocked: true, badge: 'PRO' },
         { name: t('nav_marketing') || 'Marketing', href: '/marketing', icon: Megaphone },
         { name: t('nav_drivers') || 'Livreurs', href: '/drivers', icon: Truck },
-        { name: t('nav_hr') || 'Ressources Humaines', href: '/hr', icon: UserCheck },
-        { name: t('nav_assets') || 'Gestion des Assets', href: '/assets', icon: Building2 },
+        { name: t('nav_hr') || 'Ressources Humaines', href: '/hr', icon: UserCheck, isLocked: true, badge: 'PRO' },
+        { name: t('nav_assets') || 'Gestion des Assets', href: '/assets', icon: Building2, isLocked: true, badge: 'PRO' },
         { name: t('nav_purchases') || 'Achats', href: '/purchases', icon: ShoppingCart },
         { name: t('nav_returns_service') || 'SAV & Retours', href: '/returns', icon: RotateCcw },
         ...(role !== 'staff' ? [
@@ -146,14 +146,24 @@ export default function Sidebar({ isOpen, onClose }) {
                                 to={item.href}
                                 onClick={() => onClose && onClose()}
                                 className={`
-                    flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors
-                    ${isActive
+                                    flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors
+                                    ${isActive
                                         ? 'bg-indigo-50 text-indigo-600'
-                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
-                  `}
+                                        : item.isLocked 
+                                            ? 'text-gray-400 hover:bg-gray-50/50' 
+                                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
+                                `}
                             >
-                                <item.icon className="mr-3 h-5 w-5" />
-                                {item.name}
+                                <item.icon className={`mr-3 h-5 w-5 ${item.isLocked ? 'text-gray-300' : ''}`} />
+                                <span className="flex-1">{item.name}</span>
+                                {item.badge && (
+                                    <span className={`
+                                        ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded-md
+                                        ${item.isLocked ? 'bg-gray-100 text-gray-400 border border-gray-200' : 'bg-indigo-100 text-indigo-600'}
+                                    `}>
+                                        {item.badge}
+                                    </span>
+                                )}
                             </Link>
                         );
                     })}

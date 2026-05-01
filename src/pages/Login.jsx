@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
@@ -7,6 +7,8 @@ import { toast } from "react-hot-toast";
 import { ArrowRight, Store, Truck, ChevronLeft, Eye, EyeOff, Mail, Lock, Sparkles } from "lucide-react";
 import { vibrate } from "../utils/haptics";
 import { motion, AnimatePresence } from "framer-motion";
+import { useBiometrics } from "../hooks/useBiometrics";
+import BiometricSetupModal from "../components/BiometricSetupModal";
 
 // ── Animated background ────────────────────────────────────────────────────
 function AnimatedBackground() {
@@ -324,9 +326,25 @@ function OwnerLoginForm({ onBack, loading, onSubmit, onGoogleLogin, onResetPassw
 export default function Login() {
     const [role, setRole] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [showBioSetup, setShowBioSetup] = useState(false);
+    const [pendingUser, setPendingUser] = useState(null);
+    
     const { t } = useLanguage();
     const { login, loginWithGoogle, resetPassword } = useAuth();
     const navigate = useNavigate();
+    const { isAvailable } = useBiometrics();
+
+    const handlePostLoginFlow = async (user) => {
+        const supported = await isAvailable();
+        const enabled = localStorage.getItem('biometricEnabled') === 'true';
+
+        if (supported && !enabled) {
+            setPendingUser(user);
+            setShowBioSetup(true);
+        } else {
+            navigate('/dashboard');
+        }
+    };
 
     const handleResetPassword = async (email) => {
         if (!email) {
@@ -346,10 +364,10 @@ export default function Login() {
     const handleOwnerLogin = async (email, password) => {
         try {
             setLoading(true);
-            await login(email, password);
+            const { user } = await login(email, password);
             vibrate('success');
             toast.success(t('welcome_back_toast'));
-            navigate('/dashboard');
+            await handlePostLoginFlow(user);
         } catch (err) {
             vibrate('error');
             toast.error(getFriendlyErrorMessage(err));
@@ -361,10 +379,10 @@ export default function Login() {
     const handleGoogleLogin = async () => {
         try {
             setLoading(true);
-            await loginWithGoogle();
+            const { user } = await loginWithGoogle();
             vibrate('success');
             toast.success(t('welcome_back_toast'));
-            navigate('/dashboard');
+            await handlePostLoginFlow(user);
         } catch (err) {
             vibrate('error');
             toast.error(getFriendlyErrorMessage(err));
@@ -418,6 +436,15 @@ export default function Login() {
                     </AnimatePresence>
                 </div>
             </motion.div>
+
+            <BiometricSetupModal 
+                isOpen={showBioSetup} 
+                onClose={() => {
+                    setShowBioSetup(false);
+                    navigate('/dashboard');
+                }}
+                userId={pendingUser?.uid}
+            />
         </div>
     );
 }

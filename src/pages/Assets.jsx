@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import toast from 'react-hot-toast';
+import ProFeatureGuard from '../components/ProFeatureGuard';
 
 export default function Assets() {
     const { data: assets, addStoreItem, deleteStoreItem, loading } = useStoreData('assets');
@@ -52,21 +53,22 @@ export default function Assets() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-start justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <Building2 className="h-6 w-6 text-indigo-600" />
-                        Gestion des Assets
-                    </h1>
-                    <p className="text-sm text-gray-500 mt-1">Inventaire et suivi du matériel professionnel (échéances, garanties).</p>
+            <ProFeatureGuard title="Gestion des Assets">
+                <div className="flex items-start justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                            <Building2 className="h-6 w-6 text-indigo-600" />
+                            Gestion des Assets
+                        </h1>
+                        <p className="text-sm text-gray-500 mt-1">Inventaire et suivi du matériel professionnel (échéances, garanties).</p>
+                    </div>
+                    <button
+                        disabled
+                        className="px-4 py-2.5 bg-gray-400 text-white rounded-xl text-sm font-bold flex items-center gap-2 cursor-not-allowed transition-all"
+                    >
+                        <Plus className="w-4 h-4" /> Nouvel Asset (PRO)
+                    </button>
                 </div>
-                <button
-                    onClick={() => setShowNew(true)}
-                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-indigo-100 transition-all active:scale-95"
-                >
-                    <Plus className="w-4 h-4" /> Nouvel Asset
-                </button>
-            </div>
 
             <div className="relative group">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-indigo-500 transition-colors" />
@@ -106,10 +108,8 @@ export default function Assets() {
                                             {asset.serialNumber && <p className="text-[10px] text-gray-400 font-mono mt-1">S/N: {asset.serialNumber}</p>}
                                         </div>
                                         <button
-                                            onClick={() => {
-                                                if (window.confirm('Supprimer cet asset ?')) deleteStoreItem(asset.id);
-                                            }}
-                                            className="opacity-0 group-hover:opacity-100 p-2 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                                            disabled
+                                            className="opacity-0 group-hover:opacity-100 p-2 text-gray-300 cursor-not-allowed transition-all"
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </button>
@@ -209,6 +209,7 @@ export default function Assets() {
                     </div>
                 )}
             </AnimatePresence>
+            </ProFeatureGuard>
         </div>
     );
 }

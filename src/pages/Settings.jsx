@@ -531,11 +531,7 @@ export default function Settings() {
     const handleToggleBiometric = async () => {
         if (!biometricEnabled) {
             // Enable
-            if (!store?.ownerId) {
-                toast.error(t('err_user_id_not_found'));
-                return;
-            }
-            const success = await register(store.ownerId); // Use ownerId/userId as key
+            const success = await register(store.ownerId); 
             if (success) {
                 localStorage.setItem('biometricEnabled', 'true');
                 setBiometricEnabled(true);
@@ -547,9 +543,10 @@ export default function Settings() {
             }
         } else {
             // Disable
-            if (window.confirm("Disable biometric lock?")) {
+            if (window.confirm("Désactiver le verrouillage biométrique ?")) {
                 localStorage.removeItem('biometricEnabled');
                 setBiometricEnabled(false);
+                vibrate('success');
                 toast.success(t('msg_biometric_disabled'));
             }
         }
@@ -1049,62 +1046,94 @@ export default function Settings() {
 
 
 
-                {
-                    activeTab === "security" && (
-                        <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
-                            <div className="px-4 py-5 sm:p-6">
-                                <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
-                                    <Shield className="h-5 w-5 text-gray-400" />
-                                    {t('section_app_security')}
-                                </h3>
-                                <div className="mt-6">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <h4 className="text-base font-medium text-gray-900">{t('biometric_lock')}</h4>
-                                            <p className="text-sm text-gray-500">
+                {activeTab === "security" && (
+                    <div className="max-w-2xl space-y-6">
+                        <div className="bg-white shadow-sm rounded-[2rem] border border-slate-100 overflow-hidden">
+                            <div className="p-8">
+                                <div className="flex items-center gap-4 mb-8">
+                                    <div className="p-3.5 bg-indigo-50 text-indigo-600 rounded-2xl">
+                                        <Shield size={28} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold text-slate-900">{t('section_app_security')}</h3>
+                                        <p className="text-sm text-slate-500">Gérez l'accès sécurisé à votre interface de gestion.</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-8">
+                                    <div className="flex items-center justify-between p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                                        <div className="space-y-1">
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="text-base font-bold text-slate-900">{t('biometric_lock')}</h4>
+                                                {biometricEnabled && (
+                                                    <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider rounded-full">
+                                                        <Check size={10} /> Actif
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-slate-500 leading-relaxed max-w-sm">
                                                 {t('biometric_lock_desc')}
                                             </p>
                                         </div>
+                                        
                                         <div className="flex items-center">
                                             {!biometricSupported ? (
-                                                <span className="text-sm text-red-500 bg-red-50 px-2 py-1 rounded">{t('not_supported')}</span>
+                                                <div className="px-3 py-1 bg-red-50 text-red-600 text-xs font-bold rounded-lg border border-red-100">
+                                                    {t('not_supported')}
+                                                </div>
                                             ) : (
                                                 <button
                                                     onClick={handleToggleBiometric}
                                                     className={`
-                                                    relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500
-                                                    ${biometricEnabled ? 'bg-indigo-600' : 'bg-gray-200'}
-                                                `}
+                                                        relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
+                                                        ${biometricEnabled ? 'bg-indigo-600' : 'bg-slate-200'}
+                                                    `}
                                                 >
                                                     <span
-                                                        aria-hidden="true"
                                                         className={`
-                                                        pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200
-                                                        ${biometricEnabled ? 'translate-x-5' : 'translate-x-0'}
-                                                    `}
+                                                            inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-300
+                                                            ${biometricEnabled ? 'translate-x-6' : 'translate-x-1'}
+                                                        `}
                                                     />
                                                 </button>
                                             )}
                                         </div>
                                     </div>
-                                    <div className="mt-4 bg-yellow-50 p-4 rounded-md border border-yellow-100">
-                                        <div className="flex">
-                                            <Lock className="h-5 w-5 text-yellow-400" aria-hidden="true" />
-                                            <div className="ml-3">
-                                                <h3 className="text-sm font-medium text-yellow-800">{t('note')}</h3>
-                                                <div className="mt-2 text-sm text-yellow-700">
-                                                    <p>
-                                                        {t('security_note_desc')}
-                                                    </p>
-                                                </div>
-                                            </div>
+
+                                    <div className="bg-amber-50/50 rounded-2xl p-5 border border-amber-100/50 flex gap-4">
+                                        <div className="mt-0.5">
+                                            <Lock className="h-5 w-5 text-amber-500" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <h4 className="text-sm font-bold text-amber-900">{t('note')}</h4>
+                                            <p className="text-xs text-amber-700 leading-relaxed">
+                                                {t('security_note_desc')}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    )
-                }
+
+                        {/* Additional Security Info */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="p-6 bg-white rounded-3xl border border-slate-100">
+                                <Activity className="w-5 h-5 text-slate-400 mb-3" />
+                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Dernière activité</h4>
+                                <p className="text-sm font-semibold text-slate-900">
+                                    {logs[0] ? format(logs[0].timestamp?.toDate(), 'dd MMM, HH:mm') : 'Aucune donnée'}
+                                </p>
+                            </div>
+                            <div className="p-6 bg-white rounded-3xl border border-slate-100">
+                                <Users className="w-5 h-5 text-slate-400 mb-3" />
+                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Rôle Actuel</h4>
+                                <p className="text-sm font-semibold text-slate-900 capitalize">
+                                    {store?.role || 'Owner'}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {activeTab === "qa" && (
                     <div className="space-y-6">

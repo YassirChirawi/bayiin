@@ -14,8 +14,9 @@ import {
     ChevronDown, ChevronUp, Phone, MapPin, Briefcase, Star,
     Clock, CheckCircle, AlertTriangle, Upload, ShieldCheck,
     TrendingUp, RefreshCcw, Edit2, Save, Car, Award,
-    Home, Contact, GraduationCap, Camera, HeartPulse, Mail, Shield
+    Home, Contact, GraduationCap, Camera, HeartPulse, Mail, Shield, RefreshCcw
 } from 'lucide-react';
+import ProFeatureGuard from '../components/ProFeatureGuard';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -808,25 +809,28 @@ export default function HR() {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <Users className="h-6 w-6 text-emerald-600" />
-                        Ressources Humaines
-                    </h1>
-                    <p className="text-sm text-gray-500 mt-1">Équipe · Contrats · Présence · Paie · Documents</p>
+            <ProFeatureGuard title="Ressources Humaines">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                            <Users className="h-6 w-6 text-emerald-600" />
+                            Ressources Humaines
+                        </h1>
+                        <p className="text-sm text-gray-500 mt-1">Équipe · Contrats · Présence · Paie · Documents</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={loadEmployees} className="text-gray-400 hover:text-emerald-600 transition-colors" title="Actualiser">
+                            <RefreshCcw className="h-5 w-5" />
+                        </button>
+                        <button 
+                            disabled
+                            className="flex items-center gap-1.5 bg-gray-400 text-white text-sm font-semibold px-3 py-2 rounded-xl cursor-not-allowed transition-colors"
+                        >
+                            <UserPlus className="w-4 h-4" /> Nouvel Employé (PRO)
+                        </button>
+                    </div>
                 </div>
-                <div className="flex gap-2">
-                    <button onClick={loadEmployees} className="text-gray-400 hover:text-emerald-600 transition-colors" title="Actualiser">
-                        <RefreshCcw className="h-5 w-5" />
-                    </button>
-                    <button onClick={() => setShowModal(true)}
-                        className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-3 py-2 rounded-xl transition-colors">
-                        <UserPlus className="w-4 h-4" /> Nouvel Employé
-                    </button>
-                </div>
-            </div>
 
             {/* KPI Strip */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -983,6 +987,7 @@ export default function HR() {
                     />
                 )}
             </AnimatePresence>
+            </ProFeatureGuard>
         </div>
     );
 }

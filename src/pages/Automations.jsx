@@ -12,6 +12,7 @@ import { useAutomations } from '../hooks/useAutomations';
 import { useTenant } from '../context/TenantContext'; // NEW
 import { DEFAULT_TEMPLATES, DARIJA_TEMPLATES } from '../utils/whatsappTemplates'; // NEW
 import { generateWhatsAppTemplate } from '../services/aiService'; // NEW
+import ProFeatureGuard from '../components/ProFeatureGuard';
 
 // --- DATA DEFINITIONS ---
 
@@ -584,37 +585,39 @@ export default function Automations() {
 
     return (
         <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-8">
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <Workflow className="w-6 h-6 text-indigo-600" />
-                        Automations
-                    </h1>
-                    <p className="text-sm text-gray-500 mt-1">
-                        Créer des règles pour automatiser votre boutique (Ex: Sendit, WhatsApp).
-                    </p>
+            <ProFeatureGuard title="Automatisations">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-8">
+                    <div>
+                        <h1 className="text-2xl font-bold flex items-center gap-2">
+                            <Workflow className="w-6 h-6 text-indigo-600" />
+                            Automations
+                        </h1>
+                        <p className="text-sm text-gray-500 mt-1">
+                            Créer des règles pour automatiser votre boutique (Ex: Sendit, WhatsApp).
+                        </p>
+                    </div>
+
+                    {view === 'list' ? (
+                        <button
+                            disabled
+                            className="flex items-center gap-2 bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed shadow-sm"
+                        >
+                            <Plus className="w-4 h-4" />
+                            Nouveau Scénario (PRO)
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => setView('list')}
+                            className="text-gray-600 hover:text-gray-900 px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm"
+                        >
+                            Annuler
+                        </button>
+                    )}
                 </div>
 
-                {view === 'list' ? (
-                    <button
-                        onClick={handleCreateNew}
-                        className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Nouveau Scénario
-                    </button>
-                ) : (
-                    <button
-                        onClick={() => setView('list')}
-                        className="text-gray-600 hover:text-gray-900 px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm"
-                    >
-                        Annuler
-                    </button>
-                )}
-            </div>
-
-            <AnimatePresence mode="wait">
+                <AnimatePresence mode="wait">
+                    {/* ... rest of the content ... */}
                 {view === 'list' && (
                     <motion.div
                         key="list"
@@ -786,12 +789,11 @@ export default function Automations() {
                                     Test Auto
                                 </button>
                                 <button
-                                    onClick={handleSave}
-                                    className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm shadow-sm"
-                                    disabled={currentAuto.nodes.length < 2}
+                                    disabled
+                                    className="flex items-center gap-2 px-6 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed font-medium text-sm shadow-sm"
                                 >
                                     <CheckCircle2 className="w-4 h-4" />
-                                    Activer
+                                    Activer (PRO)
                                 </button>
                             </div>
                         </div>
@@ -821,6 +823,7 @@ export default function Automations() {
                     />
                 )}
             </AnimatePresence>
+            </ProFeatureGuard>
         </div>
     );
 }
