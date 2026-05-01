@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Building2, Users, DollarSign, Search, ExternalLink, ShieldAlert, Megaphone, CheckCircle, AlertTriangle } from "lucide-react";
