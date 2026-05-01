@@ -7,7 +7,7 @@ import { db } from "../lib/firebase";
 import {
     ShieldCheck, ChevronDown, ChevronUp, CheckCircle2, XCircle,
     AlertCircle, Save, RotateCcw, FileText, ExternalLink,
-    Database, Star, Bug, Zap, CheckCheck, Filter
+    Database, Star, Bug, Zap, CheckCheck, Filter, Gift, Copy, Trophy
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import Button from "../components/Button";
@@ -25,7 +25,10 @@ export default function QA() {
     const [saving, setSaving] = useState(false);
     const [autoSaved, setAutoSaved] = useState(false);
     const [expandedModules, setExpandedModules] = useState([QA_MODULES[0].id]);
-    const [statusFilter, setStatusFilter] = useState('all'); // 'all'|'pending'|'fail'|'ok'
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [rewardCode, setRewardCode] = useState(null);
+    const [claiming, setClaiming] = useState(false);
+    const [showRewardModal, setShowRewardModal] = useState(false);
     const saveTimerRef = useRef(null);
 
     useEffect(() => {
@@ -236,12 +239,129 @@ export default function QA() {
         };
     };
 
+    // ── Reward Claim with Anti-Cheat ─────────────────────────────────────────
+    const claimReward = async () => {
+        const progress = calculateProgress();
+        const MIN_PERCENT = 80;
+        const MIN_SPAN_MINUTES = 20;
+        const MIN_COMMENT_LEN = 5;
+
+        // 1. Min completion
+        if (progress.percent < MIN_PERCENT) {
+            toast.error(`Vous devez valider au moins ${MIN_PERCENT}% des tests (${Math.ceil(progress.total * MIN_PERCENT / 100)} tests).`);
+            return;
+        }
+
+        // 2. All completed tests must have real proofs
+        const validatedEntries = Object.entries(results).filter(([, r]) => r.status === 'ok');
+        const noProof = validatedEntries.filter(([, r]) => !r.comment || r.comment.trim().length < MIN_COMMENT_LEN);
+        if (noProof.length > 0) {
+            toast.error(`${noProof.length} test(s) validé(s) sans preuve suffisante. Vérifiez vos commentaires.`);
+            return;
+        }
+
+        // 3. Time span anti-cheat: first → last timestamp must be > MIN_SPAN_MINUTES
+        const timestamps = validatedEntries
+            .map(([, r]) => r.timestamp ? new Date(r.timestamp).getTime() : null)
+            .filter(Boolean);
+        if (timestamps.length > 1) {
+            const spanMs = Math.max(...timestamps) - Math.min(...timestamps);
+            const spanMin = spanMs / 60000;
+            if (spanMin < MIN_SPAN_MINUTES) {
+                toast.error(`Tests complétés trop rapidement (${Math.round(spanMin)} min). Les tests doivent être réellement effectués sur au moins ${MIN_SPAN_MINUTES} minutes.`);
+                return;
+            }
+        }
+
+        // 4. Check if already claimed
+        const existingDoc = await getDoc(doc(db, 'promo_codes', targetStoreId));
+        if (existingDoc.exists()) {
+            const existing = existingDoc.data();
+            setRewardCode(existing.code);
+            setShowRewardModal(true);
+            toast.success('Votre code existe déjà !');
+            return;
+        }
+
+        // 5. Generate unique code and save
+        setClaiming(true);
+        try {
+            const seg = () => Math.random().toString(36).substring(2, 6).toUpperCase();
+            const code = `BETA-${seg()}-${seg()}`;
+            const expiresAt = new Date();
+            expiresAt.setMonth(expiresAt.getMonth() + 3); // 3 months to use it
+
+            await setDoc(doc(db, 'promo_codes', targetStoreId), {
+                code,
+                storeId: targetStoreId,
+                storeName: currentStore?.name || 'Inconnu',
+                testerId: currentStore?.ownerId || 'unknown',
+                completedTests: progress.completed,
+                totalTests: progress.total,
+                createdAt: serverTimestamp(),
+                expiresAt: expiresAt.toISOString(),
+                used: false,
+                rewardType: '1_month_free',
+            });
+
+            setRewardCode(code);
+            setShowRewardModal(true);
+            vibrate('success');
+            toast.success('🎉 Code généré avec succès !');
+        } catch (e) {
+            console.error(e);
+            toast.error('Erreur lors de la génération du code.');
+        } finally {
+            setClaiming(false);
+        }
+    };
+
     if (loading) return <div className="flex justify-center p-20"><RotateCcw className="animate-spin text-indigo-600" /></div>;
 
     const progress = calculateProgress();
 
     return (
         <div className="max-w-5xl mx-auto space-y-8 pb-20">
+
+            {/* 🎉 Reward Modal */}
+            {showRewardModal && rewardCode && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 text-center relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 via-white to-purple-50 opacity-60" />
+                        <div className="relative z-10">
+                            <div className="w-20 h-20 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-amber-200">
+                                <Trophy className="w-10 h-10 text-white" />
+                            </div>
+                            <h2 className="text-2xl font-extrabold text-gray-900 mb-2">Félicitations ! 🎉</h2>
+                            <p className="text-gray-500 mb-6">Vous avez complété la recette QA BayIIn. Voici votre code pour <strong>1 mois gratuit</strong> :</p>
+
+                            <div className="bg-gray-900 rounded-2xl p-5 mb-6">
+                                <p className="text-3xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">{rewardCode}</p>
+                                <p className="text-gray-500 text-xs mt-2">Valable 3 mois — à communiquer au support BayIIn</p>
+                            </div>
+
+                            <button
+                                onClick={() => { navigator.clipboard.writeText(rewardCode); toast.success('Code copié !'); }}
+                                className="flex items-center gap-2 mx-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-colors mb-4"
+                            >
+                                <Copy className="w-4 h-4" /> Copier le code
+                            </button>
+
+                            <a
+                                href={`https://wa.me/212600000000?text=Bonjour%20BayIIn%2C%20voici%20mon%20code%20beta%20testeur%20%3A%20${rewardCode}`}
+                                target="_blank" rel="noopener noreferrer"
+                                className="block text-sm text-green-600 font-bold hover:underline mb-4"
+                            >
+                                📱 Envoyer par WhatsApp au support
+                            </a>
+
+                            <button onClick={() => setShowRewardModal(false)} className="text-xs text-gray-400 hover:text-gray-600">
+                                Fermer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Header Section */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8 overflow-hidden relative">
                 <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
@@ -266,13 +386,24 @@ export default function QA() {
                     <div className="flex flex-col items-end gap-2">
                         <div className="text-right">
                             <p className="text-sm font-bold text-gray-400 uppercase">Progression Globale</p>
-                            <p className="text-4xl font-black text-indigo-600">{progress.percent}%</p>
+                            <p className={`text-4xl font-black ${progress.percent >= 80 ? 'text-green-600' : 'text-indigo-600'}`}>{progress.percent}%</p>
                             <p className="text-xs text-gray-400 mt-1">{progress.completed} / {progress.total} tests validés</p>
                         </div>
                         <div className="w-48 h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-indigo-600 transition-all duration-500" style={{ width: `${progress.percent}%` }} />
+                            <div className={`h-full transition-all duration-500 ${progress.percent >= 80 ? 'bg-green-500' : 'bg-indigo-600'}`} style={{ width: `${progress.percent}%` }} />
                         </div>
                         {autoSaved && <span className="text-[10px] text-green-500 font-bold animate-pulse">💾 Sauvegardé auto</span>}
+                        {/* Claim button when 80%+ */}
+                        {!isReadOnly && progress.percent >= 80 && (
+                            <button
+                                onClick={claimReward}
+                                disabled={claiming}
+                                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-amber-200 transition-all hover:-translate-y-0.5 disabled:opacity-60"
+                            >
+                                {claiming ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : <Gift className="w-4 h-4" />}
+                                Réclamer mon mois gratuit
+                            </button>
+                        )}
                     </div>
                 </div>
 

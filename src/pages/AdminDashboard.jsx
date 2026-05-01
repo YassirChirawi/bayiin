@@ -18,6 +18,8 @@ export default function AdminDashboard() {
     const [qaProgress, setQaProgress] = useState({});
     const [contacts, setContacts] = useState([]);
     const [contactsLoading, setContactsLoading] = useState(false);
+    const [promoCodes, setPromoCodes] = useState([]);
+    const [promoLoading, setPromoLoading] = useState(false);
 
     // Custom Hook
     const { stats, stores, usersList, franchises, broadcastData, loading, refreshData, setStores, setUsersList } = useAdminData(user);
@@ -179,6 +181,17 @@ export default function AdminDashboard() {
                 .catch(console.error)
                 .finally(() => setContactsLoading(false));
         }
+        if (activeTab === 'promo') {
+            setPromoLoading(true);
+            getDocs(collection(db, 'promo_codes'))
+                .then(snap => {
+                    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    data.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                    setPromoCodes(data);
+                })
+                .catch(console.error)
+                .finally(() => setPromoLoading(false));
+        }
     }, [activeTab, stores]);
 
 
@@ -286,7 +299,7 @@ export default function AdminDashboard() {
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 min-h-[500px]">
                     <div className="border-b border-gray-100 px-6 pt-6 bg-white rounded-t-2xl sticky top-0 z-10">
                         <nav className="-mb-px flex space-x-6 overflow-x-auto">
-                            {['stores', 'users', 'franchises', 'qa', 'contacts', 'broadcast'].map((tab) => (
+                            {['stores', 'users', 'franchises', 'qa', 'contacts', 'promo', 'broadcast'].map((tab) => (
                                 <button
                                     key={tab}
                                     onClick={() => setActiveTab(tab)}
@@ -297,7 +310,7 @@ export default function AdminDashboard() {
                                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
                                     `}
                                 >
-                                    {tab === 'qa' ? 'QA Recette' : tab === 'contacts' ? '📬 Contacts' : tab}
+                                    {tab === 'qa' ? 'QA Recette' : tab === 'contacts' ? '📬 Contacts' : tab === 'promo' ? '🎁 Codes Beta' : tab}
                                 </button>
                             ))}
                         </nav>
@@ -305,7 +318,7 @@ export default function AdminDashboard() {
 
                     <div className="p-6">
                         {/* Control Bar for Lists */}
-                        {activeTab !== 'broadcast' && activeTab !== 'contacts' && (
+                        {activeTab !== 'broadcast' && activeTab !== 'contacts' && activeTab !== 'promo' && (
                             <div className="mb-6 flex flex-col sm:flex-row justify-between gap-4">
                                 <div className="w-full sm:w-72">
                                     <Input
@@ -558,6 +571,59 @@ export default function AdminDashboard() {
                                                             {c.status === 'done' ? 'Rouvrir' : 'Marquer traité'}
                                                         </button>
                                                     </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* PROMO CODES TAB */}
+                        {activeTab === 'promo' && (
+                            <div className="space-y-4">
+                                <div className="bg-amber-50 border border-amber-100 p-5 rounded-2xl flex items-start gap-4">
+                                    <span className="text-3xl">🏆</span>
+                                    <div>
+                                        <h3 className="font-bold text-amber-900">Codes Beta Testeur</h3>
+                                        <p className="text-sm text-amber-700 mt-0.5">Codes générés automatiquement après complétion de la recette QA (80%+, min 20 min, preuves obligatoires).</p>
+                                    </div>
+                                </div>
+                                {promoLoading ? (
+                                    <div className="flex justify-center py-12"><div className="animate-spin w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full" /></div>
+                                ) : promoCodes.length === 0 ? (
+                                    <div className="text-center py-16 text-gray-400">Aucun code généré pour le moment.</div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {promoCodes.map(c => (
+                                            <div key={c.id} className={`bg-white rounded-2xl border p-5 hover:shadow-md transition-all ${c.used ? 'border-gray-100 opacity-60' : 'border-amber-100'}`}>
+                                                <div className="flex flex-wrap items-start justify-between gap-4">
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                                            <code className="text-lg font-black tracking-widest text-indigo-700 bg-indigo-50 px-3 py-1 rounded-xl">{c.code}</code>
+                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${c.used ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`}>
+                                                                {c.used ? '✅ Utilisé' : '🟢 Actif'}
+                                                            </span>
+                                                        </div>
+                                                        <p className="font-bold text-gray-900">{c.storeName}</p>
+                                                        <div className="flex flex-wrap gap-3 text-xs text-gray-400 mt-1">
+                                                            <span>📊 {c.completedTests}/{c.totalTests} tests</span>
+                                                            <span>📅 Généré : {c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('fr-FR') : '—'}</span>
+                                                            <span>⏳ Expire : {c.expiresAt ? new Date(c.expiresAt).toLocaleDateString('fr-FR') : '—'}</span>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={async () => {
+                                                            const { updateDoc: ud, doc: fd } = await import('firebase/firestore');
+                                                            await ud(fd(db, 'promo_codes', c.id), { used: !c.used });
+                                                            setPromoCodes(prev => prev.map(x => x.id === c.id ? { ...x, used: !x.used } : x));
+                                                        }}
+                                                        className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-colors flex-shrink-0 ${
+                                                            c.used ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                                                        }`}
+                                                    >
+                                                        {c.used ? 'Réactiver' : 'Marquer utilisé'}
+                                                    </button>
                                                 </div>
                                             </div>
                                         ))}
