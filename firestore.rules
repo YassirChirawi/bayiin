@@ -249,6 +249,20 @@ service cloud.firestore {
         allow write: if request.auth != null && isSuperAdmin();
     }
 
+    // Promo Codes (Beta Rewards)
+    match /promo_codes/{storeId} {
+        // Only super admins can list all codes
+        allow list: if isSuperAdmin();
+        // A store owner can read their own reward code
+        allow get: if request.auth != null && (isStoreOwner(storeId) || isSuperAdmin());
+        // A store owner can create/claim their reward code
+        allow create: if request.auth != null && (isStoreOwner(storeId) || isSuperAdmin());
+        // Only super admins can mark as used
+        allow update: if isSuperAdmin();
+        allow delete: if isSuperAdmin();
+    }
+
+
     // Driver Applications
     match /driverApplications/{appId} {
         allow create: if true;

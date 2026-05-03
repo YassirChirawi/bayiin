@@ -13,6 +13,19 @@ export default function Landing() {
     const { t, language, setLanguage } = useLanguage();
     const isRTL = language === 'ar';
     const [showScrollTop, setShowScrollTop] = useState(false);
+    const [badgeIndex, setBadgeIndex] = useState(0);
+
+    const badges = [
+        { type: 'live', text: t('hero_badge') },
+        { type: 'beta', text: '🎁 Testez la plateforme → 1 mois offert' }
+    ];
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setBadgeIndex(prev => (prev + 1) % badges.length);
+        }, 4000);
+        return () => clearInterval(timer);
+    }, [badges.length]);
 
     useEffect(() => {
         const handleScroll = () => {
@@ -47,9 +60,14 @@ export default function Landing() {
                             <a href="#hero" className="hover:text-indigo-600 transition-colors">{t('nav_home')}</a>
                             <a href="#features" className="hover:text-indigo-600 transition-colors">{t('nav_features')}</a>
                             <a href="#pricing" className="hover:text-indigo-600 transition-colors">{t('nav_pricing')}</a>
-                            <a href="#beta" className="flex items-center gap-1.5 text-amber-600 font-bold hover:text-amber-700 transition-colors">
+                            <motion.a 
+                                href="#beta" 
+                                animate={{ scale: [1, 1.05, 1] }}
+                                transition={{ repeat: Infinity, duration: 2 }}
+                                className="flex items-center gap-1.5 text-amber-600 font-bold hover:text-amber-700 transition-colors"
+                            >
                                 🎁 Beta Gratuit
-                            </a>
+                            </motion.a>
                             <a href="#contact" className="hover:text-indigo-600 transition-colors">Contact</a>
                         </div>
 
@@ -112,37 +130,30 @@ export default function Landing() {
                     className="relative z-10"
                 >
                     {/* Sliding badges — cycles between live status and beta offer */}
-                    <div className="relative inline-flex h-9 mb-8 overflow-hidden">
-                        <div className="flex flex-col animate-[slideUp_6s_ease-in-out_infinite]">
-                            {/* Slide 1: Live status */}
-                            <div className="h-9 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white text-indigo-600 text-sm font-medium border border-indigo-50 shadow-sm whitespace-nowrap">
-                                <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                                </span>
-                                {t('hero_badge')}
-                            </div>
-                            {/* Slide 2: Beta offer */}
-                            <div className="h-9 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-bold shadow-lg shadow-amber-200 whitespace-nowrap">
-                                🎁 Testez la plateforme &rarr; <strong>1 mois offert</strong>
-                            </div>
-                            {/* Slide 3: repeat slide 1 for seamless loop */}
-                            <div className="h-9 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white text-indigo-600 text-sm font-medium border border-indigo-50 shadow-sm whitespace-nowrap">
-                                <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                                </span>
-                                {t('hero_badge')}
-                            </div>
-                        </div>
+                    <div className="relative h-9 mb-8 overflow-hidden flex justify-center items-center">
+                        <motion.div
+                            key={badgeIndex}
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            exit={{ y: -20, opacity: 0 }}
+                            transition={{ duration: 0.5, ease: "easeInOut" }}
+                            className="absolute"
+                        >
+                            {badges[badgeIndex].type === 'live' ? (
+                                <div className="h-9 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white text-indigo-600 text-sm font-medium border border-indigo-50 shadow-sm whitespace-nowrap">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                    </span>
+                                    {badges[badgeIndex].text}
+                                </div>
+                            ) : (
+                                <div className="h-9 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-bold shadow-lg shadow-amber-200 whitespace-nowrap">
+                                    {badges[badgeIndex].text}
+                                </div>
+                            )}
+                        </motion.div>
                     </div>
-                    <style>{`
-                        @keyframes slideUp {
-                            0%, 40%   { transform: translateY(0); }
-                            50%, 90%  { transform: translateY(-36px); }
-                            100%      { transform: translateY(-72px); }
-                        }
-                    `}</style>
 
                     {/* Arabic Caption always visible or context specific? User wants fully translated. */}
                     <p className="text-3xl md:text-5xl text-slate-800 mb-6 max-w-4xl mx-auto leading-relaxed font-arabic font-bold drop-shadow-sm" dir="rtl">

@@ -29,6 +29,8 @@ export default function QA() {
     const [rewardCode, setRewardCode] = useState(null);
     const [claiming, setClaiming] = useState(false);
     const [showRewardModal, setShowRewardModal] = useState(false);
+    const [startTime, setStartTime] = useState(null);
+    const [sessionDuration, setSessionDuration] = useState(0);
     const saveTimerRef = useRef(null);
 
     useEffect(() => {
@@ -37,7 +39,9 @@ export default function QA() {
             try {
                 const snap = await getDoc(doc(db, "stores", targetStoreId, "qa_runs", "current"));
                 if (snap.exists()) {
-                    setResults(snap.data().tests || {});
+                    const data = snap.data();
+                    setResults(data.tests || {});
+                    if (data.startTime) setStartTime(data.startTime.toDate ? data.startTime.toDate() : new Date(data.startTime));
                 }
             } catch (e) {
                 console.error("Error fetching QA results:", e);
@@ -47,6 +51,22 @@ export default function QA() {
         };
         fetchResults();
     }, [targetStoreId]);
+
+    // ── Timer Effect ─────────────────────────────────────────────────────────
+    useEffect(() => {
+        if (!startTime) return;
+        const interval = setInterval(() => {
+            const now = new Date();
+            const diffMin = Math.floor((now - startTime) / 60000);
+            setSessionDuration(diffMin);
+        }, 30000); // update every 30s
+        
+        // Initial calc
+        const now = new Date();
+        setSessionDuration(Math.floor((now - startTime) / 60000));
+
+        return () => clearInterval(interval);
+    }, [startTime]);
 
     const toggleModule = (id) => {
         setExpandedModules(prev =>
@@ -61,7 +81,8 @@ export default function QA() {
             await setDoc(doc(db, "stores", targetStoreId, "qa_runs", "current"), {
                 tests: data,
                 updatedAt: serverTimestamp(),
-                testerId: currentStore?.ownerId || 'admin'
+                testerId: currentStore?.ownerId || 'admin',
+                startTime: startTime || serverTimestamp()
             });
             setAutoSaved(true);
             setTimeout(() => setAutoSaved(false), 2000);
@@ -75,6 +96,10 @@ export default function QA() {
 
     const patchResults = (newResults) => {
         setResults(newResults);
+        if (!startTime && !isReadOnly) {
+            const now = new Date();
+            setStartTime(now);
+        }
         if (!isReadOnly) scheduleAutosave(newResults);
     };
 
@@ -129,7 +154,8 @@ export default function QA() {
             await setDoc(doc(db, "stores", targetStoreId, "qa_runs", "current"), {
                 tests: results,
                 updatedAt: serverTimestamp(),
-                testerId: currentStore?.ownerId || 'admin'
+                testerId: currentStore?.ownerId || 'admin',
+                startTime: startTime || serverTimestamp()
             });
             toast.success('Progression QA sauvegardée !');
             vibrate('success');
@@ -371,8 +397,13 @@ export default function QA() {
                     <div>
                         <div className="flex items-center gap-2 mb-2">
                             <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
-                                Mode Testeur Actif
+                                {isReadOnly ? "Audit Admin" : "Mode Testeur Actif"}
                             </span>
+                            {startTime && (
+                                <span className="bg-purple-100 text-purple-700 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1">
+                                    <Zap size={10} className="animate-pulse" /> {sessionDuration} minutes de test
+                                </span>
+                            )}
                         </div>
                         <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
                             <ShieldCheck className="text-indigo-600 h-8 w-8" />
@@ -494,7 +525,11 @@ export default function QA() {
                                                     const status = results[test.id]?.status || 'pending';
                                                     const uxRating = results[test.id]?.uxRating || 0;
                                                     return (
-                                                        <tr key={test.id} className={`group hover:bg-gray-50/50 transition-colors ${status === 'ok' ? 'opacity-60' : ''} ${status === 'fail' ? 'bg-red-50/30' : ''}`}>
+                                                        <tr key={test.id} className={`group hover:bg-gray-50/50 transition-all border-l-4 ${
+                                                            status === 'ok' ? 'border-l-green-500 opacity-70 bg-green-50/10' : 
+                                                            status === 'fail' ? 'border-l-red-500 bg-red-50/30' : 
+                                                            'border-l-transparent'
+                                                        }`}>
                                                             <td className="px-6 py-4 text-xs font-mono font-bold text-gray-400">{test.id}</td>
                                                             <td className="px-6 py-4">
                                                                 <p className="text-sm font-bold text-gray-900">{test.task}</p>

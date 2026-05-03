@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useStoreData } from '../hooks/useStoreData';
 import { useTenant } from '../context/TenantContext';
 import { useLanguage } from '../context/LanguageContext';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday, parseISO } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday, parseISO, addDays } from 'date-fns';
 import { fr, enUS } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, Truck, CheckCircle, AlertCircle, Phone, ShoppingBag, RefreshCw } from 'lucide-react';
 import Button from '../components/Button';
@@ -133,8 +133,7 @@ export default function Planning() {
                     <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50">
                         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => (
                             <div key={day} className="py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                                {format(addMonths(startDate, 0), 'EEEE', { locale }).split(' ')[0]} {/* Simple Hack, needs proper locale mapping */}
-                                {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'][i]}
+                                {format(addDays(startDate, i), 'EEE', { locale })}
                             </div>
                         ))}
                     </div>

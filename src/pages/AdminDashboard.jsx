@@ -20,6 +20,7 @@ export default function AdminDashboard() {
     const [contactsLoading, setContactsLoading] = useState(false);
     const [promoCodes, setPromoCodes] = useState([]);
     const [promoLoading, setPromoLoading] = useState(false);
+    const [selectedQaStore, setSelectedQaStore] = useState(null);
 
     // Custom Hook
     const { stats, stores, usersList, franchises, broadcastData, loading, refreshData, setStores, setUsersList } = useAdminData(user);
@@ -147,18 +148,23 @@ export default function AdminDashboard() {
                             ? rated.reduce((s, [, t]) => s + t.uxRating, 0) / rated.length
                             : 0;
 
-                        // Failed tests with metadata
-                        const failedTests = entries
-                            .filter(([, t]) => t.status === 'fail')
-                            .map(([id, t]) => ({
-                                id,
-                                task: testMeta[id]?.task || id,
-                                severity: testMeta[id]?.severity || 'Mineur',
-                                bugDescription: t.bugDescription || '',
-                                comment: t.comment || '',
-                            }));
+                        // Full results for auditing
+                        const fullResults = currentRun.tests;
+                        const startTime = currentRun.startTime?.toDate ? currentRun.startTime.toDate() : null;
+                        const endTime = currentRun.updatedAt?.toDate ? currentRun.updatedAt.toDate() : null;
+                        const durationMinutes = (startTime && endTime) ? Math.round((endTime - startTime) / 60000) : null;
 
-                        progress[store.id] = { completed, total, failed, avgUxRating, failedTests, updatedAt: currentRun.updatedAt };
+                        progress[store.id] = { 
+                            completed, 
+                            total, 
+                            failed, 
+                            avgUxRating, 
+                            failedTests, 
+                            fullResults,
+                            startTime,
+                            updatedAt: currentRun.updatedAt,
+                            durationMinutes
+                        };
                     }
                 }
             } catch (e) { console.error(e); }
@@ -640,6 +646,63 @@ export default function AdminDashboard() {
                                     <p className="text-sm text-indigo-700">Vue en temps réel des résultats, bugs signalés et notes UX par boutique.</p>
                                 </div>
 
+                                {/* Proofs Modal */}
+                                {selectedQaStore && (
+                                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                                        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+                                            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                                                <div>
+                                                    <h2 className="text-xl font-bold text-gray-900">Audit des Proofs : {selectedQaStore.name}</h2>
+                                                    <p className="text-xs text-gray-500">Session de {selectedQaStore.durationMinutes || '?'} minutes</p>
+                                                </div>
+                                                <button onClick={() => setSelectedQaStore(null)} className="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
+                                            </div>
+                                            <div className="flex-1 overflow-auto p-6">
+                                                <table className="min-w-full divide-y divide-gray-200">
+                                                    <thead>
+                                                        <tr className="bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                                            <th className="px-4 py-3 text-left">Test</th>
+                                                            <th className="px-4 py-3 text-center">Status</th>
+                                                            <th className="px-4 py-3 text-center">UX</th>
+                                                            <th className="px-4 py-3 text-left">Proof / Comment</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-gray-100">
+                                                        {Object.entries(selectedQaStore.fullResults || {}).sort((a, b) => b[1].status === 'fail' ? 1 : -1).map(([id, t]) => (
+                                                            <tr key={id} className={`text-sm ${t.status === 'fail' ? 'bg-red-50/30' : ''}`}>
+                                                                <td className="px-4 py-3">
+                                                                    <div className="font-bold text-gray-900">{id}</div>
+                                                                    <div className="text-[10px] text-gray-400 truncate max-w-xs">Test ID: {id}</div>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center">
+                                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${t.status === 'ok' ? 'bg-green-100 text-green-700' : t.status === 'fail' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                                        {t.status === 'ok' ? 'VALIDÉ' : t.status === 'fail' ? 'BUG' : 'PENDING'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center">
+                                                                    <div className="flex justify-center gap-0.5">
+                                                                        {[...Array(5)].map((_, i) => (
+                                                                            <Star key={i} size={10} className={i < (t.uxRating || 0) ? 'text-amber-400 fill-amber-400' : 'text-gray-200'} />
+                                                                        ))}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {t.comment && <p className="text-gray-700 italic">"{t.comment}"</p>}
+                                                                    {t.bugDescription && <p className="text-red-600 mt-1 font-bold text-xs">🐛 Bug: {t.bugDescription}</p>}
+                                                                    {!t.comment && !t.bugDescription && <span className="text-gray-300 italic">No proof provided</span>}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end">
+                                                <Button onClick={() => setSelectedQaStore(null)}>Fermer l'audit</Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {stores.length === 0 ? (
                                     <div className="text-center py-12 text-gray-400">Aucune boutique trouvée.</div>
                                 ) : stores.map(store => {
@@ -655,7 +718,7 @@ export default function AdminDashboard() {
                                         </div>
                                     );
 
-                                    const { completed, total, failed = 0, avgUxRating, failedTests = [], updatedAt } = p;
+                                    const { completed, total, failed = 0, avgUxRating, failedTests = [], updatedAt, durationMinutes } = p;
                                     const pct = Math.round((completed / total) * 100);
 
                                     return (
@@ -669,12 +732,16 @@ export default function AdminDashboard() {
                                                 </div>
                                                 {/* KPI Pills */}
                                                 <div className="flex flex-wrap gap-2">
+                                                    {durationMinutes !== null && <span className="px-2 py-1 rounded-full text-[11px] font-bold bg-purple-100 text-purple-700">⏱️ {durationMinutes} min</span>}
                                                     <span className="px-2 py-1 rounded-full text-[11px] font-bold bg-green-100 text-green-700">{completed} ✅ validés</span>
                                                     {failed > 0 && <span className="px-2 py-1 rounded-full text-[11px] font-bold bg-red-100 text-red-700">{failed} ❌ bugs</span>}
                                                     {avgUxRating > 0 && <span className="px-2 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-700">⭐ {avgUxRating.toFixed(1)} UX moy.</span>}
                                                     <span className="px-2 py-1 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-700">{total - completed - failed} ⏳ en attente</span>
                                                 </div>
-                                                <Button size="sm" variant="secondary" icon={ExternalLink} onClick={() => navigate(`/qa?storeId=${store.id}`)}>Voir QA</Button>
+                                                <div className="flex gap-2">
+                                                    <Button size="sm" variant="secondary" onClick={() => setSelectedQaStore({ ...store, ...p })}>Audit Proofs</Button>
+                                                    <Button size="sm" variant="ghost" icon={ExternalLink} onClick={() => navigate(`/qa?storeId=${store.id}`)}>Voir QA</Button>
+                                                </div>
                                             </div>
 
                                             {/* Progress bar */}
