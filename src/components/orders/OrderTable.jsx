@@ -4,6 +4,7 @@ import {
     Trash2, QrCode, RotateCcw, Truck,
     Package, MessageCircle, Box, MapPin
 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { getOrderStatusConfig } from '../../utils/statusConfig';
 import { createRawWhatsAppLink, getWhatsappMessage } from '../../utils/whatsappTemplates';
 
