@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { TrendingUp, DollarSign, Activity, AlertCircle, Sparkles, RefreshCw } from "lucide-react";
-import { motion } from "framer-motion";
 import Button from "./Button";
-import { generateAIResponse } from "../services/aiService";
 
 export default function CFOSimulator({ currentStats, onAiAnalysis }) {
     // Sliders State (Percentage changes)
@@ -24,8 +22,6 @@ export default function CFOSimulator({ currentStats, onAiAnalysis }) {
         const baseAds = parseFloat(currentStats.totalAds) || 0; // Need to ensure this is passed or derived
         const baseCOGS = parseFloat(currentStats.totalCOGS) || 0;
         const baseShipping = parseFloat(currentStats.totalShipping) || 0;
-        const baseOrders = parseInt(currentStats.orderCount) || 1;
-        const baseProfit = parseFloat(currentStats.netResult) || 0;
 
         // 1. Ad Spend Impact
         // Assumption: ROAS stays roughly constant for small changes, but decays for large increases
@@ -52,7 +48,6 @@ export default function CFOSimulator({ currentStats, onAiAnalysis }) {
         // Elasticity: +10% price -> -10% volume (Unit Elasticity for simplicity, usually higher)
         // New Price = Old Avg Price * (1 + change)
         const priceFactor = 1 + scenarios.price / 100;
-        const conversionDrop = 1 / (1 + scenarios.price / 100); // Simple demand curve: Revenue stays constant-ish? No/
         // Actually, let's assume Volume drops by factor matching price increase
         // Volume = Base Volume * (1 - elasticity * change)
         // Elasticity 1.5
