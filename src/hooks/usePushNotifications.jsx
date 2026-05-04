@@ -8,7 +8,9 @@ import { toast } from 'react-hot-toast';
 export const usePushNotifications = () => {
     const { user } = useAuth();
     const [token, setToken] = useState(null);
-    const [permissionStatus, setPermissionStatus] = useState(Notification.permission);
+    const [permissionStatus, setPermissionStatus] = useState(() => {
+        return typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
+    });
 
     const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
@@ -43,6 +45,10 @@ export const usePushNotifications = () => {
         }
 
         try {
+            if (typeof Notification === 'undefined') {
+                toast.error("Votre navigateur ne supporte pas les notifications push.");
+                return;
+            }
             const permission = await Notification.requestPermission();
             setPermissionStatus(permission);
 

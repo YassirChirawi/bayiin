@@ -80,11 +80,20 @@ export const TenantProvider = ({ children }) => {
 
             // 4. Select Active Store (Priority: localStorage -> first)
             if (availableStores.length > 0) {
-                const lastStoreId = localStorage.getItem('lastStoreId');
+                let lastStoreId = null;
+                try {
+                    lastStoreId = localStorage.getItem('lastStoreId');
+                } catch (e) {
+                    console.warn("localStorage is not available", e);
+                }
                 const foundLast = availableStores.find(s => s.id === lastStoreId);
                 const activeStore = foundLast || availableStores[0];
                 setStore(activeStore);
-                if (!foundLast) localStorage.setItem('lastStoreId', activeStore.id);
+                if (!foundLast) {
+                    try {
+                        localStorage.setItem('lastStoreId', activeStore.id);
+                    } catch (e) {}
+                }
             } else {
                 setStore(null);
             }
@@ -128,7 +137,9 @@ export const TenantProvider = ({ children }) => {
         const target = stores.find(s => s.id === storeId);
         if (target) {
             setStore(target);
-            localStorage.setItem('lastStoreId', target.id);
+            try {
+                localStorage.setItem('lastStoreId', target.id);
+            } catch (e) {}
         }
     };
 

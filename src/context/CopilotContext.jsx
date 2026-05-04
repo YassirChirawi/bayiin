@@ -19,8 +19,13 @@ export const CopilotProvider = ({ children }) => {
     const { store } = useTenant();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState(() => {
-        const saved = localStorage.getItem(`copilot_history_${store?.id}`);
-        return saved ? JSON.parse(saved) : [];
+        try {
+            const saved = localStorage.getItem(`copilot_history_${store?.id}`);
+            return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+            console.warn("Failed to load copilot history", e);
+            return [];
+        }
     });
     const [loading, setLoading] = useState(false);
     const [isStreaming, setIsStreaming] = useState(false);
@@ -29,7 +34,9 @@ export const CopilotProvider = ({ children }) => {
     // PERSISTENCE
     useEffect(() => {
         if (store?.id) {
-            localStorage.setItem(`copilot_history_${store.id}`, JSON.stringify(messages.slice(-50)));
+            try {
+                localStorage.setItem(`copilot_history_${store.id}`, JSON.stringify(messages.slice(-50)));
+            } catch (e) {}
         }
     }, [messages, store?.id]);
 
@@ -78,8 +85,13 @@ export const CopilotProvider = ({ children }) => {
     // BRIEF D'OUVERTURE (must be after orders/products/businessContext declarations)
     useEffect(() => {
         if (!store?.id) return;
-        const hasSavedHistory = localStorage.getItem(`copilot_history_${store.id}`);
-        if (hasSavedHistory && JSON.parse(hasSavedHistory).length > 0) return;
+        let hasSavedHistory = false;
+        try {
+            const saved = localStorage.getItem(`copilot_history_${store.id}`);
+            if (saved && JSON.parse(saved).length > 0) hasSavedHistory = true;
+        } catch (e) {}
+
+        if (hasSavedHistory) return;
 
         if (orders.length > 0 || products.length > 0) {
             const brief = generateOpeningBrief(businessContext);
@@ -240,7 +252,9 @@ export const CopilotProvider = ({ children }) => {
     };
 
     const clearHistory = () => {
-        localStorage.removeItem(`copilot_history_${store?.id}`);
+        try {
+            localStorage.removeItem(`copilot_history_${store?.id}`);
+        } catch (e) {}
         const brief = generateOpeningBrief(businessContext);
         setMessages([{
             id: 'brief-' + Date.now(),
