@@ -10,23 +10,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        node-version: [18.x]
-
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
+    - name: Use Node.js
+      uses: actions/setup-node@v4
       with:
-        node-version: ${{ matrix.node-version }}
+        node-version: 20
         cache: 'npm'
 
     - name: Install Dependencies
       run: npm ci
 
-    # Loose Linting (warn only via continue-on-error) to start gently
     - name: Lint
       run: npm run lint
       continue-on-error: true
@@ -34,5 +29,4 @@ jobs:
     - name: Build
       run: npm run build
       env:
-        # Prevent build from failing if warnings are treated as errors by default
         CI: false 

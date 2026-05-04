@@ -10,6 +10,7 @@ import { db } from "../lib/firebase";
 import { collection, addDoc, serverTimestamp, query, where, limit, orderBy } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { vibrate } from "../utils/haptics";
+import { queueOrder, getPendingCount } from "../services/offlineQueue";
 
 const CopilotContext = createContext();
 
@@ -29,15 +30,36 @@ export const CopilotProvider = ({ children }) => {
     });
     const [loading, setLoading] = useState(false);
     const [isStreaming, setIsStreaming] = useState(false);
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [pendingSyncCount, setPendingSyncCount] = useState(0);
     const lastActionTime = useRef(0);
 
-    // PERSISTENCE
+    // PERSISTENCE & OFFLINE LISTENERS
     useEffect(() => {
         if (store?.id) {
             try {
                 localStorage.setItem(`copilot_history_${store.id}`, JSON.stringify(messages.slice(-50)));
-            } catch (e) {}
+            } catch (e) {
+                // Silent fail on localStorage quota or security errors
+            }
         }
+
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        // Update pending count periodically
+        const interval = setInterval(async () => {
+            const count = await getPendingCount();
+            setPendingSyncCount(count);
+        }, 5000);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+            clearInterval(interval);
+        };
     }, [messages, store?.id]);
 
     // ENRICHED CONTEXT
@@ -79,8 +101,10 @@ export const CopilotProvider = ({ children }) => {
             totalOrders: monthlyOrders.length,
             totalReturns 
         },
-        clientCount: customers.length
-    }), [store, orders, products, totalRevenue, totalProfit, monthlyOrders.length, totalReturns, customers.length]);
+        clientCount: customers.length,
+        isOnline,
+        pendingSyncCount
+    }), [store, orders, products, totalRevenue, totalProfit, monthlyOrders.length, totalReturns, customers.length, isOnline, pendingSyncCount]);
 
     // BRIEF D'OUVERTURE (must be after orders/products/businessContext declarations)
     useEffect(() => {
@@ -89,7 +113,9 @@ export const CopilotProvider = ({ children }) => {
         try {
             const saved = localStorage.getItem(`copilot_history_${store.id}`);
             if (saved && JSON.parse(saved).length > 0) hasSavedHistory = true;
-        } catch (e) {}
+        } catch (e) {
+            // Ignore parse errors
+        }
 
         if (hasSavedHistory) return;
 
@@ -114,7 +140,7 @@ export const CopilotProvider = ({ children }) => {
         
         try {
             switch (action.action) {
-                case "CREATE_ORDER":
+                case "CREATE_ORDER": {
                     const orderData = {
                         ...action.data,
                         storeId: store?.id,
@@ -126,9 +152,17 @@ export const CopilotProvider = ({ children }) => {
                         paymentMethod: 'cod',
                         note: action.data.note || ""
                     };
+
+                    if (!isOnline) {
+                        await queueOrder(orderData);
+                        vibrate('success');
+                        return "💾 Hors-ligne : Commande sauvegardée localement. Elle sera synchronisée dès le retour de la connexion !";
+                    }
+
                     await createOrder(orderData);
                     vibrate('success');
                     return "✅ Commande créée avec succès !";
+                }
 
                 case "UPDATE_ORDER_STATUS":
                     await updateOrderStatus(action.data.orderId, action.data.newStatus);
@@ -139,7 +173,7 @@ export const CopilotProvider = ({ children }) => {
                     await updateOrderStatus(action.data.orderId, "annulé");
                     return "✅ Commande annulée.";
 
-                case "SHIP_ORDER":
+                case "SHIP_ORDER": {
                     const orderToShip = orders.find(o => o.id === action.data.orderId);
                     if (!orderToShip) return "❌ Commande introuvable.";
                     
@@ -151,6 +185,7 @@ export const CopilotProvider = ({ children }) => {
                         return `🚚 Commande #${orderToShip.orderNumber} expédiée via Sendit !`;
                     }
                     return "❌ Transporteur non supporté.";
+                }
 
                 case "CREATE_EXPENSE":
                     await addDoc(collection(db, "expenses"), {
@@ -169,12 +204,13 @@ export const CopilotProvider = ({ children }) => {
                     );
                     return `📈 Analyse : ${analysis}`;
 
-                case "SEND_WHATSAPP":
+                case "SEND_WHATSAPP": {
                     const message = action.data.message || "Bonjour !";
                     const url = createRawWhatsAppLink(action.data.phone, message);
                     vibrate('success');
                     window.open(url, '_blank');
                     return "📱 Lien WhatsApp généré et ouvert !";
+                }
 
                 case "GET_ANALYTICS":
                     return `📊 J'analyse les données pour la métrique "${action.data.metric}"... (Simulé)`;
@@ -254,7 +290,9 @@ export const CopilotProvider = ({ children }) => {
     const clearHistory = () => {
         try {
             localStorage.removeItem(`copilot_history_${store?.id}`);
-        } catch (e) {}
+        } catch (e) {
+            // Ignore storage errors
+        }
         const brief = generateOpeningBrief(businessContext);
         setMessages([{
             id: 'brief-' + Date.now(),

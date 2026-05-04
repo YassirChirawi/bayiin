@@ -9,7 +9,7 @@ import { parseISO, format } from 'date-fns';
 
 export default function CollectionsManager({ onClose, onSelect }) {
     const { t } = useLanguage();
-    const { data: collections, addStoreItem, deleteStoreItem, loading } = useStoreData('collections');
+    const { data: collections, addStoreItem, deleteStoreItem } = useStoreData('collections');
     const [form, setForm] = useState({ name: '', startDate: '', endDate: '' });
     const [isSubmitting, setIsSubmitting] = useState(false);
 

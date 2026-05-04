@@ -55,7 +55,6 @@ const INTEGRATION_OPTIONS = [
 
 export default function ContactSection() {
     const [type, setType] = useState("devis");
-    const [step, setStep] = useState(1);
     const [submitted, setSubmitted] = useState(false);
     const [loading, setLoading] = useState(false);
     const [form, setForm] = useState({
@@ -68,8 +67,6 @@ export default function ContactSection() {
         integrationOptions: [],
         budget: "",
     });
-
-    const selectedType = REQUEST_TYPES.find(t => t.id === type);
 
     const toggleOption = (opt) => {
         setForm(f => ({
