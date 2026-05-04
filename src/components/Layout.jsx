@@ -57,10 +57,16 @@ export default function Layout() {
             {/* Mobile Header */}
             <div className="md:hidden bg-white border-b border-gray-200 p-4 flex items-center justify-between sticky top-0 z-20">
                 <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setIsMobileMenuOpen(true)}
+                        className="p-1 -ml-1 text-gray-600 hover:text-gray-900"
+                    >
+                        <Menu className="h-6 w-6" />
+                    </button>
                     {!isDashboard ? (
                         <button
                             onClick={() => navigate(-1)}
-                            className="p-1 -ml-1 text-gray-600 hover:text-gray-900"
+                            className="p-1 text-gray-600 hover:text-gray-900"
                         >
                             <ArrowLeft className="h-6 w-6" />
                         </button>

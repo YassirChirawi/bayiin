@@ -107,17 +107,18 @@ export default function Sidebar({ isOpen, onClose }) {
                         </button>
                     </div>
 
-                    {/* Language Switcher */}
-                    <button
-                        onClick={() => setLanguage(language === 'en' ? 'fr' : 'en')}
-                        className="flex items-center justify-between w-full px-3 py-2 text-sm text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors border border-gray-200"
-                    >
-                        <div className="flex items-center gap-2">
-                            <Globe className="h-4 w-4 text-indigo-500" />
-                            <span>Language: {language === 'en' ? 'English' : 'Français'}</span>
-                        </div>
-                        <span className="text-xs font-bold text-indigo-600 border border-indigo-200 px-1.5 rounded">{language.toUpperCase()}</span>
-                    </button>
+                {/* Language Switcher */}
+                <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-lg border border-gray-200">
+                    {['fr', 'en', 'ar'].map((lang) => (
+                        <button
+                            key={lang}
+                            onClick={() => setLanguage(lang)}
+                            className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${language === lang ? 'bg-white text-indigo-600 shadow-sm border border-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                            {lang.toUpperCase()}
+                        </button>
+                    ))}
+                </div>
                 </div>
 
                 <nav id="tour-nav" className="flex-1 p-3 space-y-0.5 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>

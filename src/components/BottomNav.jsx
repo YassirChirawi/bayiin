@@ -1,21 +1,21 @@
-import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, ShoppingBag, Package, Users, Menu } from "lucide-react";
-import { vibrate } from "../utils/haptics";
+import { useLanguage } from "../context/LanguageContext";
 
-const NAV_ITEMS = [
-    { href: "/dashboard",  icon: LayoutDashboard, label: "Accueil"   },
-    { href: "/orders",     icon: ShoppingBag,     label: "Commandes" },
-    { href: "/products",   icon: Package,          label: "Produits"  },
-    { href: "/customers",  icon: Users,            label: "Clients"   },
+const getNavItems = (t) => [
+    { href: "/dashboard",  icon: LayoutDashboard, label: t('nav_home') || "Accueil"   },
+    { href: "/orders",     icon: ShoppingBag,     label: t('orders') || "Commandes" },
+    { href: "/products",   icon: Package,          label: t('products') || "Produits"  },
+    { href: "/customers",  icon: Users,            label: t('customers') || "Clients"   },
 ];
 
 export default function BottomNav({ onOpenMenu }) {
     const { pathname } = useLocation();
+    const { t } = useLanguage();
+    const navItems = getNavItems(t);
 
     return (
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-100 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] safe-area-inset-bottom">
             <div className="flex items-stretch h-16">
-                {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
+                {navItems.map(({ href, icon: Icon, label }) => {
                     const isActive = pathname.startsWith(href);
                     return (
                         <Link

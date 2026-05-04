@@ -12,6 +12,7 @@ import { useLanguage } from "../context/LanguageContext";
 export default function Landing() {
     const { t, language, setLanguage } = useLanguage();
     const isRTL = language === 'ar';
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [showScrollTop, setShowScrollTop] = useState(false);
     const [badgeIndex, setBadgeIndex] = useState(0);
 
@@ -71,40 +72,64 @@ export default function Landing() {
                             <a href="#contact" className="hover:text-indigo-600 transition-colors">Contact</a>
                         </div>
 
-                        <div className="flex items-center gap-4">
-                            {/* Language Switcher */}
-                            <div className="flex items-center bg-slate-100 rounded-lg p-1 mr-2">
+                        <div className="flex items-center gap-2 md:gap-4">
+                            {/* Language Switcher - Compact on mobile */}
+                            <div className="flex items-center bg-slate-100 rounded-lg p-1">
                                 <button
                                     onClick={() => setLanguage('ar')}
-                                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${language === 'ar' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    className={`px-2 md:px-3 py-1 text-[10px] md:text-xs font-bold rounded-md transition-all ${language === 'ar' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
                                     AR
                                 </button>
                                 <button
                                     onClick={() => setLanguage('fr')}
-                                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${language === 'fr' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    className={`px-2 md:px-3 py-1 text-[10px] md:text-xs font-bold rounded-md transition-all ${language === 'fr' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
                                     FR
                                 </button>
-                                <button
-                                    onClick={() => setLanguage('en')}
-                                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${language === 'en' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    EN
-                                </button>
                             </div>
 
-                            <Link to="/login" className="text-sm font-medium text-slate-700 hover:text-indigo-600 transition-colors">
+                            <Link to="/login" className="hidden sm:block text-sm font-medium text-slate-700 hover:text-indigo-600 transition-colors">
                                 {t('nav_login')}
                             </Link>
-                            <Link to="/signup" className="hidden sm:flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5">
+                            <Link to="/signup" className="hidden lg:flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5">
                                 {t('nav_signup')} <ArrowRight className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
                             </Link>
+                            
+                            {/* Mobile Menu Button */}
+                            <button 
+                                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                                className="md:hidden p-2 text-slate-600"
+                            >
+                                {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                            </button>
+
                             {/* Hidden admin access — visible on hover only */}
-                            <Link to="/admin" title="Administration" className="opacity-0 hover:opacity-40 transition-opacity duration-300 text-slate-400 hover:text-slate-600 text-lg select-none">🔑</Link>
+                            <Link to="/admin" title="Administration" className="hidden md:block opacity-0 hover:opacity-40 transition-opacity duration-300 text-slate-400 hover:text-slate-600 text-lg select-none">🔑</Link>
                         </div>
                     </div>
                 </div>
+
+                {/* Mobile Navigation Overlay */}
+                {isMobileMenuOpen && (
+                    <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="md:hidden bg-white border-b border-slate-100 overflow-hidden"
+                    >
+                        <div className="px-4 py-6 space-y-4">
+                            <a href="#hero" onClick={() => setIsMobileMenuOpen(false)} className="block text-lg font-medium text-slate-700">{t('nav_home')}</a>
+                            <a href="#features" onClick={() => setIsMobileMenuOpen(false)} className="block text-lg font-medium text-slate-700">{t('nav_features')}</a>
+                            <a href="#pricing" onClick={() => setIsMobileMenuOpen(false)} className="block text-lg font-medium text-slate-700">{t('nav_pricing')}</a>
+                            <a href="#beta" onClick={() => setIsMobileMenuOpen(false)} className="block text-lg font-bold text-amber-600">🎁 Beta Gratuit</a>
+                            <a href="#contact" onClick={() => setIsMobileMenuOpen(false)} className="block text-lg font-medium text-slate-700">Contact</a>
+                            <div className="pt-4 border-t border-slate-100 flex gap-4">
+                                <Link to="/login" className="flex-1 text-center py-3 rounded-xl border border-slate-200 font-bold text-slate-700">{t('nav_login')}</Link>
+                                <Link to="/signup" className="flex-1 text-center py-3 rounded-xl bg-indigo-600 text-white font-bold">{t('nav_signup')}</Link>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
             </nav>
 
             {/* Hero Section */}

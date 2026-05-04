@@ -218,10 +218,10 @@ export default function Dashboard() {
             {/* Header */}
             <div className="flex justify-between items-start">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">
+                    <h1 className="text-2xl font-bold text-gray-900" dir="auto">
                         {t('welcome_back').replace('{name}', store?.name || 'User')}
                     </h1>
-                    <p className="mt-1 text-sm text-gray-500">
+                    <p className="mt-1 text-sm text-gray-500" dir="auto">
                         {t('dashboard_subtitle')}
                     </p>
                 </div>
@@ -293,7 +293,7 @@ export default function Dashboard() {
             <Beya3Insights orders={recentOrders} storeStats={aggregatedStats} />
 
             {/* KPI Grid */}
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 <div className="glass-panel rounded-xl overflow-hidden p-5">
                     <div className="flex items-center">
                         <div className="flex-shrink-0 bg-indigo-50 rounded-md p-3">
