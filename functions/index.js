@@ -4,9 +4,11 @@ const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 
-// Initialize Stripe with Secret Key (set via .env)
-const stripeKey = process.env.STRIPE_SECRET_KEY || (functions.config().stripe && functions.config().stripe.secret) || 'sk_test_placeholder';
-const stripe = require('stripe')(stripeKey);
+// Lazy-load Stripe inside functions that need it
+const getStripe = () => {
+    const stripeKey = process.env.STRIPE_SECRET_KEY || (functions.config().stripe && functions.config().stripe.secret) || 'sk_test_placeholder';
+    return require('stripe')(stripeKey);
+};
 const WooService = require('./wooService');
 
 initializeApp();
@@ -90,10 +92,13 @@ exports.setUserRole = functions.https.onCall(async (data, context) => {
  *   - customer.subscription.deleted   → Expire subscription
  *   - invoice.payment_failed          → Mark as past_due
  */
-exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
+exports.stripeWebhook = functions
+    .runWith({ secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'] })
+    .https.onRequest(async (req, res) => {
     const sig = req.headers['stripe-signature'];
     const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || (functions.config().stripe && functions.config().stripe.webhook_secret);
 
+    const stripe = getStripe();
     let event;
 
     try {

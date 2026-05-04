@@ -1,4 +1,4 @@
-import { ArrowRight, Check, ShoppingBag, Package, Users, DollarSign, Settings, Truck, TrendingUp, ShieldCheck, Phone, PenTool, Smartphone, Zap, Globe, Star, Quote, LayoutDashboard, BarChart3, Lock, ShoppingCart, CreditCard, Building2, Link as LinkIcon, UserPlus, QrCode, ChevronUp } from "lucide-react";
+import { ArrowRight, Check, ShoppingBag, Package, Users, DollarSign, Settings, Truck, TrendingUp, ShieldCheck, Phone, PenTool, Smartphone, Zap, Globe, Star, Quote, LayoutDashboard, BarChart3, Lock, ShoppingCart, CreditCard, Building2, Link as LinkIcon, UserPlus, QrCode, ChevronUp, Menu, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import SEO from "../components/SEO";
