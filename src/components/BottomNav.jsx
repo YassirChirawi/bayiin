@@ -1,3 +1,6 @@
+import { Link, useLocation } from "react-router-dom";
+import { LayoutDashboard, ShoppingBag, Package, Users, Menu } from "lucide-react";
+import { vibrate } from "../utils/haptics";
 import { useLanguage } from "../context/LanguageContext";
 
 const getNavItems = (t) => [
