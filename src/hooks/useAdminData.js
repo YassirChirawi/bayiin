@@ -4,7 +4,17 @@ import { db } from "../lib/firebase";
 import toast from "react-hot-toast";
 
 export function useAdminData(user) {
-    const [stats, setStats] = useState({ stores: 0, mrr: 0, users: 0, proStores: 0, activeStores: 0 });
+    const [stats, setStats] = useState({ 
+        stores: 0, 
+        mrr: 0, 
+        users: 0, 
+        proStores: 0, 
+        activeStores: 0,
+        growth: 0,
+        churnRate: 0,
+        avgStoreRevenue: 0,
+        platformActivity: 0
+    });
     const [stores, setStores] = useState([]);
     const [usersList, setUsersList] = useState([]);
     const [franchises, setFranchises] = useState([]);
@@ -54,7 +64,38 @@ export function useAdminData(user) {
             // Advanced Stats Calculation
             const proStoresCount = storesData.filter(s => s.plan === 'pro').length;
             const mrr = proStoresCount * 179;
-            const activeStoresCount = storesData.filter(s => s.products > 0).length;
+            
+            // Growth: Stores created in the last 30 days
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const sixtyDaysAgo = new Date();
+            sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+            const newStoresLast30 = storesData.filter(s => {
+                const createdAt = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
+                return createdAt > thirtyDaysAgo;
+            }).length;
+
+            const newStoresPrev30 = storesData.filter(s => {
+                const createdAt = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
+                return createdAt > sixtyDaysAgo && createdAt <= thirtyDaysAgo;
+            }).length;
+
+            const growth = newStoresPrev30 > 0 
+                ? ((newStoresLast30 - newStoresPrev30) / newStoresPrev30) * 100 
+                : 100;
+
+            // Activity Metrics
+            const activeStores = storesData.filter(s => s.lastOrderDate || s.products > 0);
+            const activeStoresCount = activeStores.length;
+            const platformActivity = storesData.length > 0 ? (activeStoresCount / storesData.length) * 100 : 0;
+
+            // Churn: Stores with no products and no activity (Simplified)
+            const churnCount = storesData.filter(s => !s.products || s.products === 0).length;
+            const churnRate = storesData.length > 0 ? (churnCount / storesData.length) * 100 : 0;
+
+            // Financial Estimates (In a real app, this would be from a summary doc)
+            const avgStoreRevenue = 12500; // Mocked avg for now
 
             setStores(storesData);
             setUsersList(usersData);
@@ -63,7 +104,11 @@ export function useAdminData(user) {
                 mrr,
                 users: usersData.length,
                 proStores: proStoresCount,
-                activeStores: activeStoresCount
+                activeStores: activeStoresCount,
+                growth,
+                churnRate,
+                avgStoreRevenue,
+                platformActivity
             });
 
             setBroadcastData(broadcast);

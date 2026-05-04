@@ -45,7 +45,7 @@ export const useAutomations = () => {
         });
 
         return () => unsubscribe();
-    }, [store?.id]);
+    }, [store]);
 
     const addAutomation = useCallback(async (automationData) => {
         if (!store?.id) return null;
@@ -65,7 +65,7 @@ export const useAutomations = () => {
             toast.error("Erreur lors de la création.");
             throw error;
         }
-    }, [store?.id]);
+    }, [store]);
 
     const updateAutomation = useCallback(async (id, automationData) => {
         if (!store?.id) return;
@@ -81,7 +81,7 @@ export const useAutomations = () => {
             toast.error("Erreur lors de la mise à jour.");
             throw error;
         }
-    }, [store?.id]);
+    }, [store]);
 
     const toggleAutomationStatus = useCallback(async (id, currentStatus) => {
         const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
@@ -99,7 +99,7 @@ export const useAutomations = () => {
             toast.error("Erreur lors de la suppression.");
             throw error;
         }
-    }, [store?.id]);
+    }, [store]);
 
     return {
         automations,

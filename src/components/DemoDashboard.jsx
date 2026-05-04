@@ -9,7 +9,7 @@ export default function DemoDashboard() {
     const isRTL = language === 'ar';
 
     // MOCK DATA
-    const dashboardData = {
+    const dashboardData = useMemo(() => ({
         revenueToday: 12450.00,
         pendingOrders: 12,
         returnRate: 4.5,
@@ -27,7 +27,7 @@ export default function DemoDashboard() {
             { name: "Retour", value: 5 },
             { name: "Annulé", value: 2 }
         ]
-    };
+    }), []);
 
     const lowStockProducts = [
         { id: 1, name: "Premium Watch Gold", stock: 2 },

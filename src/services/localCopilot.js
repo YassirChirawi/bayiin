@@ -1,4 +1,5 @@
 import { EXPERT_KNOWLEDGE, getRandomAdvice } from "./knowledge";
+import { getAtRiskProducts } from "../utils/stockPrediction";
 
 /**
  * Local Heuristic Engine for Beya3
@@ -166,21 +167,29 @@ ${status}
 *Astuce d'expert : ${getRandomAdvice(domain)}*`;
     }
 
-    // 6. INVENTORY & PRODUCTS
-    if (input.includes("stock") || input.includes("produit") || input.includes("épuisé") || input.includes("rupture")) {
+    // 6. INVENTORY & PRODUCTS (with predictive analysis)
+    if (input.includes("stock") || input.includes("produit") || input.includes("épuisé") || input.includes("rupture") || input.includes("prédiction") || input.includes("prévision")) {
         const lowStock = context.products?.filter(p => p.stock < 5 && p.stock > 0) || [];
         const outOfStock = context.products?.filter(p => p.stock <= 0) || [];
+        const atRisk = getAtRiskProducts(context.products || [], context.orders || []);
 
-        if (lowStock.length === 0 && outOfStock.length === 0) {
-            return "✅ Tes stocks sont au beau fixe. Aucun produit n'est en rupture immédiate.";
+        if (lowStock.length === 0 && outOfStock.length === 0 && atRisk.length === 0) {
+            return "✅ Tes stocks sont au beau fixe. Aucun produit n'est en rupture immédiate ni à risque.";
         }
 
         let msg = "📦 **État des stocks :**\n";
         if (outOfStock.length > 0) {
-            msg += `- **En rupture (${outOfStock.length})** : ${outOfStock.slice(0, 3).map(p => p.name).join(', ')}...\n`;
+            msg += `- **En rupture (${outOfStock.length})** : ${outOfStock.slice(0, 3).map(p => p.name).join(', ')}\n`;
         }
         if (lowStock.length > 0) {
-            msg += `- **Stock faible (${lowStock.length})** : ${lowStock.slice(0, 3).map(p => p.name).join(', ')}...\n`;
+            msg += `- **Stock faible (${lowStock.length})** : ${lowStock.slice(0, 3).map(p => p.name).join(', ')}\n`;
+        }
+        if (atRisk.length > 0) {
+            msg += `\n🔮 **Prédictions de rupture :**\n`;
+            atRisk.slice(0, 5).forEach(({ product, prediction }) => {
+                const emoji = prediction.isCritical ? '🚨' : '⚠️';
+                msg += `${emoji} **${product.name}** — rupture dans **${prediction.daysLeft} jour${prediction.daysLeft > 1 ? 's' : ''}** (${prediction.dailyRate} ventes/jour, stock: ${product.stock}). Commande recommandée: **${prediction.recommendedOrder} unités**.\n`;
+            });
         }
 
         return msg + `\n*Conseil : ${getRandomAdvice('cro')}*`;
@@ -265,6 +274,22 @@ export function generateOpeningBrief(ctx) {
   const outOfStock = products.filter(p => p.stock !== undefined && p.stock <= 0);
   if (outOfStock.length > 0) {
     alerts.push(`❌ **Rupture de stock** : ${outOfStock.slice(0, 2).map(p => p.name).join(", ")}${outOfStock.length > 2 ? ` +${outOfStock.length - 2} autres` : ''}`);
+  }
+
+  // 4b. Prédiction de rupture (Run Rate)
+  const atRisk = getAtRiskProducts(products, orders);
+  if (atRisk.length > 0) {
+    const topRisk = atRisk.slice(0, 3).map(({ product, prediction }) =>
+      `${product.name} (${prediction.daysLeft}j restants)`
+    ).join(", ");
+    alerts.push(`🔮 **Rupture prédite** : ${topRisk}`);
+  }
+
+  // 4c. Cash COD non réconcilié
+  const unremittedCOD = orders.filter(o => o.status === 'livré' && o.codCollected && !o.isPaid);
+  if (unremittedCOD.length > 0) {
+    const totalCOD = unremittedCOD.reduce((s, o) => s + (parseFloat(o.price) || 0), 0);
+    alerts.push(`💰 **${unremittedCOD.length} commandes COD non remises** — ${totalCOD.toLocaleString('fr-FR')} DH en attente de réconciliation`);
   }
 
   // 5. Bon chiffre du jour

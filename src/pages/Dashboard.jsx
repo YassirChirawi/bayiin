@@ -19,6 +19,7 @@ import HelpTooltip from "../components/HelpTooltip";
 import { useOrderActions } from "../hooks/useOrderActions"; // NEW
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import ForecastingWidget from "../components/ForecastingWidget"; 
+import LocalPredictionWidget from "../components/LocalPredictionWidget"; 
 import Beya3Insights from "../components/Beya3Insights"; 
 import PageTransition from "../components/PageTransition";
 import { DashboardSkeleton } from "../components/Skeleton";
@@ -656,9 +657,9 @@ export default function Dashboard() {
 
                 {/* Right Column (Pie Chart & Orders) */}
                 <div className="lg:col-span-1 space-y-6">
-                    {/* IA Forecasting Widget (NEW) */}
-                    <div className="lg:sticky lg:top-8">
-                        <ForecastingWidget products={allProducts} orders={recentOrders} />
+                    {/* Local Deterministic Prediction (NEW) */}
+                    <div>
+                        <LocalPredictionWidget products={allProducts} orders={recentOrders} />
                     </div>
 
                     {/* Status Breakdown (Pie Chart) */}

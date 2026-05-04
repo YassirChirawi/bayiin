@@ -3,7 +3,7 @@ import { useStoreData } from "../hooks/useStoreData";
 import { useTenant } from "../context/TenantContext";
 import { useLanguage } from "../context/LanguageContext";
 import { Navigate } from "react-router-dom";
-import { DollarSign, TrendingUp, CreditCard, Activity, Plus, Trash2, Library, Sparkles, MessageSquare, Receipt, Truck, Download } from "lucide-react";
+import { DollarSign, TrendingUp, CreditCard, Activity, Plus, Trash2, Library, Sparkles, MessageSquare, Receipt, Truck, Download, CheckCircle } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import jsPDF from 'jspdf';
 import Button from "../components/Button";
@@ -22,6 +22,7 @@ import CFOSimulator from "../components/CFOSimulator";
 import { reconcileStoreStats } from "../utils/reconcileStats";
 import { db } from "../lib/firebase";
 import { RefreshCw } from "lucide-react";
+import toast from "react-hot-toast";
 
 export default function Finances() {
     const { store } = useTenant();
@@ -788,6 +789,101 @@ export default function Finances() {
                     </div>
                 )}
             </div>
+
+            {/* COD Cash Reconciliation Section */}
+            {(() => {
+                const unremittedOrders = orders.filter(o => o.status === 'livré' && o.codCollected && !o.isPaid);
+                const totalUnremitted = unremittedOrders.reduce((s, o) => s + (parseFloat(o.price) || 0) * (parseInt(o.quantity) || 1), 0);
+                
+                // Group by driver
+                const byDriver = {};
+                unremittedOrders.forEach(o => {
+                    const key = o.livreurToken || o.driverId || 'Inconnu';
+                    const name = o.driverName || o.livreurToken || 'Livreur inconnu';
+                    if (!byDriver[key]) byDriver[key] = { name, orders: [], total: 0 };
+                    byDriver[key].orders.push(o);
+                    byDriver[key].total += (parseFloat(o.price) || 0) * (parseInt(o.quantity) || 1);
+                });
+                const driverGroups = Object.entries(byDriver);
+
+                if (unremittedOrders.length === 0 && driverGroups.length === 0) return null;
+
+                const handleValidateRemittance = async (driverKey) => {
+                    const group = byDriver[driverKey];
+                    if (!group || !window.confirm(`Confirmer la réception de ${group.total.toFixed(0)} ${store?.currency || 'MAD'} en cash de ${group.name} ?`)) return;
+                    
+                    try {
+                        const { updateDoc, doc: docRef } = await import('firebase/firestore');
+                        // Mark all orders as paid
+                        for (const order of group.orders) {
+                            await updateDoc(docRef(db, `stores/${store.id}/orders`, order.id), {
+                                isPaid: true,
+                                codRemittedAt: new Date().toISOString(),
+                                paymentStatus: 'remitted'
+                            });
+                        }
+                        // Create a treasury/expense entry for the remittance
+                        await addExpense({
+                            description: `Remise COD — ${group.name} (${group.orders.length} commandes)`,
+                            amount: 0, // Not an expense, but a record
+                            category: 'COD Remittance',
+                            collectionId: null,
+                            date: new Date().toISOString(),
+                            metadata: {
+                                driverKey,
+                                driverName: group.name,
+                                orderCount: group.orders.length,
+                                totalAmount: group.total,
+                                orderIds: group.orders.map(o => o.id)
+                            }
+                        });
+                        toast.success(`✅ ${group.total.toFixed(0)} ${store?.currency || 'MAD'} réconcilié pour ${group.name}`);
+                    } catch (err) {
+                        console.error(err);
+                        toast.error('Erreur lors de la réconciliation');
+                    }
+                };
+
+                return (
+                    <div className="bg-white p-4 sm:p-6 rounded-lg shadow border border-amber-100 mb-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+                            <div>
+                                <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                                    <DollarSign className="w-5 h-5 text-amber-500" />
+                                    Remises COD — Cash en attente
+                                </h3>
+                                <p className="text-sm text-gray-500 mt-0.5">
+                                    Commandes livrées dont le cash n'a pas encore été remis par le livreur
+                                </p>
+                            </div>
+                            <div className="bg-amber-50 border border-amber-200 px-4 py-2 rounded-xl text-center">
+                                <p className="text-2xl font-bold text-amber-700">{totalUnremitted.toLocaleString()} {store?.currency || 'MAD'}</p>
+                                <p className="text-xs text-amber-600">{unremittedOrders.length} commande{unremittedOrders.length > 1 ? 's' : ''}</p>
+                            </div>
+                        </div>
+
+                        {driverGroups.length > 0 && (
+                            <div className="space-y-3">
+                                {driverGroups.map(([key, group]) => (
+                                    <div key={key} className="flex items-center justify-between bg-amber-50/50 border border-amber-100 rounded-xl px-4 py-3">
+                                        <div>
+                                            <p className="font-semibold text-gray-900 text-sm">{group.name}</p>
+                                            <p className="text-xs text-gray-500">{group.orders.length} commande{group.orders.length > 1 ? 's' : ''} · {group.total.toFixed(0)} {store?.currency || 'MAD'}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleValidateRemittance(key)}
+                                            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
+                                        >
+                                            <CheckCircle className="w-4 h-4" />
+                                            Valider la remise
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            })()}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Chart Section */}

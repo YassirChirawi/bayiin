@@ -11,6 +11,10 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Copilot from "./Copilot";
 import NotificationBell from "./NotificationBell";
+import { getPendingCount, syncPendingOrders } from "../services/offlineQueue";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import toast from "react-hot-toast";
+import { WifiOff, CloudUpload } from "lucide-react";
 
 // Loader inline qui garde la sidebar et le header visibles
 const InlinePageLoader = () => (
@@ -28,6 +32,8 @@ export default function Layout() {
     const location = useLocation();
     const navigate = useNavigate();
     const [announcement, setAnnouncement] = useState(null);
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [pendingSyncCount, setPendingSyncCount] = useState(0);
 
     // Fetch Announcement
     useEffect(() => {
@@ -36,7 +42,48 @@ export default function Layout() {
                 setAnnouncement(snap.data());
             }
         });
+
+        // Offline / Online listeners
+        const handleOnline = () => {
+            setIsOnline(true);
+            triggerSync();
+        };
+        const handleOffline = () => setIsOnline(false);
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        // Initial check for pending orders
+        updatePendingCount();
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
     }, []);
+
+    const updatePendingCount = async () => {
+        const count = await getPendingCount();
+        setPendingSyncCount(count);
+    };
+
+    const triggerSync = async () => {
+        if (!navigator.onLine) return;
+        
+        const syncFn = async (orderData) => {
+            return await addDoc(collection(db, "stores", store.id, "orders"), {
+                ...orderData,
+                syncedAt: serverTimestamp(),
+                isOfflineCreated: true
+            });
+        };
+
+        const result = await syncPendingOrders(syncFn);
+        if (result.synced > 0) {
+            toast.success(`${result.synced} commandes synchronisées !`);
+            updatePendingCount();
+        }
+    };
 
     if (loading) {
         return (
@@ -84,6 +131,18 @@ export default function Layout() {
                     </span>
                 </div>
                 <div className="flex gap-2">
+                    {pendingSyncCount > 0 && (
+                        <button 
+                            onClick={triggerSync}
+                            className="p-2 bg-indigo-50 text-indigo-600 rounded-full relative"
+                            title={`${pendingSyncCount} commandes en attente de sync`}
+                        >
+                            <CloudUpload className="h-5 w-5" />
+                            <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center">
+                                {pendingSyncCount}
+                            </span>
+                        </button>
+                    )}
                     <NotificationBell />
                 </div>
             </div>
@@ -137,6 +196,13 @@ export default function Layout() {
                 {announcement && (
                     <div className={`w-full px-4 py-3 text-white text-center shadow-sm ${announcement.type === 'warning' ? 'bg-orange-600' : 'bg-indigo-600'}`}>
                         <p className="font-medium text-sm md:text-base">{announcement.message}</p>
+                    </div>
+                )}
+
+                {!isOnline && (
+                    <div className="w-full bg-gray-800 px-4 py-2 text-white text-center flex items-center justify-center gap-2 sticky top-[65px] md:top-0 z-10">
+                        <WifiOff className="h-4 w-4 text-gray-400" />
+                        <p className="text-xs font-medium">Mode hors-ligne · Les commandes seront synchronisées dès le retour d'internet</p>
                     </div>
                 )}
                 {/* Extra bottom padding on mobile for bottom nav */}

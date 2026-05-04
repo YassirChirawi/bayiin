@@ -403,7 +403,7 @@ export default function DeliveryApp() {
                 const updates = {
                     status: newStatus,
                     [`statusHistory.${newStatus.replace(/\s/g, '_')}`]: new Date().toISOString(),
-                    ...(newStatus === 'livré' ? { isPaid: true } : {})
+                    ...(newStatus === 'livré' ? { isPaid: false, codCollected: true, codCollectedAt: new Date().toISOString() } : {})
                 };
                 if (noteString.trim()) {
                     updates.driverNote = noteString.trim();
@@ -486,7 +486,7 @@ export default function DeliveryApp() {
                 transaction.update(statsRef, statsUpdates);
             });
 
-            setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus, ...(newStatus === 'livré' ? { isPaid: true } : {}), ...(noteString.trim() ? { driverNote: noteString.trim() } : {}) } : o));
+            setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus, ...(newStatus === 'livré' ? { isPaid: false, codCollected: true } : {}), ...(noteString.trim() ? { driverNote: noteString.trim() } : {}) } : o));
 
             if (newStatus === 'livré') toast.success('✅ Commande livrée !');
             else if (newStatus === 'livraison') toast.success('📦 Ramassage validé, en route !');

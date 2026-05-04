@@ -1,4 +1,4 @@
-import { collection, getDocs, query, where, doc, writeBatch, increment } from "firebase/firestore";
+import { collection, getDocs, query, where, doc, writeBatch } from "firebase/firestore";
 
 /**
  * Recalculates all statistics for a store by reading all orders.

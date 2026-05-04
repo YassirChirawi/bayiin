@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useAuth } from "./AuthContext";
 import { db } from "../lib/firebase";
@@ -39,7 +40,9 @@ export const TenantProvider = ({ children }) => {
             try {
                 const userDoc = await getDoc(doc(db, "users", user.uid));
                 if (userDoc.exists()) userData = userDoc.data();
-            } catch (_) { /* user doc may not exist yet */ }
+            } catch (_) {
+                console.error("User document load failed");
+            }
 
             // 2. Fetch Owned Stores
             const ownedQuery = query(collection(db, "stores"), where("ownerId", "==", user.uid));
@@ -92,7 +95,9 @@ export const TenantProvider = ({ children }) => {
                 if (!foundLast) {
                     try {
                         localStorage.setItem('lastStoreId', activeStore.id);
-                    } catch (e) {}
+                    } catch (e) {
+                        console.warn("Silent localStorage failure:", e);
+                    }
                 }
             } else {
                 setStore(null);
@@ -106,7 +111,9 @@ export const TenantProvider = ({ children }) => {
                 try {
                     const franchiseDoc = await getDoc(doc(db, "franchises", userData.franchiseId));
                     if (franchiseDoc.exists()) setFranchise({ id: franchiseDoc.id, ...franchiseDoc.data() });
-                } catch (_) { }
+                } catch (err) {
+                    console.error("Franchise load failed:", err);
+                }
 
                 // Load all stores beloning to this franchise
                 const fStoresQuery = query(
@@ -139,7 +146,9 @@ export const TenantProvider = ({ children }) => {
             setStore(target);
             try {
                 localStorage.setItem('lastStoreId', target.id);
-            } catch (e) {}
+            } catch (e) {
+                console.warn("localStorage switch failed:", e);
+            }
         }
     };
 

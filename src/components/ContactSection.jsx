@@ -206,7 +206,7 @@ export default function ContactSection() {
                                         Notre équipe vous recontacte dans les 2 heures via WhatsApp ou email. Merci de votre confiance.
                                     </p>
                                     <button
-                                        onClick={() => { setSubmitted(false); setStep(1); setForm({ name: "", email: "", phone: "", company: "", storeCount: "1", message: "", integrationOptions: [], budget: "" }); }}
+                                        onClick={() => { setSubmitted(false); setForm({ name: "", email: "", phone: "", company: "", storeCount: "1", message: "", integrationOptions: [], budget: "" }); }}
                                         className="mt-4 px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium text-sm transition-colors"
                                     >
                                         Nouvelle demande

@@ -19,6 +19,13 @@ export default function PublicCatalog() {
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [isCheckingOut, setIsCheckingOut] = useState(false);
 
+    // Client form (capture before checkout)
+    const [clientForm, setClientForm] = useState({ name: '', phone: '', city: '', address: '' });
+    const [showClientForm, setShowClientForm] = useState(false);
+
+    // Social proof
+    const [todayOrderCount, setTodayOrderCount] = useState(0);
+
     // Filters
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("All");
@@ -42,9 +49,21 @@ export default function PublicCatalog() {
                 const productsData = querySnapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
-                })).filter(p => !p.deleted); // Exclude deleted
+                })).filter(p => !p.deleted);
 
                 setProducts(productsData);
+
+                // 3. Social proof: count today's orders for this store
+                try {
+                    const today = new Date().toISOString().split('T')[0];
+                    const ordersQ = query(
+                        collection(db, "orders"),
+                        where("storeId", "==", storeId),
+                        where("date", "==", today)
+                    );
+                    const ordersSnap = await getDocs(ordersQ);
+                    setTodayOrderCount(ordersSnap.size);
+                } catch (_) { /* non-critical */ }
             } catch (err) {
                 console.error("Error fetching catalog:", err);
                 setError("Failed to load catalog");
@@ -87,9 +106,29 @@ export default function PublicCatalog() {
     const cartTotal = cart.reduce((acc, item) => acc + (parseFloat(item.price) * item.quantity), 0);
     const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
+    // Free shipping threshold (configurable, default 300 DH)
+    const freeShippingThreshold = store?.freeShippingThreshold || 300;
+    const amountToFreeShipping = Math.max(0, freeShippingThreshold - cartTotal);
+    const freeShippingProgress = Math.min(100, (cartTotal / freeShippingThreshold) * 100);
+
+    // Cross-sell suggestions based on cart categories
+    const suggestedProducts = useMemo(() => {
+        if (cart.length === 0) return [];
+        const cartCategories = new Set(cart.map(item => item.category).filter(Boolean));
+        const cartIds = new Set(cart.map(item => item.id));
+        return products
+            .filter(p => !cartIds.has(p.id) && cartCategories.has(p.category) && (parseInt(p.stock) || 0) > 0)
+            .slice(0, 3);
+    }, [cart, products]);
+
     const handleCheckout = async () => {
         if (!store?.phone) {
             alert("Store phone number is not configured.");
+            return;
+        }
+        // Require client info
+        if (!clientForm.name || !clientForm.phone) {
+            setShowClientForm(true);
             return;
         }
 
@@ -98,11 +137,15 @@ export default function PublicCatalog() {
             // 1. Generate Order Ref
             const orderRefNum = `CMD-${Math.floor(1000 + Math.random() * 9000)}`;
 
-            // 2. Save Draft Order to Firestore
+            // 2. Save Draft Order to Firestore (with client info)
             await addDoc(collection(db, "orders"), {
                 storeId: store.id,
                 orderNumber: orderRefNum,
-                status: 'pending_catalog', // Special status for drafts
+                status: 'pending_catalog',
+                clientName: clientForm.name,
+                clientPhone: clientForm.phone,
+                clientCity: clientForm.city,
+                clientAddress: clientForm.address,
                 products: cart.map(item => ({
                     id: item.id,
                     name: item.name,
@@ -110,12 +153,11 @@ export default function PublicCatalog() {
                     price: parseFloat(item.price),
                     photoUrl: item.photoUrl || null
                 })),
-                // Flattened strings for search/display if needed
                 articleName: cart.map(i => `${i.quantity}x ${i.name}`).join(', '),
                 quantity: cartCount,
-                price: cartTotal, // Total Value
+                price: cartTotal,
                 createdAt: serverTimestamp(),
-                date: new Date().toISOString().split('T')[0], // For filtering
+                date: new Date().toISOString().split('T')[0],
                 source: 'public_catalog'
             });
 
@@ -123,13 +165,13 @@ export default function PublicCatalog() {
             // 3. Build WhatsApp Message
             // We use a temporary order object structure that matches what getWhatsappMessage expects
             const tempOrderForMsg = {
-                clientName: "Client", // Catalog user is usually anonymous/generic initially
-                clientCity: "",
+                clientName: clientForm.name,
+                clientCity: clientForm.city,
                 articleName: cart.map(i => `${i.quantity}x ${i.name}`).join(', '),
                 orderNumber: orderRefNum,
-                price: cartTotal, // Pass total as price for single line summary if needed, but we rely on ticket text
+                price: cartTotal,
                 shippingCost: 0,
-                quantity: 1 // Bundled
+                quantity: 1
             };
 
             // Hack: We want the Ticket text to be the list of items. 
@@ -141,10 +183,12 @@ export default function PublicCatalog() {
             const totalLine = `*TOTAL: ${cartTotal.toFixed(2)} ${currency}*`;
 
             let message = "";
+            const clientInfo = `\n\n📋 *Client:* ${clientForm.name}\n📱 ${clientForm.phone}${clientForm.city ? `\n📍 ${clientForm.city}` : ''}${clientForm.address ? ` — ${clientForm.address}` : ''}`;
+
             if (store.whatsappLanguage === 'darija') {
-                message = `Salam ${store.name}, bghit ncommandi hadchi:\n\n${itemsList}\n\n${totalLine}\nRef: ${orderRefNum}`;
+                message = `Salam ${store.name}, bghit ncommandi hadchi:\n\n${itemsList}\n\n${totalLine}${clientInfo}\nRef: ${orderRefNum}`;
             } else {
-                message = `Bonjour ${store.name}, je souhaite commander :\n\n${itemsList}\n\n${totalLine}\nRef: ${orderRefNum}`;
+                message = `Bonjour ${store.name}, je souhaite commander :\n\n${itemsList}\n\n${totalLine}${clientInfo}\nRef: ${orderRefNum}`;
             }
 
             const url = createRawWhatsAppLink(store.phone, message);
@@ -154,6 +198,8 @@ export default function PublicCatalog() {
             // 4. Clear Cart
             setCart([]);
             setIsCartOpen(false);
+            setClientForm({ name: '', phone: '', city: '', address: '' });
+            setShowClientForm(false);
 
         } catch (err) {
             console.error("Checkout Error:", err);
@@ -192,6 +238,13 @@ export default function PublicCatalog() {
 
     return (
         <div className="min-h-screen bg-gray-50 font-['Outfit'] pb-24">
+            {/* COD Trust Badge */}
+            <div className="bg-emerald-600 text-white text-center py-2 px-4">
+                <p className="text-sm font-medium flex items-center justify-center gap-2">
+                    🚚 Paiement à la livraison disponible · Livraison partout au Maroc
+                </p>
+            </div>
+
             {/* Header / Store Branding */}
             <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
@@ -228,6 +281,17 @@ export default function PublicCatalog() {
                     </button>
                 </div>
             </div>
+
+            {/* Social Proof Bar */}
+            {todayOrderCount > 0 && (
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+                    <div className="bg-orange-50 border border-orange-100 rounded-xl px-4 py-2.5 flex items-center justify-center gap-2">
+                        <span className="text-orange-600 text-sm font-medium">
+                            🔥 {todayOrderCount} personne{todayOrderCount > 1 ? 's' : ''} {todayOrderCount > 1 ? 'ont' : 'a'} commandé aujourd'hui
+                        </span>
+                    </div>
+                </div>
+            )}
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="flex flex-col lg:flex-row gap-8">
@@ -453,13 +517,60 @@ export default function PublicCatalog() {
                             </div>
 
                             {cart.length > 0 && (
-                                <div className="border-t border-gray-200 p-6 bg-gray-50">
-                                    <div className="flex justify-between text-base font-bold text-gray-900 mb-4">
+                                <div className="border-t border-gray-200 p-6 bg-gray-50 space-y-4">
+                                    {/* Free Shipping Progress */}
+                                    {amountToFreeShipping > 0 ? (
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-1.5">
+                                                🚚 Plus que <span className="font-bold text-indigo-600">{amountToFreeShipping.toFixed(0)} DH</span> pour la livraison gratuite !
+                                            </p>
+                                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                <div className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full transition-all duration-500" style={{ width: `${freeShippingProgress}%` }} />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-center">
+                                            <p className="text-sm font-bold text-emerald-700">✅ Livraison gratuite débloquée !</p>
+                                        </div>
+                                    )}
+
+                                    {/* Cross-sell suggestions */}
+                                    {suggestedProducts.length > 0 && (
+                                        <div>
+                                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Complétez votre commande</p>
+                                            <div className="flex gap-2 overflow-x-auto pb-1">
+                                                {suggestedProducts.map(p => (
+                                                    <button key={p.id} onClick={() => addToCart(p)} className="flex-shrink-0 flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 hover:border-indigo-300 transition-colors">
+                                                        {p.photoUrl && <img src={p.photoUrl} alt="" className="w-8 h-8 rounded object-cover" />}
+                                                        <div className="text-left">
+                                                            <p className="text-xs font-medium text-gray-900 line-clamp-1">{p.name}</p>
+                                                            <p className="text-xs text-indigo-600 font-bold">{parseFloat(p.price).toFixed(0)} DH</p>
+                                                        </div>
+                                                        <Plus className="w-4 h-4 text-gray-400" />
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="flex justify-between text-base font-bold text-gray-900">
                                         <p>Total</p>
                                         <p>{cartTotal.toFixed(2)} DH</p>
                                     </div>
+
+                                    {/* Client Form (inline) */}
+                                    {showClientForm && (
+                                        <div className="space-y-3 bg-white border border-indigo-100 rounded-xl p-4">
+                                            <p className="text-sm font-bold text-gray-800">📋 Vos coordonnées</p>
+                                            <input type="text" placeholder="Votre nom *" value={clientForm.name} onChange={e => setClientForm(f => ({ ...f, name: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none" />
+                                            <input type="tel" placeholder="Téléphone (ex: 0612345678) *" value={clientForm.phone} onChange={e => setClientForm(f => ({ ...f, phone: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none" />
+                                            <input type="text" placeholder="Ville" value={clientForm.city} onChange={e => setClientForm(f => ({ ...f, city: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none" />
+                                            <input type="text" placeholder="Adresse de livraison" value={clientForm.address} onChange={e => setClientForm(f => ({ ...f, address: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none" />
+                                        </div>
+                                    )}
+
                                     <button
-                                        onClick={handleCheckout}
+                                        onClick={() => { if (!clientForm.name || !clientForm.phone) { setShowClientForm(true); } else { handleCheckout(); } }}
                                         disabled={isCheckingOut}
                                         className="w-full flex items-center justify-center rounded-xl border border-transparent bg-green-500 px-6 py-3 text-base font-medium text-white shadow-sm hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-transform active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
                                     >
@@ -468,7 +579,7 @@ export default function PublicCatalog() {
                                         ) : (
                                             <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" className="h-5 w-5 mr-2 filter brightness-0 invert" alt="" />
                                         )}
-                                        {isCheckingOut ? "Processing..." : "Order via WhatsApp"}
+                                        {isCheckingOut ? "Envoi en cours..." : showClientForm && (!clientForm.name || !clientForm.phone) ? "Remplissez vos coordonnées" : "Commander via WhatsApp"}
                                     </button>
                                 </div>
                             )}

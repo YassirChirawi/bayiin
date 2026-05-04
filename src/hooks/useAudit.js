@@ -27,7 +27,7 @@ export const useAudit = () => {
             console.error("Failed to log action:", error);
             // Don't crash the app if logging fails
         }
-    }, [store?.id, user]);
+    }, [store, user]);
 
     return { logAction };
 };

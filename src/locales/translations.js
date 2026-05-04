@@ -84,8 +84,6 @@ export const translations = {
         tip_marketing: "Marketing Automation",
         tip_crm: "Customer CRM",
         tip_inventory: "Inventory Prediction",
-        msg_dashboard_updated: "Dashboard Updated",
-        err_sync_failed: "Sync failed",
         btn_recalculate: "Recalculate & Sync Stats",
         msg_items_left: "{count} left",
         msg_no_sales: "No sales data recorded yet",
@@ -102,7 +100,6 @@ export const translations = {
         help_return_rate_desc: "Percentage of orders returned or cancelled.",
         help_orders_page: "Manage, track, and update all your customer orders here.",
         help_revenue_today: "Total verified revenue for today (delivered orders).",
-        help_active_orders: "Orders currently being processed.",
 
         // Help Page Content
         help_guide_orders_title: "How to Create an Order",
@@ -159,9 +156,6 @@ export const translations = {
 
 
         // Orders
-        page_title_orders: "Orders",
-        page_subtitle_orders: "Manage and track your orders.",
-        btn_new_order: "New Order",
         new_order_btn: "New Order", // Alias
         btn_paid: "Mark Paid",
         btn_status: "Change Status",
@@ -175,8 +169,6 @@ export const translations = {
         delete_permanently: "Delete Permanently", // Alias
         tab_active: "Active",
         tab_trash: "Trash",
-        tab_orders: "Orders",
-        tab_carts: "Live Carts",
 
         table_order: "Order",
         table_date: "Date",
@@ -198,8 +190,6 @@ export const translations = {
 
         modal_new_order: "New Order",
         modal_edit_order: "Edit Order",
-        section_client: "Client Info",
-        section_product: "Product & Price",
         section_status: "Status & Payment",
 
         label_phone: "Phone",
@@ -211,7 +201,6 @@ export const translations = {
         label_price: "Price",
         label_shipping: "Shipping",
         label_status: "Status",
-        label_source: "Source",
         label_source: "Source",
         label_note: "Note",
 
@@ -303,7 +292,6 @@ export const translations = {
         cancel_selection: "Cancel Selection",
         force_order: "Force Order (Stock -1)",
         select_city_placeholder: "Select City...",
-        select_product_placeholder: "-- Select Product --",
         label_real_cost: "Real Delivery Cost",
         label_payment: "Payment Method",
         paid_status: "PAID (Collected)",
@@ -471,16 +459,10 @@ export const translations = {
         tab_orders: "Orders",
         tab_carts: "Live Carts",
 
-        btn_import: "Import",
-        btn_export: "Export",
-        label_active: "Active",
-        label_trash: "Trash",
         label_acomptes: "Down Payments",
         label_reste_a_payer: "Remaining",
         label_multi_payments: "Multiple Payments",
 
-        msg_no_orders_filter: "No orders found for this filter.",
-        msg_loading_orders: "Loading orders...",
         msg_pickup_requested: "Pickup request sent!",
         msg_refund_success: "Refund issued successfully!",
         err_no_sendit_orders: "No valid Sendit orders selected.",
@@ -501,7 +483,6 @@ export const translations = {
         section_store_info: "Store Information",
         label_store_logo: "Store Logo",
         label_store_name: "Store Name",
-        label_store_currency: "Currency",
         msg_currency_updated: "Currency updated to {currency}",
         err_currency_update: "Failed to update currency",
         msg_logo_updated: "Logo updated!",
@@ -592,9 +573,7 @@ export const translations = {
         btn_save_keys: "Save Keys",
         coming_soon: "Coming Soon",
         label_login: "Login",
-        label_password: "Password",
         label_account_id: "Account ID",
-        label_token: "Token",
         label_token: "Token",
         enable_to_configure: "Enable to configure settings.",
         msg_shipping_saved: "Shipping configuration saved",
@@ -986,8 +965,6 @@ export const translations = {
         tip_marketing: "Automatisation Marketing",
         tip_crm: "CRM Client",
         tip_inventory: "Prédiction de Stock",
-        msg_dashboard_updated: "Tableau de bord mis à jour",
-        err_sync_failed: "Échec de la synchronisation",
         btn_recalculate: "Recalculer & Sync Stats",
         msg_items_left: "{count} restants",
         msg_no_sales: "Aucune vente enregistrée",
@@ -1077,9 +1054,6 @@ export const translations = {
 
 
         // Orders
-        page_title_orders: "Commandes",
-        page_subtitle_orders: "Gérez et suivez vos commandes.",
-        btn_new_order: "Nouvelle Commande",
         new_order_btn: "Nouvelle Commande", // Alias
         btn_paid: "Marquer Payé",
         btn_status: "Changer Statut",
@@ -1093,8 +1067,6 @@ export const translations = {
         delete_permanently: "Supprimer Définitivement", // Alias
         tab_active: "Actives",
         tab_trash: "Corbeille",
-        tab_orders: "Commandes",
-        tab_carts: "Paniers",
 
         table_order: "Commande",
         table_date: "Date",
@@ -1105,8 +1077,6 @@ export const translations = {
 
         modal_new_order: "Nouvelle Commande",
         modal_edit_order: "Modifier Commande",
-        section_client: "Info Client",
-        section_product: "Produit & Prix",
         section_status: "Statut & Paiement",
 
         label_phone: "Téléphone",
@@ -1118,7 +1088,6 @@ export const translations = {
         label_price: "Prix",
         label_shipping: "Livraison",
         label_status: "Statut",
-        label_source: "Source",
         label_source: "Source",
         label_note: "Note",
 
@@ -1210,7 +1179,6 @@ export const translations = {
         cancel_selection: "Annuler sélection",
         force_order: "Forcer la commande (Stock -1)",
         select_city_placeholder: "Sélectionner une ville...",
-        select_product_placeholder: "-- Sélectionner --",
         label_real_cost: "Coût Réel Livraison",
         label_payment: "Mode de Paiement",
         paid_status: "PAYÉ (Encaissé)",
@@ -1405,16 +1373,10 @@ export const translations = {
         tab_orders: "Commandes",
         tab_carts: "Paniers",
 
-        btn_import: "Importer",
-        btn_export: "Exporter",
-        label_active: "Actifs",
-        label_trash: "Corbeille",
         label_acomptes: "Acomptes",
         label_reste_a_payer: "Reste à payer",
         label_multi_payments: "Règlements Multiples",
 
-        msg_no_orders_filter: "Aucune commande trouvée pour ce filtre.",
-        msg_loading_orders: "Chargement des commandes...",
         msg_pickup_requested: "Demande de ramassage envoyée !",
         msg_refund_success: "Avoir généré avec succès !",
         err_no_sendit_orders: "Aucune commande Sendit valide sélectionnée.",
@@ -1435,7 +1397,6 @@ export const translations = {
         section_store_info: "Informations Boutique",
         label_store_logo: "Logo Boutique",
         label_store_name: "Nom Boutique",
-        label_store_currency: "Devise",
         msg_currency_updated: "Devise mise à jour en {currency}",
         err_currency_update: "Échec de mise à jour de la devise",
         msg_logo_updated: "Logo mis à jour !",
@@ -1526,7 +1487,6 @@ export const translations = {
         btn_save_keys: "Enregistrer Clés",
         coming_soon: "Bientôt",
         label_login: "Identifiant",
-        label_password: "Mot de passe",
         label_account_id: "ID Compte",
         label_token: "Token",
         enable_to_configure: "Activer pour configurer.",
@@ -1955,13 +1915,8 @@ export const translations = {
         help_settings_team: "إدارة الفريق: دعوة الموظفين (وصول مقيد) أو المديرين.",
 
         // Orders
-        page_title_orders: "الطلبيات",
-        page_subtitle_orders: "تتبع وإدارة طلبيات الزبناء.",
-        btn_new_order: "طلبية جديدة",
         tab_active: "نشطة",
         tab_trash: "سلة المهملات",
-        tab_orders: "الطلبيات",
-        tab_carts: "العمليات الحالية",
 
         table_order: "الطلبية",
         table_date: "التاريخ",
@@ -1981,8 +1936,6 @@ export const translations = {
 
         modal_new_order: "طلبية جديدة",
         modal_edit_order: "تعديل الطلبية",
-        section_client: "معلومات العميل",
-        section_product: "المنتج والسعر",
         section_status: "الحالة والدفع",
 
         label_phone: "الهاتف",
@@ -2276,16 +2229,10 @@ export const translations = {
         tab_orders: "الطلبات",
         tab_carts: "السلات",
 
-        btn_import: "استيراد",
-        btn_export: "تصدير",
-        label_active: "نشط",
-        label_trash: "المسودة",
         label_acomptes: "الدفعات المقدمة",
         label_reste_a_payer: "المتبقي",
         label_multi_payments: "دفعات متعددة",
 
-        msg_no_orders_filter: "لم يتم العثور على طلبات لهذا الفلتر.",
-        msg_loading_orders: "جاري التحميل...",
         msg_pickup_requested: "تم إرسال طلب الاستلام!",
         msg_refund_success: "تم إصدار الاسترداد بنجاح!",
         err_no_sendit_orders: "لم يتم اختيار طلبات صالحة.",
@@ -2383,7 +2330,6 @@ export const translations = {
         btn_save_keys: "حفظ المفاتيح",
         coming_soon: "قريبًا",
         label_login: "تسجيل الدخول",
-        label_password: "كلمة المرور",
         label_account_id: "معرف الحساب",
         label_token: "الرمز (Token)",
         enable_to_configure: "فعل لتكوين الإعدادات.",

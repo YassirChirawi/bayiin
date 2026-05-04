@@ -2,6 +2,15 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ProductModal from './ProductModal';
 
+// Mock Firebase
+vi.mock('../lib/firebase', () => ({
+    db: {},
+    auth: {
+        currentUser: { uid: 'test-user' }
+    },
+    googleProvider: {}
+}));
+
 // Mock Contexts
 const mockStore = { id: 'store-123' };
 vi.mock('../context/TenantContext', () => ({

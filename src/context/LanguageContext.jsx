@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect } from "react";
 import { translations } from "../locales/translations";
 
@@ -24,10 +25,14 @@ export function LanguageProvider({ children }) {
             translations['en']?.[key] ??
             null;
 
+        if (!text) return key;
+
         // Simple interpolation
         if (params && typeof params === 'object') {
             Object.keys(params).forEach(param => {
-                text = text.replace(new RegExp(`{${param}}`, 'g'), params[param]);
+                if (text && typeof text === 'string') {
+                    text = text.replace(new RegExp(`{${param}}`, 'g'), params[param]);
+                }
             });
         }
 

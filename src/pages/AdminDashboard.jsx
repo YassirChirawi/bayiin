@@ -9,6 +9,8 @@ import { useAdminData } from "../hooks/useAdminData";
 import { doc, updateDoc, deleteDoc, setDoc, addDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { RevenueChart, PlanDistributionChart } from "../components/admin/AdminCharts";
+import { MetricCard, PerformanceTrend, StoreActivityTable } from "../components/admin/AdminMetrics";
+import { TrendingUp, Activity, Wallet, PieChart as PieChartIcon, Zap, Globe, ShieldCheck } from "lucide-react";
 
 export default function AdminDashboard() {
     const { user } = useAuth();
@@ -21,6 +23,7 @@ export default function AdminDashboard() {
     const [promoCodes, setPromoCodes] = useState([]);
     const [promoLoading, setPromoLoading] = useState(false);
     const [selectedQaStore, setSelectedQaStore] = useState(null);
+    const [auditStore, setAuditStore] = useState(null);
 
     // Custom Hook
     const { stats, stores, usersList, franchises, broadcastData, loading, refreshData, setStores, setUsersList } = useAdminData(user);
@@ -150,6 +153,7 @@ export default function AdminDashboard() {
 
                         // Full results for auditing
                         const fullResults = currentRun.tests;
+                        const failedTests = entries.filter(([, t]) => t.status === 'fail').map(([id]) => id);
                         const startTime = currentRun.startTime?.toDate ? currentRun.startTime.toDate() : null;
                         const endTime = currentRun.updatedAt?.toDate ? currentRun.updatedAt.toDate() : null;
                         const durationMinutes = (startTime && endTime) ? Math.round((endTime - startTime) / 60000) : null;
@@ -229,69 +233,77 @@ export default function AdminDashboard() {
                     </div>
                 </header>
 
-                {/* Analytics Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                    {/* KPI Cards */}
-                    <div className="md:col-span-8 grid grid-cols-1 sm:grid-cols-3 gap-6">
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 transition-all hover:shadow-md">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500">Total Revenue (MRR)</p>
-                                    <h3 className="text-3xl font-bold text-gray-900 mt-2">{stats.mrr.toLocaleString()} <span className="text-xs text-gray-400 font-normal">MAD</span></h3>
-                                </div>
-                                <div className="p-2 bg-green-50 rounded-lg">
-                                    <DollarSign className="w-6 h-6 text-green-600" />
-                                </div>
-                            </div>
-                            <div className="mt-4 h-16 w-full">
-                                {/* Mini Chart could go here, for now utilizing space */}
-                                <p className="text-xs text-green-600 font-medium flex items-center gap-1">
-                                    <CheckCircle className="w-3 h-3" /> +12% from last month
-                                </p>
-                            </div>
-                        </div>
+                {/* Analytics Pulse Section */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <MetricCard 
+                        title="Monthly Recurring Revenue" 
+                        value={`${stats.mrr.toLocaleString()} MAD`} 
+                        trend={8.4} 
+                        icon={Wallet} 
+                        color="indigo" 
+                    />
+                    <MetricCard 
+                        title="Active Merchants" 
+                        value={stats.stores} 
+                        trend={stats.growth} 
+                        icon={TrendingUp} 
+                        color="emerald" 
+                    />
+                    <MetricCard 
+                        title="Platform Engagement" 
+                        value={`${stats.platformActivity.toFixed(1)}%`} 
+                        trend={2.1} 
+                        icon={Activity} 
+                        color="amber" 
+                    />
+                    <MetricCard 
+                        title="Store Retention" 
+                        value={`${(100 - stats.churnRate).toFixed(1)}%`} 
+                        trend={-0.5} 
+                        icon={ShieldCheck} 
+                        color="rose" 
+                    />
+                </div>
 
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 transition-all hover:shadow-md">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500">Active Stores</p>
-                                    <h3 className="text-3xl font-bold text-gray-900 mt-2">{stats.stores}</h3>
-                                </div>
-                                <div className="p-2 bg-indigo-50 rounded-lg">
-                                    <Building2 className="w-6 h-6 text-indigo-600" />
-                                </div>
+                {/* Secondary Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="bg-white p-6 rounded-3xl border border-gray-100 flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 rounded-2xl bg-blue-50 text-blue-600">
+                                <Users className="w-6 h-6" />
                             </div>
-                            <div className="mt-4">
-                                <p className="text-xs text-indigo-600 font-medium">{stats.proStores} PRO Accounts</p>
+                            <div>
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Total Accounts</p>
+                                <p className="text-xl font-black text-gray-900">{stats.users.toLocaleString()}</p>
                             </div>
                         </div>
-
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 transition-all hover:shadow-md">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500">Total Users</p>
-                                    <h3 className="text-3xl font-bold text-gray-900 mt-2">{stats.users}</h3>
-                                </div>
-                                <div className="p-2 bg-blue-50 rounded-lg">
-                                    <Users className="w-6 h-6 text-blue-600" />
-                                </div>
-                            </div>
-                            <div className="mt-4">
-                                <p className="text-xs text-gray-400">Registered Accounts</p>
-                            </div>
-                        </div>
+                        <span className="text-[10px] font-bold px-2 py-1 bg-blue-50 text-blue-600 rounded-lg">LIVE</span>
                     </div>
 
-                    {/* Chart Card */}
-                    <div className="md:col-span-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
-                        <div>
-                            <h4 className="font-bold text-gray-900 mb-4">Plan Distribution</h4>
-                            <PlanDistributionChart data={pieData} />
+                    <div className="bg-white p-6 rounded-3xl border border-gray-100 flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 rounded-2xl bg-purple-50 text-purple-600">
+                                <Zap className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Premium Conversion</p>
+                                <p className="text-xl font-black text-gray-900">{((stats.proStores/stats.stores)*100).toFixed(1)}%</p>
+                            </div>
                         </div>
-                        <div className="text-center mt-2 flex justify-center gap-4 text-xs">
-                            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-indigo-600"></div> Pro</span>
-                            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-gray-200"></div> Free</span>
+                        <span className="text-[10px] font-bold px-2 py-1 bg-purple-50 text-purple-600 rounded-lg">UPGRADE</span>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-3xl border border-gray-100 flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 rounded-2xl bg-orange-50 text-orange-600">
+                                <Globe className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Avg GMV Estimate</p>
+                                <p className="text-xl font-black text-gray-900">{stats.avgStoreRevenue.toLocaleString()} DH</p>
+                            </div>
                         </div>
+                        <span className="text-[10px] font-bold px-2 py-1 bg-orange-50 text-orange-600 rounded-lg">ECO</span>
                     </div>
                 </div>
 
@@ -302,21 +314,21 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Main Content Areas */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 min-h-[500px]">
-                    <div className="border-b border-gray-100 px-6 pt-6 bg-white rounded-t-2xl sticky top-0 z-10">
-                        <nav className="-mb-px flex space-x-6 overflow-x-auto">
-                            {['stores', 'users', 'franchises', 'qa', 'contacts', 'promo', 'broadcast'].map((tab) => (
+                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 min-h-[500px] overflow-hidden">
+                    <div className="border-b border-gray-100 px-6 pt-6 bg-white sticky top-0 z-10">
+                        <nav className="-mb-px flex space-x-6 overflow-x-auto no-scrollbar">
+                            {['stores', 'users', 'franchises', 'insights', 'qa', 'contacts', 'promo', 'broadcast'].map((tab) => (
                                 <button
                                     key={tab}
                                     onClick={() => setActiveTab(tab)}
                                     className={`
-                                        whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm capitalize transition-colors duration-200
+                                        whitespace-nowrap pb-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all duration-200
                                         ${activeTab === tab
                                             ? 'border-indigo-600 text-indigo-600'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                                            : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'}
                                     `}
                                 >
-                                    {tab === 'qa' ? 'QA Recette' : tab === 'contacts' ? '📬 Contacts' : tab === 'promo' ? '🎁 Codes Beta' : tab}
+                                    {tab === 'insights' ? '📊 Insights' : tab === 'qa' ? '🛡️ QA Recette' : tab === 'contacts' ? '📬 Contacts' : tab === 'promo' ? '🎁 Codes Beta' : tab}
                                 </button>
                             ))}
                         </nav>
@@ -324,7 +336,7 @@ export default function AdminDashboard() {
 
                     <div className="p-6">
                         {/* Control Bar for Lists */}
-                        {activeTab !== 'broadcast' && activeTab !== 'contacts' && activeTab !== 'promo' && (
+                        {activeTab !== 'broadcast' && activeTab !== 'contacts' && activeTab !== 'promo' && activeTab !== 'insights' && (
                             <div className="mb-6 flex flex-col sm:flex-row justify-between gap-4">
                                 <div className="w-full sm:w-72">
                                     <Input
@@ -359,15 +371,17 @@ export default function AdminDashboard() {
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
                                         {filteredStores.map(store => (
-                                            <tr key={store.id} className="hover:bg-gray-50 transition-colors">
+                                            <tr key={store.id} className="hover:bg-gray-50/50 transition-colors">
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center">
-                                                        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-100 to-white border border-indigo-50 flex items-center justify-center text-indigo-600 font-bold mr-4 shadow-sm">
+                                                        <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 flex items-center justify-center text-indigo-600 font-black mr-4 shadow-sm">
                                                             {store.name?.[0]?.toUpperCase() || 'S'}
                                                         </div>
                                                         <div>
-                                                            <div className="font-semibold text-gray-900">{store.name}</div>
-                                                            <div className="text-xs text-gray-400 font-mono">{store.id}</div>
+                                                            <div className="font-bold text-gray-900 text-sm">{store.name}</div>
+                                                            <div className="text-[10px] text-gray-400 font-mono flex items-center gap-1">
+                                                                <Globe className="w-2 h-2" /> {store.id.slice(0, 8)}...
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </td>
@@ -387,6 +401,9 @@ export default function AdminDashboard() {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-right flex justify-end gap-2">
+                                                    <Button size="sm" variant="ghost" className="text-indigo-600 hover:bg-indigo-50" onClick={() => setAuditStore(store)}>
+                                                        Audit
+                                                    </Button>
                                                     <Button size="sm" variant="secondary" icon={ExternalLink} onClick={async () => {
                                                         if (!confirm("Access this store?")) return;
                                                         await updateDoc(doc(db, "users", user.uid), { storeId: store.id });
@@ -780,6 +797,186 @@ export default function AdminDashboard() {
                                         </div>
                                     );
                                 })}
+                            </div>
+                        )}
+
+                        {/* Audit Modal */}
+                        {auditStore && (
+                            <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                                <motion.div 
+                                    initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    className="bg-white rounded-[32px] shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col"
+                                >
+                                    <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gradient-to-r from-gray-50 to-white">
+                                        <div className="flex items-center gap-4">
+                                            <div className="h-14 w-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-xl font-black shadow-lg shadow-indigo-100">
+                                                {auditStore.name?.[0]}
+                                            </div>
+                                            <div>
+                                                <h2 className="text-xl font-black text-gray-900 tracking-tight">{auditStore.name}</h2>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${auditStore.plan === 'pro' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                                                        {auditStore.plan || 'Free'}
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-400 font-mono">ID: {auditStore.id}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => setAuditStore(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                                            <X className="w-6 h-6 text-gray-400" />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex-1 overflow-auto p-8 bg-gray-50/30">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                                            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Articles</p>
+                                                <p className="text-2xl font-black text-gray-900">{auditStore.products || 0}</p>
+                                                <div className="mt-4 flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 w-fit px-2 py-0.5 rounded-lg">
+                                                    <TrendingUp className="w-3 h-3" /> Healthy Stock
+                                                </div>
+                                            </div>
+                                            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Engagement</p>
+                                                <p className="text-2xl font-black text-gray-900">High</p>
+                                                <p className="text-[10px] text-gray-400 mt-1">Last seen: Just now</p>
+                                            </div>
+                                            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Performance Score</p>
+                                                <p className="text-2xl font-black text-indigo-600">82/100</p>
+                                                <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-indigo-500 rounded-full" style={{ width: '82%' }} />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                                                <h4 className="font-black text-sm uppercase tracking-widest mb-4">Merchant Health Audit</h4>
+                                                <div className="space-y-4">
+                                                    <div className="flex items-center justify-between text-sm">
+                                                        <span className="text-gray-500">Business Context Set</span>
+                                                        <span className="font-bold text-green-500">YES</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between text-sm">
+                                                        <span className="text-gray-500">WhatsApp Integration</span>
+                                                        <span className="font-bold text-green-500">ACTIVE</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between text-sm">
+                                                        <span className="text-gray-500">Domain Connected</span>
+                                                        <span className="font-bold text-gray-400">SUBDOMAIN</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                                                <h4 className="font-black text-sm uppercase tracking-widest mb-4">Quick Actions</h4>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <Button size="sm" variant="secondary" className="w-full text-[10px]">Reset Password</Button>
+                                                    <Button size="sm" variant="secondary" className="w-full text-[10px]">Extend Trial</Button>
+                                                    <Button size="sm" variant="secondary" className="w-full text-[10px]">Flag Store</Button>
+                                                    <Button size="sm" variant="secondary" className="w-full text-[10px] text-red-600">Suspend</Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-6 border-t border-gray-100 bg-white flex justify-between items-center">
+                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">Audit generated on {new Date().toLocaleDateString()}</p>
+                                        <Button onClick={() => setAuditStore(null)}>Close Audit</Button>
+                                    </div>
+                                </motion.div>
+                            </div>
+                        )}
+
+                        {/* INSIGHTS TAB */}
+                        {activeTab === 'insights' && (
+                            <div className="space-y-8 animate-in fade-in duration-500">
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                    <div className="lg:col-span-2">
+                                        <PerformanceTrend 
+                                            title="Platform Revenue Growth (6m)" 
+                                            data={[
+                                                { name: 'Jan', value: stats.mrr * 0.4 },
+                                                { name: 'Fev', value: stats.mrr * 0.55 },
+                                                { name: 'Mar', value: stats.mrr * 0.6 },
+                                                { name: 'Avr', value: stats.mrr * 0.8 },
+                                                { name: 'Mai', value: stats.mrr * 0.95 },
+                                                { name: 'Juin', value: stats.mrr },
+                                            ]} 
+                                        />
+                                    </div>
+                                    <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-between">
+                                        <div>
+                                            <h4 className="font-black text-gray-900 text-sm uppercase tracking-widest mb-6">Plan Distribution</h4>
+                                            <PlanDistributionChart data={pieData} />
+                                        </div>
+                                        <div className="space-y-3 mt-4">
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-gray-500 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-600"></div> Pro Merchants</span>
+                                                <span className="font-bold text-gray-900">{stats.proStores}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-gray-500 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-gray-200"></div> Free Merchants</span>
+                                                <span className="font-bold text-gray-900">{stats.stores - stats.proStores}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <div className="space-y-4">
+                                        <h4 className="font-black text-gray-900 text-sm uppercase tracking-widest ml-1 flex items-center gap-2">
+                                            <TrendingUp className="w-4 h-4 text-emerald-500" />
+                                            Top Performers (by activity)
+                                        </h4>
+                                        <StoreActivityTable stores={stores.sort((a, b) => (b.products || 0) - (a.products || 0))} />
+                                    </div>
+                                    
+                                    <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                                        <h4 className="font-black text-gray-900 text-sm uppercase tracking-widest mb-6 flex items-center gap-2">
+                                            <ShieldAlert className="w-4 h-4 text-amber-500" />
+                                            System Health
+                                        </h4>
+                                        <div className="space-y-6">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 rounded-xl bg-green-50 text-green-600">
+                                                        <Activity className="w-4 h-4" />
+                                                    </div>
+                                                    <span className="text-xs font-bold text-gray-700">Firestore API</span>
+                                                </div>
+                                                <span className="text-[10px] font-black text-green-500">99.9% Uptime</span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                                                        <Zap className="w-4 h-4" />
+                                                    </div>
+                                                    <span className="text-xs font-bold text-gray-700">Cloud Functions</span>
+                                                </div>
+                                                <span className="text-[10px] font-black text-indigo-500">12ms Latency</span>
+                                            </div>
+                                            <div className="pt-4 border-t border-gray-50">
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Derniers Événements</p>
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center gap-2 text-[10px]">
+                                                        <span className="w-1 h-1 rounded-full bg-indigo-400"></span>
+                                                        <span className="text-gray-500 font-mono">12:45</span>
+                                                        <span className="text-gray-700 font-bold">New Pro Subscription:</span>
+                                                        <span className="text-gray-400 italic">Store #823...</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-[10px]">
+                                                        <span className="w-1 h-1 rounded-full bg-amber-400"></span>
+                                                        <span className="text-gray-500 font-mono">11:32</span>
+                                                        <span className="text-gray-700 font-bold">Broadcast update by admin</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         )}
 

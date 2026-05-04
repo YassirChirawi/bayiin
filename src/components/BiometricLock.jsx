@@ -10,10 +10,10 @@ export default function BiometricLock({ children }) {
     const [isLocked, setIsLocked] = useState(false);
     const { verify, getBiometricType } = useBiometrics();
     const { t } = useLanguage();
-    const [bioInfo, setBioInfo] = useState({ id: 'unknown', labelKey: 'bio_type_generic', icon: 'Shield' });
+    const [bioInfo, setBioInfo] = useState(() => verify ? getBiometricType() : { id: 'unknown', labelKey: 'bio_type_generic', icon: 'Shield' });
 
     useEffect(() => {
-        setBioInfo(getBiometricType());
+        // Bio type is already initialized, but we can refresh it if needed or remove the effect
     }, []);
 
     useEffect(() => {

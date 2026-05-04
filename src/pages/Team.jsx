@@ -38,7 +38,9 @@ export default function Team() {
                     const { name, email } = JSON.parse(prefill);
                     setInviteName(name || '');
                     setInviteEmail(email || '');
-                } catch (_) {}
+                } catch (err) {
+                    console.warn("Session storage prefill error:", err);
+                }
                 sessionStorage.removeItem('hr_invite_prefill');
             }
         }
@@ -61,7 +63,9 @@ export default function Team() {
             const q = query(collection(db, "employees"), where("storeId", "==", store.id), where("status", "==", "active"));
             const snap = await getDocs(q);
             setEmployees(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        } catch (_) {}
+        } catch (err) {
+            console.error("Fetch employees failed:", err);
+        }
     };
 
     const handleInvite = async (e) => {
@@ -110,7 +114,8 @@ export default function Team() {
             await deleteDoc(doc(db, "allowed_users", id));
             fetchMembers();
         } catch (error) {
-            console.error(error);
+            console.error("Error removing member:", error);
+            toast.error(t('err_remove_member'));
         }
     };
 

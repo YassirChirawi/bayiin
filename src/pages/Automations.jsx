@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-hot-toast';
 import { useAutomations } from '../hooks/useAutomations';
 import { useTenant } from '../context/TenantContext'; // NEW
+import { useLanguage } from '../context/LanguageContext';
 import { DEFAULT_TEMPLATES, DARIJA_TEMPLATES } from '../utils/whatsappTemplates'; // NEW
 import { generateWhatsAppTemplate } from '../services/aiService'; // NEW
 import ProFeatureGuard from '../components/ProFeatureGuard';
@@ -491,6 +492,7 @@ export default function Automations() {
     // Use our new hook
     const { automations, loading, addAutomation, updateAutomation, toggleAutomationStatus, deleteAutomation } = useAutomations();
     const { store } = useTenant(); // NEW
+    const { t } = useLanguage();
 
     // State for the currently edited automation
     const [currentAuto, setCurrentAuto] = useState({

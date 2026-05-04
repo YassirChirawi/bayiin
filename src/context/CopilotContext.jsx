@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useMemo, useRef } from "react";
 import { analyzeFinancialScenario } from "../services/aiService";
 import { generateOpeningBrief } from "../services/localCopilot";
@@ -196,13 +197,14 @@ export const CopilotProvider = ({ children }) => {
                     });
                     return `✅ Dépense de ${action.data.amount} DH enregistrée (${action.data.label}).`;
 
-                case "ANALYZE_FINANCES":
-                    const analysis = await analyzeFinancialScenario(
-                        { revenue: totalRevenue, profit: totalProfit },
-                        { adSpend: 0, price: 0, cogs: 0 },
-                        { revenue: totalRevenue, profit: totalProfit, margin: (totalProfit/totalRevenue)*100 }
-                    );
-                    return `📈 Analyse : ${analysis}`;
+                case "ANALYZE_FINANCES": {
+                    const scenarioData = { revenue: totalRevenue, profit: totalProfit };
+                    const budgetData = { adSpend: 0, price: 0, cogs: 0 };
+                    const currentMetrics = { revenue: totalRevenue, profit: totalProfit, margin: (totalProfit / totalRevenue) * 100 };
+                    
+                    const analysisResult = await analyzeFinancialScenario(scenarioData, budgetData, currentMetrics);
+                    return `📈 Analyse : ${analysisResult}`;
+                }
 
                 case "SEND_WHATSAPP": {
                     const message = action.data.message || "Bonjour !";

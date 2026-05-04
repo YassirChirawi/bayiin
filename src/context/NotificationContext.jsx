@@ -1,9 +1,8 @@
-import { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from 'firebase/firestore';
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useContext, useState, useEffect } from 'react';
+import { collection, query, where, getDocs, limit, doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { useStoreData } from '../hooks/useStoreData';
 import { detectFinancialLeaks } from '../services/aiService';
-import { getSenditInvoices } from '../lib/sendit';
 import { useTenant } from './TenantContext';
 import { useAuth } from './AuthContext';
 import { usePushNotifications } from '../hooks/usePushNotifications';
