@@ -586,7 +586,12 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
 
                                 <div className="bg-white p-3 rounded-lg border border-dashed border-gray-300">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                                        <select className="w-full px-3 py-2 border rounded-lg text-sm" value={currentProduct.articleId} onChange={handleProductChange}>
+                                        <select 
+                                            data-testid="product-select"
+                                            className="w-full px-3 py-2 border rounded-lg text-sm" 
+                                            value={currentProduct.articleId} 
+                                            onChange={handleProductChange}
+                                        >
                                             <option value="">{t('select_product_placeholder')}</option>
                                             {products.map(p => <option key={p.id} value={p.id}>{p.name} (Stock: {p.stock})</option>)}
                                         </select>

@@ -46,7 +46,10 @@ export async function queueOrder(orderData) {
 
         return new Promise((resolve, reject) => {
             const request = store.add(item);
-            request.onsuccess = () => resolve(request.result);
+            request.onsuccess = () => {
+                window.dispatchEvent(new CustomEvent('offlineQueueUpdated'));
+                resolve(request.result);
+            };
             request.onerror = () => reject(request.error);
         });
     } catch (error) {
@@ -55,6 +58,7 @@ export async function queueOrder(orderData) {
         const legacyQueue = JSON.parse(localStorage.getItem('offline_orders_fallback') || '[]');
         legacyQueue.push(orderData);
         localStorage.setItem('offline_orders_fallback', JSON.stringify(legacyQueue));
+        window.dispatchEvent(new CustomEvent('offlineQueueUpdated'));
     }
 }
 
@@ -86,7 +90,10 @@ export async function dequeueOrder(id) {
     const store = tx.objectStore(STORE_NAME);
     return new Promise((resolve, reject) => {
         const request = store.delete(id);
-        request.onsuccess = () => resolve();
+        request.onsuccess = () => {
+            window.dispatchEvent(new CustomEvent('offlineQueueUpdated'));
+            resolve();
+        };
         request.onerror = () => reject(request.error);
     });
 }

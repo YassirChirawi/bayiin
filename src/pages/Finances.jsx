@@ -526,7 +526,7 @@ export default function Finances() {
             {/* KPI Cards */}
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 {/* 1. Total Income (LIVRÉ) */}
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div data-testid="kpi-delivered-revenue" className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
                     <div className="flex items-center">
                         <div className="flex-shrink-0">
                             <div className="flex items-center justify-center h-12 w-12 rounded-md bg-indigo-100 text-indigo-600">
@@ -543,7 +543,7 @@ export default function Finances() {
                 </div>
 
                 {/* 2. Total Paid (CASH) */}
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div data-testid="kpi-realized-revenue" className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
                     <div className="flex items-center">
                         <div className="flex-shrink-0">
                             <div className="flex items-center justify-center h-12 w-12 rounded-md bg-green-100 text-green-600">

@@ -1,11 +1,11 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, connectAuthEmulator } from "firebase/auth";
 import {
-    initializeFirestore,
-    persistentLocalCache,
-    persistentMultipleTabManager,
+    getFirestore,
+    connectFirestoreEmulator,
+    enableIndexedDbPersistence
 } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { getStorage, connectStorageEmulator } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
 
 const firebaseConfig = {
@@ -22,18 +22,34 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Offline persistence with multi-tab support (Firebase SDK v11+ API)
-// persistentMultipleTabManager handles concurrent tabs gracefully.
-// Falls back to memory cache on unsupported browsers automatically.
-export const db = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
-    }),
-}, "comsaas");
+// Use the 'comsaas' database to match backend and scripts
+export const db = getFirestore(app, 'comsaas');
+
+// Enable persistence only in production/development, not in test mode to avoid hangs
+if (import.meta.env.MODE !== 'test') {
+    enableIndexedDbPersistence(db).catch((err) => {
+        if (err.code === 'failed-precondition') {
+            console.warn("Multiple tabs open, persistence can only be enabled in one tab at a time.");
+        } else if (err.code === 'unimplemented') {
+            console.warn("The current browser does not support all of the features required to enable persistence");
+        }
+    });
+}
 
 export const storage = getStorage(app);
 
-// Initialize messaging conditionally to prevent crashes in environments without supported push
+// Emulator Support
+const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === "true";
+console.log("Firebase Emulator Status:", useEmulator);
+
+if (useEmulator) {
+    console.log("Connecting to Firebase Emulators...");
+    connectAuthEmulator(auth, "http://localhost:9099");
+    connectFirestoreEmulator(db, "localhost", 8080);
+    connectStorageEmulator(storage, "localhost", 9199);
+}
+
+// Initialize messaging conditionally
 export let messaging = null;
 isSupported().then((supported) => {
     if (supported) {
@@ -42,4 +58,3 @@ isSupported().then((supported) => {
 }).catch((err) => console.warn("Messaging not supported", err));
 
 export default app;
-

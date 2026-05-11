@@ -154,6 +154,7 @@ function RolePicker({ onSelect }) {
 
             <div className="grid grid-cols-2 gap-4">
                 <motion.button
+                    data-testid="role-owner-button"
                     onClick={() => onSelect('owner')}
                     whileHover={{ scale: 1.03, y: -2 }}
                     whileTap={{ scale: 0.97 }}
@@ -264,6 +265,7 @@ function OwnerLoginForm({ onBack, loading, onSubmit, onGoogleLogin, onResetPassw
                 <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-white/25" />
                     <input
+                        data-testid="login-email"
                         type="email"
                         required
                         value={email}
@@ -276,6 +278,7 @@ function OwnerLoginForm({ onBack, loading, onSubmit, onGoogleLogin, onResetPassw
                     <div className="relative">
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-white/25" />
                         <input
+                            data-testid="login-password"
                             type={showPassword ? "text" : "password"}
                             required
                             value={password}
@@ -302,6 +305,7 @@ function OwnerLoginForm({ onBack, loading, onSubmit, onGoogleLogin, onResetPassw
                     </div>
                 </div>
                 <motion.button
+                    data-testid="login-submit"
                     type="submit"
                     disabled={loading}
                     whileHover={{ scale: 1.02 }}
