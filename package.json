@@ -15,9 +15,13 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
-    "test:all": "vitest run && playwright test",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "playwright test tests/e2e",
+    "test:e2e:ui": "playwright test tests/e2e --ui",
+    "test:regression": "playwright test tests/regression",
+    "test:all": "npm run test:unit && npm run test:e2e",
+    "security:scan": "snyk test --severity-threshold=high",
     "ci": "vitest run && vite build"
   },
   "dependencies": {
