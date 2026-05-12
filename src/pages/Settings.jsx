@@ -436,14 +436,33 @@ export default function Settings() {
 
     const [isValidatingPayment, setIsValidatingPayment] = useState(false);
 
-    // Check for Return from Stripe
+    const tabs = useMemo(() => [
+        { id: "general", label: t('tab_general') || "Général", icon: Store },
+        { id: "shipping", label: t('tab_shipping') || "Livraison", icon: Truck },
+        { id: "locations", label: t('tab_locations') || "Logistique & Dépôts", icon: Truck },
+        { id: "catalog", label: t('tab_catalog') || "Catalogue", icon: Package },
+        { id: "billing", label: t('tab_billing') || "Plans & Facturation", icon: CreditCard },
+        { id: "security", label: t('tab_security') || "Sécurité", icon: Shield },
+        { id: "qa", label: "Recette QA", icon: ShieldCheck },
+        { id: "activity", label: t('tab_activity') || "Journal d'Activité", icon: Activity },
+    ], [t]);
+
+    // Check for Tab and Return from Stripe
     useEffect(() => {
-        const query = new URLSearchParams(window.location.search);
-        if (query.get("success")) {
+        const queryParams = new URLSearchParams(window.location.search);
+        
+        // Handle Tab switching from URL
+        const tab = queryParams.get("tab");
+        if (tab && tabs.some(t => t.id === tab)) {
+            setActiveTab(tab);
+        }
+
+        // Handle Payment Success
+        if (queryParams.get("success")) {
             setIsValidatingPayment(true);
             window.history.replaceState({}, document.title, window.location.pathname);
         }
-    }, []);
+    }, [tabs]);
 
     // Listen to real-time store updates to dismiss validation loader
     useEffect(() => {
@@ -515,16 +534,7 @@ export default function Settings() {
     }, [activeTab, store?.id]);
 
 
-    const tabs = [
-        { id: "general", label: t('tab_general') || "Général", icon: Store },
-        { id: "shipping", label: t('tab_shipping') || "Livraison", icon: Truck },
-        { id: "locations", label: t('tab_locations') || "Logistique & Dépôts", icon: Truck },
-        { id: "catalog", label: t('tab_catalog') || "Catalogue", icon: Package },
-        { id: "billing", label: t('tab_billing') || "Plans & Facturation", icon: CreditCard },
-        { id: "security", label: t('tab_security') || "Sécurité", icon: Shield },
-        { id: "qa", label: "Recette QA", icon: ShieldCheck },
-        { id: "activity", label: t('tab_activity') || "Journal d'Activité", icon: Activity },
-    ];
+
 
 
     // Biometric Logic

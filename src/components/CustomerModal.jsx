@@ -141,8 +141,8 @@ export default function CustomerModal({ isOpen, onClose, onSave, customer = null
                     {/* AI Generated Message Box */}
                     {aiMessage && (
                         <div className="p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg border border-emerald-100 relative shadow-inner">
-                            <label className="text-xs font-bold text-emerald-800 mb-2 flex items-center gap-1.5 uppercase tracking-wider">
-                                <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Message généré par Beya3
+                            <label className="text-xs font-bold text-emerald-800 mb-2 flex items-center gap-1.5 tracking-wider">
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> {t('msg_ai_generated')}
                             </label>
                             <textarea
                                 value={aiMessage}
@@ -158,7 +158,7 @@ export default function CustomerModal({ isOpen, onClose, onSave, customer = null
                                         window.open(link, '_blank');
                                     }}
                                 >
-                                    Ouvrir dans WhatsApp
+                                    {t('btn_open_whatsapp')}
                                 </Button>
                             </div>
                         </div>
@@ -180,7 +180,7 @@ export default function CustomerModal({ isOpen, onClose, onSave, customer = null
                                         const msg = await generateWhatsAppTemplate(prompt, 'fr');
                                         setAiMessage(msg);
                                     } catch (e) {
-                                        toast.error("Erreur de génération IA");
+                                        toast.error(t('err_ai_generation'));
                                     } finally {
                                         setIsGeneratingAi(false);
                                     }

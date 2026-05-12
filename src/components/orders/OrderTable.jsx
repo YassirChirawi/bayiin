@@ -296,12 +296,12 @@ export default function OrderTable({
                                     )}
                                 </button>
                             </th>
-                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('order_id')}</th>
-                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('client')}</th>
-                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('order_price')}</th>
-                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('order_status')}</th>
-                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('payment')}</th>
-                            <th scope="col" className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('actions')}</th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 tracking-wider">{t('order_id')}</th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 tracking-wider">{t('client')}</th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 tracking-wider">{t('order_price')}</th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 tracking-wider">{t('order_status')}</th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 tracking-wider">{t('payment')}</th>
+                            <th scope="col" className="px-6 py-4 text-right text-xs font-semibold text-gray-500 tracking-wider">{t('actions')}</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100">

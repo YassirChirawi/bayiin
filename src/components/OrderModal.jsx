@@ -82,6 +82,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
     const [riskInfo, setRiskInfo] = useState(null);
 
     const [isListening, setIsListening] = useState(false);
+    const [voiceFeedback, setVoiceFeedback] = useState("");
 
     useEffect(() => {
         if (order) {
@@ -213,17 +214,41 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
 
         const recognition = new SpeechRecognition();
         recognition.lang = "fr-FR";
-        recognition.interimResults = false;
+        recognition.interimResults = true;
+        recognition.continuous = true;
         recognition.maxAlternatives = 1;
 
-        recognition.onstart = () => setIsListening(true);
-        recognition.onend = () => setIsListening(false);
-        recognition.onerror = () => setIsListening(false);
+        recognition.onstart = () => {
+            setIsListening(true);
+            setVoiceFeedback("Je vous écoute... Parlez naturellement.");
+        };
+
+        recognition.onend = () => {
+            setIsListening(false);
+            setVoiceFeedback("");
+        };
+
+        recognition.onerror = (event) => {
+            if (event.error === 'no-speech') {
+                setVoiceFeedback("Aucune voix détectée. Parlez plus fort ?");
+            } else if (event.error === 'audio-capture') {
+                setVoiceFeedback("Micro non détecté.");
+            } else {
+                setIsListening(false);
+            }
+        };
+
+        recognition.onsoundstart = () => setVoiceFeedback("Je détecte un son...");
+        recognition.onspeechstart = () => setVoiceFeedback("Analyse en cours... Parlez lentement.");
 
         recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
+            const lastResultIndex = event.results.length - 1;
+            const transcript = event.results[lastResultIndex][0].transcript;
+            const isFinal = event.results[lastResultIndex].isFinal;
+
             const entities = parseVoiceOrder(transcript, products);
             
+            // Real-time update
             setFormData(prev => ({
                 ...prev,
                 clientName: entities.clientName || prev.clientName,
@@ -237,8 +262,13 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                     price: entities.price || 0
                 }] : prev.products
             }));
-            
-            toast.success("Commande dictée avec succès !");
+
+            if (isFinal) {
+                setVoiceFeedback("Terminé ! Vérifiez les champs.");
+                setTimeout(() => {
+                    if (isListening) recognition.stop();
+                }, 1000);
+            }
         };
 
         recognition.start();
@@ -543,14 +573,22 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                             {order ? `${t('modal_edit_order')} #${order.orderNumber || order.id?.substring(0, 8)}` : t('modal_new_order')}
                         </h2>
                         {!order && (
-                            <button 
-                                type="button"
-                                onClick={startListening}
-                                className={`p-2 rounded-full transition-all ${isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'}`}
-                                title="Dicter la commande"
-                            >
-                                <Mic className="h-5 w-5" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    type="button"
+                                    onClick={startListening}
+                                    className={`p-2 rounded-full transition-all flex items-center gap-2 ${isListening ? 'bg-red-100 text-red-600 animate-pulse ring-2 ring-red-200' : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'}`}
+                                    title="Dicter la commande"
+                                >
+                                    <Mic className="h-5 w-5" />
+                                    {isListening && <span className="text-[10px] font-bold uppercase tracking-wider">Écoute...</span>}
+                                </button>
+                                {voiceFeedback && (
+                                    <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full animate-in fade-in slide-in-from-left-2">
+                                        {voiceFeedback}
+                                    </span>
+                                )}
+                            </div>
                         )}
                     </div>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-500">

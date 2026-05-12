@@ -13,14 +13,15 @@ export default function DemoDashboard() {
         revenueToday: 12450.00,
         pendingOrders: 12,
         returnRate: 4.5,
-        salesTrend: Array.from({ length: 7 }, (_, i) => {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            return {
-                date: format(d, 'MMM dd'),
-                revenue: Math.floor(Math.random() * 5000) + 1000
-            };
-        }).reverse(),
+        salesTrend: [
+            { date: format(subDays(new Date(), 6), 'MMM dd'), revenue: 2450 },
+            { date: format(subDays(new Date(), 5), 'MMM dd'), revenue: 3800 },
+            { date: format(subDays(new Date(), 4), 'MMM dd'), revenue: 3100 },
+            { date: format(subDays(new Date(), 3), 'MMM dd'), revenue: 4200 },
+            { date: format(subDays(new Date(), 2), 'MMM dd'), revenue: 2900 },
+            { date: format(subDays(new Date(), 1), 'MMM dd'), revenue: 5100 },
+            { date: format(new Date(), 'MMM dd'), revenue: 4500 }
+        ],
         statusDistribution: [
             { name: "Livré", value: 45 },
             { name: "En cours", value: 20 },

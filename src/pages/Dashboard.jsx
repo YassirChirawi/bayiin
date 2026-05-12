@@ -620,9 +620,9 @@ export default function Dashboard() {
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                                 <Activity className="h-5 w-5 text-indigo-600" />
-                                {t('title_recent_stock_movements') || "Mouvements de Stock Récents"}
+                                {t('title_recent_stock_movements')}
                             </h3>
-                            <Link to="/warehouse" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">{t('btn_view_warehouse') || "Voir Entrepôt"}</Link>
+                            <Link to="/warehouse" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">{t('btn_view_warehouse')}</Link>
                         </div>
 
                         {!stockLogs || stockLogs.length === 0 ? (

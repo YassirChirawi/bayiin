@@ -253,8 +253,8 @@ export default function Products() {
                                                 {product.photoUrl ? (
                                                     <img className="h-full w-full object-cover" src={product.photoUrl} alt={product.name} />
                                                 ) : (
-                                                    <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50 text-indigo-300">
-                                                        <Package className="h-7 w-7" strokeWidth={1.5} />
+                                                    <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 text-gray-400">
+                                                        <ImageOff className="h-6 w-6" strokeWidth={1.5} />
                                                     </div>
                                                 )}
                                             </div>
@@ -413,8 +413,8 @@ export default function Products() {
                                         {product.photoUrl ? (
                                             <img className="h-full w-full object-cover" src={product.photoUrl} alt={product.name} />
                                         ) : (
-                                            <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50 text-indigo-300">
-                                                <Package className="h-7 w-7" strokeWidth={1.5} />
+                                            <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 text-gray-400">
+                                                <ImageOff className="h-8 w-8" strokeWidth={1.5} />
                                             </div>
                                         )}
                                     </div>
