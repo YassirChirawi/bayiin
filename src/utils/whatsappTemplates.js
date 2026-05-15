@@ -92,27 +92,41 @@ export const getWhatsappMessage = (status, order, store) => {
     const clientName = order?.clientName || 'Client';
     const product = order?.articleName || 'votre commande';
     const price = order?.price || '';
+    
+    const lang = store?.whatsappLanguage || 'fr';
+    const templates = lang === 'darija' ? DARIJA_TEMPLATES : DEFAULT_TEMPLATES;
+    const rawTemplate = templates[status] || templates['reçu'];
 
-    // Status keys from constants.js: 'reçu', 'confirmation', 'livraison', 'livré', 'annulé', etc.
-    switch (status) {
-        case 'reçu':
-        case 'pending_catalog':
-            return `Bonjour ${clientName}, nous avons bien reçu votre commande pour ${product}. Nous vous contacterons bientôt pour confirmer. - ${storeName}`;
-        case 'confirmation':
-            return `Bonjour ${clientName}, votre commande ${product} est confirmée à ${price} DH. Merci de votre confiance ! - ${storeName}`;
-        case 'livraison':
-            return `Bonjour ${clientName}, bonne nouvelle ! Votre commande ${product} a été expédiée. Vous la recevrez très bientôt. - ${storeName}`;
-        case 'livré':
-            return `Bonjour ${clientName}, votre commande ${product} est livrée. Nous espérons qu'elle vous plaît ! - ${storeName}`;
-        case 'annulé':
-            return `Bonjour ${clientName}, votre commande ${product} a été annulée. N'hésitez pas à nous contacter si besoin. - ${storeName}`;
-        case 'reporté':
-            return `Bonjour ${clientName}, comme convenu, la livraison de votre commande ${product} a été reportée. À bientôt ! - ${storeName}`;
-        case 'pas de réponse':
-            return `Bonjour ${clientName}, nous avons essayé de vous joindre pour votre commande ${product}. Quand êtes-vous disponible ? - ${storeName}`;
-        default:
-            return `Bonjour ${clientName}, concernant votre commande ${product} chez ${storeName}...`;
+    // Map status-specific logic
+    let message = rawTemplate;
+    
+    // Manual replacements for better context if template is generic
+    if (lang === 'fr') {
+        switch (status) {
+            case 'reçu':
+            case 'pending_catalog':
+                return `Bonjour ${clientName}, nous avons bien reçu votre commande pour ${product}. Nous vous contacterons bientôt pour confirmer. - ${storeName}`;
+            case 'confirmation':
+                return `Bonjour ${clientName}, votre commande ${product} est confirmée à ${price} DH. Merci de votre confiance ! - ${storeName}`;
+            case 'livraison':
+                return `Bonjour ${clientName}, bonne nouvelle ! Votre commande ${product} a été expédiée. Vous la recevrez très bientôt. - ${storeName}`;
+            case 'livré':
+                return `Bonjour ${clientName}, votre commande ${product} est livrée. Nous espérons qu'elle vous plaît ! - ${storeName}`;
+            case 'annulé':
+                return `Bonjour ${clientName}, votre commande ${product} a été annulée. N'hésitez pas à nous contacter si besoin. - ${storeName}`;
+            case 'reporté':
+                return `Bonjour ${clientName}, comme convenu, la livraison de votre commande ${product} a été reportée. À bientôt ! - ${storeName}`;
+            case 'pas de réponse':
+                return `Bonjour ${clientName}, nous avons essayé de vous joindre pour votre commande ${product}. Quand êtes-vous disponible ? - ${storeName}`;
+        }
+    } else if (lang === 'darija') {
+        // Darija usually doesn't need as much personalization as it's already quite specific in the templates
+        // but let's add some store/client context
+        message = message.replace('Salam', `Salam ${clientName}`);
+        message += ` - ${storeName}`;
     }
+
+    return message;
 };
 
 /**

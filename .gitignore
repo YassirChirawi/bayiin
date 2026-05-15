@@ -33,3 +33,15 @@ playwright-report/
 test-results/
 test_output_*.txt
 test_output_final.txt
+
+# Lint & build output
+lint_*.txt
+build.log
+linear_import.csv
+
+# Scratch
+scratch/
+
+# Java crash logs
+hs_err_pid*.log
+replay_pid*.log

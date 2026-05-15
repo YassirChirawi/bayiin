@@ -22,6 +22,8 @@
     "test:regression": "playwright test tests/regression",
     "test:all": "npm run test:unit && npm run test:e2e",
     "security:scan": "snyk test --severity-threshold=high",
+    "linear:sync": "node scripts/sync-linear.mjs",
+    "linear:push": "node scripts/push-with-linear.mjs",
     "ci": "vitest run && vite build"
   },
   "dependencies": {

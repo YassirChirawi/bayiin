@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import {
     CheckSquare, Square, DollarSign, Edit2,
     Trash2, QrCode, RotateCcw, Truck,
-    Package, MessageCircle, Box, MapPin
+    Package, MessageCircle, Box, MapPin, PhoneOff
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { getOrderStatusConfig } from '../../utils/statusConfig';
@@ -25,6 +25,7 @@ const OrderRow = memo(({
     sendToSendit,
     handleOpenTracking,
     setQrOrder,
+    handleNoAnswer,
     t
 }) => {
     const waLink = createRawWhatsAppLink(order.clientPhone,
@@ -145,6 +146,24 @@ const OrderRow = memo(({
                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={(e) => { e.stopPropagation(); setQrOrder(order); }} className="p-2 text-gray-400 hover:text-gray-900 transition-colors" title="Generate QR Code">
                             <QrCode className="h-4 w-4" />
+                        </button>
+
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const message = t('whatsapp_no_answer', {
+                                    client: order.clientName,
+                                    order_id: order.orderNumber,
+                                    store: store?.name || 'Notre boutique'
+                                });
+                                const waLink = createRawWhatsAppLink(order.clientPhone, message);
+                                window.open(waLink, '_blank');
+                                handleNoAnswer(order);
+                            }}
+                            className="p-2 text-gray-400 hover:text-orange-600 transition-colors"
+                            title={t('status_no_answer')}
+                        >
+                            <PhoneOff className="h-4 w-4" />
                         </button>
 
                         {(order.carrier || order.livreurToken) && (
@@ -279,6 +298,7 @@ export default function OrderTable({
     sendToSendit,
     handleOpenTracking,
     setQrOrder,
+    handleNoAnswer,
     t
 }) {
     return (
@@ -326,6 +346,7 @@ export default function OrderTable({
                                     sendToSendit={sendToSendit}
                                     handleOpenTracking={handleOpenTracking}
                                     setQrOrder={setQrOrder}
+                                    handleNoAnswer={handleNoAnswer}
                                     t={t}
                                 />
                             );

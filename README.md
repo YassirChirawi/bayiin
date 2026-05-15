@@ -1,9 +1,10 @@
 # BayIIn — Premium Retail OS for Morocco 🇲🇦
 
-![CI Status](https://img.shields.io/github/actions/workflow/status/YassirChirawi/bayiin/e2e.yml?branch=main&label=CI%2FCD)
-![Version](https://img.shields.io/badge/version-1.2.0-blue)
-![PWA](https://img.shields.io/badge/PWA-Ready-orange)
-![Firebase](https://img.shields.io/badge/Backend-Firebase-yellow)
+![CI](https://github.com/YassirChirawi/bayiin/actions/workflows/ci-develop.yml/badge.svg)
+![Version](https://img.shields.io/badge/version-0.9.0--beta-red)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![PWA](https://img.shields.io/badge/PWA-ready-green)
+![Firebase](https://img.shields.io/badge/Firebase-9.x-orange)
 
 > L'Operating System nouvelle génération pour le e-commerce au Maroc. Gagnez en productivité avec Beya3 (IA), sécurisez vos accès avec la biométrie et dominez votre logistique.
 
@@ -15,37 +16,50 @@ git clone https://github.com/YassirChirawi/bayiin
 cd bayiin
 
 # 2. Configurer l'environnement
-cp .env.example .env.local  # Remplir les clés Firebase
+cp .env.example .env.local
+# Remplir les variables Firebase dans .env.local
 
 # 3. Installer & Lancer
 npm install
-npm run dev
+npm run dev                   # localhost:5173
 ```
 
-## 🛠️ Scripts disponibles
+## 📦 Scripts disponibles
 
 | Commande | Description |
 | :--- | :--- |
-| `npm run dev` | Lance le serveur de développement Vite |
-| `npm run build` | Génère le bundle de production dans `dist/` |
-| `npm run preview` | Prévisualise le build de production localement |
-| `npm run test` | Exécute les tests unitaires (Vitest) |
-| `npm run test:e2e` | Exécute les tests Playwright complets |
-| `npm run lint` | Vérifie la qualité du code (ESLint) |
+| `npm run dev` | Serveur local (localhost:5173) |
+| `npm run build` | Build production |
+| `npm run preview` | Preview du build |
+| `npm run lint` | ESLint check |
+| `npm run test` | Vitest watch mode |
+| `npm run test -- --run` | Vitest une fois (CI) |
+| `npm run test:e2e` | Playwright E2E |
+| `npm run test:regression` | Suite non-régression |
+| `npm run test:all` | Tout d'un coup |
+| `npm run security:scan` | Snyk vulnerability scan |
 
-## 🔑 Variables d'environnement (`.env`)
+## 🔐 Variables d'environnement
+
+Copie `.env.example` vers `.env.local` et remplis :
 
 | Variable | Description | Obligatoire |
-| :--- | :--- | :--- |
-| `VITE_FIREBASE_API_KEY` | Clé API de votre projet Firebase | ✅ Oui |
-| `VITE_FIREBASE_PROJECT_ID` | ID unique de votre projet Firebase | ✅ Oui |
-| `VITE_STRIPE_PUBLIC_KEY` | Clé publique Stripe pour les paiements | ❌ Non |
-| `VITE_GROQ_API_KEY` | Clé pour l'IA Beya3 (Cloud Mode) | ❌ Non |
+|---|---|---|
+| `VITE_FIREBASE_API_KEY` | Clé publique Firebase | ✅ |
+| `VITE_FIREBASE_PROJECT_ID` | ID projet Firebase | ✅ |
+| `VITE_COPILOT_URL` | URL Cloud Function Groq | ✅ |
+| `VITE_STRIPE_PUBLIC_KEY` | Clé publique Stripe | ⚠️ Paiements |
+
+Pour les secrets Firebase (GROQ_API_KEY, Stripe Secret) :
+`firebase functions:secrets:set GROQ_API_KEY`
 
 ## 🌍 Environnements
 
-- **Production** : [https://app.bayiin.com](https://app.bayiin.com)
-- **Staging** : [https://bayiin-staging.web.app](https://bayiin-staging.web.app)
+| Env | URL | Branch |
+|---|---|---|
+| Production | [https://bayiin.shop](https://bayiin.shop) | `master` |
+| Staging | [https://staging--bayiin.web.app](https://staging--bayiin.web.app) | `develop` |
+| Docs | [https://docs.bayiin.shop](https://docs.bayiin.shop) (à venir) | - |
 
 ## 📚 Documentation & Architecture
 
@@ -58,6 +72,7 @@ Explorez les capacités profondes de la plateforme :
 | [Beya3 (AI)](./docs/BEYA3.md) | Moteur d'intelligence hybride local/cloud |
 | [Sécurité & RBAC](./docs/SECURITY.md) | Authentification biométrique et rôles |
 | [QA & Tests](./docs/QA.md) | Pipeline de tests E2E stabilisé |
+| [Contribuer](./docs/CONTRIBUTING.md) | Guide pour les développeurs |
 
 ## 📦 Stack Technique
 
