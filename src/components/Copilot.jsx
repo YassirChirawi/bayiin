@@ -1,13 +1,55 @@
 import { useState, useRef, useEffect } from "react";
 import { useCopilot } from "../context/CopilotContext";
-import { X, Send, Sparkles, MessageSquare, Trash2, Minimize2, Maximize2 } from "lucide-react";
+import { X, Send, Sparkles, MessageSquare, Trash2, Minimize2, Maximize2, Mic, MicOff } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from "framer-motion";
+import toast from "react-hot-toast";
 
 export default function Copilot() {
     const { isOpen, togglePanel, messages, sendMessage, loading, clearHistory } = useCopilot();
     const [input, setInput] = useState("");
+    const [isListening, setIsListening] = useState(false);
     const scrollRef = useRef(null);
+    const recognitionRef = useRef(null);
+
+    // Initialize Speech Recognition
+    useEffect(() => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            recognitionRef.current = new SpeechRecognition();
+            recognitionRef.current.continuous = false;
+            recognitionRef.current.interimResults = false;
+            recognitionRef.current.lang = 'fr-FR';
+
+            recognitionRef.current.onstart = () => setIsListening(true);
+            recognitionRef.current.onend = () => setIsListening(false);
+            recognitionRef.current.onerror = (e) => {
+                console.error("Speech recognition error:", e.error);
+                setIsListening(false);
+            };
+            recognitionRef.current.onresult = (e) => {
+                const transcript = e.results[0][0].transcript;
+                setInput((prev) => prev + (prev ? " " : "") + transcript);
+            };
+        }
+    }, []);
+
+    const toggleListen = (e) => {
+        e.preventDefault();
+        if (!recognitionRef.current) {
+            toast.error("La reconnaissance vocale n'est pas supportée sur ce navigateur.");
+            return;
+        }
+        if (isListening) {
+            recognitionRef.current.stop();
+        } else {
+            try {
+                recognitionRef.current.start();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+    };
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -159,16 +201,30 @@ export default function Copilot() {
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
                                     placeholder="Demande un conseil à Beya3..."
-                                    className="w-full pl-4 pr-12 py-3.5 bg-gray-50 border border-gray-200 rounded-full focus:outline-none focus:border-rose-300 focus:ring-1 focus:ring-rose-300 transition-all text-sm shadow-inner"
+                                    className="w-full pl-4 pr-24 py-3.5 bg-gray-50 border border-gray-200 rounded-full focus:outline-none focus:border-rose-300 focus:ring-1 focus:ring-rose-300 transition-all text-sm shadow-inner"
                                     autoFocus
                                 />
-                                <button
-                                    type="submit"
-                                    disabled={!input.trim() || loading}
-                                    className="absolute right-2 p-2 bg-rose-500 text-white rounded-full hover:bg-rose-600 disabled:opacity-50 disabled:hover:bg-rose-500 transition-colors shadow-md"
-                                >
-                                    <Send className="w-4 h-4" />
-                                </button>
+                                <div className="absolute right-2 flex items-center gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={toggleListen}
+                                        className={`p-2 rounded-full transition-colors ${
+                                            isListening
+                                                ? "bg-rose-100 text-rose-600 animate-pulse"
+                                                : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                                        }`}
+                                        title="Parler à Beya3"
+                                    >
+                                        {isListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={!input.trim() || loading}
+                                        className="p-2 bg-rose-500 text-white rounded-full hover:bg-rose-600 disabled:opacity-50 disabled:hover:bg-rose-500 transition-colors shadow-md"
+                                    >
+                                        <Send className="w-4 h-4" />
+                                    </button>
+                                </div>
                             </div>
                             <div className="mt-2 text-center">
                                 <p className="text-[10px] text-gray-400 flex items-center justify-center gap-1">
