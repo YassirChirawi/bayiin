@@ -4,9 +4,13 @@ import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, Menu, 
 import { format } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts';
 import DemoTour from "../components/DemoTour";
+import { usePWA } from "../context/PWAContext";
+import InstallGuide from "../components/InstallGuide";
 
 export default function DemoDashboard() {
     const navigate = useNavigate();
+    const { isInstallable, installPWA, isInstalled } = usePWA();
+    const [showInstallGuide, setShowInstallGuide] = useState(false);
 
     // MOCK DATA
     const stats = {
@@ -76,6 +80,7 @@ export default function DemoDashboard() {
 
     return (
         <div className="flex min-h-screen bg-gray-50 flex-col md:flex-row font-sans">
+            <InstallGuide isOpen={showInstallGuide} onClose={() => setShowInstallGuide(false)} />
             {/* TOUR OVERLAY */}
             <DemoTour steps={tourSteps} isOpen={isTourOpen} onClose={() => setIsTourOpen(false)} />
 
@@ -97,12 +102,20 @@ export default function DemoDashboard() {
                     ))}
                 </nav>
                 <div className="p-4 border-t border-slate-800 space-y-2">
-                    <button
-                        onClick={() => alert("Takes you to the install guide for iOS & Android!")}
-                        className="flex items-center justify-center gap-2 w-full bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                    >
-                        <Download className="w-4 h-4" /> Install App
-                    </button>
+                    {!isInstalled && (
+                        <button
+                            onClick={async () => {
+                                if (isInstallable) {
+                                    await installPWA();
+                                } else {
+                                    setShowInstallGuide(true);
+                                }
+                            }}
+                            className="flex items-center justify-center gap-2 w-full bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                        >
+                            <Download className="w-4 h-4" /> Install App
+                        </button>
+                    )}
                     <Link to="/signup" className="flex items-center justify-center gap-2 w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                         Start Real Trial
                     </Link>

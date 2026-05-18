@@ -9,6 +9,8 @@ import { useAuth } from "./context/AuthContext";
 import { HelmetProvider } from 'react-helmet-async';
 import { useAnalytics } from './hooks/useAnalytics';
 import { Toaster } from 'react-hot-toast';
+import { PWAProvider } from "./context/PWAContext";
+import ReloadPrompt from "./components/ReloadPrompt";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
@@ -81,8 +83,9 @@ function App() {
   return (
     <HelmetProvider>
       <ErrorBoundary>
-        <LanguageProvider>
-          <AuthContextWrapper>
+        <PWAProvider>
+          <LanguageProvider>
+            <AuthContextWrapper>
             <TenantProvider>
               <CopilotProvider>
                 <NotificationProvider>
@@ -196,12 +199,14 @@ function App() {
                       </Routes>
                     </Suspense>
                     <CookieBanner />
+                    <ReloadPrompt />
                   </BrowserRouter>
                 </NotificationProvider>
               </CopilotProvider>
             </TenantProvider>
           </AuthContextWrapper>
         </LanguageProvider>
+        </PWAProvider>
       </ErrorBoundary>
     </HelmetProvider>
   );
