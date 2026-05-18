@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { toast } from "react-hot-toast";
 import { useStoreData } from "../hooks/useStoreData";
-import { Plus, Edit2, Trash2, Package, Search, RotateCcw, AlertCircle, Upload, Download, Share2, ImageOff } from "lucide-react";
+import { Plus, Edit2, Trash2, Package, Search, RotateCcw, AlertCircle, Upload, Download, Share2, ImageOff, Sparkles } from "lucide-react";
 import Button from "../components/Button";
 import ProductModal from "../components/ProductModal";
 import ImportModal from "../components/ImportModal";
@@ -11,6 +11,7 @@ import { useLanguage } from "../context/LanguageContext"; // NEW
 import { vibrate } from "../utils/haptics";
 import { motion } from "framer-motion";
 import ShareCatalogModal from "../components/ShareCatalogModal"; // NEW
+import StockOptimizerModal from "../components/StockOptimizerModal";
 import { useTenant } from "../context/TenantContext"; // NEW
 import { logActivity } from "../utils/logger"; // NEW
 import { useAuth } from "../context/AuthContext"; // NEW
@@ -42,10 +43,12 @@ export default function Products() {
     ], [limitCount]);
 
     const { data: products, loading, error, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("products", productConstraints);
+    const { data: orders } = useStoreData("orders", useMemo(() => [orderBy("createdAt", "desc"), limit(200)], []));
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [isShareModalOpen, setIsShareModalOpen] = useState(false); // NEW
-    const { store } = useTenant(); // NEW
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+    const [isOptimizerModalOpen, setIsOptimizerModalOpen] = useState(false);
+    const { store } = useTenant();
     const { user } = useAuth(); // NEW
     const [editingProduct, setEditingProduct] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
@@ -157,6 +160,14 @@ export default function Products() {
                         onClick={() => setIsShareModalOpen(true)}
                     >
                         {t('btn_share_catalog') || "Share Catalog"}
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        icon={Sparkles}
+                        className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 shadow-sm"
+                        onClick={() => setIsOptimizerModalOpen(true)}
+                    >
+                        Beya3 Optimizer
                     </Button>
                     <Button
                         variant="secondary"
@@ -508,6 +519,13 @@ export default function Products() {
                 onClose={() => setIsShareModalOpen(false)}
                 storeId={store?.id}
             />
-        </div >
+
+            <StockOptimizerModal
+                isOpen={isOptimizerModalOpen}
+                onClose={() => setIsOptimizerModalOpen(false)}
+                products={products}
+                orders={orders}
+            />
+        </div>
     );
 }
