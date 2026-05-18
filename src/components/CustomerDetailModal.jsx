@@ -1,5 +1,5 @@
 import { useStoreData } from "../hooks/useStoreData";
-import { X, Package, Calendar } from "lucide-react";
+import { X, Package, Calendar, Sparkles } from "lucide-react";
 import Button from "./Button";
 import { useLanguage } from "../context/LanguageContext"; // NEW
 
@@ -45,9 +45,16 @@ export default function CustomerDetailModal({ isOpen, onClose, customer }) {
                                 <p className="text-sm text-indigo-600 font-medium">{t('label_ltv')}</p>
                                 <p className="text-2xl font-bold text-indigo-900">{totalSpent.toFixed(2)} DH</p>
                             </div>
-                            <div className="bg-green-50 p-4 rounded-xl text-center min-w-[120px]">
+                            <div className="bg-green-50 p-4 rounded-xl text-center min-w-[100px]">
                                 <p className="text-sm text-green-600 font-medium">{t('table_orders_count')}</p>
                                 <p className="text-2xl font-bold text-green-900">{orderCount}</p>
+                            </div>
+                            <div className="bg-amber-50 p-4 rounded-xl text-center min-w-[100px] relative overflow-hidden border border-amber-100 shadow-sm">
+                                <div className="absolute -top-2 -right-2 p-1 opacity-20 transform rotate-12">
+                                    <Sparkles className="w-12 h-12 text-amber-600" />
+                                </div>
+                                <p className="text-sm text-amber-600 font-bold relative z-10 uppercase tracking-wider text-[10px]">Nqat (Points)</p>
+                                <p className="text-2xl font-black text-amber-900 relative z-10">{Math.floor(totalSpent / 10)}</p>
                             </div>
                         </div>
                     </div>

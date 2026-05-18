@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { toast } from "react-hot-toast";
 import { useStoreData } from "../hooks/useStoreData";
-import { Search, MapPin, Users, DollarSign, TrendingUp, Eye, Trash2, RotateCcw, Download, Upload, Plus, Edit2 } from "lucide-react";
+import { Search, MapPin, Users, DollarSign, TrendingUp, Eye, Trash2, RotateCcw, Download, Upload, Plus, Edit2, Sparkles } from "lucide-react";
 import CustomerDetailModal from "../components/CustomerDetailModal";
 import CustomerModal from "../components/CustomerModal";
 import ImportModal from "../components/ImportModal";
@@ -373,7 +373,12 @@ export default function Customers() {
                                         {customer.orderCount || 0}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
-                                        {customer.totalSpent ? `${customer.totalSpent.toFixed(2)} DH` : '0 DH'}
+                                        <div className="flex items-center gap-1">
+                                            {customer.totalSpent ? `${customer.totalSpent.toFixed(2)} DH` : '0 DH'}
+                                            {(customer.totalSpent || 0) >= 1000 && (
+                                                <Sparkles className="w-3 h-3 text-amber-500" title={`${Math.floor(customer.totalSpent / 10)} Nqat`} />
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {customer.lastOrderDate || '-'}
@@ -480,8 +485,11 @@ export default function Customers() {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <span className="block font-bold text-green-600 text-lg">
+                                        <span className="flex items-center justify-end gap-1 font-bold text-green-600 text-lg">
                                             {customer.totalSpent ? `${customer.totalSpent.toFixed(0)}` : '0'} <span className="text-xs">DH</span>
+                                            {(customer.totalSpent || 0) >= 1000 && (
+                                                <Sparkles className="w-4 h-4 text-amber-500" title={`${Math.floor(customer.totalSpent / 10)} Nqat`} />
+                                            )}
                                         </span>
                                         <span className="text-xs text-gray-400">{customer.orderCount || 0} Orders</span>
                                     </div>
