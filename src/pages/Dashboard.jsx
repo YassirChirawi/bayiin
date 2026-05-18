@@ -228,13 +228,6 @@ export default function Dashboard() {
                 </div>
                 <div className="flex items-center gap-2">
                     <button
-                        className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-200 transition-all relative"
-                        title="Alerts & Notifications"
-                    >
-                        <Bell className="h-5 w-5" />
-                        <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500"></span>
-                    </button>
-                    <button
                         onClick={handleHardRefresh}
                         disabled={isRecalculating}
                         className={`p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-200 transition-all ${isRecalculating ? 'animate-spin text-indigo-600' : ''}`}
