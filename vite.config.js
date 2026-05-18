@@ -73,6 +73,16 @@ export default defineConfig({
       'src/**/*.{test,spec}.{js,ts,jsx,tsx}',
       'tests/unit/**/*.{test,spec}.{js,ts,jsx,tsx}',
     ],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov', 'html'],
+      exclude: ['node_modules/', 'tests/', 'src/setupTests.js'],
+      thresholds: {
+        lines: 60,
+        functions: 60,
+        branches: 50,
+      },
+    },
   },
   esbuild: {
     drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
