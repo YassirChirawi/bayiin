@@ -24,6 +24,7 @@ import { db } from "../lib/firebase";
 import { RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import { generateFinancialInsight, analyzeFinancialScenario, detectFinancialLeaks } from "../services/aiService";
+import SmartReconciliationWizard from "../components/finances/SmartReconciliationWizard";
 
 export default function Finances() {
     const { store } = useTenant();
@@ -891,6 +892,14 @@ export default function Finances() {
                     </div>
                 );
             })()}
+
+            {/* Smart COD Automated Reconciliation Wizard */}
+            <SmartReconciliationWizard 
+                orders={orders} 
+                store={store} 
+                db={db} 
+                onReconcileComplete={handleSyncStats} 
+            />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Chart Section */}
