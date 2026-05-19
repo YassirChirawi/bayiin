@@ -15,6 +15,7 @@ import { useTenant } from "../context/TenantContext"; // NEW
 import { logActivity } from "../utils/logger"; // NEW
 import { useAuth } from "../context/AuthContext"; // NEW
 import { db } from "../lib/firebase"; // NEW
+import { predictStockout } from "../utils/stockPrediction";
 
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -41,7 +42,14 @@ export default function Products() {
         limit(limitCount)
     ], [limitCount]);
 
+    // Fetch recent orders for prediction (limit 100)
+    const recentOrdersConstraints = useMemo(() => [
+        orderBy("date", "desc"),
+        limit(100)
+    ], []);
+
     const { data: products, loading, error, addStoreItem, updateStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("products", productConstraints);
+    const { data: recentOrders } = useStoreData("orders", recentOrdersConstraints);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isShareModalOpen, setIsShareModalOpen] = useState(false); // NEW
@@ -245,8 +253,8 @@ export default function Products() {
                                                 {product.photoUrl ? (
                                                     <img className="h-full w-full object-cover" src={product.photoUrl} alt={product.name} />
                                                 ) : (
-                                                    <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50 text-indigo-300">
-                                                        <Package className="h-7 w-7" strokeWidth={1.5} />
+                                                    <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 text-gray-400">
+                                                        <ImageOff className="h-6 w-6" strokeWidth={1.5} />
                                                     </div>
                                                 )}
                                             </div>
@@ -298,12 +306,33 @@ export default function Products() {
                                                     )
                                                 )}
 
-                                                {(parseInt(product.stock) || 0) < 5 && (
-                                                    <div className="mt-1 flex items-center gap-1 text-xs text-red-600 font-medium bg-red-50 px-2 py-0.5 rounded w-fit">
-                                                        <AlertCircle className="h-3 w-3" />
-                                                        {t('low_stock')}
-                                                    </div>
-                                                )}
+                                                <div className="mt-1 flex flex-wrap items-center gap-2">
+                                                    {(parseInt(product.stock) || 0) < 5 && (
+                                                        <div className="flex items-center gap-1 text-xs text-red-600 font-medium bg-red-50 px-2 py-0.5 rounded w-fit">
+                                                            <AlertCircle className="h-3 w-3" />
+                                                            {t('low_stock')}
+                                                        </div>
+                                                    )}
+
+                                                    {/* AI Prediction Badge */}
+                                                    {(() => {
+                                                        if (!recentOrders?.length) return null;
+                                                        const pred = predictStockout(product, recentOrders);
+                                                        if (!pred.isAtRisk || parseInt(product.stock) <= 0) return null;
+                                                        
+                                                        return (
+                                                            <motion.div
+                                                                initial={{ opacity: 0, scale: 0.9 }}
+                                                                animate={{ opacity: 1, scale: 1 }}
+                                                                className={`flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded w-fit shadow-sm border ${pred.isCritical ? 'bg-red-100 text-red-700 border-red-200' : 'bg-orange-100 text-orange-700 border-orange-200'}`}
+                                                                title={`Vitesse: ${pred.dailyRate}/jour. Recommandation: ${pred.recommendedOrder}`}
+                                                            >
+                                                                <Sparkles className="h-3 w-3" />
+                                                                {pred.daysLeft === 0 ? 'Rupture imminente' : `${pred.daysLeft} jours restants`}
+                                                            </motion.div>
+                                                        );
+                                                    })()}
+                                                </div>
 
                                                 {product.inventoryBatches?.some(b => {
                                                     if (!b.expiryDate) return false;
@@ -384,8 +413,8 @@ export default function Products() {
                                         {product.photoUrl ? (
                                             <img className="h-full w-full object-cover" src={product.photoUrl} alt={product.name} />
                                         ) : (
-                                            <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50 text-indigo-300">
-                                                <Package className="h-7 w-7" strokeWidth={1.5} />
+                                            <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 text-gray-400">
+                                                <ImageOff className="h-8 w-8" strokeWidth={1.5} />
                                             </div>
                                         )}
                                     </div>
@@ -416,6 +445,25 @@ export default function Products() {
                                             <span className={`text-xs font-medium px-2 py-1 rounded-full ${parseInt(product.stock) === 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                                                 {product.stock} {t('in_stock')}
                                             </span>
+                                            
+                                            {/* AI Prediction Badge Mobile */}
+                                            {(() => {
+                                                if (!recentOrders?.length) return null;
+                                                const pred = predictStockout(product, recentOrders);
+                                                if (!pred.isAtRisk || parseInt(product.stock) <= 0) return null;
+                                                
+                                                return (
+                                                    <motion.div
+                                                        initial={{ opacity: 0 }}
+                                                        animate={{ opacity: 1 }}
+                                                        className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap border ${pred.isCritical ? 'bg-red-100 text-red-700 border-red-200' : 'bg-orange-100 text-orange-700 border-orange-200'}`}
+                                                    >
+                                                        <Sparkles className="h-2.5 w-2.5" />
+                                                        {pred.daysLeft === 0 ? 'Rupture imminente' : `${pred.daysLeft}j restants`}
+                                                    </motion.div>
+                                                );
+                                            })()}
+
                                             {product.inventoryBatches?.some(b => {
                                                 if (!b.expiryDate) return false;
                                                 const expDate = new Date(b.expiryDate);

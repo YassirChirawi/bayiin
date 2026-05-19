@@ -22,13 +22,10 @@ export default function Team() {
     const [inviteName, setInviteName] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
-    // Security: Redirect Staff
-    if (store?.role === 'staff') {
-        return <Navigate to="/dashboard" replace />;
-    }
+    const isStaff = store?.role === 'staff';
 
     useEffect(() => {
-        if (store) {
+        if (store && !isStaff) {
             fetchMembers();
             fetchEmployees();
             // If redirected from HR with prefill data, apply it
@@ -44,7 +41,11 @@ export default function Team() {
                 sessionStorage.removeItem('hr_invite_prefill');
             }
         }
-    }, [store]);
+    }, [store, isStaff]);
+
+    if (isStaff) {
+        return <Navigate to="/dashboard" replace />;
+    }
 
     const fetchMembers = async () => {
         try {

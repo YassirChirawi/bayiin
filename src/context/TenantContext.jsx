@@ -38,10 +38,16 @@ export const TenantProvider = ({ children }) => {
             // 1. Fetch user document to check role
             let userData = null;
             try {
-                const userDoc = await getDoc(doc(db, "users", user.uid));
+                // Add a 5s timeout to prevent hanging if Firestore is unreachable
+                const fetchPromise = getDoc(doc(db, "users", user.uid));
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error("Firestore timeout")), 10000)
+                );
+                
+                const userDoc = await Promise.race([fetchPromise, timeoutPromise]);
                 if (userDoc.exists()) userData = userDoc.data();
-            } catch (_) {
-                console.error("User document load failed");
+            } catch (err) {
+                console.error("User profile fetch failed or timed out:", err);
             }
 
             // 2. Fetch Owned Stores

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
-import { X, Save, Search, UserCheck, AlertCircle, Sparkles, Users, Phone, MapPin, Package, Calendar, CreditCard, ChevronRight, Trash2, Edit2, CheckCircle, Truck, RefreshCw, Smartphone, Map, UserPlus, Zap, Plus } from "lucide-react";
+import { X, Save, Search, UserCheck, AlertCircle, Sparkles, Users, Phone, MapPin, Package, Calendar, CreditCard, ChevronRight, Trash2, Edit2, CheckCircle, Truck, RefreshCw, Smartphone, Map, UserPlus, Zap, Plus, Mic } from "lucide-react";
 import Button from "./Button";
 import Input from "./Input";
 import { useStoreData } from "../hooks/useStoreData";
@@ -14,6 +14,8 @@ import { useOrderActions } from "../hooks/useOrderActions";
 import { useLanguage } from "../context/LanguageContext"; 
 import { calculateProductPrice } from "../utils/pricing"; 
 import { getAISuggestions } from "../services/productAdvisorService"; 
+import { calculateOrderRisk, getRiskLevel } from "../services/aiRiskService";
+import { parseVoiceOrder } from "../services/voiceParserService";
 
 export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
     const { store } = useTenant();
@@ -75,6 +77,12 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
 
     const [aiSuggestions, setAiSuggestions] = useState(null); 
     const [loadingAI, setLoadingAI] = useState(false);
+
+    const [riskScore, setRiskScore] = useState(0);
+    const [riskInfo, setRiskInfo] = useState(null);
+
+    const [isListening, setIsListening] = useState(false);
+    const [voiceFeedback, setVoiceFeedback] = useState("");
 
     useEffect(() => {
         if (order) {
@@ -183,10 +191,88 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
     }, [formData.status, formData.clientName, formData.price, formData.products, formData.shippingCost, notifyClient, store]);
 
     useEffect(() => {
+        if (formData.clientPhone || formData.clientCity || formData.price) {
+            calculateOrderRisk(formData, store?.id).then(score => {
+                setRiskScore(score);
+                setRiskInfo(getRiskLevel(score));
+            });
+        }
+    }, [formData.clientPhone, formData.clientCity, formData.price, store?.id]);
+
+    useEffect(() => {
         if (actionError) {
             toast.error(actionError);
         }
     }, [actionError]);
+
+    const startListening = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            toast.error("Votre navigateur ne supporte pas la reconnaissance vocale.");
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = "fr-FR";
+        recognition.interimResults = true;
+        recognition.continuous = true;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+            setIsListening(true);
+            setVoiceFeedback("Je vous écoute... Parlez naturellement.");
+        };
+
+        recognition.onend = () => {
+            setIsListening(false);
+            setVoiceFeedback("");
+        };
+
+        recognition.onerror = (event) => {
+            if (event.error === 'no-speech') {
+                setVoiceFeedback("Aucune voix détectée. Parlez plus fort ?");
+            } else if (event.error === 'audio-capture') {
+                setVoiceFeedback("Micro non détecté.");
+            } else {
+                setIsListening(false);
+            }
+        };
+
+        recognition.onsoundstart = () => setVoiceFeedback("Je détecte un son...");
+        recognition.onspeechstart = () => setVoiceFeedback("Analyse en cours... Parlez lentement.");
+
+        recognition.onresult = (event) => {
+            const lastResultIndex = event.results.length - 1;
+            const transcript = event.results[lastResultIndex][0].transcript;
+            const isFinal = event.results[lastResultIndex].isFinal;
+
+            const entities = parseVoiceOrder(transcript, products);
+            
+            // Real-time update
+            setFormData(prev => ({
+                ...prev,
+                clientName: entities.clientName || prev.clientName,
+                clientPhone: entities.clientPhone || prev.clientPhone,
+                clientCity: entities.clientCity || prev.clientCity,
+                price: entities.price || prev.price,
+                products: entities.productId ? [{
+                    id: entities.productId,
+                    name: entities.productName,
+                    quantity: 1,
+                    price: entities.price || 0
+                }] : prev.products
+            }));
+
+            if (isFinal) {
+                setVoiceFeedback("Terminé ! Vérifiez les champs.");
+                setTimeout(() => {
+                    if (isListening) recognition.stop();
+                }, 1000);
+            }
+        };
+
+        recognition.start();
+    };
 
     const handleIssueRefund = async () => {
         if (!refundForm.amount || isNaN(refundForm.amount)) return;
@@ -482,9 +568,29 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
                 className="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden relative z-10 flex flex-col"
             >
                 <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 sticky top-0 z-20">
-                    <h2 className="text-xl font-bold text-gray-900">
-                        {order ? `${t('modal_edit_order')} #${order.orderNumber || order.id?.substring(0, 8)}` : t('modal_new_order')}
-                    </h2>
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-xl font-bold text-gray-900">
+                            {order ? `${t('modal_edit_order')} #${order.orderNumber || order.id?.substring(0, 8)}` : t('modal_new_order')}
+                        </h2>
+                        {!order && (
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    type="button"
+                                    onClick={startListening}
+                                    className={`p-2 rounded-full transition-all flex items-center gap-2 ${isListening ? 'bg-red-100 text-red-600 animate-pulse ring-2 ring-red-200' : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'}`}
+                                    title="Dicter la commande"
+                                >
+                                    <Mic className="h-5 w-5" />
+                                    {isListening && <span className="text-[10px] font-bold uppercase tracking-wider">Écoute...</span>}
+                                </button>
+                                {voiceFeedback && (
+                                    <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full animate-in fade-in slide-in-from-left-2">
+                                        {voiceFeedback}
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                    </div>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
                         <X className="h-6 w-6" />
                     </button>
@@ -492,6 +598,21 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
 
                 <div className="flex-1 overflow-y-auto p-0 relative">
                     <div className="p-6 pt-2">
+                        {riskScore >= 60 && (
+                            <div className="mx-6 mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg shadow-sm flex items-start gap-3">
+                                <AlertCircle className="h-6 w-6 text-orange-600 mt-1" />
+                                <div>
+                                    <h4 className="font-bold text-orange-900">{t('ai_risk_warning') || "Alerte Risque Élevé (IA)"}</h4>
+                                    <p className="text-orange-700 text-sm">
+                                        {t('ai_risk_msg') || "Cette commande présente un risque élevé de retour ou d'annulation. Une double confirmation par téléphone est recommandée."}
+                                    </p>
+                                </div>
+                                <div className="ml-auto">
+                                    <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-bold uppercase tracking-wider">Score: {riskScore}</span>
+                                </div>
+                            </div>
+                        )}
+
                         {stockWarning && stockWarning.show && (
                             <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg shadow-sm">
                                 <div className="flex items-start gap-3">
@@ -586,7 +707,12 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
 
                                 <div className="bg-white p-3 rounded-lg border border-dashed border-gray-300">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                                        <select className="w-full px-3 py-2 border rounded-lg text-sm" value={currentProduct.articleId} onChange={handleProductChange}>
+                                        <select 
+                                            data-testid="product-select"
+                                            className="w-full px-3 py-2 border rounded-lg text-sm" 
+                                            value={currentProduct.articleId} 
+                                            onChange={handleProductChange}
+                                        >
                                             <option value="">{t('select_product_placeholder')}</option>
                                             {products.map(p => <option key={p.id} value={p.id}>{p.name} (Stock: {p.stock})</option>)}
                                         </select>

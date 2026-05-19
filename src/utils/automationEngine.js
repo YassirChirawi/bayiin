@@ -41,7 +41,7 @@ const executeAction = async (actionNode, payload, store, delayMs = 0) => {
 
         // --- IMMEDIATE EXECUTION ---
         switch (actionNode.id) {
-            case 'create_delivery':
+            case 'create_delivery': {
                 if (!store.senditPublicKey || !store.senditSecretKey) {
                     console.warn("Automation skipped: Sendit keys missing");
                     return;
@@ -60,6 +60,7 @@ const executeAction = async (actionNode, payload, store, delayMs = 0) => {
                     });
                 }
                 break;
+            }
 
             case 'send_whatsapp': {
                 // Parse dynamic variables

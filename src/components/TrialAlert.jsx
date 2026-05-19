@@ -1,13 +1,13 @@
 import { differenceInDays, parseISO, addDays, format } from "date-fns";
 import { Clock, AlertTriangle, Lock } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useLanguage } from "../context/LanguageContext";
 
 export default function TrialAlert({ createdAt, plan }) {
+    const { t } = useLanguage();
     if (!createdAt) return null;
     if (plan === 'pro' || plan === 'unlimited') return null; // Hide if already upgraded
-    // Calculate trial status
-    // Fallback to today if createdAt is missing (Legacy stores get a fresh trial)
-    // Handle Firestore Timestamp, JS Date, or ISO string
+
     const toDate = (val) => {
         if (!val) return new Date();
         if (typeof val?.toDate === 'function') return val.toDate(); // Firestore Timestamp
@@ -21,9 +21,6 @@ export default function TrialAlert({ createdAt, plan }) {
     const daysLeft = trialLength - daysUsed;
     const endDate = addDays(startDate, trialLength);
 
-    // Don't show if upgraded (store.plan === 'pro') - logic handled by parent or here if we pass plan
-    // For now, assume all checks are trial based
-
     if (daysLeft <= 0) {
         return (
             <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-lg shadow-sm">
@@ -31,10 +28,9 @@ export default function TrialAlert({ createdAt, plan }) {
                     <div className="flex items-center">
                         <Lock className="h-5 w-5 text-red-500 mr-3" />
                         <div>
-                            <h3 className="text-sm font-bold text-red-800">Trial Period Expired</h3>
+                            <h3 className="text-sm font-bold text-red-800">{t('trial_expired_title')}</h3>
                             <p className="text-xs text-red-700 mt-1">
-                                Your 14-day free trial ended on {format(endDate, 'MMM dd, yyyy')}.
-                                <br />Please upgrade to a Pro plan to continue managing your store.
+                                {t('trial_expired_desc').replace('{date}', format(endDate, 'MMM dd, yyyy'))}
                             </p>
                         </div>
                     </div>
@@ -42,7 +38,7 @@ export default function TrialAlert({ createdAt, plan }) {
                         to="/settings?tab=billing"
                         className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-700 transition shadow-sm whitespace-nowrap"
                     >
-                        Mettre à niveau →
+                        {t('btn_upgrade')} →
                     </Link>
                 </div>
             </div>
@@ -56,18 +52,17 @@ export default function TrialAlert({ createdAt, plan }) {
                     <div className="flex items-center">
                         <AlertTriangle className="h-5 w-5 text-orange-500 mr-3" />
                         <div>
-                            <h3 className="text-sm font-bold text-orange-800">Trial Ending Soon</h3>
-                            <p className="text-xs text-orange-700 mt-1">
-                                You have <strong>{daysLeft} days left</strong> in your free trial.
-                                Don't lose access to your store data.
-                            </p>
+                            <h3 className="text-sm font-bold text-orange-800">{t('trial_ending_soon_title')}</h3>
+                            <p className="text-xs text-orange-700 mt-1" dangerouslySetInnerHTML={{ 
+                                __html: t('trial_ending_soon_desc').replace('{days}', daysLeft) 
+                            }} />
                         </div>
                     </div>
                     <Link
                         to="/settings?tab=billing"
                         className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-orange-700 transition shadow-sm whitespace-nowrap flex items-center gap-1.5"
                     >
-                        ⚡ Mettre à niveau
+                        ⚡ {t('btn_upgrade')}
                     </Link>
                 </div>
             </div>
@@ -82,13 +77,13 @@ export default function TrialAlert({ createdAt, plan }) {
                     <Clock className="h-4 w-4 text-indigo-600" />
                 </div>
                 <div>
-                    <span className="text-sm font-medium text-indigo-900">Free Trial Active</span>
+                    <span className="text-sm font-medium text-indigo-900">{t('trial_active_title')}</span>
                     <span className="mx-2 text-indigo-300">|</span>
-                    <span className="text-xs text-indigo-600 font-medium">{daysLeft} days remaining</span>
+                    <span className="text-xs text-indigo-600 font-medium">{t('trial_active_desc').replace('{days}', daysLeft)}</span>
                 </div>
             </div>
             <Link to="/settings?tab=billing" className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-indigo-700 transition shadow-sm whitespace-nowrap flex items-center gap-1.5">
-                ⚡ Mettre à niveau
+                ⚡ {t('btn_upgrade')}
             </Link>
         </div>
     );

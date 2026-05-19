@@ -73,5 +73,21 @@ Selling in Algeria or Tunisia?
 
 ---
 
+## ⭐ Programme de Fidélité — Nqat (Points)
+
+BayIIn intègre un système de fidélité automatique basé sur les achats de vos clients.
+
+### Comment ça marche ?
+- **1 point (Nqat)** est attribué pour chaque **10 DH dépensés** par un client.
+- Les clients ayant dépensé plus de **1 000 DH** sont automatiquement marqués comme **VIP** avec un badge doré ✨.
+- Vous pouvez voir les points de chaque client dans son profil (page **Clients**).
+
+### Pourquoi c'est utile ?
+- Identifiez rapidement vos **meilleurs clients**.
+- Utilisez les points comme base pour des **offres promotionnelles ciblées**.
+- Améliorez la **rétention client** en valorisant leur fidélité.
+
+---
+
 ## 🆘 Need Help?
 Click the **"Help & Support"** link in the sidebar to chat directly with our support team on WhatsApp. We are here for you!

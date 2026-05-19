@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTenant } from "../context/TenantContext";
@@ -32,6 +32,10 @@ import {
 import { useLanguage } from "../context/LanguageContext";
 import { useReconciliation } from "../hooks/useReconciliation";
 import { vibrate } from "../utils/haptics";
+import { getPendingCount, syncPendingOrders } from "../services/offlineQueue";
+import { toast } from "react-hot-toast";
+import { db } from "../lib/firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 export default function Sidebar({ isOpen, onClose }) {
     const { pathname } = useLocation();
@@ -40,8 +44,60 @@ export default function Sidebar({ isOpen, onClose }) {
     const { t, language, setLanguage } = useLanguage(); // NEW
     const [showInstallGuide, setShowInstallGuide] = useState(false);
     const { runReconciliation, isRecalculating } = useReconciliation(store?.id);
+    const [pendingOffline, setPendingOffline] = useState(0);
+    const [isOffline, setIsOffline] = useState(!navigator.onLine);
+    const [isSyncing, setIsSyncing] = useState(false);
 
     const role = store?.role || 'owner';
+
+    // Offline Queue Logic
+    useEffect(() => {
+        const checkQueue = async () => {
+            const count = await getPendingCount();
+            setPendingOffline(count);
+        };
+        
+        checkQueue();
+
+        const handleOnline = () => {
+            setIsOffline(false);
+            handleSync();
+        };
+        const handleOffline = () => setIsOffline(true);
+        const handleQueueUpdate = () => checkQueue();
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        window.addEventListener('offlineQueueUpdated', handleQueueUpdate);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+            window.removeEventListener('offlineQueueUpdated', handleQueueUpdate);
+        };
+    }, []);
+
+    const handleSync = async () => {
+        if (isSyncing || pendingOffline === 0) return;
+        setIsSyncing(true);
+        try {
+            const saveOrder = async (orderData) => {
+                if (!store?.id) throw new Error("No store ID");
+                const ordersRef = collection(db, "stores", store.id, "orders");
+                await addDoc(ordersRef, { ...orderData, createdAt: serverTimestamp() });
+            };
+            const result = await syncPendingOrders(saveOrder);
+            if (result.synced > 0) {
+                toast.success(`${result.synced} commandes synchronisées !`);
+                vibrate('success');
+            }
+        } catch (error) {
+            console.error("Sync error:", error);
+            toast.error("Erreur de synchronisation");
+        } finally {
+            setIsSyncing(false);
+        }
+    };
 
     // Toggle Language
     const toggleLanguage = () => {
@@ -55,13 +111,13 @@ export default function Sidebar({ isOpen, onClose }) {
         ] : []),
         { name: t('dashboard'), href: '/dashboard', icon: LayoutDashboard },
         { name: t('planning') || 'Planning', href: '/planning', icon: Calendar },
-        { name: t('orders'), href: '/orders', icon: ShoppingBag },
+        { name: t('orders'), href: '/orders', icon: ShoppingBag, badge: pendingOffline > 0 ? `${pendingOffline} hors ligne` : null, badgeColor: 'bg-amber-100 text-amber-700' },
         { name: t('products'), href: '/products', icon: Package },
         { name: t('customers'), href: '/customers', icon: Users },
         { name: t('automations') || 'Automations', href: '/automations', icon: Workflow, isLocked: true, badge: 'PRO' },
         { name: t('nav_warehouse') || 'Entrepôt & Scan', href: '/warehouse', icon: Barcode, isLocked: true, badge: 'PRO' },
         { name: t('nav_marketing') || 'Marketing', href: '/marketing', icon: Megaphone },
-        { name: t('nav_drivers') || 'Livreurs', href: '/drivers', icon: Truck },
+        { name: t('nav_drivers'), href: '/drivers', icon: Truck },
         { name: t('nav_hr') || 'Ressources Humaines', href: '/hr', icon: UserCheck, isLocked: true, badge: 'PRO' },
         { name: t('nav_assets') || 'Gestion des Assets', href: '/assets', icon: Building2, isLocked: true, badge: 'PRO' },
         { name: t('nav_purchases') || 'Achats', href: '/purchases', icon: ShoppingCart },
@@ -160,7 +216,7 @@ export default function Sidebar({ isOpen, onClose }) {
                                 {item.badge && (
                                     <span className={`
                                         ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded-md
-                                        ${(item.isLocked && !store?.testerMode) ? 'bg-gray-100 text-gray-400 border border-gray-200' : 'bg-indigo-100 text-indigo-600'}
+                                        ${item.badgeColor ? item.badgeColor : ((item.isLocked && !store?.testerMode) ? 'bg-gray-100 text-gray-400 border border-gray-200' : 'bg-indigo-100 text-indigo-600')}
                                     `}>
                                         {item.badge}
                                     </span>
@@ -171,6 +227,22 @@ export default function Sidebar({ isOpen, onClose }) {
                 </nav>
 
                 <div className="p-4 border-t border-gray-200 space-y-2">
+                    {(isOffline || pendingOffline > 0) && (
+                        <button
+                            onClick={handleSync}
+                            disabled={isOffline || isSyncing}
+                            className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg w-full transition-all border
+                                ${isOffline ? 'bg-red-50 text-red-500 border-red-100' : 
+                                  isSyncing ? 'bg-amber-50 text-amber-500 border-amber-100' : 
+                                  'bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-200'}`}
+                        >
+                            <RefreshCw className={`mr-3 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                            {isOffline ? 'Mode Hors Ligne' : 
+                             isSyncing ? 'Synchronisation...' : 
+                             `Synchroniser (${pendingOffline})`}
+                        </button>
+                    )}
+
                     <button
                         onClick={() => runReconciliation()}
                         disabled={isRecalculating}
