@@ -41,6 +41,9 @@ linear_import.csv
 
 # Scratch
 scratch/
+test_output.txt
+dev_server_output.txt
+fix_tests.js
 
 # Java crash logs
 hs_err_pid*.log
