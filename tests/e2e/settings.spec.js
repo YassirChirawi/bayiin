@@ -10,9 +10,7 @@ const TEST_PASSWORD = process.env.TEST_PASSWORD || '123456';
 async function login(page) {
     await page.goto('/login');
     const magasinBtn = page.getByText('Magasin');
-    if (await magasinBtn.isVisible({ timeout: 5000 })) {
-        await magasinBtn.click();
-    }
+    try { await magasinBtn.waitFor({ state: 'visible', timeout: 5000 }); await magasinBtn.click(); } catch (e) {}
     await page.waitForSelector('input[type="email"]', { timeout: 15000 });
     await page.fill('input[type="email"]', TEST_EMAIL);
     await page.fill('input[type="password"]', TEST_PASSWORD);

@@ -40,9 +40,7 @@ async function login(page, email, password) {
     
     // 1. Handle Role Picker
     const magasinBtn = page.getByTestId('role-owner-button');
-    if (await magasinBtn.isVisible({ timeout: 5000 })) {
-        await magasinBtn.click();
-    }
+    try { await magasinBtn.waitFor({ state: 'visible', timeout: 5000 }); await magasinBtn.click(); } catch (e) {}
 
     // 2. Fill credentials
     await page.waitForSelector('[data-testid="login-email"]', { timeout: 10000 });
