@@ -138,6 +138,9 @@ service cloud.firestore {
       match /qa_runs/{docId} {
          allow read, write: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
       }
+      match /stock_logs/{logId} {
+         allow read, write: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+      }
     }
 
     // Products
