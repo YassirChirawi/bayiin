@@ -29,13 +29,14 @@ import {
     Barcode,
     ClipboardCheck
 } from "lucide-react";
-import { useLanguage } from "../context/LanguageContext";
 import { useReconciliation } from "../hooks/useReconciliation";
 import { vibrate } from "../utils/haptics";
 import { getPendingCount, syncPendingOrders } from "../services/offlineQueue";
 import { toast } from "react-hot-toast";
 import { db } from "../lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { usePWA } from "../context/PWAContext";
+import { useLanguage } from "../context/LanguageContext";
 
 export default function Sidebar({ isOpen, onClose }) {
     const { pathname } = useLocation();
@@ -47,6 +48,7 @@ export default function Sidebar({ isOpen, onClose }) {
     const [pendingOffline, setPendingOffline] = useState(0);
     const [isOffline, setIsOffline] = useState(!navigator.onLine);
     const [isSyncing, setIsSyncing] = useState(false);
+    const { isInstallable, installPWA, isInstalled } = usePWA();
 
     const role = store?.role || 'owner';
 
@@ -255,13 +257,21 @@ export default function Sidebar({ isOpen, onClose }) {
                         {isRecalculating ? t('loading') : (t('recalculate_sync') || "Sync Stats")}
                     </button>
 
-                    <button
-                        onClick={() => setShowInstallGuide(true)}
-                        className="flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg w-full transition-colors"
-                    >
-                        <Download className="mr-3 h-5 w-5" />
-                        {t('install_app')}
-                    </button>
+                    {!isInstalled && (
+                        <button
+                            onClick={async () => {
+                                if (isInstallable) {
+                                    await installPWA();
+                                } else {
+                                    setShowInstallGuide(true);
+                                }
+                            }}
+                            className="flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg w-full transition-colors"
+                        >
+                            <Download className="mr-3 h-5 w-5" />
+                            {t('install_app')}
+                        </button>
+                    )}
                     <Link
                         to="/help"
                         onClick={() => onClose && onClose()}
