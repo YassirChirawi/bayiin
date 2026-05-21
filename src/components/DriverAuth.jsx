@@ -10,9 +10,7 @@
  *   - Session unlocked → render children
  */
 import { useState, useEffect, useCallback } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { Truck, Fingerprint, Eye, EyeOff, ShieldCheck, Lock, CheckCircle, AlertCircle } from 'lucide-react';
+import { Truck, Fingerprint, Lock, AlertCircle, ShieldCheck } from 'lucide-react';
 
 // ── Simple SHA-256 hash (Web Crypto) ──────────────────────────────────────
 async function sha256(text) {
@@ -87,29 +85,25 @@ function OnboardingScreen({ token, storeName, onComplete }) {
         setStep('set-pin');
     };
 
-    const handleSetPin = () => {
-        if (pin.length === 6) {
+    const handlePinChange = (val) => {
+        setPin(val);
+        if (val.length === 6) {
             setStep('confirm-pin');
         }
     };
 
-    useEffect(() => {
-        if (step === 'set-pin' && pin.length === 6) handleSetPin();
-    }, [pin, step]);
-
-    const handleConfirmPin = async () => {
-        if (confirmPin === pin) {
-            const pinHash = await sha256(pin);
-            onComplete({ name: name.trim(), pinHash, biometricEnabled: false });
-        } else {
-            setError('Les codes ne correspondent pas. Réessayez.');
-            setConfirmPin('');
+    const handleConfirmPinChange = async (val) => {
+        setConfirmPin(val);
+        if (val.length === 6) {
+            if (val === pin) {
+                const pinHash = await sha256(pin);
+                onComplete({ name: name.trim(), pinHash, biometricEnabled: false });
+            } else {
+                setError('Les codes ne correspondent pas. Réessayez.');
+                setConfirmPin('');
+            }
         }
     };
-
-    useEffect(() => {
-        if (step === 'confirm-pin' && confirmPin.length === 6) handleConfirmPin();
-    }, [confirmPin, step]);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-800 flex items-center justify-center p-4">
@@ -165,7 +159,7 @@ function OnboardingScreen({ token, storeName, onComplete }) {
                                 <h2 className="text-lg font-bold text-gray-900">Créer votre code PIN</h2>
                                 <p className="text-sm text-gray-500">Choisissez un code à 6 chiffres</p>
                             </div>
-                            <PinPad value={pin} onChange={setPin} />
+                            <PinPad value={pin} onChange={handlePinChange} />
                         </div>
                     )}
 
@@ -176,7 +170,7 @@ function OnboardingScreen({ token, storeName, onComplete }) {
                                 <h2 className="text-lg font-bold text-gray-900">Confirmez le code PIN</h2>
                                 <p className="text-sm text-gray-500">Entrez à nouveau les 6 chiffres</p>
                             </div>
-                            <PinPad value={confirmPin} onChange={setConfirmPin} />
+                            <PinPad value={confirmPin} onChange={handleConfirmPinChange} />
                             {error && (
                                 <p className="text-sm text-rose-600 text-center flex items-center justify-center gap-1">
                                     <AlertCircle className="h-4 w-4 flex-shrink-0" />{error}

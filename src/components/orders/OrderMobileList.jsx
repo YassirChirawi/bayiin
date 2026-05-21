@@ -2,7 +2,7 @@ import React from 'react';
 import {
     CheckSquare, Square, DollarSign, Edit2,
     Trash2, QrCode, RotateCcw, Truck,
-    Package, MessageCircle, Box, MapPin
+    Package, MessageCircle, Box, MapPin, PhoneOff
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { getOrderStatusConfig } from '../../utils/statusConfig';
@@ -25,6 +25,7 @@ export default function OrderMobileList({
     sendToSendit,
     handleOpenTracking,
     setQrOrder,
+    handleNoAnswer,
     t
 }) {
     return (
@@ -216,6 +217,24 @@ export default function OrderMobileList({
                                     >
                                         <MessageCircle className="h-5 w-5" />
                                     </a>
+
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const message = t('whatsapp_no_answer', {
+                                                client: order.clientName,
+                                                order_id: order.orderNumber,
+                                                store: store?.name || 'Notre boutique'
+                                            });
+                                            const waLink = createRawWhatsAppLink(order.clientPhone, message);
+                                            window.open(waLink, '_blank');
+                                            handleNoAnswer(order);
+                                        }}
+                                        className="p-2 rounded-full bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
+                                        title={t('status_no_answer')}
+                                    >
+                                        <PhoneOff className="h-5 w-5" />
+                                    </button>
                                     <button
                                         onClick={() => handleEdit(order)}
                                         className="p-2 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"

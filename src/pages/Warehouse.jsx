@@ -11,6 +11,7 @@ import { vibrate } from "../utils/haptics";
 import { useLanguage } from "../context/LanguageContext";
 import { logStockMovement } from "../lib/stockAudit";
 import { useAuth } from "../context/AuthContext";
+import ProFeatureGuard from "../components/ProFeatureGuard";
 
 export default function Warehouse() {
     const { store } = useTenant();

@@ -23,15 +23,12 @@ import { reconcileStoreStats } from "../utils/reconcileStats";
 import { db } from "../lib/firebase";
 import { RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
+import { generateFinancialInsight, analyzeFinancialScenario, detectFinancialLeaks } from "../services/aiService";
+import SmartReconciliationWizard from "../components/finances/SmartReconciliationWizard";
 
 export default function Finances() {
     const { store } = useTenant();
     const { t } = useLanguage();
-
-    // Security: Redirect Staff
-    if (store?.role === 'staff') {
-        return <Navigate to="/dashboard" replace />;
-    }
 
     // State
     const [expenseForm, setExpenseForm] = useState({ description: "", amount: "", category: "Other", collectionId: "" });
@@ -60,6 +57,13 @@ export default function Finances() {
             });
         }
     }, [selectedCollection]);
+
+    // Security: Redirect Staff (Moved after hooks to avoid React purity violation)
+    const isStaff = store?.role === 'staff';
+    
+    // We'll use a conditional render instead of an early return before hooks
+    // or just return the Navigate component at the end of the hook block.
+    // Actually, it's better to keep the hooks running.
 
 
     const EXPENSE_CATEGORIES = ["Ads", "Shipping", "COGS", "Salaries", "Other"];
@@ -324,6 +328,10 @@ export default function Finances() {
         }, 1500);
     };
 
+    if (isStaff) {
+        return <Navigate to="/dashboard" replace />;
+    }
+
     return (
         <div className="space-y-6">
             {/* Header & Controls */}
@@ -526,7 +534,7 @@ export default function Finances() {
             {/* KPI Cards */}
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 {/* 1. Total Income (LIVRÉ) */}
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div data-testid="kpi-delivered-revenue" className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
                     <div className="flex items-center">
                         <div className="flex-shrink-0">
                             <div className="flex items-center justify-center h-12 w-12 rounded-md bg-indigo-100 text-indigo-600">
@@ -543,7 +551,7 @@ export default function Finances() {
                 </div>
 
                 {/* 2. Total Paid (CASH) */}
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div data-testid="kpi-realized-revenue" className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
                     <div className="flex items-center">
                         <div className="flex-shrink-0">
                             <div className="flex items-center justify-center h-12 w-12 rounded-md bg-green-100 text-green-600">
@@ -760,11 +768,11 @@ export default function Finances() {
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead>
                                 <tr>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">{t('label_reference')}</th>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">{t('date')}</th>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">{t('label_amount')}</th>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">{t('order_status')}</th>
+                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 tracking-wider">{t('actions')}</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
@@ -884,6 +892,14 @@ export default function Finances() {
                     </div>
                 );
             })()}
+
+            {/* Smart COD Automated Reconciliation Wizard */}
+            <SmartReconciliationWizard 
+                orders={orders} 
+                store={store} 
+                db={db} 
+                onReconcileComplete={handleSyncStats} 
+            />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Chart Section */}

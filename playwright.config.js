@@ -1,29 +1,28 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 import * as dotenv from 'dotenv';
+
 dotenv.config({ path: '.env.test' });
 
+const BASE_URL = process.env.BASE_URL || 'http://localhost:5173';
+
 export default defineConfig({
-  testDir: './tests/e2e',
-  timeout: 30000,
-  retries: 1,
-  reporter: [['html', { open: 'never' }], ['list']],
+  testDir: './tests',
+  timeout: 60000,
+  retries: process.env.CI ? 2 : 0,
   use: {
-    baseURL: 'http://localhost:5173',
-    channel: 'chrome',          // use system Chrome — no 179MB download needed
-    screenshot: 'off',
-    video: 'off',
-    trace: 'on-first-retry',
+    baseURL: BASE_URL,
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+    trace: 'on-first-retry'
   },
   projects: [
-    {
-      name: 'chrome',
-      use: { channel: 'chrome' },
-    },
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'mobile-safari', use: { ...devices['iPhone 13'] } }
   ],
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:5173',
-    reuseExistingServer: true,   // reuse if already running
-    timeout: 60000,
-  },
+    reuseExistingServer: !process.env.CI,
+    timeout: 120 * 1000,
+  }
 });

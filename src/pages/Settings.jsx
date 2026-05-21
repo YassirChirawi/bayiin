@@ -434,16 +434,44 @@ export default function Settings() {
     const { runReconciliation, isRecalculating } = useReconciliation(store?.id);
 
 
-    // Check for Return from Stripe
-    // Check for Return from Stripe
+    const [isValidatingPayment, setIsValidatingPayment] = useState(false);
+
+    const tabs = useMemo(() => [
+        { id: "general", label: t('tab_general') || "Général", icon: Store },
+        { id: "shipping", label: t('tab_shipping') || "Livraison", icon: Truck },
+        { id: "locations", label: t('tab_locations') || "Logistique & Dépôts", icon: Truck },
+        { id: "catalog", label: t('tab_catalog') || "Catalogue", icon: Package },
+        { id: "billing", label: t('tab_billing') || "Plans & Facturation", icon: CreditCard },
+        { id: "security", label: t('tab_security') || "Sécurité", icon: Shield },
+        { id: "qa", label: "Recette QA", icon: ShieldCheck },
+        { id: "activity", label: t('tab_activity') || "Journal d'Activité", icon: Activity },
+    ], [t]);
+
+    // Check for Tab and Return from Stripe
     useEffect(() => {
-        const query = new URLSearchParams(window.location.search);
-        if (query.get("success")) {
-            toast.success(t('msg_payment_received'));
-            window.history.replaceState({}, document.title, window.location.pathname);
-            // Optionally: Poll for status change or encourage user to refresh
+        const queryParams = new URLSearchParams(window.location.search);
+        
+        // Handle Tab switching from URL
+        const tab = queryParams.get("tab");
+        if (tab && tabs.some(t => t.id === tab)) {
+            setActiveTab(tab);
         }
-    }, []);
+
+        // Handle Payment Success
+        if (queryParams.get("success")) {
+            setIsValidatingPayment(true);
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }, [tabs]);
+
+    // Listen to real-time store updates to dismiss validation loader
+    useEffect(() => {
+        if (isValidatingPayment && store?.subscriptionStatus === 'active') {
+            setIsValidatingPayment(false);
+            vibrate('success');
+            toast.success(t('msg_payment_received') || 'Paiement validé avec succès !');
+        }
+    }, [store?.subscriptionStatus, isValidatingPayment]);
 
     const handleLogoUpload = async (e) => {
         const file = e.target.files[0];
@@ -506,16 +534,7 @@ export default function Settings() {
     }, [activeTab, store?.id]);
 
 
-    const tabs = [
-        { id: "general", label: t('tab_general') || "Général", icon: Store },
-        { id: "shipping", label: t('tab_shipping') || "Livraison", icon: Truck },
-        { id: "locations", label: t('tab_locations') || "Logistique & Dépôts", icon: Truck },
-        { id: "catalog", label: t('tab_catalog') || "Catalogue", icon: Package },
-        { id: "billing", label: t('tab_billing') || "Plans & Facturation", icon: CreditCard },
-        { id: "security", label: t('tab_security') || "Sécurité", icon: Shield },
-        { id: "qa", label: "Recette QA", icon: ShieldCheck },
-        { id: "activity", label: t('tab_activity') || "Journal d'Activité", icon: Activity },
-    ];
+
 
 
     // Biometric Logic
@@ -565,6 +584,16 @@ export default function Settings() {
                     {t('page_subtitle_settings')}
                 </p>
             </div>
+
+            {isValidatingPayment && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-6 mb-6 flex flex-col items-center justify-center text-center space-y-3">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                    <div>
+                        <h3 className="text-lg font-bold text-indigo-900">Validation du paiement en cours...</h3>
+                        <p className="text-sm text-indigo-700">Nous attendons la confirmation sécurisée de notre partenaire de paiement. Cela peut prendre quelques secondes.</p>
+                    </div>
+                </div>
+            )}
 
             {/* Tabs Navigation */}
             <div className="border-b border-gray-200">

@@ -69,6 +69,7 @@ export default function Copilot() {
             {/* Floating Trigger Button */}
             {!isOpen && (
                 <motion.button
+                    data-testid="copilot-trigger"
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     whileHover={{ scale: 1.1 }}

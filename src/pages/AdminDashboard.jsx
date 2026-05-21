@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Building2, Users, DollarSign, Search, ExternalLink, ShieldAlert, Megaphone, CheckCircle, AlertTriangle } from "lucide-react";
+import { Building2, ExternalLink, ShieldAlert, Megaphone, AlertTriangle, TrendingUp, Activity, Zap, X, Star } from "lucide-react";
+import { motion } from "framer-motion";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import toast from "react-hot-toast";
@@ -10,7 +11,6 @@ import { doc, updateDoc, deleteDoc, setDoc, addDoc, collection, query, where, ge
 import { db } from "../lib/firebase";
 import { RevenueChart, PlanDistributionChart } from "../components/admin/AdminCharts";
 import { MetricCard, PerformanceTrend, StoreActivityTable } from "../components/admin/AdminMetrics";
-import { TrendingUp, Activity, Wallet, PieChart as PieChartIcon, Zap, Globe, ShieldCheck } from "lucide-react";
 
 export default function AdminDashboard() {
     const { user } = useAuth();

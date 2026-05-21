@@ -10,7 +10,7 @@ import HelpTooltip from "../components/HelpTooltip";
 import { useOrderActions } from "../hooks/useOrderActions";
 import QRCode from "react-qr-code";
 import { exportToCSV } from "../utils/csvHelper";
-import { PAYMENT_STATUS } from "../utils/constants";
+import { PAYMENT_STATUS, ORDER_STATUS } from "../utils/constants";
 import { getOrderStatusConfig } from "../utils/statusConfig";
 
 import { useTenant } from "../context/TenantContext";
@@ -150,6 +150,22 @@ export default function Orders() {
         toast.success(t('msg_order_restored'));
     };
 
+    const handleNoAnswer = async (order) => {
+        if (!store?.id) return;
+        try {
+            const batch = writeBatch(db);
+            batch.update(doc(db, "orders", order.id), { status: ORDER_STATUS.NO_ANSWER }); 
+            await batch.commit();
+            logActivity(db, store.id, user, 'STATUS_UPDATE', `Order ${order.orderNumber} status set to No Answer`, { orderId: order.id, status: ORDER_STATUS.NO_ANSWER });
+            vibrate('success');
+            toast.success(t('msg_orders_status_updated', { status: t('status_no_answer') || "Pas de rÃ©ponse" }));
+        } catch (err) {
+            console.error(err);
+            vibrate('error');
+            toast.error(t('err_update_payment'));
+        }
+    };
+
     const handleExportCSV = () => {
         const dataToExport = orders.map(o => ({ 'Order #': o.orderNumber, Date: o.date, Client: o.clientName, Phone: o.clientPhone, Status: o.status, Product: o.articleName, Quantity: o.quantity, Price: o.price, Total: o.price ? o.price * o.quantity : 0 }));
         exportToCSV(dataToExport, 'orders');
@@ -226,10 +242,10 @@ export default function Orders() {
             {loading ? <TableSkeleton rows={10} cols={8} /> : filteredOrders.length === 0 ? <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow p-8"><p>{t('msg_no_orders_filter')}</p></div> : (
                 <>
                     <div className="hidden md:block">
-                        <OrderTable orders={filteredOrders} selectedOrders={bulkActions.selectedOrders} handleSelectAll={() => bulkActions.handleSelectAll(filteredOrders)} handleSelectOne={bulkActions.handleSelectOne} activeTab={activeTab} showTrash={showTrash} store={store} togglePaid={togglePaid} handleEdit={(o) => {setEditingOrder(o); setIsModalOpen(true);}} deleteStoreItem={deleteStoreItem} handleRestore={handleRestore} handleDelete={handleDelete} openConfirmation={openConfirmation} sendToOlivraison={sendToOlivraison} sendToSendit={sendToSendit} handleOpenTracking={handleOpenTracking} setQrOrder={setQrOrder} t={t} />
+                        <OrderTable orders={filteredOrders} selectedOrders={bulkActions.selectedOrders} handleSelectAll={() => bulkActions.handleSelectAll(filteredOrders)} handleSelectOne={bulkActions.handleSelectOne} activeTab={activeTab} showTrash={showTrash} store={store} togglePaid={togglePaid} handleEdit={(o) => {setEditingOrder(o); setIsModalOpen(true);}} deleteStoreItem={deleteStoreItem} handleRestore={handleRestore} handleDelete={handleDelete} handleNoAnswer={handleNoAnswer} openConfirmation={openConfirmation} sendToOlivraison={sendToOlivraison} sendToSendit={sendToSendit} handleOpenTracking={handleOpenTracking} setQrOrder={setQrOrder} t={t} />
                     </div>
                     <div className="md:hidden">
-                        <OrderMobileList orders={filteredOrders} selectedOrders={bulkActions.selectedOrders} handleSelectOne={bulkActions.handleSelectOne} activeTab={activeTab} showTrash={showTrash} store={store} togglePaid={togglePaid} handleEdit={(o) => {setEditingOrder(o); setIsModalOpen(true);}} deleteStoreItem={deleteStoreItem} handleRestore={handleRestore} handleDelete={handleDelete} openConfirmation={openConfirmation} sendToOlivraison={sendToOlivraison} sendToSendit={sendToSendit} handleOpenTracking={handleOpenTracking} setQrOrder={setQrOrder} t={t} />
+                        <OrderMobileList orders={filteredOrders} selectedOrders={bulkActions.selectedOrders} handleSelectOne={bulkActions.handleSelectOne} activeTab={activeTab} showTrash={showTrash} store={store} togglePaid={togglePaid} handleEdit={(o) => {setEditingOrder(o); setIsModalOpen(true);}} deleteStoreItem={deleteStoreItem} handleRestore={handleRestore} handleDelete={handleDelete} handleNoAnswer={handleNoAnswer} openConfirmation={openConfirmation} sendToOlivraison={sendToOlivraison} sendToSendit={sendToSendit} handleOpenTracking={handleOpenTracking} setQrOrder={setQrOrder} t={t} />
                     </div>
                 </>
             )}
