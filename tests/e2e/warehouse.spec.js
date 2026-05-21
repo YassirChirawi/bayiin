@@ -14,7 +14,7 @@ async function login(page) {
     await page.waitForSelector('input[type="email"]', { timeout: 15000 });
     await page.fill('input[type="email"]', TEST_EMAIL);
     await page.fill('input[type="password"]', TEST_PASSWORD);
-    await page.click('button[type="submit"]');
+    await page.click('button[type="submit"]', { force: true });
     await page.waitForSelector('nav, h1, .dashboard-stats', { timeout: 30000 });
 }
 
