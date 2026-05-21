@@ -4,9 +4,10 @@ import { useFranchiseData } from "../hooks/useFranchiseData";
 import { useAuth } from "../context/AuthContext";
 import { Navigate } from "react-router-dom";
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+    BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     LineChart, Line, Legend, Cell
 } from "recharts";
+import { Bar } from 'recharts/es6/cartesian/Bar';
 import {
     Building2, DollarSign, ShoppingBag, RotateCcw, Package,
     TrendingUp, Users, Award, AlertTriangle, Store, Plus, Box,

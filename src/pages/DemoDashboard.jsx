@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ShoppingBag, DollarSign, AlertTriangle, Lightbulb, ExternalLink, Menu, ArrowLeft, RotateCcw, Truck, Download } from "lucide-react";
 import { format } from "date-fns";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Legend, PieChart, Pie, Cell } from 'recharts';
+import { Bar } from 'recharts/es6/cartesian/Bar';
 import DemoTour from "../components/DemoTour";
 
 export default function DemoDashboard() {

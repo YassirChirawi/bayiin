@@ -1,4 +1,5 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { Bar } from 'recharts/es6/cartesian/Bar';
 import { Package } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 

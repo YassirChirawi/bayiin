@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useMemo, useRef } from "react";
 import { analyzeFinancialScenario } from "../services/aiService";
-import { generateOpeningBrief } from "../services/localCopilot";
+import { generateOpeningBrief, generateLocalResponse } from "../services/localCopilot";
 import { useStoreData } from "../hooks/useStoreData";
 import { useTenant } from "./TenantContext";
 import { useOrderActions } from "../hooks/useOrderActions";
@@ -247,7 +247,6 @@ export const CopilotProvider = ({ children }) => {
         try {
             // 1. GENERATE LOCAL RESPONSE
             // We use the local heuristic engine instead of the external API
-            const { generateLocalResponse } = await import("../services/localCopilot");
             const fullResponse = generateLocalResponse(text, businessContext);
 
             // 2. SIMULATE TYING EFFECT (Character by Character)
