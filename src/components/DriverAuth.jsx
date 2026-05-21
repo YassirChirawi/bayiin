@@ -11,6 +11,9 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { Truck, Fingerprint, Lock, AlertCircle, ShieldCheck } from 'lucide-react';
+import { signInAnonymously } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
 
 // ── Simple SHA-256 hash (Web Crypto) ──────────────────────────────────────
 async function sha256(text) {
@@ -284,9 +287,10 @@ const SESSION_DURATION_MS = 8 * 60 * 60 * 1000; // 8h
 
 export default function DriverAuth({ token, storeName, children }) {
     const storageKey = `driver_session_${token}`;
-    const [state, setState] = useState('loading'); // loading | onboarding | locked | unlocked
+    const [state, setState] = useState('loading'); // loading | onboarding | locked | unlocked | authenticating
     const [session, setSession] = useState(null);
 
+    // Initialize session state from localStorage
     useEffect(() => {
         if (!token) return;
         const raw = localStorage.getItem(storageKey);
@@ -299,7 +303,7 @@ export default function DriverAuth({ token, storeName, children }) {
             setSession(s);
             const age = Date.now() - (s.unlockedAt || 0);
             if (age < SESSION_DURATION_MS) {
-                setState('unlocked');
+                setState('authenticating'); // Go to authenticating step instead of directly unlocked
             } else {
                 setState('locked');
             }
@@ -307,13 +311,13 @@ export default function DriverAuth({ token, storeName, children }) {
             localStorage.removeItem(storageKey);
             setState('onboarding');
         }
-    }, [token]);
+    }, [token, storageKey]);
 
     const handleOnboardingComplete = useCallback(({ name, pinHash }) => {
         const newSession = { name, pinHash, unlockedAt: Date.now() };
         localStorage.setItem(storageKey, JSON.stringify(newSession));
         setSession(newSession);
-        setState('unlocked');
+        setState('authenticating');
     }, [storageKey]);
 
     const handleUnlock = useCallback(() => {
@@ -321,10 +325,30 @@ export default function DriverAuth({ token, storeName, children }) {
         const updated = { ...session, unlockedAt: Date.now() };
         localStorage.setItem(storageKey, JSON.stringify(updated));
         setSession(updated);
-        setState('unlocked');
+        setState('authenticating');
     }, [session, storageKey]);
 
-    if (state === 'loading') {
+    // Authenticate with Firebase when unlocked
+    useEffect(() => {
+        if (state === 'authenticating' && token) {
+            async function authenticate() {
+                try {
+                    const userCredential = await signInAnonymously(auth);
+                    // Save the token mapping securely in Firestore
+                    await setDoc(doc(db, 'driver_sessions', userCredential.user.uid), { token });
+                    setState('unlocked');
+                } catch (err) {
+                    console.error("Erreur d'authentification livreur:", err);
+                    // Fallback: stay in locked or show error. For now, try to unlock anyway to not break the app
+                    // if offline, though offline firestore handles this.
+                    setState('unlocked'); 
+                }
+            }
+            authenticate();
+        }
+    }, [state, token]);
+
+    if (state === 'loading' || state === 'authenticating') {
         return (
             <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center">
                 <div className="h-10 w-10 border-4 border-white/30 border-t-white rounded-full animate-spin" />
