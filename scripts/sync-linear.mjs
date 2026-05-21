@@ -420,6 +420,227 @@ const MISSING_TICKETS = [
     status: 'Done',
     labels: ['Feature'],
   },
+  // ─── 🆕 New tickets from May 2026 codebase audit ─────────────────────────
+  {
+    title: 'Hotfix - Build cassé (import dupliqué Orders.jsx)',
+    description: `Le build de production est cassé à cause d'un import dupliqué.
+
+**Problème:**
+- \`vite build\` échoue : "The symbol generateInvoice has already been declared"
+- Fichier: \`src/pages/Orders.jsx\` (lignes 7-8 dans l'ancienne version)
+
+**Actions:**
+- Vérifier que le fix est appliqué (import dupliqué supprimé)
+- Relancer \`npm run build\` et valider
+- Supprimer le \`build.log\` obsolète`,
+    priority: 'urgent',
+    status: 'Todo',
+    labels: ['Bug'],
+  },
+  {
+    title: 'Hardening - Nettoyage repo (crash logs, console.log)',
+    description: `Nettoyage du repository de fichiers parasites.
+
+**Fichiers à supprimer:**
+- 7 fichiers \`hs_err_pid*.log\` (crashes JVM Capacitor/Android)
+- 2 fichiers \`replay_pid*.log\`
+- Total: ~2 Mo de fichiers inutiles
+
+**Actions:**
+- Supprimer les crash logs
+- Ajouter \`hs_err_pid*\` et \`replay_pid*\` au \`.gitignore\`
+- Supprimer les \`console.log\` résiduels dans \`Onboarding.jsx\`
+- Scan global pour d'autres debug logs oubliés`,
+    priority: 'high',
+    status: 'Todo',
+    labels: ['Hardening'],
+  },
+  {
+    title: 'Tests - Couverture E2E manquante (Returns, Purchases, Drivers, Planning)',
+    description: `Plusieurs modules importants n'ont pas de tests E2E Playwright.
+
+**Modules sans E2E:**
+- \`Returns.jsx\` (36KB) — module SAV critique
+- \`Purchases.jsx\` (50KB) — gestion fournisseurs
+- \`Drivers.jsx\` (47KB) — gestion livreurs
+- \`Planning.jsx\` (16KB) — calendrier
+- \`FranchiseDashboard.jsx\` (41KB) — multi-magasins
+
+**Tests E2E existants (11):**
+automations, customers, finances, global, hr, marketing, orders, products, security, settings, warehouse
+
+**Objectif:**
+Ajouter au minimum des smoke tests Playwright pour chaque module manquant.`,
+    priority: 'high',
+    status: 'Todo',
+    labels: ['Feature'],
+  },
+  {
+    title: 'Performance - Audit taille des pages (6 fichiers > 50KB)',
+    description: `Plusieurs pages dépassent 50KB de code source, impactant le bundle et la maintenabilité.
+
+**Pages concernées:**
+- \`Settings.jsx\`: 82KB
+- \`AdminDashboard.jsx\`: 82KB
+- \`HR.jsx\`: 65KB
+- \`Finances.jsx\`: 61KB
+- \`Landing.jsx\`: 56KB
+- \`ProductModal.jsx\`: 51KB
+
+**Actions:**
+- Refactorer en sous-composants (pattern déjà utilisé pour Orders)
+- Extraire les hooks métier des pages
+- Objectif: aucune page > 30KB
+- Mesurer l'impact sur le bundle size avant/après`,
+    priority: 'high',
+    status: 'Todo',
+    labels: ['Hardening'],
+  },
+  {
+    title: 'Sécurité - Audit Firestore rules (orders read ouvert)',
+    description: `Audit de sécurité des Firestore Rules — failles identifiées.
+
+**Problèmes:**
+1. **CRITIQUE** — \`orders/{orderId}\` ligne 168: \`allow read: if resource.data.livreurToken != null\` → N'importe qui (même non authentifié) peut lire une commande si elle a un livreurToken. Fuite potentielle de données clients (nom, téléphone, adresse).
+2. \`stores/{storeId}\` → \`allow read: if true\` — Vérifier qu'aucune donnée sensible n'est dans le document store.
+3. \`leads/{leadId}\` → \`allow create: if true\` — Risque de spam, ajouter validation/rate limiting.
+
+**Actions:**
+- Corriger la règle orders pour exiger \`request.auth != null\`
+- Auditer les données exposées dans stores
+- Ajouter une validation sur les leads`,
+    priority: 'high',
+    status: 'Todo',
+    labels: ['Feature'],
+  },
+  {
+    title: 'Cloud Functions - Refactoring index.js (43KB monolithique)',
+    description: `Le fichier \`functions/index.js\` fait 43KB en un seul fichier monolithique.
+
+**Problèmes:**
+- Cold start plus lent (tout est chargé pour chaque function)
+- Maintenabilité difficile
+- Pas de tests unitaires sur les functions
+
+**Actions:**
+- Découper en modules: auth, orders, payments, notifications, stripe, cron
+- Utiliser l'export groupé de Firebase Functions v2
+- Ajouter des tests unitaires par module
+- Mesurer l'amélioration du cold start`,
+    priority: 'high',
+    status: 'Todo',
+    labels: ['Hardening'],
+  },
+  {
+    title: 'SupportAI - Module assistance client IA (compléter)',
+    description: `Le module SupportAI existe mais est un stub minimal (4KB).
+
+**État actuel:**
+- \`src/pages/SupportAI.jsx\` (4KB) — page basique
+- Route \`/support-ai\` configurée dans App.jsx
+- Non référencé dans aucun ticket Linear
+
+**Objectif v1:**
+- Chatbot IA pour les clients finaux
+- Base de connaissances automatique depuis les données boutique
+- Escalade vers le marchand si l'IA ne peut pas répondre
+- Intégration avec le système Beya3 existant`,
+    priority: 'medium',
+    status: 'Todo',
+    labels: ['Beya3;AI'],
+  },
+  {
+    title: 'Assets - Module Gestion d\'Actifs (documenter)',
+    description: `Le module Assets existe et fonctionne mais n'était pas référencé dans Linear.
+
+**Fichiers existants:**
+- \`src/pages/Assets.jsx\` (15KB)
+- Route \`/assets\` dans App.jsx
+- Firestore Rules pour \`assets/{assetId}\`
+
+**Fonctionnalités:**
+- Gestion des actifs de la boutique
+- CRUD complet avec sécurité multi-tenant
+
+Ce ticket documente le module existant pour la traçabilité.`,
+    priority: 'medium',
+    status: 'Done',
+    labels: ['Feature'],
+  },
+  {
+    title: 'Observabilité - Dashboard erreurs & Health Checks',
+    description: `Ajouter un système de monitoring et d'observabilité.
+
+**État actuel:**
+- ErrorBoundary existe mais ne report pas les erreurs
+- Pas de health check endpoint
+- Pas de métriques techniques
+
+**Actions:**
+- Error boundary avec reporting (Sentry ou custom Firestore)
+- Health check endpoint dans Cloud Functions
+- Dashboard métriques techniques dans Admin Dashboard
+- Alertes Slack/Discord sur erreurs critiques
+- Logging structuré dans les Cloud Functions`,
+    priority: 'medium',
+    status: 'Todo',
+    labels: ['Dashboard'],
+  },
+  {
+    title: 'SEO - Optimisation Landing & Public Catalog',
+    description: `Optimiser le SEO des pages publiques pour le référencement Maroc.
+
+**Pages concernées:**
+- \`Landing.jsx\` (56KB) — page d'accueil marketing
+- \`PublicCatalog.jsx\` (35KB) — catalogue client
+
+**Actions:**
+- Meta tags dynamiques (title, description, og:image)
+- Schema.org Product markup sur le catalogue
+- Configurer \`vite-plugin-prerender\` (déjà en devDependencies)
+- Générer un sitemap.xml dynamique
+- Optimiser les Core Web Vitals (LCP, CLS)`,
+    priority: 'medium',
+    status: 'Todo',
+    labels: ['Feature'],
+  },
+  {
+    title: 'Accessibilité (a11y) - Audit & Conformité WCAG',
+    description: `Audit d'accessibilité et mise en conformité WCAG 2.1 AA.
+
+**Problèmes identifiés:**
+- Boutons icon-only sans aria-label (FAB Orders, boutons Sidebar)
+- Navigation clavier manquante dans les modals (OrderModal 42KB, ProductModal 51KB)
+- Focus trap non implémenté dans les modals
+- Contraste des couleurs à vérifier
+
+**Actions:**
+- Ajouter aria-labels sur tous les éléments interactifs
+- Implémenter focus trap dans les modals
+- Tester avec axe-core et screen readers
+- Ajouter des skip links pour la navigation`,
+    priority: 'medium',
+    status: 'Todo',
+    labels: ['Hardening'],
+  },
+  {
+    title: 'i18n - Compléter les traductions manquantes',
+    description: `Plusieurs strings sont encore hardcodées en français dans le code.
+
+**Exemples trouvés:**
+- Orders.jsx: "Aucun numéro de suivi disponible", "Assigner Livreur", "Token Livreur (ex: L-123)"
+- Orders.jsx: "Assignation...", "Assigner & Demander Ramassage", "Scan Code"
+- Titres de modals et placeholders divers
+
+**Actions:**
+- Scanner toutes les chaînes hardcodées avec un script
+- Extraire vers le système i18n (\`context/LanguageContext\`)
+- Ajouter les clés dans les fichiers de locale
+- Préparer le terrain pour BAY-30 (Arabe Darija)`,
+    priority: 'medium',
+    status: 'Todo',
+    labels: ['Localization'],
+  },
 ];
 
 // ─── Main ───────────────────────────────────────────────────────────────────
