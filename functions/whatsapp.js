@@ -469,19 +469,21 @@ async function handleHumanHandoff(store, phone, lastMessage, conv) {
     }
 
     // Notify merchant via WhatsApp
-    const store = await getStoreData(storeId);
-    if (store?.whatsappNumber) {
+    const latestStoreData = await getStoreData(storeId);
+    if (latestStoreData?.whatsappNumber) {
         try {
             await sendTextMessage(
-                normalizePhone(store.whatsappNumber),
+                normalizePhone(latestStoreData.whatsappNumber),
                 `🔔 *Transfert client requis*\n\n` +
                 `Client : ${phone}\n` +
                 `Commande : #${conv?.orderNumber || "Inconnue"}\n` +
                 `Dernier message : "${lastMessage}"\n\n` +
-                `Le client attend votre réponse directement.`
+                `👉 *Répondre au client :* https://app.bayiin.shop/support-ai\n\n` +
+                `_BayIIn AI Bot_`,
+                latestStoreData.whatsappAccessToken, latestStoreData.whatsappPhoneNumberId
             );
-        } catch (err) {
-            console.warn("[WhatsApp] Failed to notify merchant:", err.message);
+        } catch (e) {
+            console.error("[WhatsApp] Failed to notify merchant:", e);
         }
     }
 
