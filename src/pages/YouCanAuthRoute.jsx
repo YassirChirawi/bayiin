@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { getAuth, signInWithCustomToken } from 'firebase/auth';
 import { Loader2, Info } from 'lucide-react';
 import Button from '../components/Button';
-import qantra from '@youcan/qantra';
+import { initialize, sessionToken } from '@youcan/qantra';
 
 export default function YouCanAuthRoute() {
     const [searchParams] = useSearchParams();
@@ -30,10 +30,10 @@ export default function YouCanAuthRoute() {
 
                 if (session && hmac) {
                     // Initialiser Qantra
-                    qantra.initialize();
+                    initialize();
                     
                     // Obtenir le Session Token JWT depuis la frame parente YouCan
-                    const sessionToken = await qantra.sessionToken();
+                    const jwtToken = await sessionToken();
 
                     // Obtenir la Query String exacte, mais en retirant 'hmac' pour la vérification
                     const qParams = new URLSearchParams(location.search);
@@ -51,7 +51,7 @@ export default function YouCanAuthRoute() {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            session_token: sessionToken,
+                            session_token: jwtToken,
                             hmac: hmac,
                             queryString: queryStringToVerify
                         })
