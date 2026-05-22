@@ -416,6 +416,7 @@ export const translations = {
         role_owner: "Owner",
         role_staff_simple: "Staff",
 
+        kpi_total_clients: "Total Clients",
         kpi_ltv: "Avg. Lifetime Value",
         kpi_top_city: "Top City",
 
