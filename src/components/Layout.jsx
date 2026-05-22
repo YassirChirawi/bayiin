@@ -14,7 +14,8 @@ import NotificationBell from "./NotificationBell";
 import { getPendingCount, syncPendingOrders } from "../services/offlineQueue";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import toast from "react-hot-toast";
-import { WifiOff, CloudUpload } from "lucide-react";
+import { WifiOff, CloudUpload, ExternalLink } from "lucide-react";
+import { useEmbeddedMode } from "../hooks/useEmbeddedMode";
 
 // Loader inline qui garde la sidebar et le header visibles
 const InlinePageLoader = () => (
@@ -34,6 +35,7 @@ export default function Layout() {
     const [announcement, setAnnouncement] = useState(null);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
+    const isEmbedded = useEmbeddedMode();
 
     // Fetch Announcement
     useEffect(() => {
@@ -102,60 +104,73 @@ export default function Layout() {
     return (
         <div className="flex min-h-screen bg-gray-50 flex-col md:flex-row">
             {/* Mobile Header */}
-            <div className="md:hidden bg-white border-b border-gray-200 p-4 flex items-center justify-between sticky top-0 z-20">
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => setIsMobileMenuOpen(true)}
-                        className="p-1 -ml-1 text-gray-600 hover:text-gray-900"
-                    >
-                        <Menu className="h-6 w-6" />
-                    </button>
-                    {!isDashboard ? (
+            {!isEmbedded && (
+                <div className="md:hidden bg-white border-b border-gray-200 p-4 flex items-center justify-between sticky top-0 z-20">
+                    <div className="flex items-center gap-3">
                         <button
-                            onClick={() => navigate(-1)}
-                            className="p-1 text-gray-600 hover:text-gray-900"
+                            onClick={() => setIsMobileMenuOpen(true)}
+                            className="p-1 -ml-1 text-gray-600 hover:text-gray-900"
                         >
-                            <ArrowLeft className="h-6 w-6" />
+                            <Menu className="h-6 w-6" />
                         </button>
-                    ) : (
-                        <div className="h-8 w-8 bg-white border border-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
-                            {store?.logoUrl ? (
-                                <img src={store.logoUrl} alt={store.name} className="h-full w-full object-cover" />
-                            ) : (
-                                <img src="/logo.png" alt="BayIIn" className="h-full w-full object-contain p-1" />
-                            )}
-                        </div>
-                    )}
-                    <span className="font-bold text-gray-900 truncate">
-                        {store?.name}
-                    </span>
+                        {!isDashboard ? (
+                            <button
+                                onClick={() => navigate(-1)}
+                                className="p-1 text-gray-600 hover:text-gray-900"
+                            >
+                                <ArrowLeft className="h-6 w-6" />
+                            </button>
+                        ) : (
+                            <div className="h-8 w-8 bg-white border border-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+                                {store?.logoUrl ? (
+                                    <img src={store.logoUrl} alt={store.name} className="h-full w-full object-cover" />
+                                ) : (
+                                    <img src="/logo.png" alt="BayIIn" className="h-full w-full object-contain p-1" />
+                                )}
+                            </div>
+                        )}
+                        <span className="font-bold text-gray-900 truncate">
+                            {store?.name}
+                        </span>
+                    </div>
+                    <div className="flex gap-2">
+                        {pendingSyncCount > 0 && (
+                            <button 
+                                onClick={triggerSync}
+                                className="p-2 bg-indigo-50 text-indigo-600 rounded-full relative"
+                                title={`${pendingSyncCount} commandes en attente de sync`}
+                            >
+                                <CloudUpload className="h-5 w-5" />
+                                <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center">
+                                    {pendingSyncCount}
+                                </span>
+                            </button>
+                        )}
+                        <NotificationBell />
+                    </div>
                 </div>
-                <div className="flex gap-2">
-                    {pendingSyncCount > 0 && (
-                        <button 
-                            onClick={triggerSync}
-                            className="p-2 bg-indigo-50 text-indigo-600 rounded-full relative"
-                            title={`${pendingSyncCount} commandes en attente de sync`}
-                        >
-                            <CloudUpload className="h-5 w-5" />
-                            <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center">
-                                {pendingSyncCount}
-                            </span>
-                        </button>
-                    )}
-                    <NotificationBell />
-                </div>
-            </div>
+            )}
 
-            <Sidebar
-                isOpen={isMobileMenuOpen}
-                onClose={() => setIsMobileMenuOpen(false)}
-            />
+            {!isEmbedded && (
+                <Sidebar
+                    isOpen={isMobileMenuOpen}
+                    onClose={() => setIsMobileMenuOpen(false)}
+                />
+            )}
 
             <main className="flex-1 overflow-auto h-[calc(100vh-65px)] md:h-screen w-full relative">
                 {/* Desktop Header for Notifications & Search (Hidden on Mobile) */}
-                <div className="hidden md:flex justify-end items-center p-4 bg-white border-b border-gray-200 sticky top-0 z-20">
-                    <div className="flex items-center gap-4">
+                <div className={`${isEmbedded ? 'flex' : 'hidden md:flex'} justify-between md:justify-end items-center p-4 bg-white border-b border-gray-200 sticky top-0 z-20`}>
+                    <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+                        {isEmbedded && (
+                            <button 
+                                onClick={() => window.open(window.location.pathname, '_blank')}
+                                className="flex items-center gap-2 text-sm font-bold text-indigo-600 bg-indigo-50 px-4 py-2 rounded-xl hover:bg-indigo-100 transition-colors shadow-sm"
+                            >
+                                <span className="hidden sm:inline">Ouvrir en plein écran ↗</span>
+                                <span className="sm:hidden">Plein écran ↗</span>
+                            </button>
+                        )}
                         <NotificationBell />
                         {/* Could add Profile Dropdown here later */}
                     </div>
@@ -217,7 +232,7 @@ export default function Layout() {
                 </div>
                 <Copilot />
                 <QAGuide />
-                <BottomNav onOpenMenu={() => setIsMobileMenuOpen(true)} />
+                {!isEmbedded && <BottomNav onOpenMenu={() => setIsMobileMenuOpen(true)} />}
             </main>
         </div>
     );

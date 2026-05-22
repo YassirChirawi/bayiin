@@ -66,9 +66,10 @@ const OrderRow = memo(({
                     <span className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
                         #{order.orderNumber || order.id?.substring(0, 8)}
                     </span>
-                    <span className="text-xs text-gray-500 font-medium">
+                    <span className="text-xs text-gray-500 font-medium flex items-center gap-1 mt-0.5">
                         {order.date}
-                        {order.source === 'public_catalog' && <span className="ml-1 text-yellow-600">({t('catalog_source')})</span>}
+                        {order.source === 'public_catalog' && <span className="text-yellow-600">({t('catalog_source')})</span>}
+                        {order.source === 'youcan' && <span className="text-purple-600 font-bold bg-purple-50 px-1 rounded border border-purple-100">🟣 YouCan</span>}
                     </span>
                 </div>
             </td>

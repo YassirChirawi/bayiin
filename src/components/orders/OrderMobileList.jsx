@@ -48,7 +48,11 @@ export default function OrderMobileList({
                                 </button>
                                 <div>
                                     <h3 className="font-bold text-gray-900">#{order.orderNumber || order.id?.substring(0, 8)}</h3>
-                                    <p className="text-xs text-gray-500">{order.date}</p>
+                                    <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                                        {order.date}
+                                        {order.source === 'public_catalog' && <span className="text-yellow-600">({t('catalog_source')})</span>}
+                                        {order.source === 'youcan' && <span className="text-purple-600 font-bold bg-purple-50 px-1 rounded border border-purple-100">🟣 YouCan</span>}
+                                    </p>
                                 </div>
                             </div>
                             <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${activeTab === 'carts' ? 'bg-yellow-100 text-yellow-800' : getOrderStatusConfig(order.status).color}`}>

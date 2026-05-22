@@ -11,6 +11,7 @@ import { toast } from "react-hot-toast";
 import { Navigate } from "react-router-dom"; // Security
 import { format } from "date-fns"; // For Audit Dates
 import { vibrate } from "../utils/haptics";
+import { MessageSquare } from "lucide-react";
 
 import { PLANS, createCheckoutSession } from "../lib/stripeService";
 import { DEFAULT_TEMPLATES, DARIJA_TEMPLATES } from "../utils/whatsappTemplates";
@@ -23,6 +24,8 @@ const CatalogSettings = lazy(() => import('../components/settings/CatalogSetting
 const LocationSettings = lazy(() => import('../components/settings/LocationSettings'));
 const BillingSettings = lazy(() => import('../components/settings/BillingSettings'));
 const ActivitySettings = lazy(() => import('../components/settings/ActivitySettings'));
+import WhatsAppConnector from '../components/settings/WhatsAppConnector';
+import YouCanIntegration from '../components/integrations/YouCanIntegration';
 
 import { Link } from "react-router-dom";
 
@@ -386,7 +389,7 @@ export default function Settings() {
                         <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
                             <div className="px-4 py-5 sm:p-6">
                                 <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
-                                    <User className="h-5 w-5 text-gray-400" /> {/* Reusing User icon or import MessageSquare */}
+                                    <MessageSquare className="h-5 w-5 text-gray-400" />
                                     {t('section_whatsapp_config')}
                                 </h3>
                                 <p className="mt-1 text-sm text-gray-500 mb-6">
@@ -394,6 +397,9 @@ export default function Settings() {
                                 </p>
 
                                 <div className="space-y-6">
+                                    {/* Meta Embedded Signup Connector */}
+                                    <WhatsAppConnector store={store} setStore={setStore} />
+
                                     {/* Language Selector */}
                                     <div className="bg-indigo-50 p-4 rounded-md border border-indigo-100 flex items-center justify-between">
                                         <div>

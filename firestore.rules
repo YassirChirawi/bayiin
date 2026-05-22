@@ -141,6 +141,35 @@ service cloud.firestore {
       match /stock_logs/{logId} {
          allow read, write: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
       }
+      // WhatsApp Conversations (Beya3 Bot)
+      match /whatsapp_conversations/{phone} {
+         allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(storeId)));
+         allow write: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+      }
+      // WhatsApp Templates (Meta-approved templates registry)
+      match /whatsapp_templates/{templateName} {
+         allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+         allow write: if request.auth != null && (isStoreOwner(storeId) || isSuperAdmin());
+      }
+      // WhatsApp Message Logs (audit trail)
+      match /whatsapp_logs/{logId} {
+         allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(storeId)));
+         allow create: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+      }
+      // Notifications (WhatsApp handoff + general)
+      match /notifications/{notifId} {
+         allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+         allow write: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+      }
+      // YouCan Integration
+      match /youcan_integration/{docId} {
+         allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+         allow write: if request.auth != null && (isStoreOwner(storeId) || isSuperAdmin());
+      }
+      match /youcan_orders/{orderId} {
+         allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+         allow write: if request.auth != null && (isStoreOwner(storeId) || isSuperAdmin());
+      }
     }
 
     // Products

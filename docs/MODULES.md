@@ -19,6 +19,7 @@
 | | Tracking Public | ✅ Production | - | `orders` | `src/pages/PublicCatalog.jsx` |
 | **CRM** | Fiche Client 360° | ✅ Production | Owner, Staff | `customers` | `src/pages/Customers.jsx` |
 | | Segmentation AI | ✅ Production | Owner | `customers` | `src/utils/aiSegmentation.js` |
+| **Intégrations** | YouCan E-commerce | ✅ Production | Owner | `youcan_integration` | `src/components/integrations/YouCanIntegration.jsx`, `functions/youcan.js` |
 | **PWA** | Mode Hors-ligne | ✅ Production | Tous | - | `public/sw.js` (généré par Vite PWA) |
 | | Biometric Lock | ✅ Production | Tous | - | `src/components/BiometricLock.jsx` |
 
