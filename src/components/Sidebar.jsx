@@ -27,7 +27,8 @@ import {
     RotateCcw,
     Megaphone,
     Barcode,
-    ClipboardCheck
+    ClipboardCheck,
+    MessageCircle
 } from "lucide-react";
 import { useReconciliation } from "../hooks/useReconciliation";
 import { vibrate } from "../utils/haptics";

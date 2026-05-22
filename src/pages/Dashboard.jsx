@@ -24,6 +24,7 @@ import Beya3Insights from "../components/Beya3Insights";
 import PageTransition from "../components/PageTransition";
 import { DashboardSkeleton } from "../components/Skeleton";
 import { vibrate } from "../utils/haptics";
+import WhatsAppConversations from "../components/WhatsAppConversations";
 
 export default function Dashboard() {
     const { store } = useTenant();
@@ -659,6 +660,9 @@ export default function Dashboard() {
 
                 {/* Right Column (Pie Chart & Orders) */}
                 <div className="lg:col-span-1 space-y-6">
+                    {/* WhatsApp Conversations (Beya3 Bot) */}
+                    <WhatsAppConversations />
+
                     {/* Local Deterministic Prediction (NEW) */}
                     <div>
                         <LocalPredictionWidget products={allProducts} orders={recentOrders} />

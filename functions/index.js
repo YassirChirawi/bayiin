@@ -19,6 +19,25 @@ const db = getFirestore('comsaas');
 const { copilotChat } = require('./copilot');
 exports.copilotChat = copilotChat;
 
+// WhatsApp Webhook & Bot Logic
+const { whatsappWebhook } = require('./whatsapp');
+exports.whatsappWebhook = whatsappWebhook;
+
+// YouCan Integration
+const { exchangeYoucanToken, youcanWebhook, youcanSyncOrders } = require('./youcan');
+exports.exchangeYoucanToken = exchangeYoucanToken;
+exports.youcanWebhook = youcanWebhook;
+exports.youcanSyncOrders = youcanSyncOrders;
+
+// WhatsApp Auto-Send Triggers
+const { sendOrderConfirmationRequest, sendShippingNotification } = require('./whatsappSender');
+exports.sendOrderConfirmationRequest = sendOrderConfirmationRequest;
+exports.sendShippingNotification = sendShippingNotification;
+
+// WhatsApp Auth (BYON - Meta Embedded Signup)
+const { connectWhatsApp } = require('./whatsappAuth');
+exports.connectWhatsApp = connectWhatsApp;
+
 /**
  * Custom Claims Sync
  * Whenever a user document is written, sync their role to Firebase Auth JWT claims.
