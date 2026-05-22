@@ -49,8 +49,8 @@ const sendOrderConfirmationRequest = onDocumentCreated(
             return;
         }
 
-        // Guard: Skip YouCan orders (they have their own confirmation flow)
-        if (order.source === "youcan" || order.source === "WooCommerce") {
+        // Guard: Skip WooCommerce orders if they have their own flow
+        if (order.source === "WooCommerce") {
             console.log(`[WhatsApp] Order ${orderId}: source=${order.source}, skipping`);
             return;
         }
