@@ -81,46 +81,58 @@ exports.exchangeYoucanToken = onRequest({ secrets: ['YOUCAN_CLIENT_SECRET'], cor
         let uid;
         
         if (!storeId) {
-            // Provisionner un nouveau compte BayIIn
-            const newStoreRef = db.collection('stores').doc();
-            storeId = newStoreRef.id;
-            
             const email = storeData.contact_email || `${storeData.id}@youcan-store.bayiin.shop`;
+            let userExists = false;
             
             try {
+                const existingUser = await getAuth().getUserByEmail(email);
+                uid = existingUser.uid;
+                userExists = true;
+                
+                // Récupérer son storeId existant s'il en a un
+                const userDoc = await db.collection('users').doc(uid).get();
+                if (userDoc.exists && userDoc.data().storeId) {
+                    storeId = userDoc.data().storeId;
+                }
+            } catch (e) {
+                if (e.code !== 'auth/user-not-found') {
+                    throw e;
+                }
+            }
+            
+            if (!userExists) {
+                // Créer le nouvel utilisateur
                 const userRecord = await getAuth().createUser({
                     email: email,
                     password: crypto.randomBytes(8).toString('hex'),
                     displayName: storeData.name || 'YouCan Store'
                 });
                 uid = userRecord.uid;
-            } catch (e) {
-                if (e.code === 'auth/email-already-exists') {
-                    const existingUser = await getAuth().getUserByEmail(email);
-                    uid = existingUser.uid;
-                } else {
-                    throw e;
-                }
             }
             
-            // Initialiser le Store BayIIn
-            await newStoreRef.set({
-                name: storeData.name || 'My YouCan Store',
-                currency: 'MAD', 
-                ownerId: uid,
-                createdAt: FieldValue.serverTimestamp(),
-                subscriptionStatus: 'active', // Géré par YouCan Billing
-                plan: 'youcan_app'
-            });
-            
-            // Initialiser le User Doc
-            await db.collection('users').doc(uid).set({
-                email,
-                name: storeData.name || 'YouCan Store',
-                role: 'owner',
-                storeId: storeId,
-                createdAt: FieldValue.serverTimestamp()
-            });
+            if (!storeId) {
+                // Créer un nouveau store BayIIn UNIQUEMENT s'il n'en a pas déjà un
+                const newStoreRef = db.collection('stores').doc();
+                storeId = newStoreRef.id;
+                
+                await newStoreRef.set({
+                    name: storeData.name || 'My YouCan Store',
+                    currency: 'MAD', 
+                    ownerId: uid,
+                    createdAt: FieldValue.serverTimestamp(),
+                    subscriptionStatus: 'active', // Géré par YouCan Billing
+                    plan: 'youcan_app'
+                });
+                
+                // Enregistrer l'utilisateur
+                await db.collection('users').doc(uid).set({
+                    email,
+                    name: storeData.name || 'YouCan Store',
+                    role: 'owner',
+                    storeId: storeId,
+                    createdAt: FieldValue.serverTimestamp()
+                }, { merge: true });
+            }
         } else {
             const storeDoc = await db.collection('stores').doc(storeId).get();
             uid = storeDoc.data().ownerId;
