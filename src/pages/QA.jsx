@@ -193,6 +193,21 @@ export default function QA() {
                 cathedisPassword: 'mock_cathedis_password'
             }, { merge: true });
 
+            // Write Shopify integration config subdocument with actual credentials
+            await setDoc(doc(db, "stores", targetStoreId, "shopify_integration", "config"), {
+                isActive: true,
+                shopifyStoreUrl: "dev-bayiin.myshopify.com",
+                shopifyStoreId: "shopify_" + targetStoreId,
+                shopifyApiKey: import.meta.env.VITE_SHOPIFY_API_KEY || "cec6ed1c86e83b775767fcfba81cc341",
+                shopifyAccessToken: import.meta.env.VITE_SHOPIFY_ACCESS_TOKEN || "shpss_mock_access_token_12345",
+                connectedAt: serverTimestamp()
+            }, { merge: true });
+
+            // Also update shopifyStoreUrl in main store document
+            await updateDoc(doc(db, "stores", targetStoreId), {
+                shopifyStoreUrl: "dev-bayiin.myshopify.com"
+            });
+
             await refreshStores();
 
             // Seed Products
