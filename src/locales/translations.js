@@ -600,6 +600,11 @@ export const translations = {
         success_send_cathedis: "Order successfully sent to Cathedis!",
         err_no_cathedis_keys: "Please configure Cathedis in Settings first.",
         msg_cathedis_saved: "Cathedis Configuration Saved!",
+        shopify_title: "Shopify Integration",
+        shopify_desc: "Import your Shopify orders automatically and sync your COD logistics in real-time.",
+        shopify_connect: "Connect Shopify",
+        shopify_disconnect: "Disconnect Shopify",
+        err_shopify_connection: "Shopify connection failed",
         err_save_config: "Failed to save configuration",
 
 
@@ -1559,6 +1564,11 @@ export const translations = {
         success_send_cathedis: "Commande envoyée à Cathedis avec succès !",
         err_no_cathedis_keys: "Veuillez d'abord configurer Cathedis dans les Paramètres.",
         msg_cathedis_saved: "Configuration Cathedis enregistrée !",
+        shopify_title: "Intégration Shopify",
+        shopify_desc: "Importez automatiquement vos commandes Shopify vers BayIIn et synchronisez votre logistique COD en temps réel sans effort.",
+        shopify_connect: "Connecter Shopify",
+        shopify_disconnect: "Déconnecter Shopify",
+        err_shopify_connection: "La connexion à Shopify a échoué",
         err_save_config: "Échec de l'enregistrement de la configuration",
 
 
@@ -1937,6 +1947,11 @@ export const translations = {
         success_send_cathedis: "تم إرسال الطلب بنجاح إلى كاتيديس!",
         err_no_cathedis_keys: "المرجو تهيئة حساب كاتيديس في الإعدادات أولاً.",
         msg_cathedis_saved: "تم حفظ إعدادات كاتيديس بنجاح!",
+        shopify_title: "إدماج شوبيفاي (Shopify)",
+        shopify_desc: "قم باستيراد طلبيات شوبيفاي الخاصة بك تلقائيًا ومزامنة لوجستيات الدفع عند الاستلام (COD) في الوقت الفعلي وبدون مجهود.",
+        shopify_connect: "ربط شوبيفاي",
+        shopify_disconnect: "إلغاء ربط شوبيفاي",
+        err_shopify_connection: "فشل الاتصال بشوبيفاي",
 
         // Order Table Headers & Tabs
         order_id: "الطلب",

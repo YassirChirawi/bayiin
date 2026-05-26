@@ -26,6 +26,7 @@ const BillingSettings = lazy(() => import('../components/settings/BillingSetting
 const ActivitySettings = lazy(() => import('../components/settings/ActivitySettings'));
 import WhatsAppConnector from '../components/settings/WhatsAppConnector';
 import YouCanIntegration from '../components/integrations/YouCanIntegration';
+import ShopifyIntegration from '../components/integrations/ShopifyIntegration';
 
 import { Link } from "react-router-dom";
 
@@ -483,6 +484,9 @@ export default function Settings() {
 
                         {/* YouCan Integration Section */}
                         <YouCanIntegration store={store} />
+
+                        {/* Shopify Integration Section */}
+                        <ShopifyIntegration store={store} />
 
                         <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
                             <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
