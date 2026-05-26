@@ -1050,3 +1050,15 @@ exports.scheduledReconciliation = functions.pubsub.schedule('0 2 * * *')
     return null;
 });
 
+// TEMPORARY CLEANUP ENDPOINT
+const { onRequest } = require("firebase-functions/v2/https");
+exports.cleanYoucan = onRequest(async (req, res) => {
+    const snap = await db.collectionGroup('youcan_integration').get();
+    let count = 0;
+    for (let doc of snap.docs) {
+        await doc.ref.delete();
+        count++;
+    }
+    res.send(`Cleaned ${count} youcan_integration documents! You can now reinstall the app on YouCan.`);
+});
+

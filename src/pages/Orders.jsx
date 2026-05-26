@@ -41,7 +41,7 @@ export default function Orders() {
     const { store } = useTenant();
     const { t } = useLanguage();
     const { user } = useAuth();
-    const { sendToOlivraison, sendToSendit } = useOrderActions();
+    const { sendToOlivraison, sendToSendit, sendToCathedis } = useOrderActions();
 
     // TAB STATE
     const [activeTab, setActiveTab] = useState('orders');
@@ -124,6 +124,8 @@ export default function Orders() {
                 const data = await getPackageStatus(token, order.trackingId);
                 setTrackingData(data);
             } else if (provider === 'olivraison') {
+                setTrackingData({ code: order.trackingId, status: order.carrierStatus || 'UNKNOWN', audits: [] });
+            } else if (provider === 'cathedis') {
                 setTrackingData({ code: order.trackingId, status: order.carrierStatus || 'UNKNOWN', audits: [] });
             }
         } catch (error) { toast.error("Erreur de suivi."); setIsTrackingModalOpen(false); }
@@ -242,10 +244,10 @@ export default function Orders() {
             {loading ? <TableSkeleton rows={10} cols={8} /> : filteredOrders.length === 0 ? <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow p-8"><p>{t('msg_no_orders_filter')}</p></div> : (
                 <>
                     <div className="hidden md:block">
-                        <OrderTable orders={filteredOrders} selectedOrders={bulkActions.selectedOrders} handleSelectAll={() => bulkActions.handleSelectAll(filteredOrders)} handleSelectOne={bulkActions.handleSelectOne} activeTab={activeTab} showTrash={showTrash} store={store} togglePaid={togglePaid} handleEdit={(o) => {setEditingOrder(o); setIsModalOpen(true);}} deleteStoreItem={deleteStoreItem} handleRestore={handleRestore} handleDelete={handleDelete} handleNoAnswer={handleNoAnswer} openConfirmation={openConfirmation} sendToOlivraison={sendToOlivraison} sendToSendit={sendToSendit} handleOpenTracking={handleOpenTracking} setQrOrder={setQrOrder} t={t} />
+                        <OrderTable orders={filteredOrders} selectedOrders={bulkActions.selectedOrders} handleSelectAll={() => bulkActions.handleSelectAll(filteredOrders)} handleSelectOne={bulkActions.handleSelectOne} activeTab={activeTab} showTrash={showTrash} store={store} togglePaid={togglePaid} handleEdit={(o) => {setEditingOrder(o); setIsModalOpen(true);}} deleteStoreItem={deleteStoreItem} handleRestore={handleRestore} handleDelete={handleDelete} handleNoAnswer={handleNoAnswer} openConfirmation={openConfirmation} sendToOlivraison={sendToOlivraison} sendToSendit={sendToSendit} sendToCathedis={sendToCathedis} handleOpenTracking={handleOpenTracking} setQrOrder={setQrOrder} t={t} />
                     </div>
                     <div className="md:hidden">
-                        <OrderMobileList orders={filteredOrders} selectedOrders={bulkActions.selectedOrders} handleSelectOne={bulkActions.handleSelectOne} activeTab={activeTab} showTrash={showTrash} store={store} togglePaid={togglePaid} handleEdit={(o) => {setEditingOrder(o); setIsModalOpen(true);}} deleteStoreItem={deleteStoreItem} handleRestore={handleRestore} handleDelete={handleDelete} handleNoAnswer={handleNoAnswer} openConfirmation={openConfirmation} sendToOlivraison={sendToOlivraison} sendToSendit={sendToSendit} handleOpenTracking={handleOpenTracking} setQrOrder={setQrOrder} t={t} />
+                        <OrderMobileList orders={filteredOrders} selectedOrders={bulkActions.selectedOrders} handleSelectOne={bulkActions.handleSelectOne} activeTab={activeTab} showTrash={showTrash} store={store} togglePaid={togglePaid} handleEdit={(o) => {setEditingOrder(o); setIsModalOpen(true);}} deleteStoreItem={deleteStoreItem} handleRestore={handleRestore} handleDelete={handleDelete} handleNoAnswer={handleNoAnswer} openConfirmation={openConfirmation} sendToOlivraison={sendToOlivraison} sendToSendit={sendToSendit} sendToCathedis={sendToCathedis} handleOpenTracking={handleOpenTracking} setQrOrder={setQrOrder} t={t} />
                     </div>
                 </>
             )}

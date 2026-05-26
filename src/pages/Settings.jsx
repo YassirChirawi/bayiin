@@ -481,6 +481,9 @@ export default function Settings() {
                             </div>
                         </div>
 
+                        {/* YouCan Integration Section */}
+                        <YouCanIntegration store={store} />
+
                         <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
                             <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
                                 <SettingsIcon className="h-5 w-5 text-gray-500" />

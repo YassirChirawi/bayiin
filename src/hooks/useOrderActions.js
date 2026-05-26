@@ -5,6 +5,7 @@ import { ORDER_STATUS } from '../utils/constants';
 import { useTenant } from '../context/TenantContext';
 import { authenticateOlivraison, createOlivraisonPackage } from '../lib/olivraison';
 import { authenticateSendit, createSenditPackage } from '../lib/sendit';
+import { authenticateCathedis, createCathedisDelivery } from '../lib/cathedis';
 import { logActivity } from '../utils/logger'; // NEW
 import { useAuth } from '../context/AuthContext'; // NEW
 import { runAutomations } from '../utils/automationEngine'; // NEW
@@ -697,6 +698,41 @@ export const useOrderActions = () => {
         }
     };
 
+    const sendToCathedis = async (order) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const configDoc = await getDoc(doc(db, "stores", store.id, "private", "config"));
+            const secrets = configDoc.exists() ? configDoc.data() : {};
+
+            if (!secrets.cathedisUsername || !secrets.cathedisPassword) {
+                throw new Error("Cathedis API credentials not configured in Settings.");
+            }
+
+            const jsessionid = await authenticateCathedis(secrets.cathedisUsername, secrets.cathedisPassword);
+            const result = await createCathedisDelivery(jsessionid, order, store);
+
+            await runTransaction(db, async (transaction) => {
+                const orderRef = doc(db, "orders", order.id);
+                transaction.update(orderRef, {
+                    carrier: 'cathedis',
+                    trackingId: String(result.id) || 'PENDING',
+                    carrierStatus: result.deliveryStatus || 'CREATED',
+                    status: 'livraison',
+                    updatedAt: serverTimestamp()
+                });
+            });
+
+            setLoading(false);
+            return result;
+        } catch (err) {
+            console.error("Cathedis Error:", err);
+            setError(err.message);
+            setLoading(false);
+            throw err;
+        }
+    };
+
     const updateOrderStatus = async (orderId, newStatus) => {
         setLoading(true);
         setError(null);
@@ -730,5 +766,5 @@ export const useOrderActions = () => {
         }
     };
 
-    return { createOrder, updateOrder, updateOrderStatus, sendToOlivraison, sendToSendit, loading, error };
+    return { createOrder, updateOrder, updateOrderStatus, sendToOlivraison, sendToSendit, sendToCathedis, loading, error };
 };

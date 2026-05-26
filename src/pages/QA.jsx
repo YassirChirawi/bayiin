@@ -14,7 +14,7 @@ import Button from "../components/Button";
 import { vibrate } from "../utils/haptics";
 
 export default function QA() {
-    const { store: currentStore } = useTenant();
+    const { store: currentStore, refreshStores } = useTenant();
     const [searchParams] = useSearchParams();
     const adminStoreId = searchParams.get('storeId');
     const targetStoreId = adminStoreId || currentStore?.id;
@@ -170,9 +170,31 @@ export default function QA() {
     const [seeding, setSeeding] = useState(false);
     const seedDemoData = async () => {
         if (isReadOnly) return;
-        if (!targetStoreId || !window.confirm("Voulez-vous peupler la boutique avec des données de test (Produits & Clients) ?")) return;
+        if (!targetStoreId || !window.confirm("Voulez-vous peupler la boutique avec des données de test (Produits & Clients), activer le plan PRO et configurer les clés de livraison de test ?")) return;
         setSeeding(true);
         try {
+            // Upgrade store to PRO plan and configure sandbox API keys in main store document
+            await updateDoc(doc(db, "stores", targetStoreId), {
+                plan: 'pro',
+                subscriptionStatus: 'active_promo',
+                promoCodeUsed: 'LAUNCH_PRO',
+                senditPublicKey: 'pk_test_sendit_12345',
+                olivraisonApiKey: 'api_test_olivraison_12345',
+                cathedisUsername: 'mock_cathedis_user'
+            });
+
+            // Write all secrets into private/config sub-document
+            await setDoc(doc(db, "stores", targetStoreId, "private", "config"), {
+                senditPublicKey: 'pk_test_sendit_12345',
+                senditSecretKey: 'sk_test_sendit_12345',
+                olivraisonApiKey: 'api_test_olivraison_12345',
+                olivraisonSecretKey: 'sec_test_olivraison_12345',
+                cathedisUsername: 'mock_cathedis_user',
+                cathedisPassword: 'mock_cathedis_password'
+            }, { merge: true });
+
+            await refreshStores();
+
             // Seed Products
             const products = [
                 { name: "Sérum Vitamine C", category: "Soins Visage", price: 250, costPrice: 120, stock: 50, description: "Sérum éclat haute concentration" },

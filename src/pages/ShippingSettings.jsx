@@ -15,8 +15,10 @@ export default function ShippingSettings() {
     // ── Local API Key State (avoids mutating store context directly) ──
     const [olivraisonKeys, setOlivraisonKeys] = useState({ apiKey: "", secretKey: "" });
     const [senditKeys, setSenditKeys] = useState({ publicKey: "", secretKey: "" });
+    const [cathedisKeys, setCathedisKeys] = useState({ username: "", password: "" });
     const [loading, setLoading] = useState(false);
     const [senditInfoLoading, setSenditInfoLoading] = useState(false);
+    const [cathedisLoading, setCathedisLoading] = useState(false);
     const [senditCities, setSenditCities] = useState([]);
     const [loadingCities, setLoadingCities] = useState(false);
 
@@ -41,6 +43,10 @@ export default function ShippingSettings() {
                     setSenditKeys({
                         publicKey: privateData.senditPublicKey || "",
                         secretKey: privateData.senditSecretKey || "",
+                    });
+                    setCathedisKeys({
+                        username: privateData.cathedisUsername || "",
+                        password: privateData.cathedisPassword || "",
                     });
                 }
             } catch (err) {
@@ -86,6 +92,9 @@ export default function ShippingSettings() {
                 olivraisonApiKey: olivraisonKeys.apiKey,
                 olivraisonSecretKey: olivraisonKeys.secretKey,
             });
+            await updateDoc(doc(db, "stores", store.id), {
+                olivraisonApiKey: olivraisonKeys.apiKey
+            });
             toast.success(t('msg_olivraison_saved'));
         } catch (e) {
             console.error(e);
@@ -107,6 +116,7 @@ export default function ShippingSettings() {
 
             // Update sender info in main store document (public info)
             await updateDoc(doc(db, "stores", store.id), {
+                senditPublicKey: senditKeys.publicKey,
                 senditSenderName: senditSender.name,
                 senditSenderPhone: senditSender.phone,
                 senditSenderAddress: senditSender.address,
@@ -118,6 +128,26 @@ export default function ShippingSettings() {
             toast.error(t('err_save_failed'));
         } finally {
             setSenditInfoLoading(false);
+        }
+    };
+
+    const handleSaveCathedis = async () => {
+        if (!store?.id) return;
+        setCathedisLoading(true);
+        try {
+            await updateDoc(doc(db, "stores", store.id, "private", "config"), {
+                cathedisUsername: cathedisKeys.username,
+                cathedisPassword: cathedisKeys.password,
+            });
+            await updateDoc(doc(db, "stores", store.id), {
+                cathedisUsername: cathedisKeys.username
+            });
+            toast.success(t('msg_cathedis_saved') || "Configuration Cathedis enregistrée ✓");
+        } catch (e) {
+            console.error(e);
+            toast.error(t('err_save_failed'));
+        } finally {
+            setCathedisLoading(false);
         }
     };
 
@@ -332,6 +362,58 @@ export default function ShippingSettings() {
                 </div>
             </div>
 
+            {/* ── Cathedis Integration ── */}
+            <div className="bg-white shadow rounded-xl border border-gray-100 overflow-hidden">
+                <div className="px-6 py-5">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Globe className="h-5 w-5 text-indigo-500" />
+                        <h3 className="text-lg font-semibold text-gray-900">{t('cathedis_title') || 'Cathedis Integration'}</h3>
+                        {store?.cathedisUsername && (
+                            <span className="ml-auto inline-flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                                <ShieldCheck className="h-3 w-3" /> Actif
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-sm text-gray-500 mb-5">{t('cathedis_desc') || 'Configure your Cathedis credentials to enable automatic shipping.'}</p>
+
+                    <div className="max-w-xl space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <Key className="inline h-3.5 w-3.5 mr-1 text-gray-400" />
+                                {t('label_login') || 'Identifiant (Username)'}
+                            </label>
+                            <input
+                                type="text"
+                                value={cathedisKeys.username}
+                                onChange={(e) => setCathedisKeys(prev => ({ ...prev, username: e.target.value }))}
+                                className={inputCls}
+                                placeholder="Votre Login Cathedis"
+                                autoComplete="off"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <Key className="inline h-3.5 w-3.5 mr-1 text-gray-400" />
+                                {t('label_password') || 'Mot de passe (Password)'}
+                            </label>
+                            <input
+                                type="password"
+                                value={cathedisKeys.password}
+                                onChange={(e) => setCathedisKeys(prev => ({ ...prev, password: e.target.value }))}
+                                className={inputCls}
+                                placeholder="••••••••••••••••"
+                                autoComplete="new-password"
+                            />
+                        </div>
+                        <div className="flex justify-end pt-2">
+                            <Button onClick={handleSaveCathedis} isLoading={cathedisLoading} icon={Save}>
+                                {t('btn_save_keys') || 'Enregistrer les clés'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Other Carriers (Coming Soon) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
                 {/* Amana */}
@@ -346,22 +428,6 @@ export default function ShippingSettings() {
                         <div>
                             <label className="block text-xs font-medium text-gray-500">{t('label_password')}</label>
                             <input type="password" disabled className="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm sm:text-sm" placeholder="••••••••" />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Cathedis */}
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-5 relative overflow-hidden">
-                    <div className="absolute top-2 right-2 bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded-full font-medium">{t('coming_soon')}</div>
-                    <h3 className="font-semibold text-gray-700 mb-4">Cathedis</h3>
-                    <div className="space-y-3 pointer-events-none select-none">
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500">{t('label_api_key')}</label>
-                            <input type="text" disabled className="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm sm:text-sm" placeholder="••••••••" />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500">{t('label_account_id')}</label>
-                            <input type="text" disabled className="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm sm:text-sm" placeholder="••••••••" />
                         </div>
                     </div>
                 </div>

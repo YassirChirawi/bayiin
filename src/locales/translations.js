@@ -593,6 +593,13 @@ export const translations = {
         enable_to_configure: "Enable to configure settings.",
         msg_shipping_saved: "Shipping configuration saved",
         msg_olivraison_saved: "O-Livraison Configuration Saved!",
+        cathedis_title: "Cathedis Integration",
+        cathedis_desc: "Configure your Cathedis credentials to enable automatic shipping.",
+        send_to_cathedis: "Send to Cathedis",
+        confirm_send_cathedis: "Send order #{orderNumber} to Cathedis?",
+        success_send_cathedis: "Order successfully sent to Cathedis!",
+        err_no_cathedis_keys: "Please configure Cathedis in Settings first.",
+        msg_cathedis_saved: "Cathedis Configuration Saved!",
         err_save_config: "Failed to save configuration",
 
 
@@ -1545,6 +1552,13 @@ export const translations = {
         enable_to_configure: "Activer pour configurer.",
         msg_shipping_saved: "Configuration Livraison enregistrée",
         msg_olivraison_saved: "Configuration O-Livraison enregistrée !",
+        cathedis_title: "Intégration Cathedis",
+        cathedis_desc: "Configurez vos identifiants Cathedis pour activer l'expédition automatique.",
+        send_to_cathedis: "Envoyer à Cathedis",
+        confirm_send_cathedis: "Envoyer la commande #{orderNumber} à Cathedis ?",
+        success_send_cathedis: "Commande envoyée à Cathedis avec succès !",
+        err_no_cathedis_keys: "Veuillez d'abord configurer Cathedis dans les Paramètres.",
+        msg_cathedis_saved: "Configuration Cathedis enregistrée !",
         err_save_config: "Échec de l'enregistrement de la configuration",
 
 
@@ -1907,6 +1921,39 @@ export const translations = {
         footer_support_avail: "دعم متوفر 7/7",
         footer_copyright: "© {year} BayIIn. جميع الحقوق محفوظة.",
         footer_made_with_love: "صنع بـ ❤️ في المغرب 🇲🇦",
+
+        // Customer Modal
+        label_customer_type: "نوع الزبون",
+        option_retail: "فردي (RETAIL)",
+        option_pro: "مهني (PRO/Institut)",
+        label_ice: "ICE (التعريف الموحد للمقاولة)",
+        placeholder_ice: "اختياري",
+        btn_ai_reengage: "إعادة التواصل (الذكاء الاصطناعي)",
+        btn_save_customer: "حفظ الزبون",
+        cathedis_title: "كاتيديس (Cathedis)",
+        cathedis_desc: "قم بتهيئة حساب كاتيديس الخاص بك لتفعيل الشحن التلقائي.",
+        send_to_cathedis: "إرسال إلى كاتيديس",
+        confirm_send_cathedis: "هل تريد إرسال الطلب #{orderNumber} إلى كاتيديس؟",
+        success_send_cathedis: "تم إرسال الطلب بنجاح إلى كاتيديس!",
+        err_no_cathedis_keys: "المرجو تهيئة حساب كاتيديس في الإعدادات أولاً.",
+        msg_cathedis_saved: "تم حفظ إعدادات كاتيديس بنجاح!",
+
+        // Order Table Headers & Tabs
+        order_id: "الطلب",
+        client: "الزبون",
+        order_price: "الثمن",
+        order_status: "الحالة",
+        payment: "الأداء",
+        actions: "العمليات",
+        table_total: "المجموع",
+        tab_orders: "الطلبيات",
+        tab_carts: "السلات الحية",
+        status_paid: "مدفوع",
+        status_unpaid: "غير مدفوع",
+        catalog_source: "كتالوج",
+        btn_transform: "تحويل",
+        btn_confirm: "تأكيد",
+        status_no_answer: "لا يجيب",
 
         // Default Fallbacks for app (We leave them in French so it works and isn't gibberish)
         loading: "Chargement...",
