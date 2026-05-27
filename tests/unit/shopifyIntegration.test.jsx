@@ -62,9 +62,9 @@ describe('ShopifyIntegration Component', () => {
     });
 
     it('renders in loading state initially', async () => {
-        getDoc.mockImplementation(() => new Promise(() => {})); // Hangs in loading
+        getDoc.mockImplementation(() => new Promise(() => { })); // Hangs in loading
         render(<ShopifyIntegration store={mockStore} />);
-        
+
         // Should show pulsing skeleton
         expect(screen.queryByText('shopify_title')).toBeNull();
     });
@@ -147,10 +147,14 @@ describe('ShopifyIntegration Component', () => {
 
         render(<ShopifyIntegration store={mockStore} />);
 
-        await waitFor(() => {
-            const disconnectBtn = screen.getByText('shopify_disconnect');
-            fireEvent.click(disconnectBtn);
+        // 1. Attendre d'abord que le composant ait fini de charger et affiche le bouton
+        const disconnectBtn = await screen.findByText('shopify_disconnect');
 
+        // 2. Déclencher le clic UNE SEULE FOIS en dehors du waitFor
+        fireEvent.click(disconnectBtn);
+
+        // 3. Attendre les assertions asynchrones
+        await waitFor(() => {
             expect(deleteDoc).toHaveBeenCalled();
             expect(toast.success).toHaveBeenCalledWith('Boutique Shopify déconnectée avec succès.');
         });
@@ -174,7 +178,7 @@ describe('ShopifyIntegration Component', () => {
         // Click Webhooks tab
         const webhooksTab = screen.getByText('Webhooks Shopify');
         fireEvent.click(webhooksTab);
-        
+
         await waitFor(() => {
             expect(screen.getByText(/orders\/create/)).toBeDefined();
         });
@@ -182,7 +186,7 @@ describe('ShopifyIntegration Component', () => {
         // Click Logs tab
         const logsTab = screen.getByText('Journal de Sync');
         fireEvent.click(logsTab);
-        
+
         await waitFor(() => {
             expect(screen.getByText(/orders\/updated/)).toBeDefined();
         });
@@ -205,12 +209,12 @@ describe('ShopifyIntegration Component', () => {
 
         const syncBtn = screen.getByText('Forcer la Synchronisation');
         fireEvent.click(syncBtn);
-        
+
         // Should show loading state in button
         await waitFor(() => {
             expect(screen.getByText('Synchronisation...')).toBeDefined();
         });
-        
+
         // Eventually should finish sync
         await waitFor(() => {
             expect(toast.success).toHaveBeenCalledWith('La synchronisation Shopify est terminée. Vos commandes sont à jour !');
