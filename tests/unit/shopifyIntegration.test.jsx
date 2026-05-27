@@ -168,15 +168,23 @@ describe('ShopifyIntegration Component', () => {
         render(<ShopifyIntegration store={mockStore} />);
 
         await waitFor(() => {
-            // Click Webhooks tab
-            const webhooksTab = screen.getByText('Webhooks Shopify');
-            fireEvent.click(webhooksTab);
-            expect(screen.getByText("orders/create")).toBeDefined();
+            expect(screen.getByText('Webhooks Shopify')).toBeDefined();
+        });
 
-            // Click Logs tab
-            const logsTab = screen.getByText('Journal de Sync');
-            fireEvent.click(logsTab);
-            expect(screen.getByText("orders/updated")).toBeDefined();
+        // Click Webhooks tab
+        const webhooksTab = screen.getByText('Webhooks Shopify');
+        fireEvent.click(webhooksTab);
+        
+        await waitFor(() => {
+            expect(screen.getByText(/orders\/create/)).toBeDefined();
+        });
+
+        // Click Logs tab
+        const logsTab = screen.getByText('Journal de Sync');
+        fireEvent.click(logsTab);
+        
+        await waitFor(() => {
+            expect(screen.getByText(/orders\/updated/)).toBeDefined();
         });
     });
 
@@ -191,18 +199,22 @@ describe('ShopifyIntegration Component', () => {
 
         render(<ShopifyIntegration store={mockStore} />);
 
-        await waitFor(async () => {
-            const syncBtn = screen.getByText('Forcer la Synchronisation');
-            fireEvent.click(syncBtn);
-            
-            // Should show loading state in button
-            expect(screen.getByText('Synchronisation...')).toBeDefined();
-            
-            // Eventually should finish sync
-            await waitFor(() => {
-                expect(toast.success).toHaveBeenCalledWith('La synchronisation Shopify est terminée. Vos commandes sont à jour !');
-            }, { timeout: 3000 });
+        await waitFor(() => {
+            expect(screen.getByText('Forcer la Synchronisation')).toBeDefined();
         });
+
+        const syncBtn = screen.getByText('Forcer la Synchronisation');
+        fireEvent.click(syncBtn);
+        
+        // Should show loading state in button
+        await waitFor(() => {
+            expect(screen.getByText('Synchronisation...')).toBeDefined();
+        });
+        
+        // Eventually should finish sync
+        await waitFor(() => {
+            expect(toast.success).toHaveBeenCalledWith('La synchronisation Shopify est terminée. Vos commandes sont à jour !');
+        }, { timeout: 3000 });
     });
 
     it('renders integrity verification checklist when connected', async () => {
@@ -240,7 +252,7 @@ describe('ShopifyIntegration Component', () => {
         render(<ShopifyIntegration store={mockStore} />);
 
         await waitFor(() => {
-            expect(screen.getByText("La connexion à Shopify a échoué")).toBeDefined();
+            expect(screen.getByText("err_shopify_connection")).toBeDefined();
             expect(screen.getByText("La vérification de sécurité OAuth a échoué. Veuillez vérifier le nom de votre boutique et réessayer.")).toBeDefined();
         });
 

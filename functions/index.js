@@ -1,5 +1,6 @@
 const functions = require('firebase-functions');
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
+const { onRequest } = require("firebase-functions/v2/https");
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
@@ -16,18 +17,23 @@ initializeApp();
 const db = getFirestore('comsaas');
 
 // Copilot AI Function (Groq Proxy)
-const { copilotChat } = require('./copilot');
-exports.copilotChat = copilotChat;
+const { copilotChatV1 } = require('./copilot');
+exports.copilotChatV1 = copilotChatV1;
 
 // WhatsApp Webhook & Bot Logic
-const { whatsappWebhook } = require('./whatsapp');
+const { whatsappWebhook, whatsappTimeoutWorker } = require('./whatsapp');
 exports.whatsappWebhook = whatsappWebhook;
+exports.whatsappTimeoutWorker = whatsappTimeoutWorker;
 
 // YouCan Integration
 const { exchangeYoucanToken, youcanWebhook, youcanSyncOrders } = require('./youcan');
 exports.exchangeYoucanToken = exchangeYoucanToken;
 exports.youcanWebhook = youcanWebhook;
 exports.youcanSyncOrders = youcanSyncOrders;
+
+// Shopify Integration
+const { shopifyWebhook } = require('./shopify');
+exports.shopifyWebhook = shopifyWebhook;
 
 // WhatsApp Auto-Send Triggers
 const { sendOrderConfirmationRequest, sendShippingNotification } = require('./whatsappSender');
@@ -37,6 +43,11 @@ exports.sendShippingNotification = sendShippingNotification;
 // WhatsApp Auth (BYON - Meta Embedded Signup)
 const { connectWhatsApp } = require('./whatsappAuth');
 exports.connectWhatsApp = connectWhatsApp;
+
+// Hybrid Store Builder AI (Groq Llama 3.3)
+const { generateStorefront, enhanceCopywriting } = require('./hybridBuilder');
+exports.generateStorefront = generateStorefront;
+exports.enhanceCopywriting = enhanceCopywriting;
 
 /**
  * Custom Claims Sync
@@ -378,6 +389,8 @@ exports.onOrderWrite = onDocumentWritten({
     document: "orders/{orderId}",
     database: "comsaas",
     region: "us-central1",
+    concurrency: 50,
+    minInstances: 1, // Keep one instance warm to avoid cold starts
 }, async (event) => {
     // v2 change object is in event.data
     const change = event.data;
@@ -1051,7 +1064,6 @@ exports.scheduledReconciliation = functions.pubsub.schedule('0 2 * * *')
 });
 
 // TEMPORARY CLEANUP ENDPOINT
-const { onRequest } = require("firebase-functions/v2/https");
 exports.cleanYoucan = onRequest(async (req, res) => {
     const snap = await db.collectionGroup('youcan_integration').get();
     let count = 0;

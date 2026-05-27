@@ -236,6 +236,7 @@ ${getRandomAdvice('logistics')}`;
     }
 
     // DEFAULT
+    return "Je ne suis pas sûr de comprendre. Peux-tu reformuler ? Je suis spécialisé dans tes ventes, tes commandes, ton stock et ton chiffre d'affaires.";
 };
 
 export function generateOpeningBrief(ctx) {

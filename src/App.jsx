@@ -48,6 +48,7 @@ const Assets = lazy(() => import("./pages/Assets"));
 const Marketing = lazy(() => import("./pages/Marketing"));
 const SupportAI = lazy(() => import("./pages/SupportAI"));
 const YouCanAuthRoute = lazy(() => import("./pages/YouCanAuthRoute"));
+const StoreCustomizer = lazy(() => import("./pages/HybridStoreBuilder"));
 
 // 🚀 Lazy-loaded heavy pages (code splitting — reduces initial bundle ~40%)
 const Finances = lazy(() => import("./pages/Finances"));
@@ -186,6 +187,7 @@ function App() {
                             <Route path="/planning" element={<Planning />} />
                             <Route path="/team" element={<Team />} />
                             <Route path="/settings" element={<Settings />} />
+                            <Route path="/customizer" element={<StoreCustomizer />} />
                             <Route path="/help" element={<Help />} />
                             <Route path="/warehouse" element={<Warehouse />} />
                             <Route path="/support-ai" element={<SupportAI />} />

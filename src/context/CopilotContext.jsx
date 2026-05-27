@@ -245,28 +245,35 @@ export const CopilotProvider = ({ children }) => {
         setMessages(prev => [...prev, { id: streamId, role: 'assistant', content: "" }]);
 
         try {
-            // 1. GENERATE LOCAL RESPONSE
-            // We use the local heuristic engine instead of the external API
-            const fullResponse = generateLocalResponse(text, businessContext);
-
-            // 2. SIMULATE TYING EFFECT (Character by Character)
-            // This maintains the "AI" feel without the latency/404 of an external API
+            let fullResponse = "";
             let currentText = "";
-            const words = fullResponse.split(" ");
-            
-            for (let i = 0; i < words.length; i++) {
-                currentText += (i === 0 ? "" : " ") + words[i];
+
+            if (import.meta.env.VITE_AI_MODE === 'local') {
+                // 1. GENERATE LOCAL RESPONSE
+                fullResponse = generateLocalResponse(text, businessContext);
                 
-                // Update message in state
-                setMessages(prev => prev.map(m => 
-                    m.id === streamId ? { ...m, content: currentText } : m
-                ));
+                // 2. SIMULATE TYING EFFECT
+                const words = fullResponse.split(" ");
+                for (let i = 0; i < words.length; i++) {
+                    currentText += (i === 0 ? "" : " ") + words[i];
+                    setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content: currentText } : m));
+                    await new Promise(resolve => setTimeout(resolve, 20 + Math.random() * 40));
+                }
+            } else {
+                // CLOUD MODE (GROQ)
+                const chatHistory = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
                 
-                // Random typing speed simulation
-                await new Promise(resolve => setTimeout(resolve, 20 + Math.random() * 40));
+                // We must import generateCopilotResponse dynamically or at the top of the file
+                const { generateCopilotResponse } = await import("../services/aiService");
+                
+                await generateCopilotResponse(chatHistory, businessContext, store?.name, (chunk) => {
+                    currentText = chunk;
+                    setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content: currentText } : m));
+                });
+                fullResponse = currentText;
             }
 
-            // 3. DETECT ACTION (Optional - keeping the parser for future compatibility)
+            // 3. DETECT ACTION
             const action = extractActionFromResponse(fullResponse);
             if (action) {
                 const actionFeedback = await processAction(action);

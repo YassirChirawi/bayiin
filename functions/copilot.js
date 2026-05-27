@@ -1,18 +1,9 @@
-const { onRequest } = require("firebase-functions/v2/https");
+const functions = require("firebase-functions");
 const Groq = require("groq-sdk");
+const cors = require("cors")({ origin: true });
 
-exports.copilotChat = onRequest(
-  { secrets: ["GROQ_API_KEY"] },
-  async (req, res) => {
-    res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-    if (req.method === "OPTIONS") {
-      res.status(204).send("");
-      return;
-    }
-
+exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"] }).https.onRequest((req, res) => {
+  cors(req, res, async () => {
     const { messages, businessContext, storeName } = req.body;
     
     if (!process.env.GROQ_API_KEY) {
@@ -79,5 +70,6 @@ Règles :
       console.error("Groq error:", error);
       res.status(500).json({ error: "Copilot unavailable", details: error.message });
     }
+    }); // close cors
   }
 );

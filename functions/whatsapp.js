@@ -19,12 +19,10 @@ const Groq = require("groq-sdk");
 const {
     sendTextMessage,
     markMessageAsRead,
-    normalizePhone,
-    isConfirmation,
-    isRefusal,
-    isReschedule,
-    isHumanRequest
+    normalizePhone
 } = require("./whatsappUtils");
+
+const { STATES, processTransition, getSystemResponse } = require("./whatsappStateMachine");
 
 // Use named database 'comsaas' — same as the rest of BayIIn
 const db = getFirestore("comsaas");
@@ -239,6 +237,21 @@ async function handleNewConversation(store, phone, userText, convRef) {
             `Si vous avez une question, je suis là ! 😊`,
             store.whatsappAccessToken, store.whatsappPhoneNumberId
         );
+
+        // Enqueue a Cloud Task for 2 hours later to follow up if still awaiting
+        try {
+            const { getFunctions } = require("firebase-admin/functions");
+            const queue = getFunctions().taskQueue("whatsappTimeoutWorker");
+            await queue.enqueue({
+                storeId,
+                phone,
+                orderId
+            }, {
+                scheduleDelaySeconds: 2 * 60 * 60 // 2 hours
+            });
+        } catch (e) {
+            console.error("[WhatsApp] Failed to enqueue timeout task:", e);
+        }
     } else {
         // No pending order — start a free conversation
         await convRef.set({
@@ -265,78 +278,64 @@ async function handleNewConversation(store, phone, userText, convRef) {
 
 async function handleConversationState(store, phone, userText, conv, convRef) {
     const storeId = store.id;
-    const input = userText.toLowerCase().trim();
+    const currentState = conv.state || STATES.AWAITING_CONFIRMATION;
 
-    switch (conv.state) {
+    // Run transition logic
+    const { nextState, intent, shouldHandoff, isAIHandled } = processTransition(currentState, userText);
 
-        case "awaiting_confirmation":
-            if (isConfirmation(input)) {
-                // ✅ Client confirms
-                await updateOrderStatus(storeId, conv.orderId, "confirmation");
-                await convRef.update({ state: "confirmed", lastMessageAt: FieldValue.serverTimestamp() });
+    // If human handoff is requested explicitly or via AI
+    if (shouldHandoff) {
+        await handleHumanHandoff(store, phone, userText, conv);
+        // Note: handleHumanHandoff sets handoffRequested = true on the doc
+        return;
+    }
 
-                const order = await getOrderData(storeId, conv.orderId);
-                await sendTextMessage(phone,
-                    `✅ Parfait ! Votre commande *#${conv.orderNumber}* est confirmée.\n\n` +
-                    `📦 *${order?.articleName || "Votre produit"}* × ${order?.quantity || 1}\n` +
-                    `💰 *${order?.price || "—"} DH* — Paiement à la livraison\n\n` +
-                    `Nous vous enverrons un message dès l'expédition. Tbarkallah ! 🙏`,
-                    store.whatsappAccessToken, store.whatsappPhoneNumberId
-                );
-                await notifyMerchant(storeId, `✅ Client ${phone} a confirmé la commande #${conv.orderNumber}`);
+    // Process Firebase updates if state changed
+    if (nextState !== currentState) {
+        // Update Order in Firestore based on terminal states
+        if (nextState === STATES.CONFIRMED && conv.orderId) {
+            await updateOrderStatus(storeId, conv.orderId, "confirmation");
+            await notifyMerchant(storeId, `✅ Client ${phone} a confirmé la commande #${conv.orderNumber}`);
+        } else if (nextState === STATES.REFUSED && conv.orderId) {
+            await updateOrderStatus(storeId, conv.orderId, "annulé");
+            await notifyMerchant(storeId, `❌ Client ${phone} a annulé la commande #${conv.orderNumber}`);
+        } else if (nextState === STATES.RESCHEDULED && intent === 'reschedule') {
+            await notifyMerchant(storeId, `📅 Client ${phone} souhaite reprogrammer.\nCommande : #${conv.orderNumber}`);
+        } else if (currentState === STATES.RESCHEDULED && nextState === STATES.AWAITING_CONFIRMATION) {
+            await notifyMerchant(storeId, `📅 Client ${phone} a donné ses dispos : "${userText}"\nCommande : #${conv.orderNumber}`);
+        }
 
-            } else if (isRefusal(input)) {
-                // ❌ Client refuses
-                await updateOrderStatus(storeId, conv.orderId, "annulé");
-                await convRef.update({ state: "refused", lastMessageAt: FieldValue.serverTimestamp() });
+        // Save new state
+        await convRef.update({ 
+            state: nextState, 
+            lastMessageAt: FieldValue.serverTimestamp() 
+        });
+    }
 
-                await sendTextMessage(phone,
-                    `D'accord, votre commande *#${conv.orderNumber}* a été annulée.\n\n` +
-                    `Si vous souhaitez commander à nouveau, n'hésitez pas. Bonne journée ! 😊`,
-                    store.whatsappAccessToken, store.whatsappPhoneNumberId
-                );
-                await notifyMerchant(storeId, `❌ Client ${phone} a annulé la commande #${conv.orderNumber}`);
+    // Generate response
+    if (isAIHandled) {
+        // Send to Groq for custom contextual reply
+        await handleBeya3AIResponse(store, phone, userText, conv, convRef);
+    } else {
+        // Use system template response
+        const orderData = conv.orderId ? await getOrderData(storeId, conv.orderId) : null;
+        const systemText = getSystemResponse(currentState, nextState, intent, conv.language || 'fr', orderData || conv);
+        
+        if (systemText) {
+            await sendTextMessage(phone, systemText, store.whatsappAccessToken, store.whatsappPhoneNumberId);
+            
+            // Append to conversation messages array
+            const newMessages = [
+                ...(conv.messages || []),
+                { role: "user", content: userText, timestamp: new Date().toISOString() },
+                { role: "assistant", content: systemText, timestamp: new Date().toISOString() }
+            ].slice(-20);
 
-            } else if (isReschedule(input)) {
-                // 📅 Client wants to reschedule
-                await convRef.update({ state: "rescheduled", lastMessageAt: FieldValue.serverTimestamp() });
-
-                await sendTextMessage(phone,
-                    `Pas de problème ! Quel est le meilleur moment pour vous livrer ?\n\n` +
-                    `Répondez avec votre disponibilité et nous nous adapterons 📅`,
-                    store.whatsappAccessToken, store.whatsappPhoneNumberId
-                );
-
-            } else if (isHumanRequest(input)) {
-                // 👤 Client wants a human
-                await handleHumanHandoff(store, phone, userText, conv);
-
-            } else {
-                // ❓ Unknown response → Beya3 AI
-                await handleBeya3AIResponse(store, phone, userText, conv, convRef);
-            }
-            break;
-
-        case "rescheduled":
-            // Client gave their availability
             await convRef.update({
-                state: "awaiting_confirmation",
-                lastMessageAt: FieldValue.serverTimestamp()
+                lastBotMessageAt: FieldValue.serverTimestamp(),
+                messages: newMessages
             });
-            await sendTextMessage(phone,
-                `Noté ! Nous reviendrons vers vous à ce moment-là 📋\n\n` +
-                `Pour confirmer définitivement, répondez *OUI* ou *CONFIRMER*.`,
-                store.whatsappAccessToken, store.whatsappPhoneNumberId
-            );
-            await notifyMerchant(storeId,
-                `📅 Client ${phone} souhaite être livré : "${userText}"\nCommande : #${conv.orderNumber}`
-            );
-            break;
-
-        case "question":
-        default:
-            await handleBeya3AIResponse(store, phone, userText, conv, convRef);
-            break;
+        }
     }
 }
 
@@ -633,8 +632,65 @@ async function logWhatsAppMessage(storeId, data) {
     }
 }
 
+const { onTaskDispatched } = require("firebase-functions/v2/tasks");
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TIMEOUT WORKER (Cloud Tasks)
+// ═══════════════════════════════════════════════════════════════════════════════
+const whatsappTimeoutWorker = onTaskDispatched(
+    {
+        retryConfig: {
+            maxAttempts: 3,
+            minBackoffSeconds: 60
+        },
+        rateLimits: {
+            maxConcurrentDispatches: 50
+        }
+    },
+    async (req) => {
+        const { storeId, phone, orderId } = req.data;
+        if (!storeId || !phone) return;
+
+        const convRef = db.collection("stores").doc(storeId)
+                          .collection("whatsapp_conversations").doc(phone);
+        const convDoc = await convRef.get();
+        
+        if (!convDoc.exists) return;
+        const conv = convDoc.data();
+
+        // Check if still awaiting confirmation
+        if (conv.state === STATES.AWAITING_CONFIRMATION) {
+            const store = await getStoreData(storeId);
+            if (!store || !store.whatsappAccessToken) return;
+
+            // Send follow-up message
+            const followUpText = conv.language === 'fr' 
+                ? `Salam ! 👋 Êtes-vous toujours intéressé par la commande *#${conv.orderNumber}* ?\n\nRépondez par *OUI* pour confirmer ou *NON* pour annuler.`
+                : `Salam ! 👋 Wesh mazal mhtem b l'commande *#${conv.orderNumber}* ?\n\nJawb b *OUI* bach t'confirmer wla *NON* bach telghiha.`;
+
+            await sendTextMessage(phone, followUpText, store.whatsappAccessToken, store.whatsappPhoneNumberId);
+
+            // Update conversation to indicate attempt
+            await convRef.update({
+                attempts: FieldValue.increment(1),
+                lastBotMessageAt: FieldValue.serverTimestamp()
+            });
+
+            // Log attempt
+            await logWhatsAppMessage(storeId, {
+                direction: "outbound",
+                phone,
+                messageId: `timeout_${Date.now()}`,
+                content: followUpText,
+                orderId: orderId || "",
+                timestamp: FieldValue.serverTimestamp()
+            });
+        }
+    }
+);
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // EXPORTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-module.exports = { whatsappWebhook };
+module.exports = { whatsappWebhook, whatsappTimeoutWorker };

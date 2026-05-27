@@ -28,7 +28,8 @@ import {
     Megaphone,
     Barcode,
     ClipboardCheck,
-    MessageCircle
+    MessageCircle,
+    Paintbrush
 } from "lucide-react";
 import { useReconciliation } from "../hooks/useReconciliation";
 import { vibrate } from "../utils/haptics";
@@ -128,6 +129,7 @@ export default function Sidebar({ isOpen, onClose }) {
         ...(role !== 'staff' ? [
             { name: t('finances'), href: '/finances', icon: DollarSign },
             { name: t('team'), href: '/team', icon: UserPlus },
+            { name: 'Vitrine (Customizer)', href: '/customizer', icon: Paintbrush },
             { name: t('settings'), href: '/settings', icon: Settings },
         ] : []),
         ...(store?.testerMode ? [

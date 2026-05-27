@@ -363,8 +363,12 @@ export default function ShippingSettings() {
             </div>
 
             {/* ── Cathedis Integration ── */}
-            <div className="bg-white shadow rounded-xl border border-gray-100 overflow-hidden">
-                <div className="px-6 py-5">
+            <div className="bg-white shadow rounded-xl border border-gray-100 overflow-hidden relative">
+                {/* OVERLAY BIENTOT DISPONIBLE */}
+                <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-50 flex items-center justify-center">
+                    <span className="bg-orange-500 text-white font-black px-6 py-2 rounded-full shadow-xl transform -rotate-12 text-xl border-4 border-white shadow-orange-500/30">🚀 Bientôt Disponible</span>
+                </div>
+                <div className="px-6 py-5 opacity-40 pointer-events-none select-none">
                     <div className="flex items-center gap-2 mb-1">
                         <Globe className="h-5 w-5 text-indigo-500" />
                         <h3 className="text-lg font-semibold text-gray-900">{t('cathedis_title') || 'Cathedis Integration'}</h3>

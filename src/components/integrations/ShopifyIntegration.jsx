@@ -116,7 +116,13 @@ export default function ShopifyIntegration({ store }) {
     }
 
     return (
-        <div className="bg-white border border-slate-100 shadow-sm rounded-[2rem] overflow-hidden transition-all duration-300 hover:shadow-md">
+        <div className="bg-white border border-slate-100 shadow-sm rounded-[2rem] overflow-hidden transition-all duration-300 hover:shadow-md relative">
+            {/* OVERLAY BIENTOT DISPONIBLE */}
+            <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-50 flex items-center justify-center">
+                <span className="bg-emerald-600 text-white font-black px-6 py-2 rounded-full shadow-xl transform -rotate-12 text-xl border-4 border-white shadow-emerald-600/30">🚀 Bientôt Disponible</span>
+            </div>
+            
+            <div className="opacity-40 pointer-events-none select-none">
             {/* Header Area with Shopify Green accents */}
             <div className="p-8 bg-gradient-to-br from-emerald-50/60 via-transparent to-transparent border-b border-slate-50">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -371,6 +377,7 @@ export default function ShopifyIntegration({ store }) {
                     </div>
                 </div>
             )}
+            </div>
         </div>
     );
 }
