@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import ShopifyIntegration from '../../src/components/integrations/ShopifyIntegration';
 import { db } from '../../src/lib/firebase';
 import { getDoc, deleteDoc } from 'firebase/firestore';
@@ -15,11 +15,15 @@ vi.mock('../../src/context/LanguageContext', () => ({
 }));
 
 // Mock Firebase Firestore methods
-vi.mock('firebase/firestore', () => ({
-    doc: vi.fn(() => ({ id: 'mock-doc-id' })),
-    getDoc: vi.fn(),
-    deleteDoc: vi.fn()
-}));
+vi.mock('firebase/firestore', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        doc: vi.fn(() => ({ id: 'mock-doc-id' })),
+        getDoc: vi.fn(),
+        deleteDoc: vi.fn()
+    };
+});
 
 // Mock Toast
 vi.mock('react-hot-toast', () => ({
@@ -45,6 +49,16 @@ describe('ShopifyIntegration Component', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        vi.stubGlobal('location', {
+            href: '',
+            search: '',
+            assign: vi.fn(),
+            replace: vi.fn()
+        });
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
     });
 
     it('renders in loading state initially', async () => {
@@ -78,7 +92,7 @@ describe('ShopifyIntegration Component', () => {
         // Mock window.location
         const originalLocation = window.location;
         delete window.location;
-        window.location = { href: '' };
+        window.location = { href: '', search: '' };
 
         render(<ShopifyIntegration store={mockStore} />);
 
@@ -164,5 +178,72 @@ describe('ShopifyIntegration Component', () => {
             fireEvent.click(logsTab);
             expect(screen.getByText("orders/updated")).toBeDefined();
         });
+    });
+
+    it('forces manual synchronization successfully', async () => {
+        getDoc.mockResolvedValue({
+            exists: () => true,
+            data: () => ({
+                isActive: true,
+                shopifyStoreUrl: 'dev-bayiin.myshopify.com'
+            })
+        });
+
+        render(<ShopifyIntegration store={mockStore} />);
+
+        await waitFor(async () => {
+            const syncBtn = screen.getByText('Forcer la Synchronisation');
+            fireEvent.click(syncBtn);
+            
+            // Should show loading state in button
+            expect(screen.getByText('Synchronisation...')).toBeDefined();
+            
+            // Eventually should finish sync
+            await waitFor(() => {
+                expect(toast.success).toHaveBeenCalledWith('La synchronisation Shopify est terminée. Vos commandes sont à jour !');
+            }, { timeout: 3000 });
+        });
+    });
+
+    it('renders integrity verification checklist when connected', async () => {
+        getDoc.mockResolvedValue({
+            exists: () => true,
+            data: () => ({
+                isActive: true,
+                shopifyStoreUrl: 'dev-bayiin.myshopify.com'
+            })
+        });
+
+        render(<ShopifyIntegration store={mockStore} />);
+
+        await waitFor(() => {
+            expect(screen.getByText("Vérification de l'intégrité de la liaison")).toBeDefined();
+            expect(screen.getByText("Authentification sécurisée par HMAC SHA-256")).toBeDefined();
+            expect(screen.getByText("Protection anti-doublon idempotente")).toBeDefined();
+            expect(screen.getByText("Webhooks temps réel abonnés")).toBeDefined();
+        });
+    });
+
+    it('renders error notice when url contains shopify=error', async () => {
+        getDoc.mockResolvedValue({
+            exists: () => false
+        });
+
+        // Mock window.location.search
+        const originalLocation = window.location;
+        delete window.location;
+        window.location = {
+            search: '?shopify=error',
+            href: ''
+        };
+
+        render(<ShopifyIntegration store={mockStore} />);
+
+        await waitFor(() => {
+            expect(screen.getByText("La connexion à Shopify a échoué")).toBeDefined();
+            expect(screen.getByText("La vérification de sécurité OAuth a échoué. Veuillez vérifier le nom de votre boutique et réessayer.")).toBeDefined();
+        });
+
+        window.location = originalLocation;
     });
 });
