@@ -146,7 +146,9 @@ export default function HybridStoreBuilder() {
             typography: { heading: 'Inter', body: 'Inter' },
             headerLayout: 'center',
             buttonStyle: 'rounded',
-            social: { facebook: '', instagram: '', whatsapp: '' }
+            social: { facebook: '', instagram: '', whatsapp: '' },
+            rtl: false, // For Arabic support
+            pixels: { facebook: '', tiktok: '', snapchat: '' }
         },
         global: {
             header: { id: 'global-header', type: 'HeaderGlobal', title: 'Ma Boutique', settings: { showCta: true, ctaText: 'Acheter' } },
@@ -585,21 +587,23 @@ export default function HybridStoreBuilder() {
                     <h1 className="text-3xl font-black text-slate-900 mb-2">Bientôt Disponible</h1>
                     <p className="text-slate-500 mb-8 font-medium">Le créateur de vitrine de nouvelle génération arrive très prochainement. Restez à l'écoute !</p>
                     
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex gap-2">
+                    <button 
+                        onClick={() => navigate('/storefront-preview')}
+                        className="w-full bg-indigo-600 text-white font-bold py-3.5 px-6 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-600/20 mb-8"
+                    >
+                        Retourner à l'aperçu
+                    </button>
+
+                    <div className="flex justify-center opacity-10 hover:opacity-100 transition-opacity mt-4">
                         <input 
-                            type="text" 
-                            placeholder="Code secret..." 
+                            type="password"
                             value={promoCode}
                             onChange={(e) => setPromoCode(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
-                            className="flex-1 bg-white border border-slate-200 px-3 py-2 rounded-lg text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase"
+                            className="bg-transparent border-none text-[8px] text-slate-400 focus:outline-none w-16 text-center"
+                            autoComplete="off"
+                            spellCheck="false"
                         />
-                        <button 
-                            onClick={handleUnlock}
-                            className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors"
-                        >
-                            Valider
-                        </button>
                     </div>
                 </div>
             </div>
@@ -876,12 +880,71 @@ export default function HybridStoreBuilder() {
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 mb-2">Police</label>
                                     <select 
-                                        value={storefrontData.theme.typography.heading}
+                                        value={storefrontData.theme.typography?.heading || 'Inter'}
                                         onChange={(e) => setStorefrontData(prev => ({ ...prev, theme: { ...prev.theme, typography: { ...prev.theme.typography, heading: e.target.value } } }))}
                                         className="block w-full px-2 py-1.5 border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 sm:text-xs outline-none"
                                     >
                                         {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
                                     </select>
+                                </div>
+
+                                <div className="pt-2 border-t border-slate-100 relative opacity-60">
+                                    <div className="absolute top-0 right-0 bg-slate-800 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest mt-2">PRO (Bientôt)</div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-3">Conversion & FOMO</label>
+                                    
+                                    <label className="flex items-center gap-3 cursor-not-allowed mb-2">
+                                        <div className="relative">
+                                            <input type="checkbox" className="sr-only peer" disabled />
+                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                                        </div>
+                                        <span className="text-xs font-medium text-slate-500">Preuve Sociale (Notifications de ventes)</span>
+                                    </label>
+
+                                    <label className="flex items-center gap-3 cursor-not-allowed mb-2">
+                                        <div className="relative">
+                                            <input type="checkbox" className="sr-only peer" disabled />
+                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                                        </div>
+                                        <span className="text-xs font-medium text-slate-500">Bouton Acheter Fixe (Mobile)</span>
+                                    </label>
+
+                                    <label className="flex items-center gap-3 cursor-not-allowed">
+                                        <div className="relative">
+                                            <input type="checkbox" className="sr-only peer" disabled />
+                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                                        </div>
+                                        <span className="text-xs font-medium text-slate-500">Compteur de Visiteurs en ligne</span>
+                                    </label>
+                                </div>
+                                <div className="pt-2 border-t border-slate-100 relative opacity-60">
+                                    <div className="absolute top-0 right-0 bg-slate-800 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest mt-2">PRO (Bientôt)</div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-3">Localisation</label>
+                                    <label className="flex items-center gap-3 cursor-not-allowed">
+                                        <div className="relative">
+                                            <input type="checkbox" className="sr-only peer" disabled />
+                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                                        </div>
+                                        <span className="text-xs font-medium text-slate-500">Activer le mode RTL (Arabe)</span>
+                                    </label>
+                                </div>
+
+                                <div className="pt-2 border-t border-slate-100 relative opacity-60 pointer-events-none">
+                                    <div className="absolute top-0 right-0 bg-slate-800 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest mt-2">PRO (Bientôt)</div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-3">Tracking & Pixels</label>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <span className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Meta (Facebook) Pixel ID</span>
+                                            <input type="text" placeholder="Ex: 123456789" className="w-full px-2 py-1.5 border border-slate-300 rounded shadow-sm text-xs bg-slate-50 text-slate-400" disabled />
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">TikTok Pixel ID</span>
+                                            <input type="text" placeholder="Ex: CBX1234..." className="w-full px-2 py-1.5 border border-slate-300 rounded shadow-sm text-xs bg-slate-50 text-slate-400" disabled />
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Snapchat Pixel ID</span>
+                                            <input type="text" placeholder="Ex: e234-..." className="w-full px-2 py-1.5 border border-slate-300 rounded shadow-sm text-xs bg-slate-50 text-slate-400" disabled />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -941,7 +1004,11 @@ export default function HybridStoreBuilder() {
                             </div>
                         )}
 
-                        <div style={{ fontFamily: `'${storefrontData.theme.typography?.heading}', sans-serif` }}>
+                        <div 
+                            style={{ fontFamily: `'${storefrontData.theme.typography?.heading}', sans-serif` }}
+                            dir={storefrontData.theme.rtl ? 'rtl' : 'ltr'}
+                            className={storefrontData.theme.rtl ? 'text-right' : 'text-left'}
+                        >
                             {/* GLOBAL HEADER */}
                             <BlockRenderer 
                                 section={globalHeader}

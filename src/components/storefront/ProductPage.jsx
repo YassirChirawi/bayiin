@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Star, ChevronDown, ChevronUp, Truck, ShieldCheck, Eye, Plus, Minus } from 'lucide-react';
+import SalesNotification from './SalesNotification';
 
 export default function ProductPage({ product, theme, onAddToCart, onExpressCheckout, cities, isCheckingOut }) {
     const primaryColor = theme?.primaryColor || '#4f46e5';
@@ -11,6 +12,7 @@ export default function ProductPage({ product, theme, onAddToCart, onExpressChec
     const [selectedVariant, setSelectedVariant] = useState(null);
     const [quantity, setQuantity] = useState(1);
     const [openAccordion, setOpenAccordion] = useState('description');
+    const [showStickyCart, setShowStickyCart] = useState(false);
     
     // Form State
     const [clientForm, setClientForm] = useState({ name: '', phone: '', city: '', address: '' });
@@ -48,7 +50,19 @@ export default function ProductPage({ product, theme, onAddToCart, onExpressChec
         if (variants.length > 0 && !selectedVariant) {
             setSelectedVariant(variants[0]);
         }
-    }, [product]);
+
+        const handleScroll = () => {
+            // Show sticky cart when scrolling down past 500px
+            if (window.scrollY > 500) {
+                setShowStickyCart(true);
+            } else {
+                setShowStickyCart(false);
+            }
+        };
+
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, [product, variants.length]);
 
     const handleSwipe = (direction) => {
         if (direction === 'left') {
@@ -71,7 +85,27 @@ export default function ProductPage({ product, theme, onAddToCart, onExpressChec
     };
 
     return (
-        <div className="bg-white pb-32">
+        <div className="bg-white pb-32 relative">
+            {theme?.socialProof !== false && <SalesNotification theme={theme} productName={product?.name} />}
+            {/* STICKY ADD TO CART BAR */}
+            <AnimatePresence>
+                {showStickyCart && theme?.stickyCart !== false && (
+                    <motion.div 
+                        initial={{ y: 100, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: 100, opacity: 0 }}
+                        className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-3 flex gap-3 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] z-50 md:hidden"
+                    >
+                        <button 
+                            onClick={scrollToForm}
+                            className="flex-1 py-3.5 rounded-xl text-white font-bold text-base shadow-lg active:scale-95 transition-all"
+                            style={{ backgroundColor: primaryColor }}
+                        >
+                            Acheter maintenant
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
             {/* Image Gallery */}
             <div className="relative w-full aspect-[4/5] md:aspect-square bg-slate-100 overflow-hidden">
                 <AnimatePresence initial={false}>
