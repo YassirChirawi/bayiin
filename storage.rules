@@ -1,9 +1,58 @@
 rules_version = '2';
+
 service firebase.storage {
   match /b/{bucket}/o {
+    
+    // ════════════════════════════════════════════════════════════════════════
+    // 🛡️ HELPER FUNCTIONS
+    // ════════════════════════════════════════════════════════════════════════
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isMemberOfStore(storeId) {
+      // User must be authenticated and their JWT storeId claim must match the path
+      // OR they must be a super_admin.
+      return isAuthenticated() && (
+        request.auth.token.storeId == storeId ||
+        request.auth.token.role == 'super_admin'
+      );
+    }
+    
+    function isValidFileType() {
+      // Only allow specific safe file types (Images, PDFs, CSVs)
+      return request.resource.contentType.matches('image/.*') || 
+             request.resource.contentType == 'application/pdf' ||
+             request.resource.contentType == 'text/csv';
+    }
+
+    function isReasonableSize() {
+      // Max 10 MB per file
+      return request.resource.size < 10 * 1024 * 1024;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 📂 TENANT DATA (/stores/{storeId})
+    // ════════════════════════════════════════════════════════════════════════
+    match /stores/{storeId}/{allPaths=**} {
+      // Anyone can read store assets (like logos, product images)
+      allow read: if true; 
+      
+      // Only store members can upload/modify, and files must be safe
+      allow write: if isMemberOfStore(storeId) 
+                   && isValidFileType() 
+                   && isReasonableSize();
+                   
+      // Only store members can delete
+      allow delete: if isMemberOfStore(storeId);
+    }
+    
+    // ════════════════════════════════════════════════════════════════════════
+    // 🚫 DEFAULT FALLBACK
+    // ════════════════════════════════════════════════════════════════════════
+    // Block access to any path not explicitly defined above
     match /{allPaths=**} {
-      allow read: if true;
-      allow write: if request.auth != null;
+      allow read, write: if false;
     }
   }
 }

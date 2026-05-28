@@ -1,5 +1,6 @@
 const functions = require('firebase-functions');
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
+const { onRequest } = require("firebase-functions/v2/https");
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
@@ -16,18 +17,23 @@ initializeApp();
 const db = getFirestore('comsaas');
 
 // Copilot AI Function (Groq Proxy)
-const { copilotChat } = require('./copilot');
-exports.copilotChat = copilotChat;
+const { copilotChatV1 } = require('./copilot');
+exports.copilotChatV1 = copilotChatV1;
 
 // WhatsApp Webhook & Bot Logic
-const { whatsappWebhook } = require('./whatsapp');
+const { whatsappWebhook, whatsappTimeoutWorker } = require('./whatsapp');
 exports.whatsappWebhook = whatsappWebhook;
+exports.whatsappTimeoutWorker = whatsappTimeoutWorker;
 
 // YouCan Integration
 const { exchangeYoucanToken, youcanWebhook, youcanSyncOrders } = require('./youcan');
 exports.exchangeYoucanToken = exchangeYoucanToken;
 exports.youcanWebhook = youcanWebhook;
 exports.youcanSyncOrders = youcanSyncOrders;
+
+// Shopify Integration
+const { shopifyWebhook } = require('./shopify');
+exports.shopifyWebhook = shopifyWebhook;
 
 // WhatsApp Auto-Send Triggers
 const { sendOrderConfirmationRequest, sendShippingNotification } = require('./whatsappSender');
@@ -37,6 +43,11 @@ exports.sendShippingNotification = sendShippingNotification;
 // WhatsApp Auth (BYON - Meta Embedded Signup)
 const { connectWhatsApp } = require('./whatsappAuth');
 exports.connectWhatsApp = connectWhatsApp;
+
+// Hybrid Store Builder AI (Groq Llama 3.3)
+const { generateStorefront, enhanceCopywriting } = require('./hybridBuilder');
+exports.generateStorefront = generateStorefront;
+exports.enhanceCopywriting = enhanceCopywriting;
 
 /**
  * Custom Claims Sync
@@ -378,6 +389,8 @@ exports.onOrderWrite = onDocumentWritten({
     document: "orders/{orderId}",
     database: "comsaas",
     region: "us-central1",
+    concurrency: 50,
+    minInstances: 1, // Keep one instance warm to avoid cold starts
 }, async (event) => {
     // v2 change object is in event.data
     const change = event.data;
@@ -524,56 +537,9 @@ exports.onOrderWrite = onDocumentWritten({
         updates[`statusCounts.${oldStatus}`] = FieldValue.increment(-1);
     }
 
-    // 4. STOCK MANAGEMENT
-    // Skip if stock was already managed by the client-side hook (useOrderActions).
-    // Orders created/updated from the BayIIn dashboard set _stockManagedByClient = true.
-    // Server-sourced orders (WooCommerce, public catalog) do NOT set this flag,
-    // so they rely entirely on this Cloud Function for stock deduction.
-    // [FIX] Carrier webhooks (Sendit/O-Livraison) update the order but don't handle stock.
-    // We allow them to bypass the skipStock check if the status has changed.
-    const isStatusChange = oldStatus !== newStatus;
-    const isCarrierUpdate = after?._updatedBy === 'carrier';
-    const skipStock = ((after?._stockManagedByClient === true) || (before?._stockManagedByClient === true)) && (!isCarrierUpdate || !isStatusChange);
-
-    if (!skipStock) {
-        const oldProductId = before?.articleId;
-        const newProductId = after?.articleId;
-
-        const getActiveQty = (o) => {
-            if (!o) return 0;
-            // Inactive statuses do not consume stock
-            // NOTE: 'retour en cours' still consumes stock (driver is returning to store, not yet restocked)
-            // Stock is only released once the driver confirms drop-off and the status becomes 'retour'
-            // 'pending_catalog' is a draft status and should not deduct stock yet.
-            if (['retour', 'annulé', 'pending_catalog'].includes(o.status)) return 0;
-            return parseInt(o.quantity) || 0;
-        };
-
-        const updateStock = (prodId, delta) => {
-            if (delta === 0) return;
-            const ref = db.collection('products').doc(prodId);
-            batch.update(ref, { stock: FieldValue.increment(delta) });
-        };
-
-        if (oldProductId === newProductId && oldProductId) {
-            // Same Product: Calculate net change
-            const oldQty = getActiveQty(before);
-            const newQty = getActiveQty(after);
-            updateStock(oldProductId, oldQty - newQty);
-        } else {
-            // Product Changed (or Create/Delete)
-            if (oldProductId) {
-                // Restock old product (as if order deleted for that product)
-                updateStock(oldProductId, getActiveQty(before));
-            }
-            if (newProductId) {
-                // Destock new product (as if order created for that product)
-                updateStock(newProductId, -getActiveQty(after));
-            }
-        }
-    } else {
-        console.log(`onOrderWrite: Skipping stock update for order (managed by client).`);
-    }
+    // 4. STOCK MANAGEMENT (Centralized)
+    const { applyStockUpdates } = require('./stockLogic');
+    await applyStockUpdates(db, batch, before, after);
 
     // Execute Update
     const statsPromise = statsRef.set(updates, { merge: true });
@@ -586,7 +552,9 @@ exports.onOrderWrite = onDocumentWritten({
     // When an order leaves 'livré' (cancelled, returned), decrement it.
     const DELIVERED_STATUS = 'livré';
     const customerId = after?.customerId || before?.customerId;
+    const driverId = after?.driverId || before?.driverId;
     let customerSpentPromise = Promise.resolve();
+    let driverStatsPromise = Promise.resolve();
 
     if (customerId) {
         const wasDelivered = oldStatus === DELIVERED_STATUS;
@@ -607,6 +575,32 @@ exports.onOrderWrite = onDocumentWritten({
         }
     }
 
+    // DRIVER STATS SYNC
+    if (driverId) {
+        const wasDelivered = oldStatus === DELIVERED_STATUS;
+        const isDelivered = newStatus === DELIVERED_STATUS;
+        const orderValue = getOrderValue(after || before);
+        
+        let driverUpdates = {};
+        
+        if (!wasDelivered && isDelivered) {
+            driverUpdates = {
+                "stats.totalDelivered": FieldValue.increment(1),
+                "stats.totalCOD": FieldValue.increment(orderValue)
+            };
+        } else if (wasDelivered && !isDelivered && before && after) {
+            driverUpdates = {
+                "stats.totalDelivered": FieldValue.increment(-1),
+                "stats.totalCOD": FieldValue.increment(-getOrderValue(before))
+            };
+        }
+        
+        if (Object.keys(driverUpdates).length > 0) {
+            driverStatsPromise = db.collection('drivers').doc(driverId).update(driverUpdates)
+                .catch(e => console.warn('Driver stats update failed:', e.message));
+        }
+    }
+
     // 6. AUDIT LOGGING
     // Log status changes in the store's audit trail
     if (oldStatus !== newStatus && storeId) {
@@ -622,10 +616,10 @@ exports.onOrderWrite = onDocumentWritten({
             source: after?._updatedBy === 'carrier' ? 'Webhook' : 'Cloud Function'
         }).catch(e => console.warn('Audit logging failed:', e.message));
         
-        return Promise.all([statsPromise, batchPromise, customerSpentPromise, auditPromise]);
+        return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, auditPromise]);
     }
 
-    return Promise.all([statsPromise, batchPromise, customerSpentPromise]);
+    return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise]);
 });
 
 /**
@@ -635,22 +629,38 @@ exports.onOrderWrite = onDocumentWritten({
  * URL to Register: https://us-central1-YOUR-PROJECT-ID.cloudfunctions.net/senditWebhook
  */
 exports.senditWebhook = functions.https.onRequest(async (req, res) => {
-    // Sendit sends JSON body: { code, status, tracking_code, data }
-    const { code, status } = req.body;
+    const storeId = req.query.store;
+    const token = req.query.token;
 
-    console.log("Sendit Webhook Received:", JSON.stringify(req.body));
-
-    if (!code || !status) {
-        return res.status(400).send("Payload invalide");
+    if (!storeId || !token) {
+        console.warn("Sendit Webhook: Missing store or token.");
+        return res.status(401).send("Unauthorized: Missing credentials");
     }
 
     try {
-        // Find order by trackingId (code)
-        const ordersRef = db.collection('orders');
-        const snapshot = await ordersRef.where('trackingId', '==', code).get();
+        // SECURITY CHECK: Tenant-specific token
+        const configDoc = await db.collection('stores').doc(storeId).collection('private').doc('config').get();
+        if (!configDoc.exists) return res.status(401).send("Unauthorized");
+        const expectedToken = configDoc.data().webhookSecret;
+        if (!expectedToken || token !== expectedToken) {
+            console.warn(`Sendit Webhook: Unauthorized attempt for store ${storeId}.`);
+            return res.status(401).send("Unauthorized");
+        }
+
+        // Sendit sends JSON body: { code, status, tracking_code, data }
+        const { code, status } = req.body;
+        console.log(`Sendit Webhook Received for store ${storeId}:`, JSON.stringify(req.body));
+
+        if (!code || !status) return res.status(400).send("Payload invalide");
+
+        // Find order by trackingId (code) WITHIN THE SPECIFIC STORE
+        const snapshot = await db.collection('orders')
+            .where('storeId', '==', storeId)
+            .where('trackingId', '==', code)
+            .get();
 
         if (snapshot.empty) {
-            console.log(`No order found for tracking code: ${code}`);
+            console.log(`No order found for tracking code: ${code} in store: ${storeId}`);
             // Always return 200 OK to prevent retries for invalid tracking codes
             return res.status(200).send("OK (Order not found)");
         }
@@ -759,31 +769,50 @@ exports.senditWebhook = functions.https.onRequest(async (req, res) => {
  * https://us-central1-YOUR-PROJECT-ID.cloudfunctions.net/olivraisonWebhook
  */
 exports.olivraisonWebhook = functions.https.onRequest(async (req, res) => {
-    // Webhooks might be GET (ping) or POST
-    if (req.method !== 'POST') {
-        return res.status(200).send("O-Livraison Webhook endpoint is active. Awaiting POST.");
-    }
+    const storeId = req.query.store;
+    const token = req.query.token;
 
-    console.log("O-Livraison Webhook Received Payload:", JSON.stringify(req.body));
-
-    // Support various formats O-Livraison might use
-    const payload = req.body;
-    const status = payload.status || payload.Status || payload.etat || payload.state;
-    const tracking = payload.trackingNumber || payload.tracking_id || payload.code || payload.id || payload.trackingId || payload.package_id;
-
-    if (!tracking || !status) {
-        console.warn("Invalid O-Livraison Payload, missing tracking or status.");
-        // Always return 200 so they don't retry a bad payload infinitely
-        return res.status(200).send({ success: false, reason: "Missing tracking or status fields" });
+    if (!storeId || !token) {
+        console.warn("O-Livraison Webhook: Missing store or token.");
+        return res.status(401).send("Unauthorized: Missing credentials");
     }
 
     try {
-        // Find order by trackingId
-        const ordersRef = db.collection('orders');
-        const snapshot = await ordersRef.where('trackingId', '==', String(tracking)).get();
+        // SECURITY CHECK: Tenant-specific token
+        const configDoc = await db.collection('stores').doc(storeId).collection('private').doc('config').get();
+        if (!configDoc.exists) return res.status(401).send("Unauthorized");
+        const expectedToken = configDoc.data().webhookSecret;
+        if (!expectedToken || token !== expectedToken) {
+            console.warn(`O-Livraison Webhook: Unauthorized attempt for store ${storeId}.`);
+            return res.status(401).send("Unauthorized");
+        }
+
+        // Webhooks might be GET (ping) or POST
+        if (req.method !== 'POST') {
+            return res.status(200).send("O-Livraison Webhook endpoint is active. Awaiting POST.");
+        }
+
+        console.log(`O-Livraison Webhook Received Payload for store ${storeId}:`, JSON.stringify(req.body));
+
+        // Support various formats O-Livraison might use
+        const payload = req.body;
+        const status = payload.status || payload.Status || payload.etat || payload.state;
+        const tracking = payload.trackingNumber || payload.tracking_id || payload.code || payload.id || payload.trackingId || payload.package_id;
+
+        if (!tracking || !status) {
+            console.warn("Invalid O-Livraison Payload, missing tracking or status.");
+            // Always return 200 so they don't retry a bad payload infinitely
+            return res.status(200).send({ success: false, reason: "Missing tracking or status fields" });
+        }
+
+        // Find order by trackingId WITHIN THE SPECIFIC STORE
+        const snapshot = await db.collection('orders')
+            .where('storeId', '==', storeId)
+            .where('trackingId', '==', String(tracking))
+            .get();
 
         if (snapshot.empty) {
-            console.log(`No order found in BayIIn for O-Livraison tracking code: ${tracking}`);
+            console.log(`No order found in BayIIn for O-Livraison tracking code: ${tracking} in store: ${storeId}`);
             return res.status(200).send({ success: true, warning: 'Order not found in ERP' });
         }
 
@@ -1048,5 +1077,16 @@ exports.scheduledReconciliation = functions.pubsub.schedule('0 2 * * *')
     
     console.log("Daily reconciliation finished.");
     return null;
+});
+
+// TEMPORARY CLEANUP ENDPOINT
+exports.cleanYoucan = onRequest(async (req, res) => {
+    const snap = await db.collectionGroup('youcan_integration').get();
+    let count = 0;
+    for (let doc of snap.docs) {
+        await doc.ref.delete();
+        count++;
+    }
+    res.send(`Cleaned ${count} youcan_integration documents! You can now reinstall the app on YouCan.`);
 });
 

@@ -76,3 +76,38 @@ body {
     font-size: 16px !important;
   }
 }
+/* Responsive Builder Section Variables mapping */
+.builder-section > div {
+  padding-top: var(--pt-mobile, 80px) !important;
+  padding-bottom: var(--pb-mobile, 80px) !important;
+}
+
+@media (min-width: 768px) {
+  .builder-section > div {
+    padding-top: var(--pt-tablet, var(--pt-mobile, 80px)) !important;
+    padding-bottom: var(--pb-tablet, var(--pb-mobile, 80px)) !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .builder-section > div {
+    padding-top: var(--pt-desktop, 80px) !important;
+    padding-bottom: var(--pb-desktop, 80px) !important;
+  }
+}
+
+/* Fallback overrides for the builder preview pane (container-based instead of media-query) */
+.preview-mobile .builder-section > div {
+  padding-top: var(--pt-mobile, 80px) !important;
+  padding-bottom: var(--pb-mobile, 80px) !important;
+}
+
+.preview-tablet .builder-section > div {
+  padding-top: var(--pt-tablet, var(--pt-mobile, 80px)) !important;
+  padding-bottom: var(--pb-tablet, var(--pb-mobile, 80px)) !important;
+}
+
+.preview-desktop .builder-section > div {
+  padding-top: var(--pt-desktop, 80px) !important;
+  padding-bottom: var(--pb-desktop, 80px) !important;
+}

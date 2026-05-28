@@ -239,3 +239,35 @@ export const predictChurn = (customer) => {
         daysSinceLastOrder: Math.floor(daysSinceLastOrder)
     };
 };
+
+/**
+ * Marketing: calculateRFM
+ * Calculates Recency, Frequency, Monetary and assigns a segment.
+ */
+export const calculateRFM = (customer) => {
+    if (!customer.metrics) return { segment: "Nouveau Client (Newbie)" };
+
+    const { totalSpent, orderCount, lastPurchaseDate } = customer.metrics;
+    const now = new Date();
+    const lastOrder = lastPurchaseDate ? new Date(lastPurchaseDate) : now;
+    const daysSinceLastOrder = (now - lastOrder) / (1000 * 60 * 60 * 24);
+
+    let segment = "Nouveau Client (Newbie)";
+
+    if (orderCount >= 5 && totalSpent > 2000 && daysSinceLastOrder <= 30) {
+        segment = "VIP Buyer";
+    } else if (orderCount >= 2 && daysSinceLastOrder <= 60) {
+        segment = "Client Régulier (Regular)";
+    } else if (orderCount > 1 && daysSinceLastOrder > 90) {
+        segment = "Client à risque (Churning)";
+    } else if (orderCount === 1 && daysSinceLastOrder > 30) {
+        segment = "One-time Buyer";
+    }
+
+    return {
+        segment,
+        recency: daysSinceLastOrder,
+        frequency: orderCount,
+        monetary: totalSpent
+    };
+};

@@ -14,7 +14,7 @@ import Button from "../components/Button";
 import { vibrate } from "../utils/haptics";
 
 export default function QA() {
-    const { store: currentStore } = useTenant();
+    const { store: currentStore, refreshStores } = useTenant();
     const [searchParams] = useSearchParams();
     const adminStoreId = searchParams.get('storeId');
     const targetStoreId = adminStoreId || currentStore?.id;
@@ -170,9 +170,46 @@ export default function QA() {
     const [seeding, setSeeding] = useState(false);
     const seedDemoData = async () => {
         if (isReadOnly) return;
-        if (!targetStoreId || !window.confirm("Voulez-vous peupler la boutique avec des données de test (Produits & Clients) ?")) return;
+        if (!targetStoreId || !window.confirm("Voulez-vous peupler la boutique avec des données de test (Produits & Clients), activer le plan PRO et configurer les clés de livraison de test ?")) return;
         setSeeding(true);
         try {
+            // Upgrade store to PRO plan and configure sandbox API keys in main store document
+            await updateDoc(doc(db, "stores", targetStoreId), {
+                plan: 'pro',
+                subscriptionStatus: 'active_promo',
+                promoCodeUsed: 'LAUNCH_PRO',
+                senditPublicKey: 'pk_test_sendit_12345',
+                olivraisonApiKey: 'api_test_olivraison_12345',
+                cathedisUsername: 'mock_cathedis_user'
+            });
+
+            // Write all secrets into private/config sub-document
+            await setDoc(doc(db, "stores", targetStoreId, "private", "config"), {
+                senditPublicKey: 'pk_test_sendit_12345',
+                senditSecretKey: 'sk_test_sendit_12345',
+                olivraisonApiKey: 'api_test_olivraison_12345',
+                olivraisonSecretKey: 'sec_test_olivraison_12345',
+                cathedisUsername: 'mock_cathedis_user',
+                cathedisPassword: 'mock_cathedis_password'
+            }, { merge: true });
+
+            // Write Shopify integration config subdocument with actual credentials
+            await setDoc(doc(db, "stores", targetStoreId, "shopify_integration", "config"), {
+                isActive: true,
+                shopifyStoreUrl: "dev-bayiin.myshopify.com",
+                shopifyStoreId: "shopify_" + targetStoreId,
+                shopifyApiKey: import.meta.env.VITE_SHOPIFY_API_KEY || "cec6ed1c86e83b775767fcfba81cc341",
+                shopifyAccessToken: import.meta.env.VITE_SHOPIFY_ACCESS_TOKEN || "shpss_mock_access_token_12345",
+                connectedAt: serverTimestamp()
+            }, { merge: true });
+
+            // Also update shopifyStoreUrl in main store document
+            await updateDoc(doc(db, "stores", targetStoreId), {
+                shopifyStoreUrl: "dev-bayiin.myshopify.com"
+            });
+
+            await refreshStores();
+
             // Seed Products
             const products = [
                 { name: "Sérum Vitamine C", category: "Soins Visage", price: 250, costPrice: 120, stock: 50, description: "Sérum éclat haute concentration" },

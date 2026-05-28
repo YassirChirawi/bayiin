@@ -11,6 +11,7 @@ import { useAnalytics } from './hooks/useAnalytics';
 import { Toaster } from 'react-hot-toast';
 import { PWAProvider } from "./context/PWAContext";
 import ReloadPrompt from "./components/ReloadPrompt";
+import { ShopifyAppBridgeProvider } from "./context/ShopifyAppBridgeContext";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
@@ -47,6 +48,7 @@ const Assets = lazy(() => import("./pages/Assets"));
 const Marketing = lazy(() => import("./pages/Marketing"));
 const SupportAI = lazy(() => import("./pages/SupportAI"));
 const YouCanAuthRoute = lazy(() => import("./pages/YouCanAuthRoute"));
+const StoreCustomizer = lazy(() => import("./pages/HybridStoreBuilder"));
 
 // 🚀 Lazy-loaded heavy pages (code splitting — reduces initial bundle ~40%)
 const Finances = lazy(() => import("./pages/Finances"));
@@ -86,127 +88,135 @@ function App() {
       <ErrorBoundary>
         <PWAProvider>
           <LanguageProvider>
-            <AuthContextWrapper>
-            <TenantProvider>
-              <CopilotProvider>
-                <NotificationProvider>
-                  <BrowserRouter>
-                    <AnalyticsTracker />
-                    <Toaster
-                      position="top-right"
-                      toastOptions={{
-                        className: '',
-                        style: {
-                          background: '#333',
-                          color: '#fff',
-                        },
-                        success: {
+            <ShopifyAppBridgeProvider>
+              <AuthContextWrapper>
+              <TenantProvider>
+                <CopilotProvider>
+                  <NotificationProvider>
+                    <BrowserRouter>
+                      <AnalyticsTracker />
+                      <Toaster
+                        position="top-right"
+                        toastOptions={{
+                          className: '',
                           style: {
-                            background: 'white',
-                            color: '#15803d',
-                            border: '1px solid #bbf7d0',
-                            padding: '16px',
-                            borderRadius: '12px',
-                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                            fontWeight: 500,
+                            background: '#333',
+                            color: '#fff',
                           },
-                          iconTheme: { primary: '#22c55e', secondary: '#fff' },
-                          duration: 4000,
-                        },
-                        error: {
-                          style: {
-                            background: 'white',
-                            color: '#b91c1c',
-                            border: '1px solid #fecaca',
-                            padding: '16px',
-                            borderRadius: '12px',
-                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                            fontWeight: 600,
+                          success: {
+                            style: {
+                              background: 'white',
+                              color: '#15803d',
+                              border: '1px solid #bbf7d0',
+                              padding: '16px',
+                              borderRadius: '12px',
+                              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                              fontWeight: 500,
+                            },
+                            iconTheme: { primary: '#22c55e', secondary: '#fff' },
+                            duration: 4000,
                           },
-                          iconTheme: { primary: '#ef4444', secondary: '#fff' },
-                          duration: 5000,
-                        },
-                      }}
-                    />
-                    <Suspense fallback={<PageLoader />}>
-                      <Routes>
-                        <Route path="/" element={<SmartLanding />} />
+                          error: {
+                            style: {
+                              background: 'white',
+                              color: '#b91c1c',
+                              border: '1px solid #fecaca',
+                              padding: '16px',
+                              borderRadius: '12px',
+                              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                              fontWeight: 600,
+                            },
+                            iconTheme: { primary: '#ef4444', secondary: '#fff' },
+                            duration: 5000,
+                          },
+                        }}
+                      />
+                      <Suspense fallback={<PageLoader />}>
+                        <Routes>
+                          <Route path="/" element={<SmartLanding />} />
 
-                        {/* Public Routes */}
-                        <Route path="/catalog/:storeId" element={<PublicCatalog />} />
-                        <Route path="/delivery/:token" element={<DeliveryApp />} />
-                        <Route path="/apply/driver/:storeId" element={<DriverApplication />} />
-                        <Route path="/apply/franchise/:storeId" element={<FranchiseApplication />} />
-                        <Route path="/privacy" element={<Privacy />} />
-                        <Route path="/terms" element={<Terms />} />
-                        <Route path="/demo" element={<DemoDashboard />} />
-                        <Route path="/auth/youcan" element={<YouCanAuthRoute />} />
+                          {/* Public Routes */}
+                          <Route path="/catalog/:storeId" element={<PublicCatalog />} />
+                          <Route path="/delivery/:token" element={<DeliveryApp />} />
+                          <Route path="/apply/driver/:storeId" element={<DriverApplication />} />
+                          <Route path="/apply/franchise/:storeId" element={<FranchiseApplication />} />
+                          <Route path="/privacy" element={<Privacy />} />
+                          <Route path="/terms" element={<Terms />} />
+                          <Route path="/demo" element={<DemoDashboard />} />
+                          <Route path="/auth/youcan" element={<YouCanAuthRoute />} />
 
-                        {/* Admin (lazy) */}
-                        <Route path="/admin" element={
-                          <RoleProtectedRoute allowedRoles={['super_admin']}>
-                            <BiometricLock>
-                              <AdminDashboard />
-                            </BiometricLock>
-                          </RoleProtectedRoute>
-                        } />
+                          {/* Admin (lazy) */}
+                          <Route path="/admin" element={
+                            <RoleProtectedRoute allowedRoles={['super_admin']}>
+                              <BiometricLock>
+                                <AdminDashboard />
+                              </BiometricLock>
+                            </RoleProtectedRoute>
+                          } />
 
-                        {/* Franchise admin (lazy) */}
-                        <Route path="/franchise" element={
-                          <RoleProtectedRoute allowedRoles={['super_admin', 'franchise_admin']}>
-                            <BiometricLock>
-                              <FranchiseDashboard />
-                            </BiometricLock>
-                          </RoleProtectedRoute>
-                        } />
+                          {/* Franchise admin (lazy) */}
+                          <Route path="/franchise" element={
+                            <RoleProtectedRoute allowedRoles={['super_admin', 'franchise_admin']}>
+                              <BiometricLock>
+                                <FranchiseDashboard />
+                              </BiometricLock>
+                            </RoleProtectedRoute>
+                          } />
 
-                        <Route path="/login" element={<Login />} />
-                        <Route path="/signup" element={<Signup />} />
-                        <Route path="/onboarding" element={
-                          <ProtectedRoute>
-                            <Onboarding />
-                          </ProtectedRoute>
-                        } />
+                          <Route path="/login" element={<Login />} />
+                          <Route path="/signup" element={<Signup />} />
+                          <Route path="/onboarding" element={
+                            <ProtectedRoute>
+                              <Onboarding />
+                            </ProtectedRoute>
+                          } />
 
-                        {/* Authenticated App Routes */}
-                        <Route element={
-                          <ProtectedRoute>
-                            <BiometricLock>
-                              <Layout />
-                            </BiometricLock>
-                          </ProtectedRoute>
-                        }>
-                          <Route path="/dashboard" element={<Dashboard />} />
-                          <Route path="/finances" element={<Finances />} />
-                          <Route path="/products" element={<Products />} />
-                          <Route path="/orders" element={<Orders />} />
-                          <Route path="/customers" element={<Customers />} />
-                          <Route path="/planning" element={<Planning />} />
-                          <Route path="/team" element={<Team />} />
-                          <Route path="/settings" element={<Settings />} />
-                          <Route path="/help" element={<Help />} />
-                          <Route path="/warehouse" element={<Warehouse />} />
-                          <Route path="/support-ai" element={<SupportAI />} />
-                          <Route path="/automations" element={<Automations />} />
-                          <Route path="/drivers" element={<Drivers />} />
-                          <Route path="/hr" element={<HR />} />
-                          <Route path="/purchases" element={<Purchases />} />
-                          <Route path="/returns" element={<Returns />} />
-                          <Route path="/marketing" element={<Marketing />} />
-                          <Route path="/assets" element={<Assets />} />
-                          <Route path="/qa" element={<QA />} />
-                        </Route>
+                          {/* Authenticated App Routes */}
+                          <Route path="/customizer" element={
+                            <ProtectedRoute>
+                                <StoreCustomizer />
+                            </ProtectedRoute>
+                          } />
 
-                        <Route path="*" element={<NotFound />} />
-                      </Routes>
-                    </Suspense>
-                    <CookieBanner />
-                    <ReloadPrompt />
-                  </BrowserRouter>
-                </NotificationProvider>
-              </CopilotProvider>
-            </TenantProvider>
-          </AuthContextWrapper>
+                          <Route element={
+                            <ProtectedRoute>
+                              <BiometricLock>
+                                <Layout />
+                              </BiometricLock>
+                            </ProtectedRoute>
+                          }>
+                            <Route path="/dashboard" element={<Dashboard />} />
+                            <Route path="/finances" element={<Finances />} />
+                            <Route path="/products" element={<Products />} />
+                            <Route path="/orders" element={<Orders />} />
+                            <Route path="/customers" element={<Customers />} />
+                            <Route path="/planning" element={<Planning />} />
+                            <Route path="/team" element={<Team />} />
+                            <Route path="/settings" element={<Settings />} />
+                            <Route path="/help" element={<Help />} />
+                            <Route path="/warehouse" element={<Warehouse />} />
+                            <Route path="/support-ai" element={<SupportAI />} />
+                            <Route path="/automations" element={<Automations />} />
+                            <Route path="/drivers" element={<Drivers />} />
+                            <Route path="/hr" element={<HR />} />
+                            <Route path="/purchases" element={<Purchases />} />
+                            <Route path="/returns" element={<Returns />} />
+                            <Route path="/marketing" element={<Marketing />} />
+                            <Route path="/assets" element={<Assets />} />
+                            <Route path="/qa" element={<QA />} />
+                          </Route>
+
+                          <Route path="*" element={<NotFound />} />
+                        </Routes>
+                      </Suspense>
+                      <CookieBanner />
+                      <ReloadPrompt />
+                    </BrowserRouter>
+                  </NotificationProvider>
+                </CopilotProvider>
+              </TenantProvider>
+            </AuthContextWrapper>
+          </ShopifyAppBridgeProvider>
         </LanguageProvider>
         </PWAProvider>
       </ErrorBoundary>

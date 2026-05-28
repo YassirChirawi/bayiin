@@ -6,7 +6,7 @@ import { useLanguage } from "../context/LanguageContext";
 export default function TrialAlert({ createdAt, plan }) {
     const { t } = useLanguage();
     if (!createdAt) return null;
-    if (plan === 'pro' || plan === 'unlimited') return null; // Hide if already upgraded
+    if (plan === 'pro' || plan === 'starter' || plan === 'unlimited') return null; // Hide if already upgraded
 
     const toDate = (val) => {
         if (!val) return new Date();

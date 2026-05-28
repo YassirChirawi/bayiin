@@ -12,9 +12,17 @@ export function useEmbeddedMode() {
             // Check if window is not the top-level window
             if (window.self !== window.top) {
                 setIsEmbedded(true);
+                return;
             }
         } catch (e) {
             // Cross-origin errors when checking window.top mean we are definitely in an iframe
+            setIsEmbedded(true);
+            return;
+        }
+
+        // Fallback for query param testing (e.g. ?shop=xxx&host=yyy)
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('shop') && params.get('host')) {
             setIsEmbedded(true);
         }
     }, []);

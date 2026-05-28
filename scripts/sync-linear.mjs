@@ -641,6 +641,105 @@ Ce ticket documente le module existant pour la traçabilité.`,
     status: 'Todo',
     labels: ['Localization'],
   },
+  {
+    title: 'WhatsApp - Configuration Meta Developers & Webhooks (BYON)',
+    description: `Mettre en place la configuration Meta pour l'Embedded Signup (BYON) et le webhook.
+
+**Actions :**
+- Créer une application de type Business sur developers.facebook.com
+- Ajouter le produit "WhatsApp Business Platform"
+- Configurer les variables d'environnement front-end: VITE_FACEBOOK_APP_ID et VITE_FACEBOOK_CONFIG_ID
+- Configurer le webhook sur Meta pointant vers la Cloud Function: https://us-central1-bayiin.cloudfunctions.net/whatsappWebhook
+- S'abonner aux webhooks "messages" et "message_deliveries"`,
+    priority: 'high',
+    status: 'Todo',
+    labels: ['Feature'],
+  },
+  {
+    title: 'WhatsApp - Création et Validation des Templates Meta',
+    description: `Enregistrer et valider les modèles de messages requis pour l'outreach client.
+
+**Actions :**
+- Créer et soumettre à Meta les modèles "order_confirmation_fr" (pour confirmation de commande COD) et "order_shipped_fr" (pour notification d'expédition)
+- Configurer les placeholders requis : {1} (Nom client), {2} (ID commande), {3} (Nom produit), {4} (Prix / Tracking)
+- Rédiger les versions alternatives Darija / Français`,
+    priority: 'high',
+    status: 'Todo',
+    labels: ['Feature'],
+  },
+  {
+    title: 'WhatsApp - Configuration des Secrets Google Cloud Manager',
+    description: `Sécuriser et renseigner les secrets système requis par le bot.
+
+**Actions :**
+- Enregistrer WHATSAPP_VERIFY_TOKEN (validation webhook) dans Secret Manager
+- Enregistrer GROQ_API_KEY (assistant Llama-3.3-70b-versatile) dans Secret Manager
+- Enregistrer FACEBOOK_APP_ID et FACEBOOK_APP_SECRET (Embedded Signup OAuth)`,
+    priority: 'medium',
+    status: 'Todo',
+    labels: ['Feature'],
+  },
+  {
+    title: 'WhatsApp - Sécurisation par Signature Cryptographique Meta',
+    description: `Ajouter la validation par signature cryptographique x-hub-signature-256 sur l'endpoint de réception.
+
+**Actions :**
+- Calculer la signature HMAC SHA-256 du payload reçu
+- Valider la correspondance avec la signature envoyée par Meta dans l'en-tête "x-hub-signature-256"
+- Rejeter les requêtes non signées pour éviter le spam ou les injections`,
+    priority: 'medium',
+    status: 'Todo',
+    labels: ['Feature'],
+  },
+  {
+    title: 'YouCan - Implémentation de la Facturation Recourante (YouCan Billing)',
+    description: `Raccorder la facturation mensuelle de l'application YouCan.
+
+**Actions :**
+- Remplacer les stubs de functions/youcanBilling.js
+- Appeler les vrais endpoints YouCan Billing REST API (/app/charges)
+- Gérer l'approbation du marchand et stocker le statut d'abonnement`,
+    priority: 'high',
+    status: 'Todo',
+    labels: ['Feature'],
+  },
+  {
+    title: 'Shopify - Intégration multi-tenant & flux OAuth App Bridge',
+    description: `Créer l'intégration de la boutique Shopify pour les marchands BayIIn.
+
+**Actions :**
+- Configurer l'application partenaire sur le Shopify Partner Dashboard
+- Implémenter le flux d'authentification OAuth 2.0 multi-tenant (/shopify/auth et /shopify/callback)
+- Charger et configurer Shopify App Bridge dans le frontend React
+- Authentifier de manière sécurisée et provisionner les marchands Shopify`,
+    priority: 'high',
+    status: 'Todo',
+    labels: ['Feature'],
+  },
+  {
+    title: 'Shopify - Synchronisation des Commandes et Webhooks',
+    description: `Implémenter la synchronisation bidirectionnelle des commandes Shopify.
+
+**Actions :**
+- S'abonner aux webhooks Shopify orders/create et orders/updated
+- Convertir le payload Shopify Order dans le schéma unifié BayIIn Firestore
+- Garantir l'idempotence des synchronisations en utilisant une collection indexée shopify_orders`,
+    priority: 'high',
+    status: 'Todo',
+    labels: ['Feature'],
+  },
+  {
+    title: 'Shopify - Intégration de la Facturation Shopify Billing API',
+    description: `Ajouter le système de facturation récurrente pour les marchands Shopify.
+
+**Actions :**
+- Utiliser la Shopify GraphQL Billing API (appSubscriptionCreate)
+- Proposer l'approbation de l'abonnement récurrent lors de l'onboarding Shopify
+- Traiter les webhooks d'annulation d'abonnement ou de changement de plan`,
+    priority: 'high',
+    status: 'Todo',
+    labels: ['Feature'],
+  }
 ];
 
 // ─── Main ───────────────────────────────────────────────────────────────────

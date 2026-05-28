@@ -36,6 +36,7 @@ const sendOrderConfirmationRequest = onDocumentCreated(
         document: "orders/{orderId}",
         database: "comsaas",
         region: "us-central1",
+        timeoutSeconds: 300,
         secrets: ["WHATSAPP_TOKEN", "WHATSAPP_PHONE_ID"]
     },
     async (event) => {

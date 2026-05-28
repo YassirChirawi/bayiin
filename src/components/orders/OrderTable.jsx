@@ -23,6 +23,7 @@ const OrderRow = memo(({
     openConfirmation,
     sendToOlivraison,
     sendToSendit,
+    sendToCathedis,
     handleOpenTracking,
     setQrOrder,
     handleNoAnswer,
@@ -251,7 +252,40 @@ const OrderRow = memo(({
                             <Package className="h-4 w-4" />
                         </button>
 
-                        <button disabled className="p-2 text-gray-200 cursor-not-allowed" title="Cathedis">
+                        <button
+                            onClick={async (e) => {
+                                e.stopPropagation();
+                                if (!store?.cathedisUsername) {
+                                    toast.error(t('err_no_cathedis_keys') || "Veuillez configurer Cathedis dans les Paramètres.");
+                                    return;
+                                }
+                                if (order.carrier === 'cathedis') return;
+
+                                openConfirmation({
+                                    title: t('send_to_cathedis') || "Envoyer à Cathedis",
+                                    message: t('confirm_send_cathedis', { orderNumber: order.orderNumber }) || `Envoyer la commande #${order.orderNumber} à Cathedis ?`,
+                                    onConfirm: async () => {
+                                        try {
+                                            toast.loading(t('sending_to_carrier') || "Envoi en cours...");
+                                            await sendToCathedis(order);
+                                            toast.dismiss();
+                                            toast.success(t('success_send_cathedis') || "Commande envoyée à Cathedis !");
+                                        } catch (err) {
+                                            toast.dismiss();
+                                            toast.error(err.message);
+                                        }
+                                    }
+                                });
+                            }}
+                            disabled={!store?.cathedisUsername || order.carrier === 'cathedis'}
+                            className={`p-2 transition-colors ${!store?.cathedisUsername
+                                ? 'text-gray-300 cursor-not-allowed'
+                                : order.carrier === 'cathedis'
+                                    ? 'text-green-500 cursor-default'
+                                    : 'text-gray-400 hover:text-purple-600'
+                                }`}
+                            title={!store?.cathedisUsername ? (t('err_no_cathedis_keys') || "Veuillez configurer Cathedis") : order.carrier === 'cathedis' ? (t('success_send_cathedis') || "Envoyé à Cathedis") : (t('send_to_cathedis') || "Envoyer à Cathedis")}
+                        >
                             <Box className="h-4 w-4" />
                         </button>
 
@@ -297,6 +331,7 @@ export default function OrderTable({
     openConfirmation,
     sendToOlivraison,
     sendToSendit,
+    sendToCathedis,
     handleOpenTracking,
     setQrOrder,
     handleNoAnswer,
@@ -345,6 +380,7 @@ export default function OrderTable({
                                     openConfirmation={openConfirmation}
                                     sendToOlivraison={sendToOlivraison}
                                     sendToSendit={sendToSendit}
+                                    sendToCathedis={sendToCathedis}
                                     handleOpenTracking={handleOpenTracking}
                                     setQrOrder={setQrOrder}
                                     handleNoAnswer={handleNoAnswer}

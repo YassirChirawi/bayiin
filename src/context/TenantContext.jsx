@@ -160,8 +160,8 @@ export const TenantProvider = ({ children }) => {
 
     const isStoreActive = (s) => {
         if (!s) return false;
-        // Pro plan is always active unless explicitly cancelled/expired
-        if (s.plan === 'pro') {
+        // Pro, Starter and Unlimited plans are always active unless explicitly cancelled/expired
+        if (s.plan === 'pro' || s.plan === 'starter' || s.plan === 'unlimited') {
             if (s.subscriptionStatus === 'canceled' || s.subscriptionStatus === 'expired') return false;
             // Grace period : 7 jours après expiration Stripe
             if (s.subscriptionStatus === 'past_due' && s.currentPeriodEnd) {
