@@ -172,6 +172,12 @@ function App() {
                           } />
 
                           {/* Authenticated App Routes */}
+                          <Route path="/customizer" element={
+                            <ProtectedRoute>
+                                <StoreCustomizer />
+                            </ProtectedRoute>
+                          } />
+
                           <Route element={
                             <ProtectedRoute>
                               <BiometricLock>
@@ -187,7 +193,6 @@ function App() {
                             <Route path="/planning" element={<Planning />} />
                             <Route path="/team" element={<Team />} />
                             <Route path="/settings" element={<Settings />} />
-                            <Route path="/customizer" element={<StoreCustomizer />} />
                             <Route path="/help" element={<Help />} />
                             <Route path="/warehouse" element={<Warehouse />} />
                             <Route path="/support-ai" element={<SupportAI />} />

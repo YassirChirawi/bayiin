@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { Phone, Mail, MapPin, Send, MessageCircle } from 'lucide-react';
 import MediaBackground from '../../../components/MediaBackground';
 import { getSectionStyle, getAlignmentClass, getButtonStyle } from '../../../utils/styles';
+import EditableText from '../../../components/EditableText';
 
-export default function ContactFormClassic({ section, theme, contextData }) {
+export default function ContactFormClassic({ section, theme, contextData, onUpdate }) {
     const { title, subtitle, settings = {} } = section;
     const alignClass = getAlignmentClass(settings.alignment || 'center');
     const btnRadius = getButtonStyle(theme?.buttonStyle);
@@ -43,8 +44,21 @@ export default function ContactFormClassic({ section, theme, contextData }) {
             <div className="max-w-6xl mx-auto relative z-10">
                 {/* Header */}
                 <div className={`mb-14 ${settings.alignment === 'center' ? 'text-center' : ''}`}>
-                    <h2 className="text-3xl md:text-5xl font-black mb-4 drop-shadow-sm">{title || 'Contactez-nous'}</h2>
-                    {subtitle && <p className="text-xl opacity-80 max-w-2xl mx-auto">{subtitle}</p>}
+                    <EditableText
+                        value={title || 'Contactez-nous'}
+                        onChange={(val) => onUpdate?.({ title: val })}
+                        as="h2"
+                        className="text-3xl md:text-5xl font-black mb-4 drop-shadow-sm"
+                        isReadOnly={!onUpdate}
+                    />
+                    <EditableText
+                        value={subtitle || ''}
+                        onChange={(val) => onUpdate?.({ subtitle: val })}
+                        as="p"
+                        className="text-xl opacity-80 max-w-2xl mx-auto"
+                        isReadOnly={!onUpdate}
+                        placeholder="Ajouter un sous-titre..."
+                    />
                 </div>
 
                 <div className="grid md:grid-cols-5 gap-10 text-left">
@@ -152,7 +166,12 @@ export default function ContactFormClassic({ section, theme, contextData }) {
                                         style={{ backgroundColor: primary, boxShadow: `0 8px 24px ${primary}40` }}
                                     >
                                         <Send size={20} />
-                                        {settings.submitText || 'Envoyer le message'}
+                                        <EditableText
+                                            value={settings.submitText || 'Envoyer le message'}
+                                            onChange={(val) => onUpdate?.({ settings: { ...settings, submitText: val } })}
+                                            as="span"
+                                            isReadOnly={!onUpdate}
+                                        />
                                     </button>
                                 </form>
                             )}

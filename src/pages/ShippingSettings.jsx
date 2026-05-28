@@ -4,13 +4,15 @@ import { useLanguage } from "../context/LanguageContext";
 import { doc, updateDoc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { toast } from "react-hot-toast";
-import { Save, Truck, Info, Globe, RefreshCw, ShieldCheck, Key } from "lucide-react";
+import { Save, Truck, Info, Globe, RefreshCw, ShieldCheck, Key, Copy } from "lucide-react";
 import { authenticateSendit, getSenditDistricts } from "../lib/sendit";
 import Button from "../components/Button";
 
 export default function ShippingSettings() {
     const { store } = useTenant();
     const { t } = useLanguage();
+
+    const [webhookSecret, setWebhookSecret] = useState("");
 
     // ── Local API Key State (avoids mutating store context directly) ──
     const [olivraisonKeys, setOlivraisonKeys] = useState({ apiKey: "", secretKey: "" });
@@ -48,6 +50,22 @@ export default function ShippingSettings() {
                         username: privateData.cathedisUsername || "",
                         password: privateData.cathedisPassword || "",
                     });
+                    
+                    if (privateData.webhookSecret) {
+                        setWebhookSecret(privateData.webhookSecret);
+                    } else {
+                        // Generate missing webhook secret automatically
+                        const newSecret = 'whsec_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                        setWebhookSecret(newSecret);
+                        updateDoc(doc(db, "stores", store.id, "private", "config"), {
+                            webhookSecret: newSecret
+                        }).catch(console.error);
+                    }
+                } else {
+                    // Create config with a generated secret if it doesn't exist
+                    const newSecret = 'whsec_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                    setWebhookSecret(newSecret);
+                    setDoc(doc(db, "stores", store.id, "private", "config"), { webhookSecret: newSecret }).catch(console.error);
                 }
             } catch (err) {
                 console.error("Failed to load private config:", err);
@@ -153,6 +171,15 @@ export default function ShippingSettings() {
 
     // ── Shared input style ──
     const inputCls = "mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition";
+    
+    // Webhook URLs
+    const olivraisonWebhookUrl = webhookSecret ? `https://us-central1-commerce-saas-62f32.cloudfunctions.net/olivraisonWebhook?store=${store?.id}&token=${webhookSecret}` : '';
+    const senditWebhookUrl = webhookSecret ? `https://us-central1-commerce-saas-62f32.cloudfunctions.net/senditWebhook?store=${store?.id}&token=${webhookSecret}` : '';
+
+    const handleCopy = (text) => {
+        navigator.clipboard.writeText(text);
+        toast.success("Copié dans le presse-papier !");
+    };
 
     return (
         <div className="space-y-6">
@@ -210,6 +237,28 @@ export default function ShippingSettings() {
                                 {t('btn_save_keys')}
                             </Button>
                         </div>
+                        
+                        {/* Webhook O-Livraison */}
+                        {webhookSecret && (
+                            <div className="mt-6 pt-4 border-t border-gray-100">
+                                <h4 className="font-medium text-gray-900 mb-2 flex items-center gap-2">
+                                    <Globe className="h-4 w-4 text-indigo-500" />
+                                    URL de Webhook (Sécurisée)
+                                </h4>
+                                <p className="text-xs text-gray-500 mb-2">Copiez ce lien et collez-le dans les paramètres de webhook sur votre compte O-Livraison. Ce lien permet à O-Livraison de mettre à jour automatiquement le statut de vos commandes sur BayIIn.</p>
+                                <div className="flex gap-2 items-center">
+                                    <input 
+                                        type="text" 
+                                        readOnly 
+                                        value={olivraisonWebhookUrl} 
+                                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-mono text-gray-600 focus:outline-none"
+                                    />
+                                    <Button variant="secondary" onClick={() => handleCopy(olivraisonWebhookUrl)} title="Copier l'URL">
+                                        <Copy className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -358,6 +407,28 @@ export default function ShippingSettings() {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Webhook Sendit */}
+                        {webhookSecret && (
+                            <div className="border-t border-gray-100 pt-4 mt-4">
+                                <h4 className="font-medium text-gray-900 mb-2 flex items-center gap-2">
+                                    <Globe className="h-4 w-4 text-indigo-500" />
+                                    URL de Webhook (Sécurisée)
+                                </h4>
+                                <p className="text-xs text-gray-500 mb-2">Copiez ce lien et collez-le dans les paramètres API / Webhook de votre compte Sendit. Ce lien est unique à votre boutique et hautement sécurisé.</p>
+                                <div className="flex gap-2 items-center">
+                                    <input 
+                                        type="text" 
+                                        readOnly 
+                                        value={senditWebhookUrl} 
+                                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-mono text-gray-600 focus:outline-none"
+                                    />
+                                    <Button variant="secondary" onClick={() => handleCopy(senditWebhookUrl)} title="Copier l'URL">
+                                        <Copy className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

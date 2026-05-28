@@ -2,8 +2,9 @@ import React from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import MediaBackground from '../../../components/MediaBackground';
 import { getSectionStyle, getAlignmentClass, getButtonStyle } from '../../../utils/styles';
+import EditableText from '../../../components/EditableText';
 
-export default function ImageTextStandard({ section, theme }) {
+export default function ImageTextStandard({ section, theme, onUpdate }) {
     const { title, subtitle, content, ctaText, settings = {} } = section;
     const alignClass = getAlignmentClass(settings.alignment);
     const btnClass = `px-8 py-4 text-white font-bold text-lg hover:scale-105 transition-transform ${getButtonStyle(theme.buttonStyle)}`;
@@ -23,12 +24,37 @@ export default function ImageTextStandard({ section, theme }) {
                     )}
                 </div>
                 <div className={`w-full md:w-1/2 ${alignClass}`}>
-                    <h2 className="text-3xl md:text-5xl font-black mb-6 leading-tight drop-shadow-sm">{title}</h2>
-                    <p className="text-xl opacity-80 mb-8 font-medium drop-shadow-sm">{subtitle}</p>
-                    {content && <p className="text-lg leading-relaxed opacity-90 mb-10 drop-shadow-sm">{content}</p>}
+                    <EditableText
+                        value={title}
+                        onChange={(val) => onUpdate?.({ title: val })}
+                        as="h2"
+                        className="text-3xl md:text-5xl font-black mb-6 leading-tight drop-shadow-sm"
+                        isReadOnly={!onUpdate}
+                    />
+                    <EditableText
+                        value={subtitle}
+                        onChange={(val) => onUpdate?.({ subtitle: val })}
+                        as="p"
+                        className="text-xl opacity-80 mb-8 font-medium drop-shadow-sm"
+                        isReadOnly={!onUpdate}
+                    />
+                    {content && (
+                        <EditableText
+                            value={content}
+                            onChange={(val) => onUpdate?.({ content: val })}
+                            as="p"
+                            className="text-lg leading-relaxed opacity-90 mb-10 drop-shadow-sm"
+                            isReadOnly={!onUpdate}
+                        />
+                    )}
                     {ctaText && (
                         <button className={`${btnClass} shadow-xl`} style={{ backgroundColor: theme.primaryColor }}>
-                            {ctaText}
+                            <EditableText
+                                value={ctaText}
+                                onChange={(val) => onUpdate?.({ ctaText: val })}
+                                as="span"
+                                isReadOnly={!onUpdate}
+                            />
                         </button>
                     )}
                 </div>

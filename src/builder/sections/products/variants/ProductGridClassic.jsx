@@ -2,8 +2,9 @@ import React from 'react';
 import { ShoppingBag } from 'lucide-react';
 import MediaBackground from '../../../components/MediaBackground';
 import { getSectionStyle, getAlignmentClass, getButtonStyle } from '../../../utils/styles';
+import EditableText from '../../../components/EditableText';
 
-export default function ProductGridClassic({ section, theme, contextData }) {
+export default function ProductGridClassic({ section, theme, contextData, onUpdate }) {
     const { title, subtitle, ctaText, settings = {} } = section;
     const alignClass = getAlignmentClass(settings.alignment);
     const columns = settings.columns || 4;
@@ -14,8 +15,20 @@ export default function ProductGridClassic({ section, theme, contextData }) {
             <MediaBackground settings={settings} />
             <div className="max-w-7xl mx-auto relative z-10">
                 <div className="mb-16">
-                    <h2 className="text-3xl md:text-5xl font-black mb-4 drop-shadow-sm">{title}</h2>
-                    <p className="text-xl opacity-80 drop-shadow-sm">{subtitle}</p>
+                    <EditableText
+                        value={title}
+                        onChange={(val) => onUpdate?.({ title: val })}
+                        as="h2"
+                        className="text-3xl md:text-5xl font-black mb-4 drop-shadow-sm"
+                        isReadOnly={!onUpdate}
+                    />
+                    <EditableText
+                        value={subtitle}
+                        onChange={(val) => onUpdate?.({ subtitle: val })}
+                        as="p"
+                        className="text-xl opacity-80 drop-shadow-sm"
+                        isReadOnly={!onUpdate}
+                    />
                 </div>
                 <div className={`grid grid-cols-2 md:grid-cols-${columns} gap-4 md:gap-8`}>
                     {(contextData?.products && contextData.products.length > 0 ? contextData.products : [1, 2, 3, 4]).map((p, idx) => {
@@ -51,7 +64,12 @@ export default function ProductGridClassic({ section, theme, contextData }) {
                 {ctaText && (
                     <div className="text-center mt-16">
                         <button className={`${btnClass} shadow-xl`} style={{ backgroundColor: theme.primaryColor }}>
-                            {ctaText}
+                            <EditableText
+                                value={ctaText}
+                                onChange={(val) => onUpdate?.({ ctaText: val })}
+                                as="span"
+                                isReadOnly={!onUpdate}
+                            />
                         </button>
                     </div>
                 )}

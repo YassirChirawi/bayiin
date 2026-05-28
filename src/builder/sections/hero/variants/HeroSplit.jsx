@@ -1,7 +1,8 @@
 import React from 'react';
 import { getSectionStyle, getButtonStyle } from '../../../utils/styles';
+import EditableText from '../../../components/EditableText';
 
-export default function HeroSplit({ section, theme }) {
+export default function HeroSplit({ section, theme, onUpdate }) {
     const { title, subtitle, ctaText, settings = {} } = section;
     const btnClass = `px-8 py-4 text-white font-bold text-lg hover:scale-105 transition-transform shadow-xl ${getButtonStyle(theme.buttonStyle)}`;
     const imgPos = settings.imagePosition || 'right'; // Left or right
@@ -18,15 +19,28 @@ export default function HeroSplit({ section, theme }) {
         <div className="relative overflow-hidden" style={getSectionStyle({ ...section, settings: overrideSettings }, theme)}>
             <div className={`max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center gap-16 ${imgPos === 'left' ? 'md:flex-row-reverse' : ''}`}>
                 <div className="w-full md:w-1/2 flex flex-col items-start text-left relative z-10">
-                    <h1 className="text-4xl md:text-6xl font-black mb-6 leading-tight tracking-tight drop-shadow-sm">
-                        {title}
-                    </h1>
-                    <p className="text-lg md:text-xl opacity-80 mb-10 drop-shadow-sm">
-                        {subtitle}
-                    </p>
+                    <EditableText
+                        value={title}
+                        onChange={(val) => onUpdate?.({ title: val })}
+                        as="h1"
+                        className="text-4xl md:text-6xl font-black mb-6 leading-tight tracking-tight drop-shadow-sm"
+                        isReadOnly={!onUpdate}
+                    />
+                    <EditableText
+                        value={subtitle}
+                        onChange={(val) => onUpdate?.({ subtitle: val })}
+                        as="p"
+                        className="text-lg md:text-xl opacity-80 mb-10 drop-shadow-sm"
+                        isReadOnly={!onUpdate}
+                    />
                     {ctaText && (
                         <button className={btnClass} style={{ backgroundColor: theme.primaryColor }}>
-                            {ctaText}
+                            <EditableText
+                                value={ctaText}
+                                onChange={(val) => onUpdate?.({ ctaText: val })}
+                                as="span"
+                                isReadOnly={!onUpdate}
+                            />
                         </button>
                     )}
                 </div>

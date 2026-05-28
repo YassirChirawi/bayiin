@@ -1,555 +1,3 @@
-import React, { useState, useEffect } from 'react';
-import { useTenant } from '../context/TenantContext';
-import { db } from '../lib/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { toast } from 'react-hot-toast';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-    Wand2, Sparkles, LayoutTemplate, Paintbrush, Save, Layout, ChevronLeft, 
-    RefreshCw, X, ShoppingBag, AlignLeft, AlignCenter, AlignRight, 
-    ArrowUp, ArrowDown, Plus, Trash2, GripVertical, Image as ImageIcon, MessageSquare, HelpCircle, Layers,
-    Monitor, Tablet, Smartphone, Copy, Eye, AlertCircle, ShieldCheck, Clock,
-    Undo2, Redo2
-} from 'lucide-react';
-import Button from '../components/Button';
-import { useHistory } from '../builder/hooks/useHistory';
-import { useNavigate } from 'react-router-dom';
-import BlockRenderer from '../builder/renderer/BlockRenderer';
-import ProductPageEditor from '../builder/pages/ProductPageEditor';
-import CheckoutEditor from '../builder/pages/CheckoutEditor';
-import { getAvailableVariants } from '../builder/registry';
-import TemplateGallery from '../builder/TemplateGallery';
-import FullScreenPreview from '../builder/FullScreenPreview';
-import StoreOnboarding from '../builder/components/StoreOnboarding';
-
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import SortableSectionItem from '../builder/components/SortableSectionItem';
-import ResponsiveControl from '../builder/components/ResponsiveControl';
-import ItemsManager from '../builder/components/ItemsManager';
-
-const FONTS = ['Inter', 'Outfit', 'Roboto', 'Playfair Display', 'Montserrat'];
-
-// -- UTILS --
-const getButtonStyle = (style) => {
-    switch(style) {
-        case 'pill': return 'rounded-full';
-        case 'sharp': return 'rounded-none';
-        case 'rounded': default: return 'rounded-xl';
-    }
-};
-
-// -- UI CONTROLS --
-const Tabs = ({ tabs, activeTab, onChange }) => (
-    <div className="flex border-b border-slate-200 mb-6">
-        {tabs.map(tab => (
-            <button
-                key={tab.id}
-                onClick={() => onChange(tab.id)}
-                className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === tab.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-            >
-                {tab.label}
-            </button>
-        ))}
-    </div>
-);
-
-// -- MICRO-COMPOSANT IA --
-const AIInput = ({ value, onChange, fieldType, multiline = false, placeholder }) => {
-    const [isEnhancing, setIsEnhancing] = useState(false);
-
-    const handleEnhance = async () => {
-        if (!value?.trim()) {
-            toast.error("Veuillez saisir un texte de base d'abord.");
-            return;
-        }
-        setIsEnhancing(true);
-        try {
-            const functions = getFunctions();
-            const enhanceCopywriting = httpsCallable(functions, 'enhanceCopywriting');
-            const result = await enhanceCopywriting({ text: value, fieldType });
-            onChange(result.data.enhancedText);
-            toast.success("Texte amélioré avec succès !");
-        } catch (error) {
-            console.error("Erreur IA", error);
-            // FALLBACK MOCK IF CLOUD FUNCTION FAILS
-            toast.success("Texte amélioré (Mode Démo) !");
-            onChange(`✨ ${value} - Qualité Premium garantie et livraison rapide partout au Maroc !`);
-        } finally {
-            setIsEnhancing(false);
-        }
-    };
-
-    return (
-        <div className="relative group">
-            {multiline ? (
-                <textarea
-                    value={value || ''}
-                    onChange={(e) => onChange(e.target.value)}
-                    rows={3}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none pr-12 bg-white"
-                    placeholder={placeholder}
-                />
-            ) : (
-                <input
-                    type="text"
-                    value={value || ''}
-                    onChange={(e) => onChange(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all pr-12 bg-white"
-                    placeholder={placeholder}
-                />
-            )}
-            <button
-                onClick={handleEnhance}
-                disabled={isEnhancing}
-                title="Améliorer ce texte par l'IA"
-                className="absolute top-3 right-3 p-1.5 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors disabled:opacity-50"
-            >
-                {isEnhancing ? <RefreshCw size={16} className="animate-spin" /> : <Sparkles size={16} />}
-            </button>
-        </div>
-    );
-};
-
-// -- Section Renderer is now handled by BlockRenderer --
-
-// -- COMPOSANT PRINCIPAL --
-export default function HybridStoreBuilder() {
-    const { store } = useTenant();
-    const navigate = useNavigate();
-    const [isLoading, setIsLoading] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
-    const [isGenerating, setIsGenerating] = useState(false);
-    
-    // NOUVEAU: État pour la page courante en cours d'édition
-    const [currentPage, setCurrentPage] = useState('home');
-
-    // NOUVEAU: Verrouillage "Coming Soon"
-    const [promoCode, setPromoCode] = useState('');
-    const [isUnlocked, setIsUnlocked] = useState(false);
-
-    const handleUnlock = () => {
-        if (promoCode === 'EYAOUCHENE') {
-            setIsUnlocked(true);
-            toast.success("Accès déverrouillé !");
-        } else {
-            toast.error("Code invalide.");
-        }
-    };
-
-    const { state: storefrontData, set: setStorefrontData, reset: resetStorefrontData, undo, redo, canUndo, canRedo } = useHistory({
-        subdomain: '',
-        theme: { 
-            primaryColor: '#6366f1', 
-            bannerText: '',
-            typography: { heading: 'Inter', body: 'Inter' },
-            headerLayout: 'center',
-            buttonStyle: 'rounded',
-            social: { facebook: '', instagram: '', whatsapp: '' }
-        },
-        global: {
-            header: { id: 'global-header', type: 'HeaderGlobal', title: 'Ma Boutique', settings: { showCta: true, ctaText: 'Acheter' } },
-            footer: { id: 'global-footer', type: 'FooterGlobal', title: 'Ma Boutique', subtitle: 'Votre partenaire de confiance.', settings: { showWatermark: true } }
-        },
-        pages: {
-            home: { sections: [] },
-            catalog: { sections: [] },
-            product: { sections: [] },
-            cart: { sections: [] },
-            checkout: { sections: [] },
-            portal: { sections: [] },
-            contact: { sections: [] }
-        },
-        sections: [] // Fallback
-    });
-
-    const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
-    const [selectedSectionId, setSelectedSectionId] = useState(null);
-    const [selectedSectionType, setSelectedSectionType] = useState('page'); // 'page' ou 'global'
-    const [activeSectionTab, setActiveSectionTab] = useState('content');
-    const [showSectionCatalog, setShowSectionCatalog] = useState(false);
-    const [showTemplateGallery, setShowTemplateGallery] = useState(false);
-    const [showFullPreview, setShowFullPreview] = useState(false);
-    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-    const [previewDevice, setPreviewDevice] = useState('desktop');
-    const [forceShowBuilder, setForceShowBuilder] = useState(false);
-
-    // Google Fonts Injection
-    useEffect(() => {
-        if (!storefrontData.theme.typography) return;
-        const fontName = storefrontData.theme.typography.heading;
-        const link = document.createElement('link');
-        link.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/ /g, '+')}:wght@400;500;700;900&display=swap`;
-        link.rel = 'stylesheet';
-        document.head.appendChild(link);
-        return () => document.head.removeChild(link);
-    }, [storefrontData.theme.typography]);
-
-    // Keyboard shortcuts (Save, Undo, Redo)
-    useEffect(() => {
-        const handler = (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-                e.preventDefault();
-                handleSave();
-            }
-            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
-                e.preventDefault();
-                if (canUndo) undo();
-            }
-            if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
-                e.preventDefault();
-                if (canRedo) redo();
-            }
-        };
-        window.addEventListener('keydown', handler);
-        return () => window.removeEventListener('keydown', handler);
-    }, [storefrontData, canUndo, canRedo, undo, redo]); // Re-bind when data changes so handleSave closure is fresh
-
-    // Initial load
-    useEffect(() => {
-        if (!store?.id) return;
-        const fetchData = async () => {
-            setIsLoading(true);
-            try {
-                const docRef = doc(db, 'stores', store.id);
-                const snap = await getDoc(docRef);
-                if (snap.exists() && snap.data().storefront) {
-                    const existingData = snap.data().storefront;
-                    
-                    // Migration vers le nouveau format pages
-                    const defaultProductSection = {
-                        id: 'product-grid-default',
-                        type: 'ProductGrid', variant: 'Classic',
-                        title: 'Tous nos produits',
-                        subtitle: 'Découvrez notre collection complète.',
-                        settings: { alignment: 'center', backgroundType: 'color', backgroundColor: '#f8fafc', textColor: '#0f172a', paddingTop: 64, paddingBottom: 64, columns: 3 }
-                    };
-                    const defaultContactSection = {
-                        id: 'contact-form-default',
-                        type: 'ContactForm', variant: 'Classic',
-                        title: 'Contactez-nous',
-                        subtitle: 'Nous sommes là pour vous aider. Répondons à toutes vos questions.',
-                        settings: { alignment: 'center', backgroundType: 'color', backgroundColor: '#ffffff', textColor: '#0f172a', paddingTop: 80, paddingBottom: 80, phone: '', email: '', address: '', whatsapp: '', submitText: 'Envoyer le message' }
-                    };
-
-                    const existingPages = existingData.pages;
-                    const migratedPages = {
-                        home: existingPages?.home || { sections: existingData.sections || [] },
-                        catalog: existingPages?.catalog || { sections: [] },
-                        product: {
-                            sections: (existingPages?.product?.sections?.length > 0)
-                                ? existingPages.product.sections
-                                : [defaultProductSection]
-                        },
-                        cart: existingPages?.cart || { sections: [] },
-                        checkout: existingPages?.checkout || { sections: [] },
-                        portal: existingPages?.portal || { sections: [] },
-                        contact: {
-                            sections: (existingPages?.contact?.sections?.length > 0)
-                                ? existingPages.contact.sections
-                                : [defaultContactSection]
-                        }
-                    };
-
-                    resetStorefrontData({
-                        ...existingData,
-                        theme: {
-                            ...existingData.theme,
-                            typography: existingData.theme?.typography || { heading: 'Inter', body: 'Inter' },
-                            headerLayout: existingData.theme?.headerLayout || 'center',
-                            buttonStyle: existingData.theme?.buttonStyle || 'rounded',
-                            social: existingData.theme?.social || { facebook: '', instagram: '', whatsapp: '' }
-                        },
-                        global: existingData.global || {
-                            header: { id: 'global-header', type: 'HeaderGlobal', title: store.name || 'Ma Boutique', settings: { showCta: true, ctaText: 'Acheter' } },
-                            footer: { id: 'global-footer', type: 'FooterGlobal', title: store.name || 'Ma Boutique', subtitle: 'Votre partenaire de confiance.', settings: { showWatermark: true } }
-                        },
-                        pages: migratedPages,
-                        sections: existingData.sections || [] // Garder pour la rétrocompatibilité si besoin
-                    });
-                }
-            } catch (error) {
-                console.error("Erreur de chargement", error);
-                toast.error("Erreur lors du chargement de la vitrine.");
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchData();
-    }, [store?.id]);
-
-    const handleSave = async () => {
-        setIsSaving(true);
-        try {
-            await updateDoc(doc(db, 'stores', store.id), {
-                storefront: storefrontData
-            });
-            setHasUnsavedChanges(false);
-            toast.success("Vitrine publiée avec succès !");
-            // Redirection / Ouverture de la vitrine live dans un nouvel onglet
-            setTimeout(() => {
-                window.open(`/s/${store.id}`, '_blank');
-            }, 1000);
-        } catch (error) {
-            console.error("Erreur de sauvegarde", error);
-            toast.error("Erreur lors de la sauvegarde.");
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    const handleGenerateAI = async () => {
-        setIsGenerating(true);
-        try {
-            const functions = getFunctions();
-            const generateStorefront = httpsCallable(functions, 'generateStorefront');
-            const result = await generateStorefront({ storeName: store?.name, industry: 'E-commerce Général' });
-            
-            if (result.data && result.data.sections) {
-                setStorefrontData(prev => ({
-                    ...prev,
-                    pages: {
-                        ...prev.pages,
-                        [currentPage]: {
-                            ...prev.pages[currentPage],
-                            sections: result.data.sections.map(s => ({
-                                ...s,
-                                settings: {
-                                    alignment: 'center',
-                                    backgroundType: 'color',
-                                    textColor: '#0f172a',
-                                    backgroundColor: '#ffffff',
-                                    paddingTop: 64,
-                                    paddingBottom: 64
-                                }
-                            }))
-                        }
-                    }
-                }));
-                setSelectedSectionId(null);
-                toast.success("Structure générée par Beya3 !");
-            }
-        } catch (error) {
-            console.error("Erreur de génération", error);
-            toast.success("Structure générée (Mode Démo) !");
-            setStorefrontData(prev => ({
-                ...prev,
-                pages: {
-                    ...prev.pages,
-                    [currentPage]: {
-                        ...prev.pages[currentPage],
-                        sections: [
-                            {
-                                id: 'hero-ai', type: 'Hero', 
-                                title: `Bienvenue chez ${store?.name || 'Notre Boutique'}`, 
-                                subtitle: "Découvrez notre collection exclusive. Paiement à la livraison !", 
-                                ctaText: "Acheter maintenant",
-                                settings: { alignment: 'center', backgroundType: 'color', backgroundColor: '#6366f110', textColor: '#0f172a', paddingTop: 96, paddingBottom: 96 }
-                            },
-                            {
-                                id: 'features-ai', type: 'Features',
-                                title: "Pourquoi nous choisir ?",
-                                subtitle: "La qualité au meilleur prix, livré chez vous.",
-                                settings: { alignment: 'center', backgroundType: 'color', backgroundColor: '#ffffff', textColor: '#0f172a', paddingTop: 64, paddingBottom: 64 }
-                            },
-                            {
-                                id: 'products-ai', type: 'ProductGrid',
-                                title: "Nos meilleures ventes",
-                                subtitle: "Quantité limitée, profitez-en vite.",
-                                settings: { alignment: 'left', columns: 4, backgroundType: 'color', backgroundColor: '#f8fafc', textColor: '#0f172a', paddingTop: 64, paddingBottom: 64 }
-                            }
-                        ]
-                    }
-                }
-            }));
-            setSelectedSectionId(null);
-        } finally {
-            setIsGenerating(false);
-        }
-    };
-
-    const markUnsaved = () => setHasUnsavedChanges(true);
-
-    const updateSection = (id, updates) => {
-        markUnsaved();
-        setStorefrontData(prev => {
-            if (id === 'global-header' || id === 'global-footer') {
-                const globalKey = id === 'global-header' ? 'header' : 'footer';
-                return { ...prev, global: { ...prev.global, [globalKey]: { ...prev.global[globalKey], ...updates } } };
-            }
-            const currentSections = prev.pages[currentPage]?.sections || [];
-            return {
-                ...prev,
-                pages: {
-                    ...prev.pages,
-                    [currentPage]: {
-                        ...prev.pages[currentPage],
-                        sections: currentSections.map(s => s.id === id ? { ...s, ...updates } : s)
-                    }
-                }
-            };
-        });
-    };
-
-    const duplicateSection = (id) => {
-        markUnsaved();
-        setStorefrontData(prev => {
-            const currentSections = prev.pages[currentPage]?.sections || [];
-            const idx = currentSections.findIndex(s => s.id === id);
-            if (idx === -1) return prev;
-            const cloned = { ...currentSections[idx], id: `${id}-copy-${Date.now()}` };
-            const newSections = [
-                ...currentSections.slice(0, idx + 1),
-                cloned,
-                ...currentSections.slice(idx + 1),
-            ];
-            return {
-                ...prev,
-                pages: { ...prev.pages, [currentPage]: { ...prev.pages[currentPage], sections: newSections } }
-            };
-        });
-    };
-
-    const updateSectionSetting = (id, key, value) => {
-        markUnsaved();
-        setStorefrontData(prev => {
-            if (id === 'global-header' || id === 'global-footer') {
-                const globalKey = id === 'global-header' ? 'header' : 'footer';
-                return { ...prev, global: { ...prev.global, [globalKey]: { ...prev.global[globalKey], settings: { ...(prev.global[globalKey].settings || {}), [key]: value } } } };
-            }
-            const currentSections = prev.pages[currentPage]?.sections || [];
-            return {
-                ...prev,
-                pages: {
-                    ...prev.pages,
-                    [currentPage]: {
-                        ...prev.pages[currentPage],
-                        sections: currentSections.map(s => s.id === id ? { ...s, settings: { ...s.settings, [key]: value } } : s)
-                    }
-                }
-            };
-        });
-    };
-
-    const moveSection = (index, direction) => {
-        setStorefrontData(prev => {
-            const currentSections = prev.pages[currentPage]?.sections || [];
-            const newSections = [...currentSections];
-            if (direction === 'up' && index > 0) {
-                [newSections[index - 1], newSections[index]] = [newSections[index], newSections[index - 1]];
-            } else if (direction === 'down' && index < newSections.length - 1) {
-                [newSections[index + 1], newSections[index]] = [newSections[index], newSections[index + 1]];
-            }
-            return {
-                ...prev,
-                pages: {
-                    ...prev.pages,
-                    [currentPage]: {
-                        ...prev.pages[currentPage],
-                        sections: newSections
-                    }
-                }
-            };
-        });
-    };
-
-    const updateSectionInline = (id, updates) => {
-        updateSection(id, updates);
-    };
-
-    const deleteSection = (id) => {
-        markUnsaved();
-        setStorefrontData(prev => {
-            const currentSections = prev.pages[currentPage]?.sections || [];
-            return {
-                ...prev,
-                pages: {
-                    ...prev.pages,
-                    [currentPage]: {
-                        ...prev.pages[currentPage],
-                        sections: currentSections.filter(s => s.id !== id)
-                    }
-                }
-            };
-        });
-        if (selectedSectionId === id) setSelectedSectionId(null);
-    };
-
-    const addSection = (type) => {
-        markUnsaved();
-        const defaultVariant = getAvailableVariants(type)[0];
-        const newSection = {
-            id: Date.now().toString(),
-            type,
-            variant: defaultVariant,
-            title: `Nouvelle section ${type}`,
-            subtitle: "Modifiez le contenu dans le panneau.",
-            settings: {
-                alignment: 'center',
-                backgroundType: 'color',
-                backgroundColor: '#ffffff',
-                textColor: '#0f172a',
-                paddingTop: 64,
-                paddingBottom: 64
-            }
-        };
-        setStorefrontData(prev => {
-            const currentSections = prev.pages[currentPage]?.sections || [];
-            return {
-                ...prev,
-                pages: {
-                    ...prev.pages,
-                    [currentPage]: {
-                        ...prev.pages[currentPage],
-                        sections: [...currentSections, newSection]
-                    }
-                }
-            };
-        });
-        setShowSectionCatalog(false);
-        setSelectedSectionId(newSection.id);
-        window.scrollTo(0, document.body.scrollHeight);
-    };
-
-    const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 5,
-            },
-        }),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
-    );
-
-    const handleDragEnd = (event) => {
-        const { active, over } = event;
-        
-        if (over && active.id !== over.id) {
-            setStorefrontData((prev) => {
-                const currentSections = prev.pages[currentPage]?.sections || [];
-                const oldIndex = currentSections.findIndex((s) => s.id === active.id);
-                const newIndex = currentSections.findIndex((s) => s.id === over.id);
-                
-                return {
-                    ...prev,
-                    pages: {
-                        ...prev.pages,
-                        [currentPage]: {
-                            ...prev.pages[currentPage],
-                            sections: arrayMove(currentSections, oldIndex, newIndex)
-                        }
-                    }
-                };
-            });
-        }
-    };
-
-    if (isLoading) {
-        return <div className="h-screen flex items-center justify-center"><RefreshCw className="animate-spin text-indigo-600" size={32} /></div>;
-    }
-
     const globalHeader = storefrontData.global?.header || { id: 'global-header', type: 'HeaderGlobal', settings: {} };
     const globalFooter = storefrontData.global?.footer || { id: 'global-footer', type: 'FooterGlobal', settings: {} };
     const currentSections = storefrontData.pages?.[currentPage]?.sections || [];
@@ -574,38 +22,6 @@ export default function HybridStoreBuilder() {
     ];
     const SECTION_CATALOG = SECTION_CATALOG_ALL.filter(item => !item.pages || item.pages.includes(currentPage));
 
-    if (!isUnlocked) {
-        return (
-            <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-100 p-6 relative overflow-hidden">
-                <div className="absolute inset-0 grayscale opacity-30 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, #cbd5e1 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
-                <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full relative z-10 text-center border border-slate-200">
-                    <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 transform -rotate-6">
-                        <Sparkles size={32} />
-                    </div>
-                    <h1 className="text-3xl font-black text-slate-900 mb-2">Bientôt Disponible</h1>
-                    <p className="text-slate-500 mb-8 font-medium">Le créateur de vitrine de nouvelle génération arrive très prochainement. Restez à l'écoute !</p>
-                    
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex gap-2">
-                        <input 
-                            type="text" 
-                            placeholder="Code secret..." 
-                            value={promoCode}
-                            onChange={(e) => setPromoCode(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
-                            className="flex-1 bg-white border border-slate-200 px-3 py-2 rounded-lg text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase"
-                        />
-                        <button 
-                            onClick={handleUnlock}
-                            className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors"
-                        >
-                            Valider
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
     return (
         <>
         <TemplateGallery
@@ -627,16 +43,7 @@ export default function HybridStoreBuilder() {
             storefrontData={storefrontData}
             storeName={store?.name}
         />
-        
-        {storefrontData.pages?.home?.sections?.length === 0 && !forceShowBuilder ? (
-            <StoreOnboarding 
-                onGenerateAI={handleGenerateAI}
-                onOpenTemplates={() => setShowTemplateGallery(true)}
-                onStartFromScratch={() => setForceShowBuilder(true)}
-                isGenerating={isGenerating}
-            />
-        ) : (
-        <div className="h-screen w-screen bg-slate-200 overflow-hidden relative flex flex-col">
+        <div className="h-[calc(100vh-6rem)] -m-4 md:-m-8 bg-slate-200 overflow-hidden relative flex flex-col">
             
             {/* TOP BAR */}
             <div className="flex-shrink-0 h-14 bg-white border-b border-slate-200 px-4 flex items-center justify-between z-40 shadow-sm relative">
@@ -647,8 +54,6 @@ export default function HybridStoreBuilder() {
                     >
                         <AlignLeft size={20} />
                     </button>
-                    <div className="h-6 w-px bg-slate-200 mx-1"></div>
-                    <button onClick={() => navigate('/dashboard')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors"><ChevronLeft size={16} /> Quitter</button>
                     <div className="h-6 w-px bg-slate-200 mx-1"></div>
                     <div className="flex items-center bg-slate-100 p-1 rounded-lg">
                         <button onClick={() => setPreviewDevice('desktop')} className={`p-1.5 rounded-md transition-colors ${previewDevice === 'desktop' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>
@@ -694,59 +99,21 @@ export default function HybridStoreBuilder() {
                     style={{ width: isLeftPanelOpen ? '320px' : '0px', opacity: isLeftPanelOpen ? 1 : 0 }}
                 >
                     <div className="w-[320px]">
-                        {/* Sélecteur de Page (Liste interactive) */}
+                        {/* Sélecteur de Page */}
                         <div className="p-4 border-b border-slate-200 bg-slate-50">
-                            <div className="flex items-center justify-between mb-3">
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Pages de la boutique</label>
-                            </div>
-                            <div className="space-y-1">
-                                {[
-                                    { id: 'home', label: "🏠 Accueil (Home)", core: true },
-                                    { id: 'catalog', label: "📚 Catalogue", core: false },
-                                    { id: 'product', label: "🛍️ Page Produit", core: true },
-                                    { id: 'cart', label: "🛒 Panier", core: true },
-                                    { id: 'checkout', label: "💳 Paiement", core: true },
-                                    { id: 'portal', label: "👤 Espace Client", core: false },
-                                    { id: 'contact', label: "📞 Page Contact", core: false }
-                                ].filter(p => p.core || (storefrontData.pages?.[p.id]?.sections?.length > 0) || currentPage === p.id).map(page => (
-                                    <button
-                                        key={page.id}
-                                        onClick={() => {
-                                            setCurrentPage(page.id);
-                                            setSelectedSectionId(null);
-                                        }}
-                                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center justify-between group ${
-                                            currentPage === page.id 
-                                            ? 'bg-indigo-100 text-indigo-700 shadow-sm' 
-                                            : 'text-slate-600 hover:bg-slate-100'
-                                        }`}
-                                    >
-                                        <span>{page.label}</span>
-                                        {currentPage === page.id && <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>}
-                                    </button>
-                                ))}
-                                
-                                {/* Dropdown "Ajouter une page" pour les pages optionnelles non actives */}
-                                {['catalog', 'portal', 'contact'].some(id => !storefrontData.pages?.[id]?.sections?.length && currentPage !== id) && (
-                                    <div className="pt-2 mt-2 border-t border-slate-200">
-                                        <select 
-                                            className="w-full text-xs font-bold text-slate-500 bg-transparent border-none outline-none cursor-pointer hover:text-indigo-600"
-                                            value=""
-                                            onChange={(e) => {
-                                                if (e.target.value) {
-                                                    setCurrentPage(e.target.value);
-                                                    setSelectedSectionId(null);
-                                                }
-                                            }}
-                                        >
-                                            <option value="" disabled>+ Ajouter une page</option>
-                                            {!storefrontData.pages?.catalog?.sections?.length && currentPage !== 'catalog' && <option value="catalog">📚 Catalogue</option>}
-                                            {!storefrontData.pages?.portal?.sections?.length && currentPage !== 'portal' && <option value="portal">👤 Espace Client</option>}
-                                            {!storefrontData.pages?.contact?.sections?.length && currentPage !== 'contact' && <option value="contact">📞 Page Contact</option>}
-                                        </select>
-                                    </div>
-                                )}
-                            </div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Page active</label>
+                            <select 
+                                value={currentPage}
+                                onChange={(e) => {
+                                    setCurrentPage(e.target.value);
+                                    setSelectedSectionId(null);
+                                }}
+                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer text-sm"
+                            >
+                                <option value="home">🏠 Page d'accueil</option>
+                                <option value="product">🛍️ Page Produit</option>
+                                <option value="contact">📞 Page Contact</option>
+                            </select>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-4 space-y-6">
@@ -951,41 +318,13 @@ export default function HybridStoreBuilder() {
                                 onUpdate={(updates) => updateSection('global-header', updates)}
                             />
 
-                            {/* Info banners for dynamically managed pages */}
-                            {currentPage === 'catalog' && (
-                                <div className="mx-6 mt-6 mb-0 flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-3 text-sm">
-                                    <span className="text-2xl">📚</span>
-                                    <div>
-                                        <p className="font-bold text-emerald-800">Page Catalogue (Collection)</p>
-                                        <p className="text-emerald-600 text-xs">La grille de vos produits et les filtres sont gérés automatiquement. Personnalisez les sections en dessous.</p>
-                                    </div>
-                                </div>
-                            )}
-                            
+                            {/* Info banner: product detail view is auto-managed */}
                             {currentPage === 'product' && (
-                                <ProductPageEditor theme={storefrontData.theme} settings={storefrontData.pages?.product?.settings || {}} />
-                            )}
-
-                            {currentPage === 'cart' && (
-                                <div className="mx-6 mt-6 mb-0 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3 text-sm">
-                                    <span className="text-2xl">🛒</span>
+                                <div className="mx-6 mt-6 mb-0 flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-2xl px-5 py-3 text-sm">
+                                    <span className="text-2xl">🛍️</span>
                                     <div>
-                                        <p className="font-bold text-amber-800">Page Panier</p>
-                                        <p className="text-amber-600 text-xs">L'affichage des articles et du total est géré automatiquement. Personnalisez les sections en dessous.</p>
-                                    </div>
-                                </div>
-                            )}
-
-                            {currentPage === 'checkout' && (
-                                <CheckoutEditor theme={storefrontData.theme} settings={storefrontData.pages?.checkout?.settings || {}} />
-                            )}
-
-                            {currentPage === 'portal' && (
-                                <div className="mx-6 mt-6 mb-0 flex items-center gap-3 bg-purple-50 border border-purple-200 rounded-2xl px-5 py-3 text-sm">
-                                    <span className="text-2xl">👤</span>
-                                    <div>
-                                        <p className="font-bold text-purple-800">Espace Client (Portal)</p>
-                                        <p className="text-purple-600 text-xs">L'authentification et l'historique des commandes sont gérés automatiquement. Personnalisez les sections en dessous.</p>
+                                        <p className="font-bold text-indigo-800">Page Fiche Produit</p>
+                                        <p className="text-indigo-600 text-xs">Le détail d'un produit (image, prix, bouton d'achat) est géré automatiquement. Personnalisez les sections en dessous.</p>
                                     </div>
                                 </div>
                             )}
@@ -993,28 +332,16 @@ export default function HybridStoreBuilder() {
                             {/* SECTIONS */}
                             <div className="min-h-[400px]">
                                 {currentSections.length === 0 ? (
-                                    <div className="h-[400px] flex flex-col items-center justify-center text-center p-8 bg-slate-50/50 m-4 rounded-3xl border-2 border-dashed border-slate-200">
-                                        <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-6">
-                                            <Layout size={32} className="text-indigo-400" />
-                                        </div>
-                                        <h3 className="text-xl font-bold text-slate-800 mb-2">
-                                            {currentPage === 'home' ? 'Construisons votre page d\'accueil' : 'Cette page est vide'}
+                                    <div className="h-[300px] flex flex-col items-center justify-center text-center p-8">
+                                        <Layout size={48} className="text-slate-300 mb-4" />
+                                        <h3 className="text-xl font-bold text-slate-400 mb-2">
+                                            {currentPage === 'home' ? 'Votre page d\'accueil est vide' : 'Aucune section supplémentaire'}
                                         </h3>
-                                        {currentPage === 'home' && (
-                                            <div className="text-sm text-slate-500 max-w-sm mb-6 bg-white p-4 rounded-xl shadow-sm text-left">
-                                                <p className="font-bold text-slate-700 mb-2 flex items-center gap-2"><Sparkles size={14} className="text-amber-500"/> Conseil de structure :</p>
-                                                <ol className="space-y-2 list-decimal list-inside text-slate-600">
-                                                    <li>Ajoutez une <strong>Bannière (Hero)</strong> pour accrocher.</li>
-                                                    <li>Ajoutez vos <strong>Avantages</strong> (livraison, etc).</li>
-                                                    <li>Affichez une <strong>Grille de Produits</strong>.</li>
-                                                </ol>
-                                            </div>
-                                        )}
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); setShowSectionCatalog(true); }}
-                                            className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2"
+                                            className="mt-4 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg font-bold hover:bg-indigo-100 transition-colors"
                                         >
-                                            <Plus size={18} /> Ajouter ma première section
+                                            + Ajouter une section
                                         </button>
                                     </div>
                                 ) : (
@@ -1149,55 +476,6 @@ export default function HybridStoreBuilder() {
                                         ) : (
                                             /* TAB DESIGN */
                                             <>
-                                            {/* GLOBAL HEADER SPECIFIC */}
-                                            {selectedSection.id === 'global-header' && (
-                                                <div className="pb-4 border-b border-slate-100 space-y-3">
-                                                    <h4 className="text-sm font-bold text-slate-700">Arrière-plan</h4>
-                                                    <select 
-                                                        value={selectedSection.settings?.backgroundType || 'color'}
-                                                        onChange={(e) => updateSectionSetting(selectedSection.id, 'backgroundType', e.target.value)}
-                                                        className="w-full p-2 border rounded-lg text-sm outline-none"
-                                                    >
-                                                        <option value="color">Couleur unie</option>
-                                                        <option value="image">Image de fond</option>
-                                                    </select>
-                                                    {selectedSection.settings?.backgroundType === 'image' && (
-                                                        <>
-                                                            <input 
-                                                                type="text" 
-                                                                placeholder="URL de l'image (ex: https://...)" 
-                                                                value={selectedSection.settings?.backgroundImage || ''}
-                                                                onChange={(e) => updateSectionSetting(selectedSection.id, 'backgroundImage', e.target.value)}
-                                                                className="w-full p-2 border rounded-lg text-sm"
-                                                            />
-                                                            <div className="flex items-center justify-between text-xs">
-                                                                <span>Opacité:</span>
-                                                                <input 
-                                                                    type="range" min="0" max="1" step="0.1" 
-                                                                    value={selectedSection.settings?.backgroundOpacity || 1}
-                                                                    onChange={(e) => updateSectionSetting(selectedSection.id, 'backgroundOpacity', parseFloat(e.target.value))}
-                                                                />
-                                                            </div>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            {/* GLOBAL FOOTER SPECIFIC */}
-                                            {selectedSection.id === 'global-footer' && (
-                                                <div className="pb-4 border-b border-slate-100 space-y-3">
-                                                    <h4 className="text-sm font-bold text-slate-700">Coordonnées</h4>
-                                                    <input type="text" placeholder="Adresse (ex: 123 Rue...)" value={selectedSection.settings?.address || ''} onChange={(e) => updateSectionSetting(selectedSection.id, 'address', e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
-                                                    <input type="text" placeholder="Téléphone (ex: +212 6...)" value={selectedSection.settings?.phone || ''} onChange={(e) => updateSectionSetting(selectedSection.id, 'phone', e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
-                                                    <input type="email" placeholder="Email de contact" value={selectedSection.settings?.email || ''} onChange={(e) => updateSectionSetting(selectedSection.id, 'email', e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
-                                                    
-                                                    <h4 className="text-sm font-bold text-slate-700 mt-4">Réseaux Sociaux (URLs)</h4>
-                                                    <input type="text" placeholder="Facebook URL" value={selectedSection.settings?.socialFacebook || ''} onChange={(e) => updateSectionSetting(selectedSection.id, 'socialFacebook', e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
-                                                    <input type="text" placeholder="Instagram URL" value={selectedSection.settings?.socialInstagram || ''} onChange={(e) => updateSectionSetting(selectedSection.id, 'socialInstagram', e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
-                                                    <input type="text" placeholder="WhatsApp URL ou Numéro" value={selectedSection.settings?.socialWhatsapp || ''} onChange={(e) => updateSectionSetting(selectedSection.id, 'socialWhatsapp', e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
-                                                    <input type="text" placeholder="Twitter URL" value={selectedSection.settings?.socialTwitter || ''} onChange={(e) => updateSectionSetting(selectedSection.id, 'socialTwitter', e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
-                                                </div>
-                                            )}
                                                 {/* Variants */}
                                                 {getAvailableVariants(selectedSection.type).length > 1 && (
                                                     <div className="pb-4 border-b border-slate-100">
@@ -1315,7 +593,6 @@ export default function HybridStoreBuilder() {
                 )}
             </AnimatePresence>
         </div>
-        )}
         </>
     );
 }

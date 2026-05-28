@@ -2,7 +2,7 @@ import React from 'react';
 import { BuilderRegistry } from '../registry';
 import { Paintbrush } from 'lucide-react';
 
-export default function BlockRenderer({ section, theme, onClick, isSelected, isReadOnly, contextData }) {
+export default function BlockRenderer({ section, theme, onClick, isSelected, isReadOnly, contextData, onUpdate }) {
     const { type, variant, title, subtitle } = section;
     
     // Determine the variant component to render
@@ -23,7 +23,8 @@ export default function BlockRenderer({ section, theme, onClick, isSelected, isR
     );
 
     const content = VariantComponent ? (
-        <VariantComponent section={section} theme={theme} contextData={contextData} />
+        <VariantComponent section={section} theme={theme} contextData={contextData} onUpdate={onUpdate} />
+
     ) : (
         <DefaultFallback />
     );
@@ -35,7 +36,7 @@ export default function BlockRenderer({ section, theme, onClick, isSelected, isR
     return (
         <div 
             onClick={(e) => { e.stopPropagation(); if (onClick) onClick(); }}
-            className={`relative group cursor-pointer transition-all duration-300 ${isSelected ? 'ring-4 ring-indigo-500/50 z-10' : 'hover:ring-2 hover:ring-indigo-300'}`}
+            className={`builder-section relative group cursor-pointer transition-all duration-300 ${isSelected ? 'ring-4 ring-indigo-500/50 z-10' : 'hover:ring-2 hover:ring-indigo-300'}`}
         >
             <div className={`absolute inset-0 border-2 pointer-events-none transition-opacity duration-200 ${isSelected ? 'border-indigo-600 opacity-100' : 'border-indigo-500 opacity-0 group-hover:opacity-100'}`}></div>
             

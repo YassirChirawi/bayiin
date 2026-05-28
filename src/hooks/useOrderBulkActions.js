@@ -125,9 +125,6 @@ export function useOrderBulkActions(orders, storeId, user, {
                 try {
                     const batch = writeBatch(db);
 
-                    const statsRef = doc(db, "stores", storeId, "stats", "sales");
-                    const globalStatsUpdates = {};
-
                     selectedOrders.forEach(id => {
                         const order = orders.find(o => o.id === id);
                         if (!order) return;
@@ -144,37 +141,10 @@ export function useOrderBulkActions(orders, storeId, user, {
                         }
 
                         batch.update(orderRef, updates);
-
-                        // Global Stats Logic
-                        if (order.status !== status) {
-                            globalStatsUpdates[`statusCounts.${order.status || 'reçu'}`] = increment(-1);
-                            globalStatsUpdates[`statusCounts.${status}`] = increment(1);
-
-                            if (status === 'livré' && order.status !== 'livré') {
-                                globalStatsUpdates["totals.deliveredRevenue"] = increment(parseFloat(order.price) || 0);
-                                globalStatsUpdates["totals.deliveredCount"] = increment(1);
-                                if (order.driverId) {
-                                    batch.update(doc(db, "drivers", order.driverId), {
-                                        "stats.totalDelivered": increment(1),
-                                        "stats.totalCOD": increment(parseFloat(order.price) || 0)
-                                    });
-                                }
-                            } else if (order.status === 'livré' && status !== 'livré') {
-                                globalStatsUpdates["totals.deliveredRevenue"] = increment(-(parseFloat(order.price) || 0));
-                                globalStatsUpdates["totals.deliveredCount"] = increment(-1);
-                                if (order.driverId) {
-                                    batch.update(doc(db, "drivers", order.driverId), {
-                                        "stats.totalDelivered": increment(-1),
-                                        "stats.totalCOD": increment(-(parseFloat(order.price) || 0))
-                                    });
-                                }
-                            }
-                        }
+                        
+                        // Note: Global Store Stats and Driver Stats are now handled centrally 
+                        // by onOrderWrite in functions/index.js. We don't update them here.
                     });
-
-                    if (Object.keys(globalStatsUpdates).length > 0) {
-                        batch.update(statsRef, globalStatsUpdates);
-                    }
 
                     await batch.commit();
                     setSelectedOrders([]);

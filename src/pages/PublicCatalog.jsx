@@ -13,6 +13,7 @@ import StoreHeader from '../components/storefront/StoreHeader';
 import StoreFooter from '../components/storefront/StoreFooter';
 import CartDrawer from '../components/storefront/CartDrawer';
 import ProductPage from '../components/storefront/ProductPage';
+import StorefrontCheckout from '../components/storefront/StorefrontCheckout';
 import ContactPage from '../components/storefront/ContactPage';
 import ThankYouPage from '../components/storefront/ThankYouPage';
 import BlockRenderer from '../builder/renderer/BlockRenderer';
@@ -63,26 +64,36 @@ export default function PublicCatalog() {
 
                 // 2. Load storefront config or create fallback
                 let config = storeData.storefront;
-                if (!config || !config.sections || config.sections.length === 0) {
+                if (!config || !config.pages) {
                     config = {
                         subdomain: '',
                         theme: DEFAULT_THEME,
-                        sections: [
-                            {
-                                id: 'default-hero',
-                                type: 'Hero',
-                                title: `Bienvenue chez ${storeData.name}`,
-                                subtitle: "Découvrez notre collection exclusive et profitez de la livraison à domicile.",
-                                settings: { alignment: 'center', textColor: '#ffffff', backgroundType: 'color', backgroundColor: DEFAULT_THEME.primaryColor }
+                        pages: {
+                            home: {
+                                sections: [
+                                    {
+                                        id: 'default-hero',
+                                        type: 'Hero',
+                                        title: `Bienvenue chez ${storeData.name}`,
+                                        subtitle: "Découvrez notre collection exclusive et profitez de la livraison à domicile.",
+                                        settings: { alignment: 'center', textColor: '#ffffff', backgroundType: 'color', backgroundColor: DEFAULT_THEME.primaryColor }
+                                    },
+                                    {
+                                        id: 'default-grid',
+                                        type: 'ProductGrid',
+                                        title: "Nos Produits",
+                                        subtitle: "Découvrez nos meilleures ventes.",
+                                        settings: { alignment: 'left', columns: 4 }
+                                    }
+                                ]
                             },
-                            {
-                                id: 'default-grid',
-                                type: 'ProductGrid',
-                                title: "Nos Produits",
-                                subtitle: "Découvrez nos meilleures ventes.",
-                                settings: { alignment: 'left', columns: 4 }
-                            }
-                        ]
+                            catalog: { sections: [] },
+                            product: { sections: [] },
+                            cart: { sections: [] },
+                            checkout: { sections: [] },
+                            portal: { sections: [] },
+                            contact: { sections: [] }
+                        }
                     };
                 } else {
                     config.theme = { ...DEFAULT_THEME, ...config.theme };
@@ -192,16 +203,10 @@ export default function PublicCatalog() {
         }
     };
 
-    const handleCheckout = async (clientForm) => {
-        if (!store?.phone) {
-            alert("Le numéro de la boutique n'est pas configuré.");
-            return;
-        }
-
+    const submitFullCheckout = async (checkoutData) => {
         setIsCheckingOut(true);
         try {
             const orderRefNum = `CMD-${Math.floor(1000 + Math.random() * 9000)}`;
-            const cartTotal = cart.reduce((acc, item) => acc + (parseFloat(item.price) * item.quantity), 0);
             const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
             // Save Draft Order to Firestore
@@ -209,10 +214,10 @@ export default function PublicCatalog() {
                 storeId: store.id,
                 orderNumber: orderRefNum,
                 status: 'pending_catalog',
-                clientName: clientForm.name,
-                clientPhone: clientForm.phone,
-                clientCity: clientForm.city,
-                clientAddress: clientForm.address,
+                clientName: checkoutData.name,
+                clientPhone: checkoutData.phone,
+                clientCity: checkoutData.city,
+                clientAddress: checkoutData.address,
                 products: cart.map(item => ({
                     id: item.id,
                     name: item.name,
@@ -223,25 +228,28 @@ export default function PublicCatalog() {
                 })),
                 articleName: cart.map(i => `${i.quantity}x ${i.name}${i.selectedVariant ? ` (${i.selectedVariant.name})` : ''}`).join(', '),
                 quantity: cartCount,
-                price: cartTotal,
+                price: checkoutData.netTotal,
+                shippingFee: checkoutData.shippingFee,
                 createdAt: serverTimestamp(),
                 date: new Date().toISOString().split('T')[0],
-                source: 'public_catalog'
+                source: 'public_catalog_checkout'
             });
 
-            // Build WhatsApp Message
+            // Build WhatsApp Message (Optional fallback/notification)
             const currency = store.currency || 'MAD';
             const itemsList = cart.map(item => `- ${item.quantity}x ${item.name}${item.selectedVariant ? ` (${item.selectedVariant.name})` : ''} (${(parseFloat(item.price) * item.quantity).toFixed(2)} ${currency})`).join('\n');
-            const totalLine = `*TOTAL: ${cartTotal.toFixed(2)} ${currency}*`;
-            const clientInfo = `\n\n📋 *Client:* ${clientForm.name}\n📱 ${clientForm.phone}${clientForm.city ? `\n📍 ${clientForm.city}` : ''}${clientForm.address ? ` — ${clientForm.address}` : ''}`;
+            const totalLine = `*TOTAL: ${checkoutData.netTotal.toFixed(2)} ${currency}*`;
+            const clientInfo = `\n\n📋 *Client:* ${checkoutData.name}\n📱 ${checkoutData.phone}${checkoutData.city ? `\n📍 ${checkoutData.city}` : ''}${checkoutData.address ? ` — ${checkoutData.address}` : ''}`;
 
-            const message = `Bonjour ${store.name}, je souhaite commander :\n\n${itemsList}\n\n${totalLine}${clientInfo}\nRef: ${orderRefNum}`;
-            const url = createRawWhatsAppLink(store.phone, message);
+            const message = `Bonjour ${store.name}, je viens de valider ma commande sur le site :\n\n${itemsList}\n\n${totalLine}${clientInfo}\nRef: ${orderRefNum}`;
+            
+            // We can choose to open WhatsApp or just show Thank You page. 
+            // In Morocco, WhatsApp is preferred, so we open it in background or let the user choose.
+            // For headless ERP, we just show ThankYouPage directly, as the order is in the ERP.
             
             vibrate('success');
-            window.open(url, '_blank');
-
-            setLastOrder({ orderNumber: orderRefNum, price: cartTotal });
+            
+            setLastOrder({ orderNumber: orderRefNum, price: checkoutData.netTotal });
             setCart([]);
             setIsCartOpen(false);
             setCurrentView('thankyou');
@@ -253,6 +261,12 @@ export default function PublicCatalog() {
         } finally {
             setIsCheckingOut(false);
         }
+    };
+
+    const handleCartCheckoutClick = () => {
+        setIsCartOpen(false);
+        setCurrentView('checkout');
+        window.scrollTo(0, 0);
     };
 
 
@@ -303,7 +317,28 @@ export default function PublicCatalog() {
             <main className="flex-1">
                 {currentView === 'home' && (
                     <div className="animate-in fade-in duration-500">
-                        {(storefrontData.pages?.home?.sections || storefrontData.sections || []).map(section => (
+                        {(storefrontData.pages?.home?.sections || []).map(section => (
+                            <BlockRenderer 
+                                key={section.id} 
+                                isReadOnly={true} 
+                                section={section} 
+                                theme={theme} 
+                                contextData={{
+                                    products,
+                                    onProductClick: (p) => {
+                                        setSelectedProduct(p);
+                                        setCurrentView('product');
+                                        window.scrollTo(0, 0);
+                                    }
+                                }}
+                            />
+                        ))}
+                    </div>
+                )}
+
+                {currentView === 'catalog' && (
+                    <div className="animate-in fade-in duration-500">
+                        {(storefrontData.pages?.catalog?.sections || []).map(section => (
                             <BlockRenderer 
                                 key={section.id} 
                                 isReadOnly={true} 
@@ -350,6 +385,27 @@ export default function PublicCatalog() {
                     </div>
                 )}
 
+                {currentView === 'checkout' && (
+                    <div className="animate-in slide-in-from-right-8 duration-300 mx-auto py-8 w-full">
+                        {/* Custom Sections for Checkout before the form */}
+                        {(storefrontData.pages?.checkout?.sections || []).map(section => (
+                            <BlockRenderer 
+                                key={section.id} 
+                                isReadOnly={true} 
+                                section={section} 
+                                theme={theme} 
+                            />
+                        ))}
+                        <StorefrontCheckout 
+                            theme={theme}
+                            cart={cart}
+                            cities={store?.senditCities || []}
+                            isCheckingOut={isCheckingOut}
+                            onCheckout={submitFullCheckout}
+                        />
+                    </div>
+                )}
+
                 {currentView === 'contact' && (
                     <div className="animate-in fade-in duration-300">
                         <ContactPage theme={theme} store={store} />
@@ -392,7 +448,7 @@ export default function PublicCatalog() {
                 cities={store?.senditCities || []}
                 onUpdateQuantity={(id, delta) => setCart(prev => prev.map(item => item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item))}
                 onRemove={(id) => setCart(prev => prev.filter(item => item.id !== id))}
-                onCheckoutClick={handleCheckout}
+                onCheckoutClick={handleCartCheckoutClick}
                 isCheckingOut={isCheckingOut}
                 theme={theme}
                 upsellProduct={products.find(p => p.id !== selectedProduct?.id && parseInt(p.stock) > 0)} // Simple upsell logic

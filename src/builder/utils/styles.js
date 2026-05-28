@@ -16,8 +16,18 @@ export const getSectionStyle = (section, theme) => {
         ? settings.backgroundColor 
         : (type === 'Hero' ? `${theme.primaryColor}10` : '#ffffff');
 
-    const pt = settings.paddingTop !== undefined ? settings.paddingTop : (type === 'Hero' ? 128 : 80);
-    const pb = settings.paddingBottom !== undefined ? settings.paddingBottom : (type === 'Hero' ? 128 : 80);
+    // Default padding values depending on the block type
+    const defaultPt = type === 'Hero' ? 128 : 80;
+    const defaultPb = type === 'Hero' ? 128 : 80;
+
+    // Handle string/number (old format) or object (new multi-breakpoint format)
+    const pt = typeof settings.paddingTop === 'object' && settings.paddingTop !== null
+        ? settings.paddingTop
+        : { desktop: settings.paddingTop ?? defaultPt, tablet: settings.paddingTop ?? defaultPt, mobile: settings.paddingTop ?? defaultPt };
+
+    const pb = typeof settings.paddingBottom === 'object' && settings.paddingBottom !== null
+        ? settings.paddingBottom
+        : { desktop: settings.paddingBottom ?? defaultPb, tablet: settings.paddingBottom ?? defaultPb, mobile: settings.paddingBottom ?? defaultPb };
 
     return {
         backgroundColor: (isImage || isVideo) ? 'transparent' : bgColor,
@@ -26,8 +36,15 @@ export const getSectionStyle = (section, theme) => {
         backgroundPosition: 'center',
         color: settings.textColor || '#0f172a',
         position: 'relative',
-        paddingTop: `${pt}px`,
-        paddingBottom: `${pb}px`
+        
+        // Inject CSS variables for responsive padding
+        '--pt-desktop': `${pt.desktop}px`,
+        '--pt-tablet': `${pt.tablet}px`,
+        '--pt-mobile': `${pt.mobile}px`,
+        
+        '--pb-desktop': `${pb.desktop}px`,
+        '--pb-tablet': `${pb.tablet}px`,
+        '--pb-mobile': `${pb.mobile}px`,
     };
 };
 
