@@ -20,9 +20,20 @@ export default function StorefrontCheckout({ theme, cart, cities, onCheckout, is
         address: ''
     });
 
+    const [bumpAccepted, setBumpAccepted] = useState(false);
+    // Mock bump offer
+    const bumpOffer = {
+        name: "Livraison Express VIP (Prioritaire)",
+        price: 29.00,
+        description: "Traitement prioritaire de votre commande pour une expédition le jour même."
+    };
+
     const selectedCityObj = availableCities.find(c => c.name === clientForm.city) || availableCities[0];
     
-    const cartSubtotal = cart.reduce((acc, item) => acc + (parseFloat(item.price) * item.quantity), 0);
+    let cartSubtotal = cart.reduce((acc, item) => acc + (parseFloat(item.price) * item.quantity), 0);
+    if (bumpAccepted) {
+        cartSubtotal += bumpOffer.price;
+    }
     const shippingFee = selectedCityObj ? (selectedCityObj.deliveryFee || selectedCityObj.fee || 0) : 0;
     
     // In a real scenario, discount would be fetched from ERP or promo code
@@ -174,6 +185,19 @@ export default function StorefrontCheckout({ theme, cart, cities, onCheckout, is
                                     </div>
                                 </div>
                             ))}
+                            
+                            {/* Bump Offer in Cart */}
+                            {bumpAccepted && (
+                                <div className="flex gap-4">
+                                    <div className="w-16 h-16 bg-amber-50 rounded-lg border border-amber-200 flex-shrink-0 flex items-center justify-center text-amber-500">
+                                        <ShieldCheck size={24} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-bold text-sm leading-tight text-slate-900">{bumpOffer.name}</p>
+                                        <p className="font-bold text-sm mt-1 text-slate-700">{bumpOffer.price.toFixed(2)} MAD</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="space-y-3 pt-6 border-t border-slate-200 text-sm">
@@ -198,6 +222,31 @@ export default function StorefrontCheckout({ theme, cart, cities, onCheckout, is
                             <span className="font-black text-2xl" style={{ color: theme.primaryColor }}>{netTotal.toFixed(2)} MAD</span>
                         </div>
                         
+                        {/* ORDER BUMP SECTION */}
+                        {theme?.orderBump !== false && (
+                            <div className="mt-6 border-2 border-dashed border-amber-300 bg-amber-50 rounded-xl p-4 cursor-pointer transition-colors hover:bg-amber-100" onClick={() => setBumpAccepted(!bumpAccepted)}>
+                                <div className="flex items-start gap-3">
+                                    <div className="pt-1">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={bumpAccepted}
+                                            onChange={(e) => setBumpAccepted(e.target.checked)}
+                                            className="w-5 h-5 accent-amber-600 cursor-pointer"
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-slate-900 text-sm">
+                                            Oui, je veux ajouter : {bumpOffer.name} (+{bumpOffer.price} MAD)
+                                        </p>
+                                        <p className="text-xs text-slate-600 mt-1">
+                                            {bumpOffer.description}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         <button 
                             onClick={handleSubmit}
                             disabled={isCheckingOut}

@@ -1,10 +1,20 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Truck, ExternalLink, Package } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Truck, ExternalLink, Package, PlusCircle, CheckCircle2 } from 'lucide-react';
 
-export default function ThankYouPage({ order, theme, onBackToCatalog }) {
+export default function ThankYouPage({ order, theme, onBackToCatalog, onAcceptUpsell }) {
     const primaryColor = theme?.primaryColor || '#4f46e5';
+    const [upsellStatus, setUpsellStatus] = useState('idle'); // idle, loading, success
     
+    // Mock Upsell Offer
+    const upsellOffer = {
+        name: "Sérum Anti-âge à l'Acide Hyaluronique",
+        price: 99,
+        originalPrice: 250,
+        image: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=300&q=80",
+        discountText: "OFFRE EXCLUSIVE : -60%"
+    };
+
     // Fallback order info for preview
     const orderNumber = order?.orderNumber || 'CMD-1042';
     const amount = parseFloat(order?.price || 0).toFixed(0) || '0';
@@ -12,6 +22,14 @@ export default function ThankYouPage({ order, theme, onBackToCatalog }) {
     
     const whatsappMessage = encodeURIComponent(`Bonjour, j'aimerais accélérer la préparation de ma commande ${orderNumber} au nom de ${order?.clientName || 'Client'}.`);
     const waLink = `https://wa.me/${whatsappNumber.replace(/[^0-9]/g, '')}?text=${whatsappMessage}`;
+
+    const handleAcceptUpsell = () => {
+        setUpsellStatus('loading');
+        setTimeout(() => {
+            setUpsellStatus('success');
+            if (onAcceptUpsell) onAcceptUpsell(upsellOffer);
+        }, 800);
+    };
 
     return (
         <div className="min-h-[80vh] bg-slate-50 flex items-center justify-center p-4 py-12">
@@ -98,6 +116,78 @@ export default function ThankYouPage({ order, theme, onBackToCatalog }) {
                         </button>
                     </div>
                 </div>
+
+                {/* POST-PURCHASE UPSELL SECTION */}
+                {theme?.postPurchaseUpsell !== false && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 1 }}
+                        className="mt-6 bg-white rounded-3xl p-6 shadow-xl shadow-slate-200/50 border-2 overflow-hidden relative"
+                        style={{ borderColor: `${primaryColor}40` }}
+                    >
+                        <div className="absolute top-0 left-0 w-full bg-rose-500 text-white text-center text-xs font-black py-1.5 uppercase tracking-widest animate-pulse">
+                            Ne fermez pas cette page !
+                        </div>
+                        
+                        <div className="pt-6 text-center">
+                            <h3 className="text-lg font-black text-slate-900 mb-1">Ajoutez ceci à votre commande</h3>
+                            <p className="text-sm text-slate-500 mb-4 font-medium">Profitez de cette offre unique (Non disponible sur la boutique)</p>
+                            
+                            <div className="flex gap-4 items-center bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left mb-6">
+                                <img src={upsellOffer.image} alt={upsellOffer.name} className="w-20 h-20 rounded-xl object-cover border border-slate-200" />
+                                <div className="flex-1">
+                                    <span className="text-[10px] font-black text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full mb-1 inline-block">
+                                        {upsellOffer.discountText}
+                                    </span>
+                                    <h4 className="font-bold text-sm text-slate-900 leading-tight mb-1">{upsellOffer.name}</h4>
+                                    <div className="flex items-end gap-2">
+                                        <span className="font-black text-lg text-slate-900">{upsellOffer.price} MAD</span>
+                                        <span className="text-sm font-medium text-slate-400 line-through mb-0.5">{upsellOffer.originalPrice} MAD</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <AnimatePresence mode="wait">
+                                {upsellStatus === 'idle' && (
+                                    <motion.button 
+                                        key="idle"
+                                        onClick={handleAcceptUpsell}
+                                        className="w-full py-4 rounded-xl font-black text-white transition-transform hover:scale-[1.02] shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2"
+                                        style={{ backgroundColor: '#10b981' }} // Force green for buy
+                                    >
+                                        <PlusCircle size={20} />
+                                        Oui, ajouter à ma commande !
+                                    </motion.button>
+                                )}
+                                {upsellStatus === 'loading' && (
+                                    <motion.button 
+                                        key="loading"
+                                        className="w-full py-4 rounded-xl font-black text-white bg-emerald-400 flex items-center justify-center gap-2 cursor-not-allowed"
+                                    >
+                                        <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                                        Mise à jour de la commande...
+                                    </motion.button>
+                                )}
+                                {upsellStatus === 'success' && (
+                                    <motion.div 
+                                        key="success"
+                                        className="w-full py-4 rounded-xl font-black text-emerald-700 bg-emerald-50 border-2 border-emerald-200 flex items-center justify-center gap-2"
+                                    >
+                                        <CheckCircle2 size={20} className="text-emerald-500" />
+                                        Produit ajouté avec succès !
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                            
+                            {upsellStatus === 'idle' && (
+                                <button className="mt-4 text-xs font-bold text-slate-400 hover:text-slate-600 underline">
+                                    Non merci, je refuse cette offre
+                                </button>
+                            )}
+                        </div>
+                    </motion.div>
+                )}
 
                 <div className="text-center mt-6">
                     <button className="text-sm font-bold text-slate-500 hover:text-slate-900 transition-colors flex items-center justify-center gap-1 mx-auto">
