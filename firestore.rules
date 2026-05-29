@@ -126,7 +126,9 @@ service cloud.firestore {
     match /stores/{storeId} {
       allow create: if request.auth != null;
       // SEC-01: Restrict read to authenticated users related to the store, OR if publicCatalogEnabled is true
-      allow read: if (request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin() || isFranchiseAdmin())) 
+      allow get: if (request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin() || isFranchiseAdmin())) 
+                  || resource.data.publicCatalogEnabled == true;
+      allow list: if (request.auth != null && (resource.data.ownerId == request.auth.uid || isSuperAdmin() || isFranchiseAdmin())) 
                   || resource.data.publicCatalogEnabled == true;
       allow update: if (isStoreOwner(storeId) || isSuperAdmin()) &&
                     !request.resource.data.diff(resource.data).affectedKeys().hasAny(['plan', 'subscriptionStatus', 'currentPeriodEnd', 'stripeCustomerId']);
