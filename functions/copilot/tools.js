@@ -193,7 +193,7 @@ const BEYA3_TOOLS = [
       type: "function",
       function: {
         name: "get_market_benchmark",
-        description: "Compare les performances du marchand avec les médianes anonymisées du marché marocain e-commerce. Utilisé pour des questions comme 'comment je me situe par rapport au marché', 'est-ce que ma marge est bonne', etc.",
+        description: "FOURNIT DES BENCHMARKS DE MARCHÉ. À utiliser OBLIGATOIREMENT si l'utilisateur demande des benchmarks, des comparaisons au marché, ou comment il se situe par rapport aux autres marchands marocains.",
         parameters: {
           type: "object",
           properties: {

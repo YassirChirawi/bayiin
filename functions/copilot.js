@@ -189,7 +189,8 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
     if (specificAgent) {
         agentName = specificAgent.name;
         activeSystemPrompt = specificAgent.systemPrompt + "\n\nCONTEXTE GLOBAL:\n" + systemPrompt;
-        activeTools = BEYA3_TOOLS.filter(t => specificAgent.tools.includes(t.function.name));
+        // ÉVOLUTION 7 FIX : On ne filtre plus les outils pour éviter de brider l'agent en cas de question multi-domaine
+        activeTools = BEYA3_TOOLS; 
         agentTemperature = specificAgent.temperature;
     }
 
@@ -269,7 +270,19 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
       });
 
       const firstChoice = firstPass.choices[0];
-      const toolCalls = firstChoice.message.tool_calls || [];
+      let toolCalls = firstChoice.message.tool_calls || [];
+      
+      // FALLBACK JSON
+      if (toolCalls.length === 0 && firstChoice.message.content) {
+          const jsonMatch = firstChoice.message.content.match(/\{\s*"action"\s*:\s*"([^"]+)"\s*,\s*"data"\s*:\s*(\{.*\})\s*\}/i);
+          if (jsonMatch) {
+              const fallbackToolName = jsonMatch[1].toLowerCase() === 'analyze_finances' ? 'analyze_profit' : jsonMatch[1];
+              toolCalls = [{
+                  id: 'call_fallback_' + Date.now(),
+                  function: { name: fallbackToolName, arguments: jsonMatch[2] }
+              }];
+          }
+      }
       
       const toolResults = [];
       const actionsDrafted = [];

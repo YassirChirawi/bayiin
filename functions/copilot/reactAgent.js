@@ -10,22 +10,20 @@ const { BEYA3_TOOLS } = require('./tools');
 
 const MAX_ITERATIONS = 5;
 
-const REACT_SYSTEM_PROMPT = `Tu es Beya3, un agent de raisonnement multi-étapes pour l'analyse financière e-commerce.
+const REACT_SYSTEM_PROMPT = `Tu es Beya3, l'assistant expert (CFO/COO) pour le e-commerce.
 
-PROCESSUS OBLIGATOIRE :
-1. THINK : Réfléchis à voix haute à ce que tu as besoin de savoir pour répondre. Identifie les données manquantes.
-2. ACT : Utilise UN outil pour obtenir les données nécessaires.
-3. OBSERVE : Analyse le résultat obtenu. Décide si tu as assez de données ou si tu dois creuser davantage.
-4. REPEAT : Si tu n'as pas assez de données, retourne à l'étape 1 avec les nouvelles observations.
-5. SYNTHESIZE : Quand tu as toutes les données, formule ta réponse finale.
+PROCESSUS DE RAISONNEMENT :
+Tu as accès à plusieurs outils (tools) pour récupérer des données en temps réel sur la boutique.
+- Ne fais JAMAIS de calcul financier ou de supposition par toi-même.
+- Utilise TOUJOURS les outils (function calling) fournis pour obtenir les chiffres (ventes, trésorerie, stock, anomalies).
+- Si tu n'as pas l'information, fais l'appel à l'outil approprié.
+- Si le résultat de l'outil est insuffisant, appelle un autre outil pour approfondir.
+- Quand tu as réuni toutes les données nécessaires, fournis une synthèse claire, précise et orientée action.
 
 RÈGLES :
-- Ne fais JAMAIS de calcul financier toi-même. Utilise TOUJOURS les outils.
-- Chaque itération doit apporter une information NOUVELLE. Pas de redondance.
-- Si tu détectes que les données suffisent, arrête-toi immédiatement.
-- Maximum 5 itérations. Si tu atteins la limite, synthétise avec ce que tu as.
-- Pense de manière structurée : identifie d'abord le PROBLÈME, puis les DONNÉES nécessaires, puis l'ANALYSE.
-`;
+- Sois très concis et professionnel.
+- Ne mentionne jamais que tu "utilises des outils". Présente les résultats naturellement.
+- Appelle directement l'outil sans écrire tes pensées dans le message.`;
 
 /**
  * Détecte si une question nécessite le raisonnement multi-étapes (ReAct).
@@ -111,13 +109,30 @@ async function runReActLoop(storeId, userMessage, context, executeToolFn, groqAp
 
             // If no tool calls → the model has enough data and is giving a final answer
             if (!message.tool_calls || message.tool_calls.length === 0) {
-                return {
-                    finalAnswer: message.content,
-                    steps,
-                    iterationsUsed: iteration,
-                    toolsUsed: Array.from(toolsUsed),
-                    maxIterReached: false
-                };
+                // FALLBACK: Detect hallucinated JSON action in content
+                const jsonMatch = message.content && message.content.match(/\{\s*"action"\s*:\s*"([^"]+)"\s*,\s*"data"\s*:\s*(\{.*\})\s*\}/i);
+                
+                if (jsonMatch) {
+                    const fallbackToolName = jsonMatch[1].toLowerCase() === 'analyze_finances' ? 'analyze_profit' : jsonMatch[1];
+                    const fallbackArgs = jsonMatch[2];
+                    
+                    message.tool_calls = [{
+                        id: 'call_fallback_' + Date.now(),
+                        type: 'function',
+                        function: {
+                            name: fallbackToolName,
+                            arguments: fallbackArgs
+                        }
+                    }];
+                } else {
+                    return {
+                        finalAnswer: message.content,
+                        steps,
+                        iterationsUsed: iteration,
+                        toolsUsed: Array.from(toolsUsed),
+                        maxIterReached: false
+                    };
+                }
             }
 
             // Process tool calls (usually 1 per iteration for focused reasoning)
