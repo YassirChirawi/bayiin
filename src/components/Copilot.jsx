@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useCopilot } from "../context/CopilotContext";
-import { X, Send, Sparkles, Trash2, Mic, MicOff, CheckCircle2, XCircle } from "lucide-react";
+import { X, Send, Sparkles, Trash2, Mic, MicOff, CheckCircle2, XCircle, Undo2 } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
@@ -75,7 +75,7 @@ const ActionConfirmation = ({ action, onConfirm, onCancel, timeoutSeconds = 60 }
 
 
 export default function Copilot() {
-    const { isOpen, togglePanel, messages, sendMessage, loading, clearHistory, pendingActions, confirmAction, cancelAction } = useCopilot();
+    const { isOpen, togglePanel, messages, sendMessage, loading, clearHistory, pendingActions, confirmAction, cancelAction, recentActions, undoLastAction } = useCopilot();
     const [input, setInput] = useState("");
     const [isListening, setIsListening] = useState(false);
     const scrollRef = useRef(null);
@@ -235,6 +235,29 @@ export default function Copilot() {
                                         <div className="w-2 h-2 bg-rose-400 rounded-full animate-bounce delay-150"></div>
                                     </div>
                                 </motion.div>
+                            )}
+
+                            {/* Rollback-eligible actions */}
+                            {recentActions?.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 px-1">
+                                    {recentActions.map(action => {
+                                        const minutesLeft = Math.max(0, Math.round((action.rollbackDeadline - Date.now()) / 60000));
+                                        return (
+                                            <motion.button
+                                                key={action.id}
+                                                initial={{ opacity: 0, scale: 0.9 }}
+                                                animate={{ opacity: 1, scale: 1 }}
+                                                exit={{ opacity: 0 }}
+                                                onClick={() => undoLastAction(action.id)}
+                                                className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-full text-[10px] text-amber-700 font-medium transition-colors cursor-pointer"
+                                                title={`Annuler: ${action.toolName}`}
+                                            >
+                                                <Undo2 className="w-3 h-3" />
+                                                <span>↩️ Annulable {minutesLeft}m</span>
+                                            </motion.button>
+                                        );
+                                    })}
+                                </div>
                             )}
                         </div>
 

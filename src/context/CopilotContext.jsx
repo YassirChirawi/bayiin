@@ -30,6 +30,7 @@ export const CopilotProvider = ({ children }) => {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
     const [pendingActions, setPendingActions] = useState([]);
+    const [recentActions, setRecentActions] = useState([]); // Actions confirmed, still rollback-eligible
     const [conversationId, setConversationId] = useState(crypto.randomUUID());
     const lastActionTime = useRef(0);
 
@@ -126,11 +127,41 @@ export const CopilotProvider = ({ children }) => {
         } catch (e) {
             toast.error("Échec de l'exécution.", { id: actionId });
         }
+
+        // Track for rollback
+        setRecentActions(prev => [...prev, {
+            id: actionId,
+            toolName,
+            toolArgs,
+            confirmedAt: Date.now(),
+            rollbackDeadline: Date.now() + 60 * 60 * 1000 // 1 hour
+        }]);
     };
 
     const cancelAction = (actionId) => {
         setPendingActions(prev => prev.filter(a => a.toolCallId !== actionId));
         toast("Action annulée.", { icon: "❌" });
+    };
+
+    // Expire old rollback-eligible actions
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setRecentActions(prev => prev.filter(a => Date.now() < a.rollbackDeadline));
+        }, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const undoLastAction = async (actionId) => {
+        toast.loading("Annulation en cours...", { id: 'undo' });
+        try {
+            // The actual rollback happens server-side via the copilot tool
+            // For now we remove it from the UI and send a message to Beya3
+            setRecentActions(prev => prev.filter(a => a.id !== actionId));
+            await sendMessage(`Annule la dernière action (ID: ${actionId})`);
+            toast.success("Action annulée !", { id: 'undo' });
+        } catch (e) {
+            toast.error("Échec de l'annulation.", { id: 'undo' });
+        }
     };
 
     const togglePanel = () => {
@@ -206,7 +237,7 @@ export const CopilotProvider = ({ children }) => {
     };
 
     return (
-        <CopilotContext.Provider value={{ isOpen, togglePanel, messages, sendMessage, loading, clearHistory, pendingActions, confirmAction, cancelAction }}>
+        <CopilotContext.Provider value={{ isOpen, togglePanel, messages, sendMessage, loading, clearHistory, pendingActions, confirmAction, cancelAction, recentActions, undoLastAction }}>
             {children}
         </CopilotContext.Provider>
     );

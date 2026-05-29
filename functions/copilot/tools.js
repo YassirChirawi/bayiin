@@ -155,6 +155,56 @@ const BEYA3_TOOLS = [
           required: ["type", "content"]
         }
       }
+    },
+
+    // ── ÉVOLUTION 4 — ROLLBACK ────────────────────────
+    {
+      type: "function",
+      function: {
+        name: "rollback_last_action",
+        description: "Annule la dernière action effectuée par Beya3 si elle date de moins d'1 heure. Utilisé quand le marchand dit 'annule', 'undo', 'reviens en arrière', etc.",
+        parameters: {
+          type: "object",
+          properties: {
+            actionId: { type: "string", description: "ID spécifique de l'action à annuler (optionnel, sinon annule la dernière)" }
+          }
+        }
+      }
+    },
+
+    // ── ÉVOLUTION 5 — PRÉFÉRENCES MARCHAND ────────────
+    {
+      type: "function",
+      function: {
+        name: "update_merchant_preference",
+        description: "Enregistre une préférence de communication explicite du marchand. Utilisé quand il dit 'je préfère les réponses courtes', 'parle en darija', 'utilise des tableaux', etc.",
+        parameters: {
+          type: "object",
+          properties: {
+            preference: { type: "string", description: "La préférence exprimée par le marchand (ex: 'réponses courtes', 'parle en darija', 'format tableau')" }
+          },
+          required: ["preference"]
+        }
+      }
+    },
+
+    // ── ÉVOLUTION 6 — BENCHMARK MARCHÉ ────────────────
+    {
+      type: "function",
+      function: {
+        name: "get_market_benchmark",
+        description: "Compare les performances du marchand avec les médianes anonymisées du marché marocain e-commerce. Utilisé pour des questions comme 'comment je me situe par rapport au marché', 'est-ce que ma marge est bonne', etc.",
+        parameters: {
+          type: "object",
+          properties: {
+            metrics: {
+              type: "array",
+              items: { type: "string", enum: ["margin", "return_rate", "avg_order_value", "orders_per_day"] },
+              description: "Métriques à comparer avec le marché"
+            }
+          }
+        }
+      }
     }
   ];
   

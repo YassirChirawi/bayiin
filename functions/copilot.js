@@ -4,7 +4,7 @@ const cors = require("cors")({ origin: true });
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 
-// Import the new Copilot modules
+// Import Copilot modules
 const { BEYA3_TOOLS } = require("./copilot/tools");
 const { 
     calculateNetProfit, 
@@ -17,18 +17,24 @@ const {
     storeMemory, 
     retrieveMemories, 
     extractAndStoreMemories, 
-    buildSystemPrompt 
+    buildSystemPrompt,
+    updateMerchantProfile,
+    getMerchantProfile,
+    setExplicitPreference
 } = require("./copilot/memoryService");
+const { shouldUseReAct, runReActLoop } = require("./copilot/reactAgent");
+const { executeWithRollback, rollbackLastAction } = require("./copilot/actionExecutor");
+const { getMarketBenchmark } = require("./copilot/benchmarkService");
 
 const getDb = () => getFirestore('comsaas');
 
 /**
  * Exécute un outil financier de manière déterministe
  */
-async function executeFinancialTool(toolName, toolArgs, storeId) {
+async function executeFinancialTool(toolName, toolArgs, storeId, userId) {
     try {
         switch (toolName) {
-            case "analyze_profit":
+            case "analyze_profit": {
                 let start, end;
                 const now = new Date();
                 
@@ -46,21 +52,20 @@ async function executeFinancialTool(toolName, toolArgs, storeId) {
                 } else if (toolArgs.period === 'custom') {
                     start = toolArgs.startDate;
                     end = toolArgs.endDate;
-                } // default to all time if not specified properly for simplicity
+                }
                 
                 return await calculateNetProfit(storeId, start, end, toolArgs.breakdown);
-                
+            }
             case "get_cashflow_status":
                 return await getPendingCashflow(storeId, toolArgs.carrier || 'all');
                 
-            case "get_inventory_intelligence":
+            case "get_inventory_intelligence": {
                 const inventory = await getInventoryValue(storeId);
-                // Simple filtering based on focus
                 if (toolArgs.focus === 'out_of_stock') {
                     return { outOfStock: inventory.outOfStock, totalValue: inventory.totalValue };
                 }
                 return inventory;
-                
+            }
             case "predict_stock_runout":
                 return await predictStockRunout(storeId, toolArgs.daysLookAhead || 30, toolArgs.urgencyThreshold || 7);
                 
@@ -72,6 +77,18 @@ async function executeFinancialTool(toolName, toolArgs, storeId) {
                 
             case "retrieve_memory":
                 return await retrieveMemories(storeId, toolArgs.query, toolArgs.limit || 5);
+
+            // ── ÉVOLUTION 4 — ROLLBACK ──────────────────────
+            case "rollback_last_action":
+                return await rollbackLastAction(storeId, userId, toolArgs.actionId);
+
+            // ── ÉVOLUTION 5 — PRÉFÉRENCES MARCHAND ──────────
+            case "update_merchant_preference":
+                return await setExplicitPreference(storeId, toolArgs.preference);
+
+            // ── ÉVOLUTION 6 — BENCHMARK MARCHÉ ──────────────
+            case "get_market_benchmark":
+                return await getMarketBenchmark(storeId, toolArgs.metrics || ['margin', 'return_rate', 'avg_order_value']);
                 
             default:
                 return { error: `Tool ${toolName} not implemented yet or is a draft tool.` };
@@ -90,7 +107,6 @@ async function saveConversationMessage(storeId, conversationId, data) {
     const db = getDb();
     const convRef = db.collection(`stores/${storeId}/beya3_conversations`).doc(conversationId);
     
-    // Simplification for the POC: We just append messages
     await convRef.set({
         lastMessageAt: FieldValue.serverTimestamp(),
         messageCount: FieldValue.increment(2)
@@ -107,6 +123,7 @@ async function saveConversationMessage(storeId, conversationId, data) {
         content: data.assistantMessage,
         toolsUsed: data.toolsUsed || [],
         actionsDrafted: data.actionsDrafted || [],
+        reactSteps: data.reactSteps || null,
         timestamp: FieldValue.serverTimestamp()
     });
 }
@@ -144,11 +161,10 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
     const userDoc = await db.collection('users').doc(userId).get();
     const role = userDoc.exists ? userDoc.data().role : 'user';
     
-    // Basic rate limit check could be added here
-    
     // ── CHARGEMENT CONTEXTE ET MÉMOIRE ──────────────────────────
     const userLastMessage = messages[messages.length - 1].content;
     const relevantMemories = await retrieveMemories(storeId, userLastMessage, 5);
+    const merchantProfile = await getMerchantProfile(storeId);
     
     const systemPrompt = buildSystemPrompt({
         storeName,
@@ -156,12 +172,71 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
         userId,
         userRole: role,
         memories: relevantMemories,
-        currentDateTime: new Date().toISOString()
+        currentDateTime: new Date().toISOString(),
+        merchantProfile
     });
 
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
     try {
+      // ── ÉVOLUTION 1: REACT ROUTING ────────────────────
+      const useReAct = shouldUseReAct(userLastMessage);
+
+      if (useReAct) {
+          // ══ REACT MODE ══════════════════════════════════
+          console.log(`[Copilot] ReAct mode triggered for: "${userLastMessage.substring(0, 50)}..."`);
+          
+          const reactResult = await runReActLoop(
+              storeId,
+              userLastMessage,
+              { systemPrompt },
+              (toolName, toolArgs, sid) => executeFinancialTool(toolName, toolArgs, sid, userId),
+              process.env.GROQ_API_KEY
+          );
+
+          // Stream the final answer
+          res.setHeader("Content-Type", "text/event-stream");
+          res.setHeader("Cache-Control", "no-cache");
+
+          const answer = reactResult.finalAnswer || "Je n'ai pas pu finaliser mon analyse.";
+          
+          // Stream in chunks for typing effect
+          const chunkSize = 50;
+          for (let i = 0; i < answer.length; i += chunkSize) {
+              const chunk = answer.substring(i, i + chunkSize);
+              res.write(`data: ${JSON.stringify({ delta: chunk })}\n\n`);
+          }
+
+          // Include ReAct metadata for transparency
+          if (reactResult.steps.length > 0) {
+              res.write(`data: ${JSON.stringify({ 
+                  type: 'react_metadata',
+                  iterationsUsed: reactResult.iterationsUsed,
+                  toolsUsed: reactResult.toolsUsed,
+                  maxIterReached: reactResult.maxIterReached
+              })}\n\n`);
+          }
+
+          res.write("data: [DONE]\n\n");
+          res.end();
+
+          // Post-processing
+          await saveConversationMessage(storeId, conversationId, {
+              userMessage: userLastMessage,
+              assistantMessage: answer,
+              toolsUsed: reactResult.toolsUsed,
+              reactSteps: reactResult.steps.length
+          });
+          await extractAndStoreMemories(storeId, answer, messages);
+          
+          // Update merchant profile from user messages
+          const userMessages = messages.filter(m => m.role === 'user');
+          await updateMerchantProfile(storeId, userMessages);
+
+          return;
+      }
+
+      // ══ SINGLE-PASS MODE (standard) ═══════════════════
       // ── PASSE 1 : INTENT ROUTING + TOOL CALLING ──────
       const firstPass = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
@@ -172,7 +247,7 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
         tools: BEYA3_TOOLS,
         tool_choice: "auto",
         max_tokens: 512,
-        temperature: 0.1 // Low temperature for deterministic routing
+        temperature: 0.1
       });
 
       const firstChoice = firstPass.choices[0];
@@ -185,7 +260,12 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
       if (toolCalls.length > 0) {
           for (const toolCall of toolCalls) {
               const toolName = toolCall.function.name;
-              const toolArgs = JSON.parse(toolCall.function.arguments);
+              let toolArgs;
+              try {
+                  toolArgs = JSON.parse(toolCall.function.arguments);
+              } catch (e) {
+                  toolArgs = {};
+              }
               
               // Outils qui nécessitent confirmation
               const DRAFT_TOOLS = ['draft_expense', 'draft_purchase_order', 'bulk_update_orders', 'send_whatsapp_campaign'];
@@ -199,8 +279,7 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
                       content: JSON.stringify({ status: 'pending_confirmation', draft: toolArgs })
                   });
               } else {
-                  // Exécution directe des outils de lecture
-                  const result = await executeFinancialTool(toolName, toolArgs, storeId);
+                  const result = await executeFinancialTool(toolName, toolArgs, storeId, userId);
                   toolResults.push({
                       tool_call_id: toolCall.id,
                       role: "tool",
@@ -241,7 +320,6 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
               }
           }
       } else {
-          // No tools called, the first pass was the response
           if (firstChoice.message.content) {
               fullResponse = firstChoice.message.content;
               res.write(`data: ${JSON.stringify({ delta: fullResponse })}\n\n`);
@@ -262,7 +340,6 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
       res.end();
 
       // ── POST-TRAITEMENT (Asynchrone) ──────────────────────────────
-      // 1. Sauvegarder dans l'historique
       await saveConversationMessage(storeId, conversationId, {
           userMessage: userLastMessage,
           assistantMessage: fullResponse,
@@ -270,8 +347,11 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
           actionsDrafted
       });
       
-      // 2. Extraire les nouvelles mémoires
       await extractAndStoreMemories(storeId, fullResponse, messages);
+      
+      // Update merchant profile
+      const userMessages = messages.filter(m => m.role === 'user');
+      await updateMerchantProfile(storeId, userMessages);
 
     } catch (error) {
       console.error("Groq error:", error);

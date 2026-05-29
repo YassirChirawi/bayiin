@@ -5,13 +5,13 @@ const { getFirestore } = require('firebase-admin/firestore');
  * Toutes les fonctions ici retournent des valeurs mathématiquement exactes basées sur Firestore.
  */
 
-const getDb = () => getFirestore('comsaas'); // Assuming the secondary DB is used based on your firebase.json
+const getDb = () => getFirestore('comsaas');
 
 // Helpers for date filtering
 const getStartOfDay = (dateString) => {
     const d = dateString ? new Date(dateString) : new Date();
     d.setHours(0, 0, 0, 0);
-    return d.toISOString(); // We might need to adjust based on how dates are stored in BayIIn (ISO strings vs Timestamps)
+    return d.toISOString();
 };
 
 const getEndOfDay = (dateString) => {
@@ -19,6 +19,93 @@ const getEndOfDay = (dateString) => {
     d.setHours(23, 59, 59, 999);
     return d.toISOString();
 };
+
+// ═══════════════════════════════════════════════════════════════
+// ÉVOLUTION 3 — SAISONNALITÉ MAROCAINE
+// ═══════════════════════════════════════════════════════════════
+
+const MOROCCAN_CALENDAR_2026 = {
+    ramadan:      { start: '2026-02-18', end: '2026-03-19', label: 'Ramadan' },
+    aidAlFitr:    { start: '2026-03-20', end: '2026-03-22', label: 'Aïd al-Fitr' },
+    aidAlAdha:    { start: '2026-05-27', end: '2026-05-30', label: 'Aïd al-Adha' },
+    rentree:      { start: '2026-09-01', end: '2026-09-15', label: 'Rentrée scolaire' },
+    blackFriday:  { start: '2026-11-20', end: '2026-11-30', label: 'Black Friday / White Friday' },
+    noel:         { start: '2026-12-20', end: '2026-12-31', label: 'Fêtes de fin d\'année' }
+};
+
+const MOROCCAN_SEASONALITY = {
+    ramadan:     { factor: 1.4, categories: ['vetements', 'alimentaire', 'deco', 'cuisine', 'maison'] },
+    aidAlFitr:   { factor: 1.8, categories: ['vetements', 'cadeaux', 'parfum', 'beaute', 'enfants'] },
+    aidAlAdha:   { factor: 1.6, categories: ['vetements', 'cadeaux', 'cuisine', 'maison'] },
+    rentree:     { factor: 1.3, categories: ['fournitures', 'electronique', 'sacs', 'chaussures', 'vetements'] },
+    blackFriday: { factor: 2.1, categories: ['all'] },
+    noel:        { factor: 1.5, categories: ['cadeaux', 'deco', 'electronique', 'jouets'] }
+};
+
+/**
+ * Détecte les événements marocains à venir dans les N prochains jours.
+ */
+function getUpcomingEvents(currentDate, daysAhead = 30) {
+    const now = currentDate ? new Date(currentDate) : new Date();
+    const upcoming = [];
+
+    for (const [eventKey, dates] of Object.entries(MOROCCAN_CALENDAR_2026)) {
+        const eventStart = new Date(dates.start);
+        const eventEnd = new Date(dates.end);
+        const daysUntil = Math.round((eventStart - now) / 86400000);
+
+        if (now <= eventEnd && daysUntil <= daysAhead) {
+            upcoming.push({
+                event: eventKey,
+                label: dates.label,
+                daysUntil: Math.max(0, daysUntil),
+                isActive: daysUntil <= 0 && now <= eventEnd,
+                startDate: dates.start,
+                endDate: dates.end
+            });
+        }
+    }
+
+    return upcoming.sort((a, b) => a.daysUntil - b.daysUntil);
+}
+
+/**
+ * Calcule le facteur saisonnier pour un produit donné.
+ * Le facteur monte progressivement 21 jours avant l'événement.
+ */
+function getSeasonalFactor(productCategory, currentDate) {
+    const events = getUpcomingEvents(currentDate, 30);
+    if (events.length === 0) return { factor: 1.0, event: null };
+
+    const category = (productCategory || '').toLowerCase();
+    let bestFactor = 1.0;
+    let bestEvent = null;
+
+    for (const upcoming of events) {
+        const seasonality = MOROCCAN_SEASONALITY[upcoming.event];
+        if (!seasonality) continue;
+
+        const categoryMatch = seasonality.categories.includes('all') ||
+            seasonality.categories.some(c => category.includes(c));
+        if (!categoryMatch) continue;
+
+        let factor;
+        if (upcoming.isActive) {
+            factor = seasonality.factor; // Full factor during the event
+        } else {
+            // Progressive ramp-up over 21 days
+            const daysUntil = upcoming.daysUntil;
+            factor = 1 + (seasonality.factor - 1) * Math.max(0, (21 - daysUntil) / 21);
+        }
+
+        if (factor > bestFactor) {
+            bestFactor = factor;
+            bestEvent = upcoming;
+        }
+    }
+
+    return { factor: Number(bestFactor.toFixed(2)), event: bestEvent };
+}
 
 /**
  * Calcule le profit net exact sur une période donnée.
@@ -314,7 +401,9 @@ async function predictStockRunout(storeId, daysLookAhead = 30, urgencyThreshold 
     const healthy = [];
     const outOfStock = [];
 
-    // 3. Calculate predictions
+    // 3. Calculate predictions (with seasonal adjustment)
+    const seasonalAlerts = [];
+
     Object.values(products).forEach(p => {
         const stock = parseInt(p.stock) || 0;
         
@@ -334,13 +423,43 @@ async function predictStockRunout(storeId, daysLookAhead = 30, urgencyThreshold 
         const dailyRate = recentSales / 7;
         const trend = pastSales > 0 ? recentSales / pastSales : 1;
         
-        // If trend is accelerating (e.g. > 1.2), adjust daily rate up slightly
-        const adjustedRate = trend > 1.2 ? dailyRate * 1.15 : (trend < 0.8 ? dailyRate * 0.9 : dailyRate);
+        // Trend acceleration adjustment
+        let adjustedRate = trend > 1.2 ? dailyRate * 1.15 : (trend < 0.8 ? dailyRate * 0.9 : dailyRate);
         
-        const daysLeft = Math.round(stock / adjustedRate);
-        const recommendedQty = Math.ceil(adjustedRate * 30 * 1.2); // 30 days cover + 20% buffer
+        // SEASONAL BOOST (Évolution 3)
+        const productCategory = p.category || p.subcategory || '';
+        const seasonal = getSeasonalFactor(productCategory);
+        const seasonalAdjustedRate = adjustedRate * seasonal.factor;
+        
+        const daysLeft = Math.round(stock / seasonalAdjustedRate);
+        const recommendedQty = Math.ceil(seasonalAdjustedRate * 30 * 1.2);
 
-        const item = { product: p.name, daysLeft, dailyRate: Number(adjustedRate.toFixed(1)), stock, recommendedQty };
+        const item = {
+            product: p.name,
+            daysLeft,
+            dailyRate: Number(adjustedRate.toFixed(1)),
+            seasonalDailyRate: Number(seasonalAdjustedRate.toFixed(1)),
+            stock,
+            recommendedQty,
+            seasonalFactor: seasonal.factor
+        };
+
+        // Generate seasonal alert if a major event is approaching
+        if (seasonal.event && seasonal.factor > 1.1) {
+            const recommendedStockForEvent = Math.ceil(seasonalAdjustedRate * Math.max(seasonal.event.daysUntil + 7, 14));
+            if (stock < recommendedStockForEvent) {
+                seasonalAlerts.push({
+                    product: p.name,
+                    event: seasonal.event.label,
+                    daysUntil: seasonal.event.daysUntil,
+                    expectedDemandIncrease: `+${Math.round((seasonal.factor - 1) * 100)}%`,
+                    currentStock: stock,
+                    recommendedStockForEvent,
+                    deficit: recommendedStockForEvent - stock,
+                    urgency: (recommendedStockForEvent - stock) > stock ? 'CRITICAL' : 'WARNING'
+                });
+            }
+        }
 
         if (daysLeft <= 3) critical.push(item);
         else if (daysLeft <= urgencyThreshold) urgent.push(item);
@@ -353,7 +472,9 @@ async function predictStockRunout(storeId, daysLookAhead = 30, urgencyThreshold 
         urgent: urgent.sort((a,b) => a.daysLeft - b.daysLeft),
         watch: watch.sort((a,b) => a.daysLeft - b.daysLeft),
         outOfStock: outOfStock,
-        summary: `${critical.length} ruptures imminentes, ${outOfStock.length} déjà en rupture.`
+        seasonalAlerts: seasonalAlerts.sort((a,b) => a.daysUntil - b.daysUntil),
+        upcomingEvents: getUpcomingEvents(null, 30),
+        summary: `${critical.length} ruptures imminentes, ${outOfStock.length} déjà en rupture.${seasonalAlerts.length > 0 ? ` ⚠️ ${seasonalAlerts.length} alertes saisonnières !` : ''}`
     };
 }
 
@@ -434,5 +555,9 @@ module.exports = {
     getPendingCashflow,
     getInventoryValue,
     predictStockRunout,
-    detectFinancialAnomalies
+    detectFinancialAnomalies,
+    getUpcomingEvents,
+    getSeasonalFactor,
+    MOROCCAN_CALENDAR_2026,
+    MOROCCAN_SEASONALITY
 };

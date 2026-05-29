@@ -1121,5 +1121,27 @@ exports.beya3AnomalyScanner = functions.pubsub.schedule('*/30 * * * *')
         }
     }
     return null;
-});// cleanYoucan: REMOVED (SEC-04 — was an unauthenticated destructive endpoint)
+});
 
+// ==========================================
+// BEYA3 COPILOT - WEEKLY BENCHMARK
+// ==========================================
+const { updateMarketBenchmarks } = require('./copilot/benchmarkService');
+
+/**
+ * Weekly Market Benchmark (Runs every Sunday at 02:00 Casablanca time)
+ */
+exports.beya3WeeklyBenchmark = functions.pubsub.schedule('0 2 * * 0')
+  .timeZone('Africa/Casablanca')
+  .onRun(async (context) => {
+    console.log("Starting Beya3 Weekly Benchmark calculation...");
+    try {
+        await updateMarketBenchmarks();
+        console.log("Weekly benchmark completed.");
+    } catch (e) {
+        console.error("Weekly benchmark failed:", e);
+    }
+    return null;
+});
+
+// cleanYoucan: REMOVED (SEC-04 — was an unauthenticated destructive endpoint)

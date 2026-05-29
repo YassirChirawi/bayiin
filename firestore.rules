@@ -116,6 +116,12 @@ service cloud.firestore {
       allow write: if request.auth != null && isSuperAdmin();
     }
 
+    // Market Benchmarks (Évolution 6 — Anonymized aggregated data)
+    match /market_benchmarks/{segment} {
+      allow read: if request.auth != null; // Any authenticated user can read benchmarks
+      allow write: if false; // Only backend (admin SDK) writes benchmarks
+    }
+
     // Stores collection
     match /stores/{storeId} {
       allow create: if request.auth != null;
