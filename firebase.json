@@ -9,7 +9,7 @@
         "rewrites": [
             {
                 "source": "/api/copilot",
-                "function": "copilotChat"
+                "function": "copilotChatV1"
             },
             {
                 "source": "**",

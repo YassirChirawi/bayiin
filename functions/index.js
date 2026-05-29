@@ -1079,14 +1079,47 @@ exports.scheduledReconciliation = functions.pubsub.schedule('0 2 * * *')
     return null;
 });
 
-// TEMPORARY CLEANUP ENDPOINT
-exports.cleanYoucan = onRequest(async (req, res) => {
-    const snap = await db.collectionGroup('youcan_integration').get();
-    let count = 0;
-    for (let doc of snap.docs) {
-        await doc.ref.delete();
-        count++;
+// ==========================================
+// BEYA3 COPILOT - PROACTIVE AGENT JOBS
+// ==========================================
+const { generateDailyBrief, deliverInsight, runAnomalyScanner } = require('./copilot/proactiveAgent');
+
+/**
+ * Daily Brief (Runs every day at 08:00 Casablanca time)
+ */
+exports.beya3DailyBrief = functions.pubsub.schedule('0 8 * * *')
+  .timeZone('Africa/Casablanca')
+  .onRun(async (context) => {
+    console.log("Starting Beya3 Daily Brief generation...");
+    // Fetch all active PRO stores
+    const storesSnap = await db.collection('stores').where('plan', 'in', ['pro', 'unlimited']).get();
+    
+    for (const storeDoc of storesSnap.docs) {
+        try {
+            const brief = await generateDailyBrief(storeDoc.id);
+            await deliverInsight(storeDoc.id, brief, 'dashboard', 'daily_brief');
+        } catch (e) {
+            console.error(`Failed to generate daily brief for store ${storeDoc.id}:`, e);
+        }
     }
-    res.send(`Cleaned ${count} youcan_integration documents! You can now reinstall the app on YouCan.`);
+    return null;
 });
+
+/**
+ * Anomaly Scanner (Runs every 30 minutes)
+ */
+exports.beya3AnomalyScanner = functions.pubsub.schedule('*/30 * * * *')
+  .onRun(async (context) => {
+    // Only scan active PRO stores
+    const storesSnap = await db.collection('stores').where('plan', 'in', ['pro', 'unlimited']).get();
+    
+    for (const storeDoc of storesSnap.docs) {
+        try {
+            await runAnomalyScanner(storeDoc.id);
+        } catch (e) {
+            console.error(`Scanner failed for store ${storeDoc.id}:`, e);
+        }
+    }
+    return null;
+});// cleanYoucan: REMOVED (SEC-04 — was an unauthenticated destructive endpoint)
 

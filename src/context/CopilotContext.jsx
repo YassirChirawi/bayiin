@@ -1,20 +1,17 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useMemo, useRef } from "react";
-import { analyzeFinancialScenario } from "../services/aiService";
-import { generateOpeningBrief, generateLocalResponse } from "../services/localCopilot";
 import { useStoreData } from "../hooks/useStoreData";
 import { useTenant } from "./TenantContext";
 import { useOrderActions } from "../hooks/useOrderActions";
-import { extractActionFromResponse } from "../utils/actionParser";
+import { generateOpeningBrief, generateLocalResponse } from "../services/localCopilot";
 import { createRawWhatsAppLink } from "../utils/whatsappTemplates";
 import { db } from "../lib/firebase";
-import { collection, addDoc, serverTimestamp, query, where, limit, orderBy } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy, limit } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { vibrate } from "../utils/haptics";
 import { queueOrder, getPendingCount } from "../services/offlineQueue";
 
 const CopilotContext = createContext();
-
 export const useCopilot = () => useContext(CopilotContext);
 
 export const CopilotProvider = ({ children }) => {
@@ -25,7 +22,6 @@ export const CopilotProvider = ({ children }) => {
             const saved = localStorage.getItem(`copilot_history_${store?.id}`);
             return saved ? JSON.parse(saved) : [];
         } catch (e) {
-            console.warn("Failed to load copilot history", e);
             return [];
         }
     });
@@ -33,6 +29,8 @@ export const CopilotProvider = ({ children }) => {
     const [isStreaming, setIsStreaming] = useState(false);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
+    const [pendingActions, setPendingActions] = useState([]);
+    const [conversationId, setConversationId] = useState(crypto.randomUUID());
     const lastActionTime = useRef(0);
 
     // PERSISTENCE & OFFLINE LISTENERS
@@ -40,22 +38,16 @@ export const CopilotProvider = ({ children }) => {
         if (store?.id) {
             try {
                 localStorage.setItem(`copilot_history_${store.id}`, JSON.stringify(messages.slice(-50)));
-            } catch (e) {
-                // Silent fail on localStorage quota or security errors
-            }
+            } catch (e) {}
         }
-
         const handleOnline = () => setIsOnline(true);
         const handleOffline = () => setIsOnline(false);
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
-
-        // Update pending count periodically
         const interval = setInterval(async () => {
             const count = await getPendingCount();
             setPendingSyncCount(count);
         }, 5000);
-
         return () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
@@ -63,15 +55,12 @@ export const CopilotProvider = ({ children }) => {
         };
     }, [messages, store?.id]);
 
-    // ENRICHED CONTEXT
     const productConstraints = useMemo(() => [orderBy("createdAt", "desc"), limit(20)], []);
     const orderConstraints = useMemo(() => [orderBy("createdAt", "desc"), limit(50)], []);
-
     const { data: products = [] } = useStoreData("products", productConstraints);
     const { data: orders = [] } = useStoreData("orders", orderConstraints);
     const { data: customers = [] } = useStoreData("customers");
     
-    // Monthly finances summary (simplified logic for the context)
     const currentMonth = new Date().toISOString().substring(0, 7);
     const monthlyOrders = orders.filter(o => o.date?.startsWith(currentMonth));
     const totalRevenue = monthlyOrders.reduce((acc, o) => acc + (o.status === 'livré' ? (parseFloat(o.price) || 0) : 0), 0);
@@ -80,43 +69,21 @@ export const CopilotProvider = ({ children }) => {
 
     const { createOrder, updateOrderStatus, sendToOlivraison, sendToSendit } = useOrderActions();
 
-    // 1. CONTEXTE BUSINESS ENRICHI
     const businessContext = useMemo(() => ({
         store: store ? { name: store.name, plan: store.plan, currency: "DH" } : null,
-        orders: orders?.slice(0, 50).map(o => ({ 
-            id: o.id, 
-            status: o.status, 
-            price: o.price, 
-            date: o.date, 
-            productName: o.articleName || o.productName 
-        })),
-        products: products?.slice(0, 20).map(p => ({
-            name: p.name,
-            price: p.price,
-            cost: p.costPrice || 0,
-            stock: p.stock
-        })),
-        stats: { 
-            totalRevenue, 
-            totalProfit, 
-            totalOrders: monthlyOrders.length,
-            totalReturns 
-        },
+        stats: { totalRevenue, totalProfit, totalOrders: monthlyOrders.length, totalReturns },
         clientCount: customers.length,
         isOnline,
         pendingSyncCount
-    }), [store, orders, products, totalRevenue, totalProfit, monthlyOrders.length, totalReturns, customers.length, isOnline, pendingSyncCount]);
+    }), [store, totalRevenue, totalProfit, monthlyOrders.length, totalReturns, customers.length, isOnline, pendingSyncCount]);
 
-    // BRIEF D'OUVERTURE (must be after orders/products/businessContext declarations)
     useEffect(() => {
         if (!store?.id) return;
         let hasSavedHistory = false;
         try {
             const saved = localStorage.getItem(`copilot_history_${store.id}`);
             if (saved && JSON.parse(saved).length > 0) hasSavedHistory = true;
-        } catch (e) {
-            // Ignore parse errors
-        }
+        } catch (e) {}
 
         if (hasSavedHistory) return;
 
@@ -128,103 +95,42 @@ export const CopilotProvider = ({ children }) => {
         }
     }, [orders.length, products.length, store?.id, businessContext]);
 
-    const processAction = async (action) => {
-        if (!action) return null;
-        
-        // --- RATE LIMITING (Règle 4) ---
-        const now = Date.now();
-        if (now - lastActionTime.current < 3000) {
-            console.warn("Rate limited action:", action.action);
-            return "⏳ Action ignorée : Vous envoyez des demandes trop rapidement. Merci d'attendre 3 secondes.";
-        }
-        lastActionTime.current = now;
+    // Exécute réellement une action DRAFT une fois confirmée par l'utilisateur
+    const confirmAction = async (actionId, toolName, toolArgs) => {
+        setPendingActions(prev => prev.filter(a => a.toolCallId !== actionId));
+        toast.loading("Exécution en cours...", { id: actionId });
         
         try {
-            switch (action.action) {
-                case "CREATE_ORDER": {
-                    const orderData = {
-                        ...action.data,
-                        storeId: store?.id,
-                        status: 'reçu',
-                        date: new Date().toISOString().split('T')[0],
-                        quantity: parseInt(action.data.quantity) || 1,
-                        price: parseFloat(action.data.price) || 0,
-                        shippingCost: 0,
-                        paymentMethod: 'cod',
-                        note: action.data.note || ""
-                    };
-
-                    if (!isOnline) {
-                        await queueOrder(orderData);
-                        vibrate('success');
-                        return "💾 Hors-ligne : Commande sauvegardée localement. Elle sera synchronisée dès le retour de la connexion !";
-                    }
-
-                    await createOrder(orderData);
-                    vibrate('success');
-                    return "✅ Commande créée avec succès !";
-                }
-
-                case "UPDATE_ORDER_STATUS":
-                    await updateOrderStatus(action.data.orderId, action.data.newStatus);
-                    vibrate('success');
-                    return `✅ Statut de la commande mis à jour vers "${action.data.newStatus}".`;
-
-                case "CANCEL_ORDER":
-                    await updateOrderStatus(action.data.orderId, "annulé");
-                    return "✅ Commande annulée.";
-
-                case "SHIP_ORDER": {
-                    const orderToShip = orders.find(o => o.id === action.data.orderId);
-                    if (!orderToShip) return "❌ Commande introuvable.";
-                    
-                    if (action.data.carrier === "olivraison") {
-                        await sendToOlivraison(orderToShip);
-                        return `🚚 Commande #${orderToShip.orderNumber} expédiée via O-Livraison !`;
-                    } else if (action.data.carrier === "sendit") {
-                        await sendToSendit(orderToShip);
-                        return `🚚 Commande #${orderToShip.orderNumber} expédiée via Sendit !`;
-                    }
-                    return "❌ Transporteur non supporté.";
-                }
-
-                case "CREATE_EXPENSE":
+            switch (toolName) {
+                case "draft_expense":
                     await addDoc(collection(db, "expenses"), {
-                        ...action.data,
+                        ...toolArgs,
                         storeId: store?.id,
                         date: new Date().toISOString().split('T')[0],
                         createdAt: serverTimestamp()
                     });
-                    return `✅ Dépense de ${action.data.amount} DH enregistrée (${action.data.label}).`;
-
-                case "ANALYZE_FINANCES": {
-                    const scenarioData = { revenue: totalRevenue, profit: totalProfit };
-                    const budgetData = { adSpend: 0, price: 0, cogs: 0 };
-                    const currentMetrics = { revenue: totalRevenue, profit: totalProfit, margin: (totalProfit / totalRevenue) * 100 };
-                    
-                    const analysisResult = await analyzeFinancialScenario(scenarioData, budgetData, currentMetrics);
-                    return `📈 Analyse : ${analysisResult}`;
-                }
-
-                case "SEND_WHATSAPP": {
-                    const message = action.data.message || "Bonjour !";
-                    const url = createRawWhatsAppLink(action.data.phone, message);
-                    vibrate('success');
-                    window.open(url, '_blank');
-                    return "📱 Lien WhatsApp généré et ouvert !";
-                }
-
-                case "GET_ANALYTICS":
-                    return `📊 J'analyse les données pour la métrique "${action.data.metric}"... (Simulé)`;
-
+                    toast.success("Dépense enregistrée !", { id: actionId });
+                    break;
+                case "bulk_update_orders":
+                    for (const orderId of toolArgs.orderIds) {
+                        await updateOrderStatus(orderId, toolArgs.newStatus);
+                    }
+                    toast.success(`Statut mis à jour pour ${toolArgs.orderIds.length} commandes.`, { id: actionId });
+                    break;
+                case "send_whatsapp_campaign":
+                    toast.success("Campagne préparée (Simulation)", { id: actionId });
+                    break;
                 default:
-                    console.warn("Action non supportée:", action.action);
-                    return null;
+                    toast.error("Action inconnue.", { id: actionId });
             }
         } catch (e) {
-            console.error("AI Action Error:", e);
-            return `❌ Erreur lors de l'exécution de l'action ${action.action}.`;
+            toast.error("Échec de l'exécution.", { id: actionId });
         }
+    };
+
+    const cancelAction = (actionId) => {
+        setPendingActions(prev => prev.filter(a => a.toolCallId !== actionId));
+        toast("Action annulée.", { icon: "❌" });
     };
 
     const togglePanel = () => {
@@ -249,10 +155,7 @@ export const CopilotProvider = ({ children }) => {
             let currentText = "";
 
             if (import.meta.env.VITE_AI_MODE === 'local') {
-                // 1. GENERATE LOCAL RESPONSE
                 fullResponse = generateLocalResponse(text, businessContext);
-                
-                // 2. SIMULATE TYING EFFECT
                 const words = fullResponse.split(" ");
                 for (let i = 0; i < words.length; i++) {
                     currentText += (i === 0 ? "" : " ") + words[i];
@@ -260,30 +163,26 @@ export const CopilotProvider = ({ children }) => {
                     await new Promise(resolve => setTimeout(resolve, 20 + Math.random() * 40));
                 }
             } else {
-                // CLOUD MODE (GROQ)
                 const chatHistory = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
-                
-                // We must import generateCopilotResponse dynamically or at the top of the file
                 const { generateCopilotResponse } = await import("../services/aiService");
                 
-                await generateCopilotResponse(chatHistory, businessContext, store?.name, (chunk) => {
-                    currentText = chunk;
-                    setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content: currentText } : m));
+                await generateCopilotResponse({
+                    messages: chatHistory,
+                    businessContext,
+                    storeName: store?.name,
+                    storeId: store?.id,
+                    conversationId: conversationId,
+                    onChunk: (chunk, actions) => {
+                        if (chunk) {
+                            currentText = chunk;
+                            setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content: currentText } : m));
+                        }
+                        if (actions && actions.length > 0) {
+                            setPendingActions(prev => [...prev, ...actions]);
+                        }
+                    }
                 });
-                fullResponse = currentText;
             }
-
-            // 3. DETECT ACTION
-            const action = extractActionFromResponse(fullResponse);
-            if (action) {
-                const actionFeedback = await processAction(action);
-                if (actionFeedback) {
-                    setMessages(prev => prev.map(m => 
-                        m.id === streamId ? { ...m, content: currentText + `\n\n*${actionFeedback}*` } : m
-                    ));
-                }
-            }
-
         } catch (error) {
             console.error("Copilot Local Error:", error);
             setMessages(prev => prev.map(m => 
@@ -296,11 +195,8 @@ export const CopilotProvider = ({ children }) => {
     };
 
     const clearHistory = () => {
-        try {
-            localStorage.removeItem(`copilot_history_${store?.id}`);
-        } catch (e) {
-            // Ignore storage errors
-        }
+        try { localStorage.removeItem(`copilot_history_${store?.id}`); } catch (e) {}
+        setConversationId(crypto.randomUUID());
         const brief = generateOpeningBrief(businessContext);
         setMessages([{
             id: 'brief-' + Date.now(),
@@ -310,7 +206,7 @@ export const CopilotProvider = ({ children }) => {
     };
 
     return (
-        <CopilotContext.Provider value={{ isOpen, togglePanel, messages, sendMessage, loading, clearHistory }}>
+        <CopilotContext.Provider value={{ isOpen, togglePanel, messages, sendMessage, loading, clearHistory, pendingActions, confirmAction, cancelAction }}>
             {children}
         </CopilotContext.Provider>
     );

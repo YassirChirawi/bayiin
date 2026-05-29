@@ -82,7 +82,8 @@ export const useOrderActions = () => {
                 if (existingCustomerId) {
                     transaction.update(doc(db, "customers", existingCustomerId), {
                         lastOrderDate: new Date().toISOString().split('T')[0],
-                        totalSpent: increment(parseFloat(orderData.price) || 0),
+                        // BUG-03 FIX: totalSpent is now ONLY managed by onOrderWrite Cloud Function
+                        // when order transitions to 'livré'. Removed duplicate increment here.
                         orderCount: increment(1),
                         updatedAt: serverTimestamp()
                     });
@@ -96,7 +97,7 @@ export const useOrderActions = () => {
                         phone: orderData.clientPhone,
                         address: orderData.clientAddress || "",
                         city: orderData.clientCity || "",
-                        totalSpent: parseFloat(orderData.price) || 0,
+                        totalSpent: 0, // BUG-03 FIX: starts at 0, incremented by Cloud Function on 'livré'
                         orderCount: 1,
                         firstOrderDate: new Date().toISOString().split('T')[0],
                         lastOrderDate: new Date().toISOString().split('T')[0],
