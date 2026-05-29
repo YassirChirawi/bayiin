@@ -117,7 +117,7 @@ service cloud.firestore {
     }
 
     // Market Benchmarks (Évolution 6 — Anonymized aggregated data)
-    match /market_benchmarks/{segment} {
+    match /market_benchmarks/{segment}/{date} {
       allow read: if request.auth != null; // Any authenticated user can read benchmarks
       allow write: if false; // Only backend (admin SDK) writes benchmarks
     }

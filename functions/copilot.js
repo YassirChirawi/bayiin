@@ -25,6 +25,7 @@ const {
 const { shouldUseReAct, runReActLoop } = require("./copilot/reactAgent");
 const { executeWithRollback, rollbackLastAction } = require("./copilot/actionExecutor");
 const { getMarketBenchmark } = require("./copilot/benchmarkService");
+const { routeToAgent } = require("./copilot/multiAgent");
 
 const getDb = () => getFirestore('comsaas');
 
@@ -178,25 +179,40 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
 
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
+    // ── ÉVOLUTION 7: MULTI-AGENT ROUTING ────────────────────
+    let activeSystemPrompt = systemPrompt;
+    let activeTools = BEYA3_TOOLS;
+    let agentTemperature = 0.1;
+    let agentName = "Beya3";
+
+    const specificAgent = await routeToAgent(userLastMessage, process.env.GROQ_API_KEY);
+    if (specificAgent) {
+        agentName = specificAgent.name;
+        activeSystemPrompt = specificAgent.systemPrompt + "\n\nCONTEXTE GLOBAL:\n" + systemPrompt;
+        activeTools = BEYA3_TOOLS.filter(t => specificAgent.tools.includes(t.function.name));
+        agentTemperature = specificAgent.temperature;
+    }
+
     try {
+      // Setup Streaming headers for EVOLUTION 8
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      
       // ── ÉVOLUTION 1: REACT ROUTING ────────────────────
       const useReAct = shouldUseReAct(userLastMessage);
 
       if (useReAct) {
           // ══ REACT MODE ══════════════════════════════════
           console.log(`[Copilot] ReAct mode triggered for: "${userLastMessage.substring(0, 50)}..."`);
+          res.write(`data: ${JSON.stringify({ type: 'thinking', text: 'Je réfléchis en profondeur...', agent: agentName })}\n\n`);
           
           const reactResult = await runReActLoop(
               storeId,
               userLastMessage,
-              { systemPrompt },
+              { systemPrompt: activeSystemPrompt },
               (toolName, toolArgs, sid) => executeFinancialTool(toolName, toolArgs, sid, userId),
               process.env.GROQ_API_KEY
           );
-
-          // Stream the final answer
-          res.setHeader("Content-Type", "text/event-stream");
-          res.setHeader("Cache-Control", "no-cache");
 
           const answer = reactResult.finalAnswer || "Je n'ai pas pu finaliser mon analyse.";
           
@@ -237,17 +253,19 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
       }
 
       // ══ SINGLE-PASS MODE (standard) ═══════════════════
+      res.write(`data: ${JSON.stringify({ type: 'thinking', text: 'J\'analyse...', agent: agentName })}\n\n`);
+      
       // ── PASSE 1 : INTENT ROUTING + TOOL CALLING ──────
       const firstPass = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         messages: [
-          { role: "system", content: systemPrompt },
+          { role: "system", content: activeSystemPrompt },
           ...messages.slice(-8)
         ],
-        tools: BEYA3_TOOLS,
-        tool_choice: "auto",
+        tools: activeTools.length > 0 ? activeTools : undefined,
+        tool_choice: activeTools.length > 0 ? "auto" : "none",
         max_tokens: 512,
-        temperature: 0.1
+        temperature: agentTemperature
       });
 
       const firstChoice = firstPass.choices[0];
@@ -260,6 +278,7 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
       if (toolCalls.length > 0) {
           for (const toolCall of toolCalls) {
               const toolName = toolCall.function.name;
+              res.write(`data: ${JSON.stringify({ type: 'thinking', text: 'Exécution...', toolName, agent: agentName })}\n\n`);
               let toolArgs;
               try {
                   toolArgs = JSON.parse(toolCall.function.arguments);
@@ -291,14 +310,12 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
       }
 
       // ── PASSE 2 : GÉNÉRATION RÉPONSE FINALE ─────────
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-
       let fullResponse = '';
 
       if (toolCalls.length > 0) {
+          res.write(`data: ${JSON.stringify({ type: 'thinking', text: 'Je formule ma réponse...', agent: agentName })}\n\n`);
           const messagesForPass2 = [
-              { role: "system", content: systemPrompt },
+              { role: "system", content: activeSystemPrompt },
               ...messages.slice(-8),
               firstChoice.message,
               ...toolResults
@@ -308,7 +325,7 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
               model: "llama-3.3-70b-versatile",
               messages: messagesForPass2,
               max_tokens: 1024,
-              temperature: 0.6,
+              temperature: agentTemperature + 0.3, // Slightly higher for response gen
               stream: true
           });
           

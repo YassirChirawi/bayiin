@@ -24,6 +24,7 @@ const CatalogSettings = lazy(() => import('../components/settings/CatalogSetting
 const LocationSettings = lazy(() => import('../components/settings/LocationSettings'));
 const BillingSettings = lazy(() => import('../components/settings/BillingSettings'));
 const ActivitySettings = lazy(() => import('../components/settings/ActivitySettings'));
+const Beya3Settings = lazy(() => import('../components/settings/Beya3Settings'));
 import WhatsAppConnector from '../components/settings/WhatsAppConnector';
 import YouCanIntegration from '../components/integrations/YouCanIntegration';
 import ShopifyIntegration from '../components/integrations/ShopifyIntegration';
@@ -49,6 +50,7 @@ export default function Settings() {
         { id: "catalog", label: t('tab_catalog') || "Catalogue", icon: Package },
         { id: "billing", label: t('tab_billing') || "Plans & Facturation", icon: CreditCard },
         { id: "security", label: t('tab_security') || "Sécurité", icon: Shield },
+        { id: "beya3", label: "Copilot (Beya3)", icon: Sparkles },
         { id: "qa", label: "Recette QA", icon: ShieldCheck },
         { id: "activity", label: t('tab_activity') || "Journal d'Activité", icon: Activity },
     ], [t]);
@@ -220,6 +222,7 @@ export default function Settings() {
                 {activeTab === "shipping" && <ShippingSettings />}
                 {activeTab === "locations" && <Suspense fallback={<div>Chargement...</div>}><LocationSettings store={store} t={t} /></Suspense>}
                 {activeTab === "catalog" && <Suspense fallback={<div>Chargement...</div>}><CatalogSettings store={store} setStore={setStore} t={t} /></Suspense>}
+                {activeTab === "beya3" && <Suspense fallback={<div>Chargement...</div>}><Beya3Settings store={store} setStore={setStore} /></Suspense>}
 
                 {activeTab === "billing" && (<Suspense fallback={<div>Chargement...</div>}><BillingSettings store={store} setStore={setStore} t={t} /></Suspense>)}
 

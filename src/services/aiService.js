@@ -41,9 +41,11 @@ export async function generateCopilotResponse({
             const data = JSON.parse(line.slice(6));
             if (data.delta) {
               fullText += data.delta;
-              onChunk?.(fullText, null);
+              onChunk?.({ delta: fullText, actions: null, thinking: null });
             } else if (data.type === 'actions_pending') {
-              onChunk?.(fullText, data.actions);
+              onChunk?.({ delta: null, actions: data.actions, thinking: null });
+            } else if (data.type === 'thinking') {
+              onChunk?.({ delta: null, actions: null, thinking: data.text });
             }
           } catch (e) {
             console.warn("Error parsing stream chunk:", e);

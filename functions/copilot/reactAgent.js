@@ -35,6 +35,16 @@ RÈGLES :
 function shouldUseReAct(userMessage) {
     const msg = userMessage.toLowerCase();
     
+    // Bypass intelligent pour éviter ReAct sur les questions simples ou salutations
+    const BYPASS_PATTERNS = [
+        /^(salam|bonjour|hi|hello|wach|labas)/,
+        /^(merci|shukran|okay|ok|d'accord)/,
+        /combien.*aujourd'hui/,
+        /quel.*statut/
+    ];
+
+    if (BYPASS_PATTERNS.some(p => p.test(msg))) return false;
+
     // Patterns qui déclenchent ReAct
     const complexPatterns = [
         /pourquoi\s+(ma|mon|mes|le|la|les)/,          // "pourquoi ma marge baisse"

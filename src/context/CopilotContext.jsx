@@ -25,6 +25,7 @@ export const CopilotProvider = ({ children }) => {
             return [];
         }
     });
+    const [thinkingState, setThinkingState] = useState(null);
     const [loading, setLoading] = useState(false);
     const [isStreaming, setIsStreaming] = useState(false);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -177,6 +178,7 @@ export const CopilotProvider = ({ children }) => {
         setMessages(prev => [...prev, userMsg]);
         setLoading(true);
         setIsStreaming(true);
+        setThinkingState("J'analyse...");
 
         const streamId = Date.now() + 1;
         setMessages(prev => [...prev, { id: streamId, role: 'assistant', content: "" }]);
@@ -203,13 +205,17 @@ export const CopilotProvider = ({ children }) => {
                     storeName: store?.name,
                     storeId: store?.id,
                     conversationId: conversationId,
-                    onChunk: (chunk, actions) => {
-                        if (chunk) {
-                            currentText = chunk;
+                    onChunk: (event) => {
+                        if (event.delta) {
+                            currentText = event.delta;
                             setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content: currentText } : m));
+                            if (currentText.length > 5) setThinkingState(null); // Stop thinking indicator once text starts streaming
                         }
-                        if (actions && actions.length > 0) {
-                            setPendingActions(prev => [...prev, ...actions]);
+                        if (event.actions && event.actions.length > 0) {
+                            setPendingActions(prev => [...prev, ...event.actions]);
+                        }
+                        if (event.thinking) {
+                            setThinkingState(event.thinking);
                         }
                     }
                 });
@@ -222,6 +228,7 @@ export const CopilotProvider = ({ children }) => {
         } finally {
             setLoading(false);
             setIsStreaming(false);
+            setThinkingState(null);
         }
     };
 
@@ -237,7 +244,7 @@ export const CopilotProvider = ({ children }) => {
     };
 
     return (
-        <CopilotContext.Provider value={{ isOpen, togglePanel, messages, sendMessage, loading, clearHistory, pendingActions, confirmAction, cancelAction, recentActions, undoLastAction }}>
+        <CopilotContext.Provider value={{ isOpen, togglePanel, messages, sendMessage, loading, clearHistory, pendingActions, confirmAction, cancelAction, recentActions, undoLastAction, thinkingState }}>
             {children}
         </CopilotContext.Provider>
     );

@@ -75,7 +75,7 @@ const ActionConfirmation = ({ action, onConfirm, onCancel, timeoutSeconds = 60 }
 
 
 export default function Copilot() {
-    const { isOpen, togglePanel, messages, sendMessage, loading, clearHistory, pendingActions, confirmAction, cancelAction, recentActions, undoLastAction } = useCopilot();
+    const { isOpen, togglePanel, messages, sendMessage, loading, clearHistory, pendingActions, confirmAction, cancelAction, recentActions, undoLastAction, thinkingState } = useCopilot();
     const [input, setInput] = useState("");
     const [isListening, setIsListening] = useState(false);
     const scrollRef = useRef(null);
@@ -229,10 +229,18 @@ export default function Copilot() {
 
                             {loading && (
                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
-                                    <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 rounded-tl-none flex items-center gap-2">
-                                        <div className="w-2 h-2 bg-rose-400 rounded-full animate-bounce"></div>
-                                        <div className="w-2 h-2 bg-rose-400 rounded-full animate-bounce delay-75"></div>
-                                        <div className="w-2 h-2 bg-rose-400 rounded-full animate-bounce delay-150"></div>
+                                    <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 rounded-tl-none flex flex-col items-start gap-2">
+                                        {thinkingState && (
+                                            <div className="flex items-center gap-2 text-xs text-rose-500 font-medium italic mb-1">
+                                                <Sparkles className="animate-pulse w-3 h-3" />
+                                                {thinkingState}
+                                            </div>
+                                        )}
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 bg-rose-400 rounded-full animate-bounce"></div>
+                                            <div className="w-2 h-2 bg-rose-400 rounded-full animate-bounce delay-75"></div>
+                                            <div className="w-2 h-2 bg-rose-400 rounded-full animate-bounce delay-150"></div>
+                                        </div>
                                     </div>
                                 </motion.div>
                             )}

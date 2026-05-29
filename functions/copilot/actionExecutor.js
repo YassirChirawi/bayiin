@@ -59,48 +59,55 @@ async function restoreSnapshot(storeId, snapshot) {
 }
 
 /**
- * Exécute une action avec sauvegarde du snapshot pour rollback.
+ * Exécute une action avec sauvegarde du snapshot de manière atomique.
  * 
  * @param {string} storeId
  * @param {object} actionMeta - { actionType, description, userId, affectedDocuments[] }
- * @param {Function} actionFn - La fonction à exécuter (async)
+ * @param {Function} actionFn - La fonction à exécuter (async), qui recevra l'objet de transaction 't'
  * @returns {object} - { success, actionLogId, result }
  */
 async function executeWithRollback(storeId, actionMeta, actionFn) {
     const db = getDb();
     const affectedDocs = actionMeta.affectedDocuments || [];
-
-    // 1. Capture snapshot before
-    const snapshot = affectedDocs.length > 0 
-        ? await captureSnapshot(storeId, affectedDocs) 
-        : {};
-
-    // 2. Create action log entry (pre-execution)
     const actionLogRef = db.collection(`stores/${storeId}/beya3_action_log`).doc();
-    await actionLogRef.set({
-        actionType: actionMeta.actionType,
-        description: actionMeta.description || '',
-        userId: actionMeta.userId || 'system',
-        toolName: actionMeta.toolName || '',
-        toolArgs: actionMeta.toolArgs || {},
-        status: 'executing',
-        rollbackData: snapshot,
-        isReversible: affectedDocs.length > 0,
-        rollbackDeadline: new Date(Date.now() + ROLLBACK_WINDOW_MS),
-        createdAt: FieldValue.serverTimestamp(),
-        executedAt: null,
-        rolledBackAt: null
-    });
 
     try {
-        // 3. Execute the action
-        const result = await actionFn();
+        const result = await db.runTransaction(async (t) => {
+            // 1. Lire l'état actuel dans la transaction
+            const snapshot = {};
+            for (const docPath of affectedDocs) {
+                const docRef = db.doc(docPath);
+                const docSnap = await t.get(docRef);
+                snapshot[docPath] = {
+                    exists: docSnap.exists,
+                    data: docSnap.exists ? docSnap.data() : null
+                };
+            }
 
-        // 4. Update status to executed
-        await actionLogRef.update({
-            status: 'executed',
-            executedAt: FieldValue.serverTimestamp(),
-            result: typeof result === 'string' ? result : JSON.stringify(result || {})
+            // 2. Écrire le log d'action (et le snapshot) dans la transaction
+            t.set(actionLogRef, {
+                actionType: actionMeta.actionType,
+                description: actionMeta.description || '',
+                userId: actionMeta.userId || 'system',
+                toolName: actionMeta.toolName || '',
+                toolArgs: actionMeta.toolArgs || {},
+                status: 'executed',
+                rollbackData: snapshot,
+                isReversible: affectedDocs.length > 0,
+                rollbackDeadline: new Date(Date.now() + ROLLBACK_WINDOW_MS),
+                createdAt: FieldValue.serverTimestamp(),
+                executedAt: FieldValue.serverTimestamp()
+            });
+
+            // 3. Exécuter l'action en passant la transaction (qui doit l'utiliser pour ses écritures)
+            const fnResult = await actionFn(t);
+
+            // 4. Mettre à jour le résultat
+            t.update(actionLogRef, {
+                result: typeof fnResult === 'string' ? fnResult : JSON.stringify(fnResult || {})
+            });
+
+            return fnResult;
         });
 
         return {
@@ -111,23 +118,16 @@ async function executeWithRollback(storeId, actionMeta, actionFn) {
             rollbackDeadline: new Date(Date.now() + ROLLBACK_WINDOW_MS)
         };
     } catch (error) {
-        console.error(`[ActionExecutor] Action failed, auto-rolling back:`, error);
-
-        // 5. Auto-rollback on failure
-        if (affectedDocs.length > 0) {
-            try {
-                await restoreSnapshot(storeId, snapshot);
-            } catch (rollbackErr) {
-                console.error(`[ActionExecutor] CRITICAL: Rollback also failed:`, rollbackErr);
-            }
-        }
-
-        // 6. Update status to failed
-        await actionLogRef.update({
+        console.error(`[ActionExecutor] Action failed, transaction aborted:`, error);
+        
+        // Enregistrer l'échec séparément puisque la transaction a été annulée
+        await actionLogRef.set({
+            actionType: actionMeta.actionType,
+            description: actionMeta.description || '',
             status: 'failed',
             error: error.message,
-            autoRolledBack: affectedDocs.length > 0
-        });
+            createdAt: FieldValue.serverTimestamp()
+        }).catch(e => console.error("[ActionExecutor] Could not write failure log", e));
 
         throw error;
     }
