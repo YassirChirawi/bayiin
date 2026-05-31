@@ -77,6 +77,14 @@ async function ensureFreshToken(storeId, tokens) {
 exports.createYouCanSubscription = onRequest(
     { secrets: ['YOUCAN_CLIENT_SECRET', 'YOUCAN_BILLING_CALLBACK_URL'], cors: true },
     async (req, res) => {
+        // Handle CORS preflight explicitly just in case
+        if (req.method === 'OPTIONS') {
+            res.set('Access-Control-Allow-Origin', '*');
+            res.set('Access-Control-Allow-Methods', 'POST');
+            res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+            return res.status(204).send('');
+        }
+
         if (req.method !== 'POST') {
             return res.status(405).json({ error: 'Method Not Allowed' });
         }

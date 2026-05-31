@@ -245,7 +245,14 @@ exports.youcanCallback = onRequest(
  * contre un vrai access_token YouCan et créer/connecter le compte BayIIn.
  */
 exports.exchangeYoucanToken = onRequest({ secrets: ['YOUCAN_CLIENT_SECRET'], cors: true }, async (req, res) => {
-    // cors: true active CORS automatiquement
+    // Handle CORS preflight explicitly just in case
+    if (req.method === 'OPTIONS') {
+        res.set('Access-Control-Allow-Origin', '*');
+        res.set('Access-Control-Allow-Methods', 'POST');
+        res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        return res.status(204).send('');
+    }
+
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
