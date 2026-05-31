@@ -25,11 +25,19 @@ const { whatsappWebhook, whatsappTimeoutWorker } = require('./whatsapp');
 exports.whatsappWebhook = whatsappWebhook;
 exports.whatsappTimeoutWorker = whatsappTimeoutWorker;
 
-// YouCan Integration
-const { exchangeYoucanToken, youcanWebhook, youcanSyncOrders } = require('./youcan');
+// YouCan Integration — Auth (standard authorization_code + Qantra embedded)
+const { exchangeYoucanToken, youcanWebhook, youcanSyncOrders, youcanInstall, youcanCallback } = require('./youcan');
 exports.exchangeYoucanToken = exchangeYoucanToken;
 exports.youcanWebhook = youcanWebhook;
 exports.youcanSyncOrders = youcanSyncOrders;
+exports.youcanInstall = youcanInstall;
+exports.youcanCallback = youcanCallback;
+
+// YouCan Integration — Managed Billing
+const { createYouCanSubscription, youcanBillingCallback } = require('./youcanBilling');
+exports.createYouCanSubscription = createYouCanSubscription;
+exports.youcanBillingCallback = youcanBillingCallback;
+
 
 // Shopify Integration
 const { shopifyWebhook } = require('./shopify');

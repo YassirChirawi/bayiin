@@ -12,6 +12,233 @@ const {
 
 const db = getFirestore("comsaas");
 
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPER — Valide la signature HMAC de YouCan
+// Utilisé par l'endpoint /install
+// ─────────────────────────────────────────────────────────────────────────────
+function validateYouCanSignature(query, secret) {
+    const { signature, ...params } = query;
+    if (!signature) return false;
+
+    const sortedParams = Object.keys(params)
+        .sort()
+        .map(k => `${k}=${params[k]}`)
+        .join('&');
+
+    const expected = crypto
+        .createHmac('sha256', secret)
+        .update(sortedParams)
+        .digest('hex');
+
+    try {
+        return crypto.timingSafeEqual(
+            Buffer.from(expected, 'hex'),
+            Buffer.from(signature, 'hex')
+        );
+    } catch {
+        return false;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1a. youcanInstall — ÉTAPE 1 du flow Embedded App (standard authorization_code)
+//
+// YouCan appelle cette URL quand le marchand installe l'app depuis le marketplace.
+// URL enregistrée dans Partner Dashboard : https://<project>.cloudfunctions.net/youcanInstall
+//
+// GET /youcanInstall?shop={domain}&timestamp={ts}&signature={hmac}
+// ─────────────────────────────────────────────────────────────────────────────
+exports.youcanInstall = onRequest(
+    { secrets: ['YOUCAN_CLIENT_SECRET', 'YOUCAN_REDIRECT_URI'] },
+    async (req, res) => {
+        const { shop, timestamp, signature } = req.query;
+
+        if (!shop || !timestamp || !signature) {
+            return res.status(400).send('Missing required parameters: shop, timestamp, signature');
+        }
+
+        // Valider la signature HMAC (sécurité critique)
+        const isValid = validateYouCanSignature(req.query, process.env.YOUCAN_CLIENT_SECRET);
+        if (!isValid) {
+            console.error('[YouCan Install] Invalid HMAC signature', { shop, timestamp });
+            return res.status(401).send('Invalid signature');
+        }
+
+        // Anti-replay : le timestamp ne doit pas être vieux de plus de 5 minutes
+        const tsAge = Math.abs(Date.now() / 1000 - parseInt(timestamp));
+        if (tsAge > 300) {
+            console.warn('[YouCan Install] Timestamp trop ancien', { tsAge });
+            return res.status(401).send('Request expired');
+        }
+
+        // Construire l'URL OAuth YouCan avec les scopes minimum nécessaires
+        const scopes = [
+            'orders:read', 'orders:write',
+            'products:read', 'products:write',
+            'customers:read',
+            'inventory:read', 'inventory:write'
+        ].join(' ');
+
+        // Encoder le shop dans le state pour le retrouver au callback (anti-CSRF)
+        const state = Buffer.from(JSON.stringify({ shop, ts: timestamp })).toString('base64url');
+
+        const authUrl = new URL('https://seller-area.youcan.shop/admin/oauth/authorize');
+        authUrl.searchParams.set('client_id', process.env.YOUCAN_CLIENT_ID);
+        authUrl.searchParams.set('redirect_uri', process.env.YOUCAN_REDIRECT_URI);
+        authUrl.searchParams.set('response_type', 'code');
+        authUrl.searchParams.set('scope', scopes);
+        authUrl.searchParams.set('state', state);
+
+        console.log(`[YouCan Install] Redirecting shop ${shop} to OAuth`);
+        res.redirect(authUrl.toString());
+    }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1b. youcanCallback — ÉTAPE 3 du flow (échange du code OAuth)
+//
+// YouCan redirige ici après que le marchand a autorisé l'app.
+// URL enregistrée dans Partner Dashboard : https://<project>.cloudfunctions.net/youcanCallback
+//
+// GET /youcanCallback?code={code}&state={state}&shop={domain}
+// ─────────────────────────────────────────────────────────────────────────────
+exports.youcanCallback = onRequest(
+    { secrets: ['YOUCAN_CLIENT_SECRET', 'YOUCAN_REDIRECT_URI', 'YOUCAN_APP_HANDLE'] },
+    async (req, res) => {
+        const { code, state, shop } = req.query;
+
+        if (!code || !state || !shop) {
+            return res.status(400).send('Missing required parameters: code, state, shop');
+        }
+
+        // Décoder et valider le state (anti-CSRF)
+        let stateData;
+        try {
+            stateData = JSON.parse(Buffer.from(state, 'base64url').toString('utf8'));
+        } catch {
+            return res.status(400).send('Invalid state parameter');
+        }
+
+        if (stateData.shop !== shop) {
+            console.error('[YouCan Callback] State mismatch', { stateShop: stateData.shop, queryShop: shop });
+            return res.status(401).send('State mismatch — possible CSRF');
+        }
+
+        try {
+            // ÉTAPE 3a — Échange code → access_token + refresh_token
+            const tokenRes = await fetch('https://api.youcan.shop/oauth/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    grant_type: 'authorization_code',
+                    client_id: process.env.YOUCAN_CLIENT_ID,
+                    client_secret: process.env.YOUCAN_CLIENT_SECRET,
+                    redirect_uri: process.env.YOUCAN_REDIRECT_URI,
+                    code
+                })
+            });
+
+            if (!tokenRes.ok) {
+                const err = await tokenRes.text();
+                throw new Error(`Token exchange failed: ${err}`);
+            }
+
+            const { access_token, refresh_token, expires_in } = await tokenRes.json();
+
+            // ÉTAPE 3b — Récupérer les détails de la boutique YouCan
+            const storeRes = await fetch('https://api.youcan.shop/store/details', {
+                headers: { 'Authorization': `Bearer ${access_token}` }
+            });
+
+            if (!storeRes.ok) throw new Error('Failed to fetch YouCan store details');
+            const storeData = await storeRes.json();
+
+            // ÉTAPE 3c — Créer ou retrouver le store BayIIn
+            const { getAuth } = require('firebase-admin/auth');
+            let storeId = await getStoreIdFromYouCanId(storeData.id);
+            let uid;
+
+            if (!storeId) {
+                const email = storeData.contact_email || `${storeData.id}@youcan-store.bayiin.shop`;
+                let userExists = false;
+
+                try {
+                    const existingUser = await getAuth().getUserByEmail(email);
+                    uid = existingUser.uid;
+                    userExists = true;
+                    const userDoc = await db.collection('users').doc(uid).get();
+                    if (userDoc.exists && userDoc.data().storeId) {
+                        storeId = userDoc.data().storeId;
+                    }
+                } catch (e) {
+                    if (e.code !== 'auth/user-not-found') throw e;
+                }
+
+                if (!userExists) {
+                    const userRecord = await getAuth().createUser({
+                        email,
+                        password: crypto.randomBytes(8).toString('hex'),
+                        displayName: storeData.name || 'YouCan Store'
+                    });
+                    uid = userRecord.uid;
+                }
+
+                if (!storeId) {
+                    const newStoreRef = db.collection('stores').doc();
+                    storeId = newStoreRef.id;
+                    await newStoreRef.set({
+                        name: storeData.name || 'My YouCan Store',
+                        currency: 'MAD',
+                        ownerId: uid,
+                        createdAt: FieldValue.serverTimestamp(),
+                        subscriptionStatus: 'active',
+                        plan: 'youcan_app',
+                        subscriptionSource: 'youcan'
+                    });
+                    await db.collection('users').doc(uid).set({
+                        email,
+                        name: storeData.name || 'YouCan Store',
+                        role: 'owner',
+                        storeId,
+                        createdAt: FieldValue.serverTimestamp()
+                    }, { merge: true });
+                }
+            } else {
+                const storeDoc = await db.collection('stores').doc(storeId).get();
+                uid = storeDoc.data().ownerId;
+            }
+
+            // ÉTAPE 3d — Sauvegarder les tokens OAuth
+            await db.collection('stores').doc(storeId)
+                .collection('youcan_integration').doc('config').set({
+                    accessToken: access_token,
+                    refreshToken: refresh_token || null,
+                    expiresAt: FieldValue.fromMillis(Date.now() + (expires_in || 3600) * 1000),
+                    youcanStoreId: String(storeData.id),
+                    youcanStoreUrl: storeData.domain || shop,
+                    connectedAt: FieldValue.serverTimestamp(),
+                    isActive: true,
+                    webhookSubscriptions: {},
+                    authFlow: 'authorization_code'
+                }, { merge: true });
+
+            // ÉTAPE 3e — Enregistrer webhooks + sync commandes (background)
+            registerYouCanWebhooks(storeId, access_token).catch(console.error);
+            syncOrdersFromYouCan(storeId, access_token).catch(console.error);
+
+            // ÉTAPE 3f — Redirect vers l'app dans YouCan Admin (PAS vers bayiin.shop)
+            const appHandle = process.env.YOUCAN_APP_HANDLE || 'bayiin';
+            const redirectUrl = `https://seller-area.youcan.shop/admin/apps/${appHandle}`;
+            console.log(`[YouCan Callback] Shop ${shop} (storeId: ${storeId}) connected. Redirecting to ${redirectUrl}`);
+            res.redirect(redirectUrl);
+
+        } catch (err) {
+            console.error('[YouCan Callback] Error:', err);
+            res.status(500).send('Internal Server Error during OAuth callback');
+        }
+    }
+);
+
 /**
  * Qantra Embedded App Authentication
  * Appelé par le frontend React (non-authentifié) pour échanger le session_token JWT
@@ -121,7 +348,8 @@ exports.exchangeYoucanToken = onRequest({ secrets: ['YOUCAN_CLIENT_SECRET'], cor
                     ownerId: uid,
                     createdAt: FieldValue.serverTimestamp(),
                     subscriptionStatus: 'active', // Géré par YouCan Billing
-                    plan: 'youcan_app'
+                    plan: 'youcan_app',
+                    subscriptionSource: 'youcan'
                 });
                 
                 // Enregistrer l'utilisateur
@@ -149,7 +377,8 @@ exports.exchangeYoucanToken = onRequest({ secrets: ['YOUCAN_CLIENT_SECRET'], cor
             youcanStoreUrl: storeData.domain || '',
             connectedAt: FieldValue.serverTimestamp(),
             isActive: true,
-            webhookSubscriptions: {}
+            webhookSubscriptions: {},
+            authFlow: 'qantra_token_exchange'
         }, { merge: true }); // Merge pour garder l'historique
         
         // 7. Configurer les webhooks et synchroniser les commandes (en background pour ne pas bloquer)
@@ -185,6 +414,37 @@ exports.youcanWebhook = onRequest({ secrets: ['YOUCAN_CLIENT_SECRET'] }, async (
     
     const { event, data } = req.body;
     
+    // ── Billing events ───────────────────────────────────────────────────────
+    if (event === 'app.subscription_cancelled' || event === 'app.subscription_renewed') {
+        const youcanStoreId = data?.store_id || data?.shop_id;
+        const storeId = youcanStoreId ? await getStoreIdFromYouCanId(String(youcanStoreId)) : null;
+
+        if (!storeId) {
+            console.warn(`[YouCan Billing Webhook] Store non trouvé pour YouCan ID: ${youcanStoreId}`);
+            return res.status(200).json({ received: true }); // 200 pour éviter les retries
+        }
+
+        if (event === 'app.subscription_cancelled') {
+            await db.collection('stores').doc(storeId).update({
+                plan: 'free',
+                subscriptionStatus: 'cancelled',
+                subscriptionCancelledAt: FieldValue.serverTimestamp()
+            });
+            console.log(`[YouCan Billing] Store ${storeId} subscription cancelled → plan: free`);
+
+        } else if (event === 'app.subscription_renewed') {
+            const billingDate = data?.billing_on ? new Date(data.billing_on) : null;
+            await db.collection('stores').doc(storeId).update({
+                subscriptionStatus: 'active',
+                ...(billingDate ? { currentPeriodEnd: billingDate } : {}),
+                lastRenewedAt: FieldValue.serverTimestamp()
+            });
+            console.log(`[YouCan Billing] Store ${storeId} subscription renewed`);
+        }
+
+        return res.status(200).json({ received: true });
+    }
+
     // Récupère le storeId interne BayIIn
     const storeId = await getStoreIdFromYouCanId(data.store_id);
     if (!storeId) {

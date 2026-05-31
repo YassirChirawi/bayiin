@@ -131,7 +131,7 @@ service cloud.firestore {
       allow list: if (request.auth != null && (resource.data.ownerId == request.auth.uid || isSuperAdmin() || isFranchiseAdmin())) 
                   || resource.data.publicCatalogEnabled == true;
       allow update: if (isStoreOwner(storeId) || isSuperAdmin()) &&
-                    !request.resource.data.diff(resource.data).affectedKeys().hasAny(['plan', 'subscriptionStatus', 'currentPeriodEnd', 'stripeCustomerId']);
+                    !request.resource.data.diff(resource.data).affectedKeys().hasAny(['plan', 'subscriptionStatus', 'currentPeriodEnd', 'stripeCustomerId', 'subscriptionSource', 'youcanChargeId']);
       allow delete: if isStoreOwner(storeId) || isSuperAdmin();
 
       match /private/{document=**} {
