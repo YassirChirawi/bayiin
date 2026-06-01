@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams, useLocation } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { AuthProvider } from "./context/AuthContext";
 import { TenantProvider } from "./context/TenantContext";
@@ -71,6 +71,14 @@ const PageLoader = () => (
 // Smart landing: redirect authenticated users to dashboard
 const SmartLanding = () => {
   const { user, loading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+
+  // Seamless YouCan Embedded App Authentication
+  if (searchParams.get('session') && searchParams.get('hmac')) {
+    return <Navigate to={`/auth/youcan${location.search}`} replace />;
+  }
+
   if (loading) return null;
   if (user) return <Navigate to="/dashboard" replace />;
   return <Landing />;
