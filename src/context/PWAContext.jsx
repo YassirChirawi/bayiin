@@ -13,9 +13,10 @@ export function PWAProvider({ children }) {
         setIsInstalled(!!isStandalone);
 
         const handleBeforeInstallPrompt = (e) => {
-            // Prevent the mini-infobar from appearing on mobile
-            e.preventDefault();
-            // Stash the event so it can be triggered later.
+            // Allow the mini-infobar from appearing on mobile automatically
+            // e.preventDefault(); 
+            
+            // Stash the event so it can be triggered later if needed.
             setDeferredPrompt(e);
             setIsInstallable(true);
         };

@@ -141,6 +141,13 @@ async function handleIncomingMessage(msg, metadata) {
         return;
     }
 
+    // ÉVOLUTION 9 : WhatsApp Merchant
+    // Si le numéro correspond au propriétaire (format international sans +)
+    if (store.ownerPhone && normalizePhone(store.ownerPhone) === normalizePhone(phone)) {
+        await handleMerchantBeya3(store, phone, userText);
+        return;
+    }
+
     // Mark message as read (blue ticks)
     await markMessageAsRead(messageId, store.whatsappAccessToken, store.whatsappPhoneNumberId);
 
@@ -269,6 +276,37 @@ async function handleNewConversation(store, phone, userText, convRef) {
         });
 
         await handleBeya3AIResponse(store, phone, userText, { messages: [] }, convRef);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MERCHANT BEYA3 — Personal AI assistant for the store owner on WhatsApp
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function handleMerchantBeya3(store, phone, userText) {
+    try {
+        const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+        const systemPrompt = `Tu es Beya3, le Copilot (CFO/COO) IA du magasin ${store.name}.
+Le propriétaire du magasin t'envoie un message privé sur WhatsApp.
+Réponds de manière ultra-concise, professionnelle, et propose ton aide pour analyser les ventes, le stock ou la rentabilité.
+Si la question nécessite des données précises (ex: "quel est le CA d'aujourd'hui ?"), indique-lui poliment de consulter son dashboard BayIIn car tu ne peux pas lire la base de données en direct via WhatsApp pour le moment.`;
+
+        const completion = await groq.chat.completions.create({
+            model: "llama-3.3-70b-versatile",
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userText }
+            ],
+            max_tokens: 300,
+            temperature: 0.3
+        });
+        
+        const aiResponse = completion.choices[0]?.message?.content;
+        if (aiResponse) {
+            await sendTextMessage(phone, aiResponse, store.whatsappAccessToken, store.whatsappPhoneNumberId);
+        }
+    } catch (e) {
+        console.error("[WhatsApp] Merchant Beya3 error:", e);
     }
 }
 

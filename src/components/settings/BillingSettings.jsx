@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { CreditCard, Check, Zap } from "lucide-react";
+import { CreditCard, Check, Zap, ExternalLink, ShoppingBag } from "lucide-react";
 import Button from "../Button";
 import { toast } from "react-hot-toast";
 import { createCheckoutSession } from "../../lib/stripeService";
@@ -21,6 +21,90 @@ export default function BillingSettings({ store, setStore, t }) {
         }
     };
 
+    // ── YouCan Managed Billing ────────────────────────────────────────────────
+    // Si le store vient de YouCan, NE PAS afficher les boutons Stripe.
+    // L'abonnement est géré directement par YouCan.
+    if (store?.subscriptionSource === 'youcan') {
+        const planLabel = store.plan === 'pro' ? 'Pro' : 'Free';
+
+        return (
+            <div className="space-y-6">
+                <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
+                    <div className="px-4 py-5 sm:p-6">
+                        <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
+                            <ShoppingBag className="h-5 w-5 text-[#6c47ff]" />
+                            Abonnement YouCan
+                        </h3>
+
+                        {/* Current plan badge */}
+                        <div className={`mt-6 p-6 rounded-xl border-2 ${store.plan === 'pro' ? 'border-purple-200 bg-purple-50' : 'border-gray-200 bg-gray-50'} flex items-start gap-4`}>
+                            <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center ${store.plan === 'pro' ? 'bg-purple-100' : 'bg-gray-100'}`}>
+                                <span className="text-2xl">🛒</span>
+                            </div>
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <h4 className="font-bold text-gray-900">
+                                        Plan actuel : {planLabel}
+                                    </h4>
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${store.plan === 'pro' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
+                                        {store.subscriptionStatus === 'active' ? '● Actif' : store.subscriptionStatus}
+                                    </span>
+                                </div>
+                                <p className="text-sm text-gray-600 leading-relaxed">
+                                    Votre abonnement BayIIn est géré directement via <strong>YouCan</strong>.
+                                    Pour modifier, annuler ou mettre à niveau votre plan, rendez-vous dans votre espace YouCan.
+                                </p>
+                                {store.currentPeriodEnd && (
+                                    <p className="text-xs text-gray-400 mt-2">
+                                        Prochain renouvellement :{' '}
+                                        {new Date(store.currentPeriodEnd?.toDate?.() || store.currentPeriodEnd).toLocaleDateString('fr-FR', {
+                                            day: 'numeric', month: 'long', year: 'numeric'
+                                        })}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Action links */}
+                        <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                            <a
+                                href="https://seller-area.youcan.shop"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#6c47ff] hover:bg-[#5a38d9] text-white font-semibold rounded-xl transition-colors shadow-sm text-sm"
+                            >
+                                <ShoppingBag size={16} />
+                                Gérer dans YouCan Admin
+                                <ExternalLink size={14} />
+                            </a>
+                            {store.plan !== 'pro' && (
+                                <a
+                                    href={`https://seller-area.youcan.shop/admin/apps/${store.youcanAppHandle || 'bayiin'}?upgrade=1`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center justify-center gap-2 px-5 py-3 border border-purple-300 text-purple-700 hover:bg-purple-50 font-semibold rounded-xl transition-colors text-sm"
+                                >
+                                    <Zap size={16} />
+                                    Passer au Plan Pro (99 MAD/mois)
+                                </a>
+                            )}
+                        </div>
+
+                        {/* Info box */}
+                        <div className="mt-6 p-4 bg-blue-50 rounded-xl border border-blue-100 text-sm text-blue-700">
+                            <p className="font-semibold mb-1">ℹ️ Pourquoi ce message ?</p>
+                            <p className="leading-relaxed">
+                                Vous avez installé BayIIn depuis le <strong>marketplace YouCan</strong>.
+                                Votre facturation est centralisée sur votre compte YouCan pour simplifier la gestion de vos abonnements.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ── Stripe Billing (stores créés directement sur bayiin.shop) ────────────
     return (
         <div className="space-y-6">
             <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">

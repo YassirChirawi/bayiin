@@ -25,11 +25,19 @@ const { whatsappWebhook, whatsappTimeoutWorker } = require('./whatsapp');
 exports.whatsappWebhook = whatsappWebhook;
 exports.whatsappTimeoutWorker = whatsappTimeoutWorker;
 
-// YouCan Integration
-const { exchangeYoucanToken, youcanWebhook, youcanSyncOrders } = require('./youcan');
+// YouCan Integration — Auth (standard authorization_code + Qantra embedded)
+const { exchangeYoucanToken, youcanWebhook, youcanSyncOrders, youcanInstall, youcanCallback } = require('./youcan');
 exports.exchangeYoucanToken = exchangeYoucanToken;
 exports.youcanWebhook = youcanWebhook;
 exports.youcanSyncOrders = youcanSyncOrders;
+exports.youcanInstall = youcanInstall;
+exports.youcanCallback = youcanCallback;
+
+// YouCan Integration — Managed Billing
+const { createYouCanSubscription, youcanBillingCallback } = require('./youcanBilling');
+exports.createYouCanSubscription = createYouCanSubscription;
+exports.youcanBillingCallback = youcanBillingCallback;
+
 
 // Shopify Integration
 const { shopifyWebhook } = require('./shopify');
@@ -1079,14 +1087,69 @@ exports.scheduledReconciliation = functions.pubsub.schedule('0 2 * * *')
     return null;
 });
 
-// TEMPORARY CLEANUP ENDPOINT
-exports.cleanYoucan = onRequest(async (req, res) => {
-    const snap = await db.collectionGroup('youcan_integration').get();
-    let count = 0;
-    for (let doc of snap.docs) {
-        await doc.ref.delete();
-        count++;
+// ==========================================
+// BEYA3 COPILOT - PROACTIVE AGENT JOBS
+// ==========================================
+const { generateDailyBrief, deliverInsight, runAnomalyScanner } = require('./copilot/proactiveAgent');
+
+/**
+ * Daily Brief (Runs every day at 08:00 Casablanca time)
+ */
+exports.beya3DailyBrief = functions.pubsub.schedule('0 8 * * *')
+  .timeZone('Africa/Casablanca')
+  .onRun(async (context) => {
+    console.log("Starting Beya3 Daily Brief generation...");
+    // Fetch all active PRO stores
+    const storesSnap = await db.collection('stores').where('plan', 'in', ['pro', 'unlimited']).get();
+    
+    for (const storeDoc of storesSnap.docs) {
+        try {
+            const brief = await generateDailyBrief(storeDoc.id);
+            await deliverInsight(storeDoc.id, brief, 'dashboard', 'daily_brief');
+        } catch (e) {
+            console.error(`Failed to generate daily brief for store ${storeDoc.id}:`, e);
+        }
     }
-    res.send(`Cleaned ${count} youcan_integration documents! You can now reinstall the app on YouCan.`);
+    return null;
 });
 
+/**
+ * Anomaly Scanner (Runs every 30 minutes)
+ */
+exports.beya3AnomalyScanner = functions.pubsub.schedule('*/30 * * * *')
+  .onRun(async (context) => {
+    // Only scan active PRO stores
+    const storesSnap = await db.collection('stores').where('plan', 'in', ['pro', 'unlimited']).get();
+    
+    for (const storeDoc of storesSnap.docs) {
+        try {
+            await runAnomalyScanner(storeDoc.id);
+        } catch (e) {
+            console.error(`Scanner failed for store ${storeDoc.id}:`, e);
+        }
+    }
+    return null;
+});
+
+// ==========================================
+// BEYA3 COPILOT - WEEKLY BENCHMARK
+// ==========================================
+const { updateMarketBenchmarks } = require('./copilot/benchmarkService');
+
+/**
+ * Weekly Market Benchmark (Runs every Sunday at 02:00 Casablanca time)
+ */
+exports.beya3WeeklyBenchmark = functions.pubsub.schedule('0 2 * * 0')
+  .timeZone('Africa/Casablanca')
+  .onRun(async (context) => {
+    console.log("Starting Beya3 Weekly Benchmark calculation...");
+    try {
+        await updateMarketBenchmarks();
+        console.log("Weekly benchmark completed.");
+    } catch (e) {
+        console.error("Weekly benchmark failed:", e);
+    }
+    return null;
+});
+
+// cleanYoucan: REMOVED (SEC-04 — was an unauthenticated destructive endpoint)

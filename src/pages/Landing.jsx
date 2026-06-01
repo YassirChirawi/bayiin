@@ -3,10 +3,12 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import SEO from "../components/SEO";
 import { motion } from "framer-motion";
-import Footer from "../components/Footer";
-import FAQ from "../components/FAQ";
 import ContactSection from "../components/ContactSection";
 import LiveAppPreview from "../components/LiveAppPreview";
+import Footer from "../components/Landing/Footer";
+import FAQ from "../components/Landing/FAQ";
+import Testimonials from "../components/Landing/Testimonials";
+import Beya3Demo from "../components/Landing/Beya3Demo";
 import { useLanguage } from "../context/LanguageContext";
 
 export default function Landing() {
@@ -643,7 +645,10 @@ export default function Landing() {
             </section>
 
 
+            <Testimonials />
+            <FAQ />
             <ContactSection />
+            <Beya3Demo />
 
             {/* ═══ BETA TESTER PROGRAM — LAST SECTION ══════════════════════════ */}
             <section id="beta" className="py-24 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 relative overflow-hidden">

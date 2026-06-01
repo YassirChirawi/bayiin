@@ -1,24 +1,26 @@
-const COPILOT_URL = import.meta.env.VITE_COPILOT_URL || "/api/copilotChat";
+const COPILOT_URL = import.meta.env.VITE_COPILOT_URL || "/api/copilotChatV1";
 
 /**
  * Generic AI Response Generator
  * Used by other services for specific prompts
  */
 export async function generateAIResponse(prompt) {
-  return await generateCopilotResponse([{ role: "user", content: prompt }]);
+  return await generateCopilotResponse({ messages: [{ role: "user", content: prompt }] });
 }
 
-export async function generateCopilotResponse(
+export async function generateCopilotResponse({
   messages,
   businessContext = null,
   storeName = "BayIIn Store",
+  storeId = null,
+  conversationId = null,
   onChunk = null
-) {
+}) {
   try {
     const response = await fetch(COPILOT_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, businessContext, storeName })
+      body: JSON.stringify({ messages, businessContext, storeName, storeId, conversationId })
     });
 
     if (!response.ok) throw new Error("Copilot function error");
@@ -39,7 +41,11 @@ export async function generateCopilotResponse(
             const data = JSON.parse(line.slice(6));
             if (data.delta) {
               fullText += data.delta;
-              onChunk?.(fullText);
+              onChunk?.({ delta: fullText, actions: null, thinking: null });
+            } else if (data.type === 'actions_pending') {
+              onChunk?.({ delta: null, actions: data.actions, thinking: null });
+            } else if (data.type === 'thinking') {
+              onChunk?.({ delta: null, actions: null, thinking: data.text });
             }
           } catch (e) {
             console.warn("Error parsing stream chunk:", e);
