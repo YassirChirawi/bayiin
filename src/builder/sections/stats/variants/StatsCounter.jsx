@@ -1,8 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { motion } from 'framer-motion';
 import MediaBackground from '../../../components/MediaBackground';
-import { getSectionStyle, getAlignmentClass } from '../../../utils/styles';
+import { getAlignmentClass } from '../../../utils/styles';
 import EditableText from '../../../components/EditableText';
 import DynamicIcon from '../../../components/DynamicIcon';
+import BlockText from '../../../components/BlockText';
+import SectionWrapper from '../../../components/SectionWrapper';
 
 // Un hook simple pour l'animation des nombres au scroll
 const useCountUp = (end, duration = 2000, start = 0) => {
@@ -16,8 +19,11 @@ const useCountUp = (end, duration = 2000, start = 0) => {
                 if (entry.isIntersecting && !hasAnimated) {
                     setHasAnimated(true);
                     let startTime = null;
-                    const endVal = parseInt(end.replace(/[^0-9]/g, '')) || 0;
-                    if (endVal === 0) return;
+                    const endVal = parseInt(String(end).replace(/[^0-9]/g, '')) || 0;
+                    if (endVal === 0) {
+                        setCount(0); // Actually if it's 0 or not parseable, just return
+                        return;
+                    }
 
                     const step = (timestamp) => {
                         if (!startTime) startTime = timestamp;
@@ -43,20 +49,30 @@ const useCountUp = (end, duration = 2000, start = 0) => {
     }, [end, duration, hasAnimated]);
 
     // Reconstruire le string original avec le compteur
-    const textPart = end.replace(/[0-9]/g, '');
-    const displayValue = hasAnimated ? end.replace(/[0-9]+/, count) : end;
+    const displayValue = hasAnimated ? String(end).replace(/[0-9]+/, count) : String(end);
 
     return { ref, displayValue };
 };
 
 const StatItem = ({ item, theme, onUpdate, idx }) => {
-    const { ref, displayValue } = useCountUp(item.stat?.value || "0", 2000);
+    // Legacy support: some items use item.stat, others use title/content directly
+    const value = item.stat?.value || item.title || "0";
+    const label = item.stat?.label || item.description || item.content || "";
     const isAnimated = item.stat?.animated !== false;
 
+    const { ref, displayValue } = useCountUp(value, 2000);
+
     return (
-        <div ref={ref} className="flex flex-col items-center text-center p-6">
+        <motion.div 
+            ref={ref} 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-50px" }}
+            transition={{ duration: 0.5, delay: idx * 0.1 }}
+            className="flex flex-col items-center text-center p-8 bg-white/50 backdrop-blur-sm rounded-3xl border border-slate-100/50 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group"
+        >
             {(!item.icon || item.icon.type !== 'none') && (
-                <div className="mb-4 text-indigo-500">
+                <div className="mb-6 w-16 h-16 rounded-2xl bg-indigo-50/50 flex items-center justify-center text-indigo-500 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-500">
                     <DynamicIcon 
                         icon={item.icon || { type: 'lucide', value: 'Star', size: 32 }} 
                         override={{ color: theme.primaryColor }}
@@ -65,34 +81,41 @@ const StatItem = ({ item, theme, onUpdate, idx }) => {
             )}
             
             <EditableText
-                value={isAnimated ? displayValue : (item.stat?.value || item.title)}
+                value={isAnimated ? displayValue : value}
                 onChange={(val) => onUpdate?.(idx, 'stat', { ...item.stat, value: val })}
                 as="h3"
-                className="text-4xl md:text-5xl font-black mb-2"
-                style={item.titleColor ? { color: item.titleColor } : { color: theme.primaryColor }}
+                className="text-4xl md:text-5xl font-black mb-3 drop-shadow-sm tracking-tight"
+                style={item.titleColor ? { color: item.titleColor } : { color: theme.primaryColor || '#6366f1' }}
                 isReadOnly={!onUpdate}
             />
             
             <EditableText
-                value={item.stat?.label || item.description || item.content}
+                value={label}
                 onChange={(val) => onUpdate?.(idx, 'stat', { ...item.stat, label: val })}
                 as="p"
-                className="text-lg font-medium text-slate-600"
+                className="text-lg font-medium opacity-80"
                 isReadOnly={!onUpdate}
             />
-        </div>
+        </motion.div>
     );
 };
 
 export default function StatsCounter({ section, theme, onUpdate }) {
-    const { title, subtitle, settings = {} } = section;
-    const alignClass = getAlignmentClass(settings.alignment);
+    const { title, subtitle, blocks = [], settings = {} } = section;
+    const alignClass = getAlignmentClass(settings.alignment || 'center');
     
-    const items = section.items?.length > 0 ? section.items : [
+    // Merge blocks and legacy items
+    const statBlocks = blocks.filter(b => b.type === 'FeatureCard').map(b => ({
+        id: b.id,
+        stat: { value: b.settings.title, label: b.settings.text, animated: true },
+        icon: b.settings.icon || { type: 'lucide', value: 'CheckCircle', size: 32 }
+    }));
+
+    const items = statBlocks.length > 0 ? statBlocks : (section.items?.length > 0 ? section.items : [
         { id: 'stat-1', icon: { type: 'lucide', value: 'Users', size: 32 }, stat: { value: "+5000", label: "Clients satisfaits", animated: true } },
         { id: 'stat-2', icon: { type: 'lucide', value: 'PackageCheck', size: 32 }, stat: { value: "10k+", label: "Commandes livrées", animated: true } },
         { id: 'stat-3', icon: { type: 'lucide', value: 'Star', size: 32 }, stat: { value: "4.9/5", label: "Note moyenne", animated: false } }
-    ];
+    ]);
 
     const updateItem = (index, field, value) => {
         const newItems = [...items];
@@ -100,29 +123,47 @@ export default function StatsCounter({ section, theme, onUpdate }) {
         onUpdate?.({ items: newItems });
     };
 
+    // Extract Heading and Subtitle from blocks if they exist
+    const headingBlock = blocks.find(b => b.type === 'Heading');
+    const subtitleBlock = blocks.find(b => b.type === 'Subtitle');
+
     return (
-        <div className={`px-6 py-16 relative overflow-hidden ${alignClass}`} style={getSectionStyle(section, theme)}>
+        <SectionWrapper settings={settings} className={`relative overflow-hidden ${alignClass}`}>
             <MediaBackground settings={settings} />
-            <div className="max-w-6xl mx-auto relative z-10">
-                {(title || subtitle) && (
-                    <div className="mb-12">
-                        {title && (
-                            <EditableText
-                                value={title}
-                                onChange={(val) => onUpdate?.({ title: val })}
-                                as="h2"
-                                className="text-3xl md:text-4xl font-bold mb-4 drop-shadow-sm"
-                                isReadOnly={!onUpdate}
-                            />
+            <div className="max-w-6xl mx-auto relative z-10 py-16 px-6">
+                {(title || subtitle || headingBlock || subtitleBlock) && (
+                    <div className="mb-16 flex flex-col gap-4">
+                        {headingBlock ? (
+                            <BlockText block={headingBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } }} />
+                        ) : (
+                            title && (
+                                <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+                                    <EditableText
+                                        value={title}
+                                        onChange={(val) => onUpdate?.({ title: val })}
+                                        as="h2"
+                                        className="text-4xl md:text-5xl font-black mb-4 drop-shadow-sm tracking-tight"
+                                        isReadOnly={!onUpdate}
+                                        style={{ color: settings.textColor || '#0f172a' }}
+                                    />
+                                </motion.div>
+                            )
                         )}
-                        {subtitle && (
-                            <EditableText
-                                value={subtitle}
-                                onChange={(val) => onUpdate?.({ subtitle: val })}
-                                as="p"
-                                className="text-lg opacity-80 max-w-2xl mx-auto drop-shadow-sm"
-                                isReadOnly={!onUpdate}
-                            />
+                        {subtitleBlock ? (
+                            <BlockText block={subtitleBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5, delay: 0.1 } }} />
+                        ) : (
+                            subtitle && (
+                                <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }}>
+                                    <EditableText
+                                        value={subtitle}
+                                        onChange={(val) => onUpdate?.({ subtitle: val })}
+                                        as="p"
+                                        className="text-xl opacity-70 max-w-2xl mx-auto drop-shadow-sm"
+                                        isReadOnly={!onUpdate}
+                                        style={{ color: settings.textColor || '#475569' }}
+                                    />
+                                </motion.div>
+                            )
                         )}
                     </div>
                 )}
@@ -139,6 +180,6 @@ export default function StatsCounter({ section, theme, onUpdate }) {
                     ))}
                 </div>
             </div>
-        </div>
+        </SectionWrapper>
     );
 }

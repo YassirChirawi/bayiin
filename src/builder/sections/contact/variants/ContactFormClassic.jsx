@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { Phone, Mail, MapPin, Send, MessageCircle } from 'lucide-react';
 import MediaBackground from '../../../components/MediaBackground';
-import { getSectionStyle, getAlignmentClass, getButtonStyle } from '../../../utils/styles';
+import { getAlignmentClass, getButtonStyle } from '../../../utils/styles';
 import EditableText from '../../../components/EditableText';
+import BlockText from '../../../components/BlockText';
+import BlockButton from '../../../components/BlockButton';
+import SectionWrapper from '../../../components/SectionWrapper';
 
 export default function ContactFormClassic({ section, theme, contextData, onUpdate }) {
-    const { title, subtitle, settings = {} } = section;
+    const { title, subtitle, blocks = [], settings = {} } = section;
     const alignClass = getAlignmentClass(settings.alignment || 'center');
     const btnRadius = getButtonStyle(theme?.buttonStyle);
     const primary = theme?.primaryColor || '#6366f1';
@@ -38,65 +42,90 @@ export default function ContactFormClassic({ section, theme, contextData, onUpda
         setSubmitted(true);
     };
 
+    // Extract blocks if they exist
+    const headingBlock = blocks.find(b => b.type === 'Heading');
+    const subtitleBlock = blocks.find(b => b.type === 'Subtitle');
+
     return (
-        <div className={`px-4 ${alignClass} relative overflow-hidden`} style={getSectionStyle(section, theme)}>
+        <SectionWrapper settings={settings} className={`relative overflow-hidden ${alignClass}`}>
             <MediaBackground settings={settings} />
-            <div className="max-w-6xl mx-auto relative z-10">
+            <div className="max-w-6xl mx-auto relative z-10 py-16 px-4">
                 {/* Header */}
-                <div className={`mb-14 ${settings.alignment === 'center' ? 'text-center' : ''}`}>
-                    <EditableText
-                        value={title || 'Contactez-nous'}
-                        onChange={(val) => onUpdate?.({ title: val })}
-                        as="h2"
-                        className="text-3xl md:text-5xl font-black mb-4 drop-shadow-sm"
-                        isReadOnly={!onUpdate}
-                    />
-                    <EditableText
-                        value={subtitle || ''}
-                        onChange={(val) => onUpdate?.({ subtitle: val })}
-                        as="p"
-                        className="text-xl opacity-80 max-w-2xl mx-auto"
-                        isReadOnly={!onUpdate}
-                        placeholder="Ajouter un sous-titre..."
-                    />
+                <div className={`mb-16 flex flex-col gap-4 ${settings.alignment === 'center' ? 'text-center' : ''}`}>
+                    {headingBlock ? (
+                        <BlockText block={headingBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } }} />
+                    ) : (
+                        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+                            <EditableText
+                                value={title || 'Contactez-nous'}
+                                onChange={(val) => onUpdate?.({ title: val })}
+                                as="h2"
+                                className="text-4xl md:text-5xl font-black mb-4 drop-shadow-sm tracking-tight"
+                                isReadOnly={!onUpdate}
+                                style={{ color: settings.textColor || '#0f172a' }}
+                            />
+                        </motion.div>
+                    )}
+                    
+                    {subtitleBlock ? (
+                        <BlockText block={subtitleBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5, delay: 0.1 } }} />
+                    ) : (
+                        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }}>
+                            <EditableText
+                                value={subtitle || ''}
+                                onChange={(val) => onUpdate?.({ subtitle: val })}
+                                as="p"
+                                className="text-xl opacity-80 max-w-2xl mx-auto drop-shadow-sm"
+                                isReadOnly={!onUpdate}
+                                placeholder="Ajouter un sous-titre..."
+                                style={{ color: settings.textColor || '#475569' }}
+                            />
+                        </motion.div>
+                    )}
                 </div>
 
-                <div className="grid md:grid-cols-5 gap-10 text-left">
+                <div className="grid md:grid-cols-5 gap-12 text-left">
                     {/* Left: Info */}
-                    <div className="md:col-span-2 space-y-6">
-                        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-8 shadow-lg border border-slate-100">
-                            <h3 className="font-black text-xl text-slate-900 mb-6">Nos coordonnées</h3>
-                            <div className="space-y-5">
+                    <motion.div 
+                        initial={{ opacity: 0, x: -30 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        viewport={{ once: true, margin: "-50px" }}
+                        transition={{ duration: 0.6 }}
+                        className="md:col-span-2 space-y-6"
+                    >
+                        <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-xl border border-slate-100/50 hover:shadow-2xl transition-shadow duration-300">
+                            <h3 className="font-black text-2xl text-slate-900 mb-8">Nos coordonnées</h3>
+                            <div className="space-y-6">
                                 {phone && (
-                                    <a href={`tel:${phone}`} className="flex items-center gap-4 group hover:text-indigo-600 transition-colors">
-                                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm" style={{ backgroundColor: `${primary}20` }}>
-                                            <Phone size={20} style={{ color: primary }} />
+                                    <a href={`tel:${phone}`} className="flex items-center gap-5 group hover:text-indigo-600 transition-colors">
+                                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm group-hover:scale-110 transition-transform duration-300" style={{ backgroundColor: `${primary}15` }}>
+                                            <Phone size={24} style={{ color: primary }} />
                                         </div>
                                         <div>
-                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Téléphone</p>
-                                            <p className="font-bold text-slate-800 group-hover:text-indigo-600">{phone}</p>
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Téléphone</p>
+                                            <p className="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition-colors">{phone}</p>
                                         </div>
                                     </a>
                                 )}
                                 {email && (
-                                    <a href={`mailto:${email}`} className="flex items-center gap-4 group hover:text-indigo-600 transition-colors">
-                                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm" style={{ backgroundColor: `${primary}20` }}>
-                                            <Mail size={20} style={{ color: primary }} />
+                                    <a href={`mailto:${email}`} className="flex items-center gap-5 group hover:text-indigo-600 transition-colors">
+                                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm group-hover:scale-110 transition-transform duration-300" style={{ backgroundColor: `${primary}15` }}>
+                                            <Mail size={24} style={{ color: primary }} />
                                         </div>
                                         <div>
-                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Email</p>
-                                            <p className="font-bold text-slate-800 group-hover:text-indigo-600">{email}</p>
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Email</p>
+                                            <p className="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition-colors">{email}</p>
                                         </div>
                                     </a>
                                 )}
                                 {address && (
-                                    <div className="flex items-start gap-4">
-                                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm" style={{ backgroundColor: `${primary}20` }}>
-                                            <MapPin size={20} style={{ color: primary }} />
+                                    <div className="flex items-start gap-5 group">
+                                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm group-hover:scale-110 transition-transform duration-300" style={{ backgroundColor: `${primary}15` }}>
+                                            <MapPin size={24} style={{ color: primary }} />
                                         </div>
                                         <div>
-                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Adresse</p>
-                                            <p className="font-bold text-slate-800">{address}</p>
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Adresse</p>
+                                            <p className="font-bold text-slate-800 text-lg leading-relaxed">{address}</p>
                                         </div>
                                     </div>
                                 )}
@@ -105,9 +134,9 @@ export default function ContactFormClassic({ section, theme, contextData, onUpda
                                         href={`https://wa.me/${whatsapp.replace(/\D/g, '')}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="flex items-center gap-3 w-full mt-4 py-3 px-5 rounded-2xl bg-emerald-500 text-white font-bold hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/30"
+                                        className="flex items-center justify-center gap-3 w-full mt-8 py-4 px-6 rounded-2xl bg-[#25D366] text-white font-bold hover:bg-[#1ebe57] transition-all duration-300 shadow-lg shadow-[#25D366]/30 hover:shadow-[#25D366]/50 hover:-translate-y-1"
                                     >
-                                        <MessageCircle size={20} />
+                                        <MessageCircle size={24} />
                                         WhatsApp Direct
                                     </a>
                                 )}
@@ -117,35 +146,48 @@ export default function ContactFormClassic({ section, theme, contextData, onUpda
                                 )}
                             </div>
                         </div>
-                    </div>
+                    </motion.div>
 
                     {/* Right: Form */}
-                    <div className="md:col-span-3">
-                        <div className="bg-white rounded-3xl p-8 shadow-xl border border-slate-100">
+                    <motion.div 
+                        initial={{ opacity: 0, x: 30 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        viewport={{ once: true, margin: "-50px" }}
+                        transition={{ duration: 0.6, delay: 0.2 }}
+                        className="md:col-span-3"
+                    >
+                        <div className="bg-white rounded-3xl p-8 shadow-2xl border border-slate-100 relative overflow-hidden">
+                            {/* Decorative background element */}
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-bl-[100px] -z-0 opacity-50"></div>
+
                             {submitted ? (
-                                <div className="flex flex-col items-center justify-center h-64 text-center">
-                                    <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
-                                        <Send size={32} className="text-emerald-600" />
+                                <motion.div 
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="flex flex-col items-center justify-center h-full min-h-[320px] text-center relative z-10"
+                                >
+                                    <div className="w-24 h-24 rounded-full bg-emerald-100 flex items-center justify-center mb-6">
+                                        <Send size={40} className="text-emerald-600" />
                                     </div>
-                                    <h3 className="text-2xl font-black text-slate-900 mb-2">Message envoyé !</h3>
-                                    <p className="text-slate-500">Nous reviendrons vers vous très bientôt.</p>
-                                </div>
+                                    <h3 className="text-3xl font-black text-slate-900 mb-3 tracking-tight">Message envoyé !</h3>
+                                    <p className="text-slate-500 text-lg">Nous reviendrons vers vous très bientôt.</p>
+                                </motion.div>
                             ) : (
-                                <form onSubmit={handleSubmit} className="space-y-5">
+                                <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
                                     {fields.map(field => (
-                                        <div key={field.id}>
-                                            <label className="block text-sm font-bold text-slate-700 mb-2">
+                                        <div key={field.id} className="group">
+                                            <label className="block text-sm font-bold text-slate-700 mb-2 group-focus-within:text-indigo-600 transition-colors">
                                                 {field.label}
                                                 {field.required && <span className="text-rose-500 ml-1">*</span>}
                                             </label>
                                             {field.type === 'textarea' ? (
                                                 <textarea
-                                                    rows={4}
+                                                    rows={5}
                                                     placeholder={field.placeholder}
                                                     required={field.required}
                                                     value={formData[field.id] || ''}
                                                     onChange={e => handleChange(field.id, e.target.value)}
-                                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 outline-none resize-none transition-all"
+                                                    className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 outline-none resize-none transition-all"
                                                     style={{ '--tw-ring-color': primary }}
                                                 />
                                             ) : (
@@ -155,17 +197,18 @@ export default function ContactFormClassic({ section, theme, contextData, onUpda
                                                     required={field.required}
                                                     value={formData[field.id] || ''}
                                                     onChange={e => handleChange(field.id, e.target.value)}
-                                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 outline-none transition-all"
+                                                    className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 outline-none transition-all"
+                                                    style={{ '--tw-ring-color': primary }}
                                                 />
                                             )}
                                         </div>
                                     ))}
                                     <button
                                         type="submit"
-                                        className={`w-full py-4 font-black text-white text-lg flex items-center justify-center gap-2 shadow-lg transition-all hover:scale-[1.02] active:scale-95 ${btnRadius}`}
-                                        style={{ backgroundColor: primary, boxShadow: `0 8px 24px ${primary}40` }}
+                                        className={`w-full py-4 mt-4 font-bold text-white text-lg flex items-center justify-center gap-3 shadow-xl transition-all hover:-translate-y-1 hover:shadow-2xl active:scale-95 ${btnRadius}`}
+                                        style={{ backgroundColor: primary, boxShadow: `0 10px 25px -5px ${primary}60` }}
                                     >
-                                        <Send size={20} />
+                                        <Send size={22} />
                                         <EditableText
                                             value={settings.submitText || 'Envoyer le message'}
                                             onChange={(val) => onUpdate?.({ settings: { ...settings, submitText: val } })}
@@ -176,9 +219,9 @@ export default function ContactFormClassic({ section, theme, contextData, onUpda
                                 </form>
                             )}
                         </div>
-                    </div>
+                    </motion.div>
                 </div>
             </div>
-        </div>
+        </SectionWrapper>
     );
 }
