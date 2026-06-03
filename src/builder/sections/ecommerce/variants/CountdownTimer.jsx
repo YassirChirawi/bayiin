@@ -8,6 +8,16 @@ import BlockText from '../../../components/BlockText';
 import BlockButton from '../../../components/BlockButton';
 import SectionWrapper from '../../../components/SectionWrapper';
 
+const getAnimationProps = (animationType, index = 0) => {
+    switch (animationType) {
+        case 'fade': return { initial: { opacity: 0 }, whileInView: { opacity: 1 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'slide-up': return { initial: { opacity: 0, y: 30 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'scale-up': return { initial: { opacity: 0, scale: 0.95 }, whileInView: { opacity: 1, scale: 1 }, viewport: { once: true }, transition: { duration: 0.4 } };
+        case 'stagger': return { initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.4, delay: index * 0.1 } };
+        default: return {};
+    }
+};
+
 export default function CountdownTimer({ section, theme, onUpdate }) {
     const { title, subtitle, ctaText, blocks = [], settings = {} } = section;
     const alignClass = getAlignmentClass(settings.alignment || 'center');
@@ -52,10 +62,7 @@ export default function CountdownTimer({ section, theme, onUpdate }) {
         <SectionWrapper settings={settings} className={`relative overflow-hidden ${alignClass}`}>
             <MediaBackground settings={settings} />
             <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5 }}
+                {...getAnimationProps(settings.entryAnimation, 0)}
                 className="max-w-5xl mx-auto relative z-10 flex flex-col lg:flex-row items-center justify-between gap-10 bg-white/80 backdrop-blur-xl p-8 md:p-12 rounded-3xl border border-white/40 shadow-2xl my-8 mx-4 md:mx-auto"
             >
                 <div className="flex-1 text-center lg:text-left flex flex-col gap-2">

@@ -6,6 +6,16 @@ import EditableText from '../../../components/EditableText';
 import BlockText from '../../../components/BlockText';
 import SectionWrapper from '../../../components/SectionWrapper';
 
+const getAnimationProps = (animationType, index = 0) => {
+    switch (animationType) {
+        case 'fade': return { initial: { opacity: 0 }, whileInView: { opacity: 1 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'slide-up': return { initial: { opacity: 0, y: 30 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'scale-up': return { initial: { opacity: 0, scale: 0.95 }, whileInView: { opacity: 1, scale: 1 }, viewport: { once: true }, transition: { duration: 0.4 } };
+        case 'stagger': return { initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.4, delay: index * 0.1 } };
+        default: return {};
+    }
+};
+
 export default function FeaturesGlass({ section, theme, onUpdate }) {
     const { title, subtitle, content, items = [], blocks = [], settings = {} } = section;
     const alignClass = getAlignmentClass(settings.alignment || 'center');
@@ -43,11 +53,11 @@ export default function FeaturesGlass({ section, theme, onUpdate }) {
         <SectionWrapper settings={settings} className={`relative overflow-hidden ${alignClass}`}>
             <MediaBackground settings={settings} />
             <div className="max-w-6xl mx-auto relative z-10 py-12 px-6">
-                <div className="mb-16 flex flex-col gap-4">
+                <div className={`mb-16 flex flex-col gap-4 ${alignClass}`}>
                     {headingBlock ? (
-                        <BlockText block={headingBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } }} />
+                        <BlockText block={headingBlock} theme={theme} animProps={getAnimationProps(settings.entryAnimation, 0)} />
                     ) : (
-                        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+                        <motion.div {...getAnimationProps(settings.entryAnimation, 0)}>
                             <EditableText
                                 value={title}
                                 onChange={(val) => onUpdate?.({ title: val })}
@@ -60,9 +70,9 @@ export default function FeaturesGlass({ section, theme, onUpdate }) {
                     )}
 
                     {subtitleBlock ? (
-                        <BlockText block={subtitleBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5, delay: 0.1 } }} />
+                        <BlockText block={subtitleBlock} theme={theme} animProps={getAnimationProps(settings.entryAnimation, 1)} />
                     ) : (
-                        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }}>
+                        <motion.div {...getAnimationProps(settings.entryAnimation, 1)}>
                             <EditableText
                                 value={subtitle}
                                 onChange={(val) => onUpdate?.({ subtitle: val })}
@@ -75,7 +85,7 @@ export default function FeaturesGlass({ section, theme, onUpdate }) {
                     )}
 
                     {content && (
-                        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.2 }}>
+                        <motion.div {...getAnimationProps(settings.entryAnimation, 2)}>
                             <EditableText
                                 value={content}
                                 onChange={(val) => onUpdate?.({ content: val })}
@@ -92,10 +102,7 @@ export default function FeaturesGlass({ section, theme, onUpdate }) {
                     {displayItems.map((item, i) => (
                         <motion.div 
                             key={i} 
-                            initial={{ opacity: 0, y: 40, scale: 0.95 }}
-                            whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                            viewport={{ once: true, margin: "-50px" }}
-                            transition={{ duration: 0.6, delay: i * 0.1 }}
+                            {...getAnimationProps(settings.entryAnimation, 3 + i)}
                             className={`p-10 rounded-3xl backdrop-blur-xl shadow-2xl hover:-translate-y-2 hover:shadow-[0_20px_50px_rgba(0,0,0,0.3)] transition-all duration-300 group ${isMedia ? 'bg-white/10 border border-white/20' : 'bg-white/60 border border-slate-200'}`} 
                             style={{ color: textColor }}
                         >

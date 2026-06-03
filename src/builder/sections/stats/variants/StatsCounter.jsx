@@ -7,6 +7,16 @@ import DynamicIcon from '../../../components/DynamicIcon';
 import BlockText from '../../../components/BlockText';
 import SectionWrapper from '../../../components/SectionWrapper';
 
+const getAnimationProps = (animationType, index = 0) => {
+    switch (animationType) {
+        case 'fade': return { initial: { opacity: 0 }, whileInView: { opacity: 1 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'slide-up': return { initial: { opacity: 0, y: 30 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'scale-up': return { initial: { opacity: 0, scale: 0.95 }, whileInView: { opacity: 1, scale: 1 }, viewport: { once: true }, transition: { duration: 0.4 } };
+        case 'stagger': return { initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.4, delay: index * 0.1 } };
+        default: return {};
+    }
+};
+
 // Un hook simple pour l'animation des nombres au scroll
 const useCountUp = (end, duration = 2000, start = 0) => {
     const [count, setCount] = useState(start);
@@ -54,7 +64,7 @@ const useCountUp = (end, duration = 2000, start = 0) => {
     return { ref, displayValue };
 };
 
-const StatItem = ({ item, theme, onUpdate, idx }) => {
+const StatItem = ({ item, theme, onUpdate, idx, entryAnimation }) => {
     // Legacy support: some items use item.stat, others use title/content directly
     const value = item.stat?.value || item.title || "0";
     const label = item.stat?.label || item.description || item.content || "";
@@ -65,10 +75,7 @@ const StatItem = ({ item, theme, onUpdate, idx }) => {
     return (
         <motion.div 
             ref={ref} 
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-50px" }}
-            transition={{ duration: 0.5, delay: idx * 0.1 }}
+            {...getAnimationProps(entryAnimation, 2 + idx)}
             className="flex flex-col items-center text-center p-8 bg-white/50 backdrop-blur-sm rounded-3xl border border-slate-100/50 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group"
         >
             {(!item.icon || item.icon.type !== 'none') && (
@@ -132,12 +139,12 @@ export default function StatsCounter({ section, theme, onUpdate }) {
             <MediaBackground settings={settings} />
             <div className="max-w-6xl mx-auto relative z-10 py-16 px-6">
                 {(title || subtitle || headingBlock || subtitleBlock) && (
-                    <div className="mb-16 flex flex-col gap-4">
+                    <div className={`mb-16 flex flex-col gap-4 ${alignClass}`}>
                         {headingBlock ? (
-                            <BlockText block={headingBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } }} />
+                            <BlockText block={headingBlock} theme={theme} animProps={getAnimationProps(settings.entryAnimation, 0)} />
                         ) : (
                             title && (
-                                <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+                                <motion.div {...getAnimationProps(settings.entryAnimation, 0)}>
                                     <EditableText
                                         value={title}
                                         onChange={(val) => onUpdate?.({ title: val })}
@@ -150,10 +157,10 @@ export default function StatsCounter({ section, theme, onUpdate }) {
                             )
                         )}
                         {subtitleBlock ? (
-                            <BlockText block={subtitleBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5, delay: 0.1 } }} />
+                            <BlockText block={subtitleBlock} theme={theme} animProps={getAnimationProps(settings.entryAnimation, 1)} />
                         ) : (
                             subtitle && (
-                                <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }}>
+                                <motion.div {...getAnimationProps(settings.entryAnimation, 1)}>
                                     <EditableText
                                         value={subtitle}
                                         onChange={(val) => onUpdate?.({ subtitle: val })}
@@ -176,6 +183,7 @@ export default function StatsCounter({ section, theme, onUpdate }) {
                             theme={theme} 
                             onUpdate={updateItem} 
                             idx={idx} 
+                            entryAnimation={settings.entryAnimation}
                         />
                     ))}
                 </div>

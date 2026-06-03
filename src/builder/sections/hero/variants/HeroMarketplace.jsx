@@ -3,6 +3,16 @@ import { motion } from 'framer-motion';
 import { Search } from 'lucide-react';
 import SectionWrapper from '../../../components/SectionWrapper';
 
+const getAnimationProps = (animationType, index = 0) => {
+    switch (animationType) {
+        case 'fade': return { initial: { opacity: 0 }, whileInView: { opacity: 1 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'slide-up': return { initial: { opacity: 0, y: 30 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'scale-up': return { initial: { opacity: 0, scale: 0.95 }, whileInView: { opacity: 1, scale: 1 }, viewport: { once: true }, transition: { duration: 0.4 } };
+        case 'stagger': return { initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.4, delay: index * 0.1 } };
+        default: return {};
+    }
+};
+
 export default function HeroMarketplace({ section, theme }) {
     const blocks = section.blocks || [];
     const settings = section.settings || {};
@@ -27,7 +37,7 @@ export default function HeroMarketplace({ section, theme }) {
                         return (
                             <motion.h1 
                                 key={block.id} 
-                                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: index * 0.1 }}
+                                {...getAnimationProps(settings.entryAnimation, index)}
                                 className={`font-black tracking-tight leading-tight mb-4 ${block.settings.fontSize ? `text-${block.settings.fontSize}` : 'text-4xl md:text-6xl'}`}
                                 style={style}
                             >
@@ -39,7 +49,7 @@ export default function HeroMarketplace({ section, theme }) {
                         return (
                             <motion.h2 
                                 key={block.id} 
-                                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: index * 0.1 }}
+                                {...getAnimationProps(settings.entryAnimation, index)}
                                 className={`font-medium opacity-90 mb-6 ${block.settings.fontSize ? `text-${block.settings.fontSize}` : 'text-xl md:text-2xl'}`}
                                 style={style}
                             >
@@ -52,7 +62,7 @@ export default function HeroMarketplace({ section, theme }) {
 
                 {/* Marketplace Search Bar */}
                 <motion.div 
-                    initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }}
+                    {...getAnimationProps(settings.entryAnimation, headings.length + 1)}
                     className="w-full max-w-2xl mt-8 relative"
                 >
                     <div className="flex items-center bg-white rounded-full p-2 shadow-2xl overflow-hidden border border-slate-100">

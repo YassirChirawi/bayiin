@@ -3,6 +3,17 @@ import { motion } from 'framer-motion';
 import * as LucideIcons from 'lucide-react';
 import SectionWrapper from '../../../components/SectionWrapper';
 import BlockText from '../../../components/BlockText';
+import { getAlignmentClass } from '../../../utils/styles';
+
+const getAnimationProps = (animationType, index = 0) => {
+    switch (animationType) {
+        case 'fade': return { initial: { opacity: 0 }, whileInView: { opacity: 1 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'slide-up': return { initial: { opacity: 0, y: 30 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'scale-up': return { initial: { opacity: 0, scale: 0.95 }, whileInView: { opacity: 1, scale: 1 }, viewport: { once: true }, transition: { duration: 0.4 } };
+        case 'stagger': return { initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.4, delay: index * 0.1 } };
+        default: return {};
+    }
+};
 
 const DynamicIcon = ({ name, size = 32, className }) => {
     if (!name) return null;
@@ -13,6 +24,7 @@ const DynamicIcon = ({ name, size = 32, className }) => {
 
 export default function FeaturesBento({ section, theme }) {
     const { title, subtitle, items = [], blocks = [], settings = {} } = section;
+    const alignClass = getAlignmentClass(settings.alignment || 'center');
 
     const featureBlocks = blocks.filter(b => b.type === 'FeatureCard').map(b => ({
         id: b.id,
@@ -38,17 +50,17 @@ export default function FeaturesBento({ section, theme }) {
         <SectionWrapper settings={settings}>
             <div className="container mx-auto px-4 max-w-7xl">
                 {/* Headers */}
-                <div className="mb-16 flex flex-col gap-4 text-center items-center">
+                <div className={`mb-16 flex flex-col gap-4 ${alignClass}`}>
                     {headingBlock ? (
-                        <BlockText block={headingBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } }} />
+                        <BlockText block={headingBlock} theme={theme} animProps={getAnimationProps(settings.entryAnimation, 0)} />
                     ) : (
-                        title && <motion.h2 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-4xl md:text-5xl font-black tracking-tight" style={{ color: settings.textColor || '#0f172a', fontFamily: theme.typography?.heading }}>{title}</motion.h2>
+                        title && <motion.h2 {...getAnimationProps(settings.entryAnimation, 0)} className="text-4xl md:text-5xl font-black tracking-tight" style={{ color: settings.textColor || '#0f172a', fontFamily: theme.typography?.heading }}>{title}</motion.h2>
                     )}
 
                     {subtitleBlock ? (
-                        <BlockText block={subtitleBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5, delay: 0.1 } }} />
+                        <BlockText block={subtitleBlock} theme={theme} animProps={getAnimationProps(settings.entryAnimation, 1)} />
                     ) : (
-                        subtitle && <motion.p initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }} className="text-xl opacity-70 max-w-2xl mx-auto" style={{ color: settings.textColor || '#475569', fontFamily: theme.typography?.body }}>{subtitle}</motion.p>
+                        subtitle && <motion.p {...getAnimationProps(settings.entryAnimation, 1)} className="text-xl opacity-70 max-w-2xl mx-auto" style={{ color: settings.textColor || '#475569', fontFamily: theme.typography?.body }}>{subtitle}</motion.p>
                     )}
                 </div>
 
@@ -63,10 +75,7 @@ export default function FeaturesBento({ section, theme }) {
                         return (
                             <motion.div 
                                 key={card.id || index} 
-                                initial={{ opacity: 0, scale: 0.95, y: 30 }} 
-                                whileInView={{ opacity: 1, scale: 1, y: 0 }} 
-                                viewport={{ once: true, margin: "-50px" }} 
-                                transition={{ duration: 0.5, delay: index * 0.1 }}
+                                {...getAnimationProps(settings.entryAnimation, 2 + index)}
                                 className={`relative overflow-hidden rounded-3xl p-8 flex flex-col justify-between group bg-white border border-slate-100 hover:shadow-2xl hover:border-indigo-100 transition-all duration-500 hover:-translate-y-1 ${spanClass}`}
                             >
                                 {/* Decorative subtle background gradient */}

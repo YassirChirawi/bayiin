@@ -7,6 +7,16 @@ import BlockText from '../../../components/BlockText';
 import BlockButton from '../../../components/BlockButton';
 import SectionWrapper from '../../../components/SectionWrapper';
 
+const getAnimationProps = (animationType, index = 0) => {
+    switch (animationType) {
+        case 'fade': return { initial: { opacity: 0 }, whileInView: { opacity: 1 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'slide-up': return { initial: { opacity: 0, y: 30 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'scale-up': return { initial: { opacity: 0, scale: 0.95 }, whileInView: { opacity: 1, scale: 1 }, viewport: { once: true }, transition: { duration: 0.4 } };
+        case 'stagger': return { initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.4, delay: index * 0.1 } };
+        default: return {};
+    }
+};
+
 export default function HeroModern({ section, theme, onUpdate }) {
     const { title, subtitle, ctaText, settings = {}, blocks = [] } = section;
     const alignClass = getAlignmentClass(settings.alignment || 'center');
@@ -39,12 +49,7 @@ export default function HeroModern({ section, theme, onUpdate }) {
                 {hasBlocks ? (
                     <div className="flex flex-col gap-6">
                         {contentBlocks.map((block, index) => {
-                            const animProps = {
-                                initial: { opacity: 0, y: 30 },
-                                whileInView: { opacity: 1, y: 0 },
-                                viewport: { once: true },
-                                transition: { duration: 0.6, delay: index * 0.15 }
-                            };
+                            const animProps = getAnimationProps(settings.entryAnimation, index);
 
                             if (block.type === 'Button') {
                                 return <BlockButton key={block.id} block={block} theme={theme} animProps={animProps} />;
@@ -56,10 +61,7 @@ export default function HeroModern({ section, theme, onUpdate }) {
                 ) : (
                     /* Legacy Render */
                     <motion.div 
-                        initial={{ opacity: 0, y: 40 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.8 }}
+                        {...getAnimationProps(settings.entryAnimation, 0)}
                     >
                         <EditableText
                             value={title}

@@ -8,6 +8,16 @@ import BlockButton from '../../../components/BlockButton';
 import SectionWrapper from '../../../components/SectionWrapper';
 import { useCart } from '../../../../contexts/CartContext';
 
+const getAnimationProps = (animationType, index = 0) => {
+    switch (animationType) {
+        case 'fade': return { initial: { opacity: 0 }, whileInView: { opacity: 1 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'slide-up': return { initial: { opacity: 0, y: 30 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'scale-up': return { initial: { opacity: 0, scale: 0.95 }, whileInView: { opacity: 1, scale: 1 }, viewport: { once: true }, transition: { duration: 0.4 } };
+        case 'stagger': return { initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.4, delay: index * 0.1 } };
+        default: return {};
+    }
+};
+
 export default function ProductGridClassic({ section, theme, contextData, onUpdate }) {
     const { title, subtitle, ctaText, blocks = [], settings = {} } = section;
     const alignClass = getAlignmentClass(settings.alignment || 'center');
@@ -37,11 +47,11 @@ export default function ProductGridClassic({ section, theme, contextData, onUpda
     return (
         <SectionWrapper settings={settings} className={`relative overflow-hidden`}>
             <div className={`max-w-7xl mx-auto px-6 relative z-10 py-12 ${alignClass}`}>
-                <div className="mb-16 flex flex-col gap-4">
+                <div className={`mb-16 flex flex-col gap-4 ${alignClass}`}>
                     {headingBlock ? (
-                        <BlockText block={headingBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } }} />
+                        <BlockText block={headingBlock} theme={theme} animProps={getAnimationProps(settings.entryAnimation, 0)} />
                     ) : (
-                        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+                        <motion.div {...getAnimationProps(settings.entryAnimation, 0)}>
                             <EditableText
                                 value={title}
                                 onChange={(val) => onUpdate?.({ title: val })}
@@ -53,9 +63,9 @@ export default function ProductGridClassic({ section, theme, contextData, onUpda
                     )}
 
                     {subtitleBlock ? (
-                        <BlockText block={subtitleBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5, delay: 0.1 } }} />
+                        <BlockText block={subtitleBlock} theme={theme} animProps={getAnimationProps(settings.entryAnimation, 1)} />
                     ) : (
-                        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }}>
+                        <motion.div {...getAnimationProps(settings.entryAnimation, 1)}>
                             <EditableText
                                 value={subtitle}
                                 onChange={(val) => onUpdate?.({ subtitle: val })}
@@ -71,13 +81,11 @@ export default function ProductGridClassic({ section, theme, contextData, onUpda
                     {products.map((p, idx) => {
                         const isPlaceholder = typeof p === 'number';
                         const product = isPlaceholder ? { id: idx, name: `Produit Premium ${p}`, price: 299 } : p;
+                        const anim = getAnimationProps(settings.entryAnimation, 2 + idx);
                         return (
                             <motion.div 
                                 key={product.id} 
-                                initial={{ opacity: 0, y: 30 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true, margin: "-50px" }}
-                                transition={{ duration: 0.5, delay: idx * 0.1 }}
+                                {...anim}
                                 onClick={() => contextData?.onProductClick && !isPlaceholder ? contextData.onProductClick(product) : null}
                                 className={`bg-white rounded-3xl overflow-hidden shadow-md hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 group flex flex-col h-full border border-slate-100 ${contextData?.onProductClick && !isPlaceholder ? 'cursor-pointer' : ''}`}
                             >
@@ -121,14 +129,11 @@ export default function ProductGridClassic({ section, theme, contextData, onUpda
 
                 <div className="mt-16 flex justify-center w-full">
                     {buttonBlock ? (
-                        <BlockButton block={buttonBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5, delay: 0.2 } }} />
+                        <BlockButton block={buttonBlock} theme={theme} animProps={getAnimationProps(settings.entryAnimation, 2 + products.length)} />
                     ) : (
                         ctaText && (
                             <motion.button 
-                                initial={{ opacity: 0, y: 20 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                                transition={{ delay: 0.2 }}
+                                {...getAnimationProps(settings.entryAnimation, 2 + products.length)}
                                 className="px-10 py-5 rounded-2xl text-white font-bold text-lg hover:-translate-y-1 hover:shadow-[0_20px_40px_rgba(0,0,0,0.2)] transition-all shadow-xl" 
                                 style={{ backgroundColor: theme.primaryColor }}
                             >

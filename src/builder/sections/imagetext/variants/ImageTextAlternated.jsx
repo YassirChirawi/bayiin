@@ -11,6 +11,16 @@ const DynamicIcon = ({ name, size = 20, className }) => {
     return <IconComponent size={size} className={className} />;
 };
 
+const getAnimationProps = (animationType, index = 0) => {
+    switch (animationType) {
+        case 'fade': return { initial: { opacity: 0 }, whileInView: { opacity: 1 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'slide-up': return { initial: { opacity: 0, y: 30 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'scale-up': return { initial: { opacity: 0, scale: 0.95 }, whileInView: { opacity: 1, scale: 1 }, viewport: { once: true }, transition: { duration: 0.4 } };
+        case 'stagger': return { initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.4, delay: index * 0.1 } };
+        default: return {};
+    }
+};
+
 export default function ImageTextAlternated({ section, theme }) {
     const blocks = section.blocks || [];
     const settings = section.settings || {};
@@ -52,10 +62,7 @@ export default function ImageTextAlternated({ section, theme }) {
                             <div className="w-full md:w-1/2">
                                 {row.media && row.media.settings.url ? (
                                     <motion.div 
-                                        initial={{ opacity: 0, x: isEven ? -50 : 50 }} 
-                                        whileInView={{ opacity: 1, x: 0 }} 
-                                        viewport={{ once: true }} 
-                                        transition={{ duration: 0.8 }}
+                                        {...getAnimationProps(settings.entryAnimation, 0)}
                                         className={`overflow-hidden rounded-3xl shadow-2xl relative ${row.media.settings.aspectRatio === 'square' ? 'aspect-square' : row.media.settings.aspectRatio === 'vertical' ? 'aspect-[4/5]' : 'aspect-video'}`}
                                     >
                                         {row.media.settings.mediaType === 'video' ? (
@@ -75,17 +82,18 @@ export default function ImageTextAlternated({ section, theme }) {
                             {/* Text Side */}
                             <div className={`w-full md:w-1/2 flex flex-col gap-6 ${textAlignClass}`}>
                                 {row.content.map((block, index) => {
+                                    const anim = getAnimationProps(settings.entryAnimation, index + 1);
                                     const style = { color: block.settings.textColor || settings.textColor, fontFamily: block.settings.fontFamily || theme.typography?.heading };
                                     
                                     switch (block.type) {
                                         case 'Heading':
-                                            return <motion.h2 key={block.id} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: index * 0.1 }} className={`font-black leading-tight ${block.settings.fontSize ? `text-${block.settings.fontSize}` : 'text-3xl lg:text-5xl'}`} style={style}>{block.settings.text}</motion.h2>;
+                                            return <motion.h2 key={block.id} {...anim} className={`font-black leading-tight ${block.settings.fontSize ? `text-${block.settings.fontSize}` : 'text-3xl lg:text-5xl'}`} style={style}>{block.settings.text}</motion.h2>;
                                         
                                         case 'Subtitle':
-                                            return <motion.h3 key={block.id} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: index * 0.1 }} className={`font-bold opacity-90 ${block.settings.fontSize ? `text-${block.settings.fontSize}` : 'text-xl text-indigo-600 tracking-wider uppercase'}`} style={{ ...style, color: block.settings.textColor || theme.primaryColor }}>{block.settings.text}</motion.h3>;
+                                            return <motion.h3 key={block.id} {...anim} className={`font-bold opacity-90 ${block.settings.fontSize ? `text-${block.settings.fontSize}` : 'text-xl text-indigo-600 tracking-wider uppercase'}`} style={{ ...style, color: block.settings.textColor || theme.primaryColor }}>{block.settings.text}</motion.h3>;
                                         
                                         case 'Text':
-                                            return <motion.p key={block.id} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: index * 0.1 }} className={`opacity-70 leading-relaxed ${block.settings.fontSize ? `text-${block.settings.fontSize}` : 'text-base lg:text-lg'}`} style={{...style, fontFamily: block.settings.fontFamily || theme.typography?.body}}>{block.settings.text}</motion.p>;
+                                            return <motion.p key={block.id} {...anim} className={`opacity-70 leading-relaxed ${block.settings.fontSize ? `text-${block.settings.fontSize}` : 'text-base lg:text-lg'}`} style={{...style, fontFamily: block.settings.fontFamily || theme.typography?.body}}>{block.settings.text}</motion.p>;
                                         
                                         case 'Button':
                                             return (
@@ -93,13 +101,13 @@ export default function ImageTextAlternated({ section, theme }) {
                                                     key={block.id} 
                                                     block={block} 
                                                     theme={theme} 
-                                                    animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { delay: index * 0.1 } }} 
+                                                    animProps={anim} 
                                                 />
                                             );
 
                                         case 'FeatureCard':
                                             return (
-                                                <motion.div key={block.id} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: index * 0.1 }} className="flex items-start gap-4 mt-2">
+                                                <motion.div key={block.id} {...anim} className="flex items-start gap-4 mt-2">
                                                     <div className="w-12 h-12 shrink-0 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
                                                         <DynamicIcon name={block.settings.icon} size={24} />
                                                     </div>
@@ -111,7 +119,7 @@ export default function ImageTextAlternated({ section, theme }) {
                                             );
 
                                         case 'HTML':
-                                            return <div key={block.id} dangerouslySetInnerHTML={{ __html: block.settings.code }} />;
+                                            return <motion.div key={block.id} {...anim} dangerouslySetInnerHTML={{ __html: block.settings.code }} />;
 
                                         default:
                                             return null;

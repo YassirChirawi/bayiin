@@ -7,6 +7,16 @@ import DynamicIcon from '../../../components/DynamicIcon';
 import BlockText from '../../../components/BlockText';
 import SectionWrapper from '../../../components/SectionWrapper';
 
+const getAnimationProps = (animationType, index = 0) => {
+    switch (animationType) {
+        case 'fade': return { initial: { opacity: 0 }, whileInView: { opacity: 1 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'slide-up': return { initial: { opacity: 0, y: 30 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'scale-up': return { initial: { opacity: 0, scale: 0.95 }, whileInView: { opacity: 1, scale: 1 }, viewport: { once: true }, transition: { duration: 0.4 } };
+        case 'stagger': return { initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.4, delay: index * 0.1 } };
+        default: return {};
+    }
+};
+
 export default function CODReassurance({ section, theme, onUpdate }) {
     const { title, subtitle, blocks = [], settings = {} } = section;
     const alignClass = getAlignmentClass(settings.alignment || 'center');
@@ -61,11 +71,11 @@ export default function CODReassurance({ section, theme, onUpdate }) {
         <SectionWrapper settings={settings} className={`relative overflow-hidden ${alignClass}`}>
             <MediaBackground settings={settings} />
             <div className="max-w-6xl mx-auto relative z-10 py-16 px-6">
-                <div className="mb-16 flex flex-col gap-4">
+                <div className={`mb-16 flex flex-col gap-4 ${alignClass}`}>
                     {headingBlock ? (
-                        <BlockText block={headingBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } }} />
+                        <BlockText block={headingBlock} theme={theme} animProps={getAnimationProps(settings.entryAnimation, 0)} />
                     ) : (
-                        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+                        <motion.div {...getAnimationProps(settings.entryAnimation, 0)}>
                             <EditableText
                                 value={displayTitle}
                                 onChange={(val) => onUpdate?.({ title: val })}
@@ -78,10 +88,10 @@ export default function CODReassurance({ section, theme, onUpdate }) {
                     )}
 
                     {subtitleBlock ? (
-                        <BlockText block={subtitleBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5, delay: 0.1 } }} />
+                        <BlockText block={subtitleBlock} theme={theme} animProps={getAnimationProps(settings.entryAnimation, 1)} />
                     ) : (
                         displaySubtitle && (
-                            <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }}>
+                            <motion.div {...getAnimationProps(settings.entryAnimation, 1)}>
                                 <EditableText
                                     value={displaySubtitle}
                                     onChange={(val) => onUpdate?.({ subtitle: val })}
@@ -96,13 +106,12 @@ export default function CODReassurance({ section, theme, onUpdate }) {
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    {features.filter(f => f.isVisible !== false).map((feature, idx) => (
+                    {features.filter(f => f.isVisible !== false).map((feature, idx) => {
+                        const anim = getAnimationProps(settings.entryAnimation, 2 + idx);
+                        return (
                         <motion.div 
                             key={feature.id || idx} 
-                            initial={{ opacity: 0, y: 30 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true, margin: "-50px" }}
-                            transition={{ duration: 0.5, delay: idx * 0.1 }}
+                            {...anim}
                             className="bg-white rounded-3xl p-8 flex flex-col items-center text-center shadow-lg border border-slate-100 hover:-translate-y-2 hover:shadow-2xl transition-all duration-300 group relative overflow-hidden"
                         >
                             {/* Decorative background circle */}
@@ -159,7 +168,7 @@ export default function CODReassurance({ section, theme, onUpdate }) {
                                 </a>
                             )}
                         </motion.div>
-                    ))}
+                    )})}
                 </div>
             </div>
         </SectionWrapper>

@@ -8,6 +8,16 @@ import BlockText from '../../../components/BlockText';
 import BlockButton from '../../../components/BlockButton';
 import SectionWrapper from '../../../components/SectionWrapper';
 
+const getAnimationProps = (animationType, index = 0) => {
+    switch (animationType) {
+        case 'fade': return { initial: { opacity: 0 }, whileInView: { opacity: 1 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'slide-up': return { initial: { opacity: 0, y: 30 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'scale-up': return { initial: { opacity: 0, scale: 0.95 }, whileInView: { opacity: 1, scale: 1 }, viewport: { once: true }, transition: { duration: 0.4 } };
+        case 'stagger': return { initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.4, delay: index * 0.1 } };
+        default: return {};
+    }
+};
+
 export default function ContactFormClassic({ section, theme, contextData, onUpdate }) {
     const { title, subtitle, blocks = [], settings = {} } = section;
     const alignClass = getAlignmentClass(settings.alignment || 'center');
@@ -51,11 +61,11 @@ export default function ContactFormClassic({ section, theme, contextData, onUpda
             <MediaBackground settings={settings} />
             <div className="max-w-6xl mx-auto relative z-10 py-16 px-4">
                 {/* Header */}
-                <div className={`mb-16 flex flex-col gap-4 ${settings.alignment === 'center' ? 'text-center' : ''}`}>
+                <div className={`mb-16 flex flex-col gap-4 ${alignClass}`}>
                     {headingBlock ? (
-                        <BlockText block={headingBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } }} />
+                        <BlockText block={headingBlock} theme={theme} animProps={getAnimationProps(settings.entryAnimation, 0)} />
                     ) : (
-                        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+                        <motion.div {...getAnimationProps(settings.entryAnimation, 0)}>
                             <EditableText
                                 value={title || 'Contactez-nous'}
                                 onChange={(val) => onUpdate?.({ title: val })}
@@ -68,9 +78,9 @@ export default function ContactFormClassic({ section, theme, contextData, onUpda
                     )}
                     
                     {subtitleBlock ? (
-                        <BlockText block={subtitleBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5, delay: 0.1 } }} />
+                        <BlockText block={subtitleBlock} theme={theme} animProps={getAnimationProps(settings.entryAnimation, 1)} />
                     ) : (
-                        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }}>
+                        <motion.div {...getAnimationProps(settings.entryAnimation, 1)}>
                             <EditableText
                                 value={subtitle || ''}
                                 onChange={(val) => onUpdate?.({ subtitle: val })}
@@ -87,10 +97,7 @@ export default function ContactFormClassic({ section, theme, contextData, onUpda
                 <div className="grid md:grid-cols-5 gap-12 text-left">
                     {/* Left: Info */}
                     <motion.div 
-                        initial={{ opacity: 0, x: -30 }}
-                        whileInView={{ opacity: 1, x: 0 }}
-                        viewport={{ once: true, margin: "-50px" }}
-                        transition={{ duration: 0.6 }}
+                        {...getAnimationProps(settings.entryAnimation, 2)}
                         className="md:col-span-2 space-y-6"
                     >
                         <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-xl border border-slate-100/50 hover:shadow-2xl transition-shadow duration-300">
@@ -150,10 +157,7 @@ export default function ContactFormClassic({ section, theme, contextData, onUpda
 
                     {/* Right: Form */}
                     <motion.div 
-                        initial={{ opacity: 0, x: 30 }}
-                        whileInView={{ opacity: 1, x: 0 }}
-                        viewport={{ once: true, margin: "-50px" }}
-                        transition={{ duration: 0.6, delay: 0.2 }}
+                        {...getAnimationProps(settings.entryAnimation, 3)}
                         className="md:col-span-3"
                     >
                         <div className="bg-white rounded-3xl p-8 shadow-2xl border border-slate-100 relative overflow-hidden">

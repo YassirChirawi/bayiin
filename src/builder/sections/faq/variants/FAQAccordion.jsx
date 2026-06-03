@@ -7,6 +7,16 @@ import BlockText from '../../../components/BlockText';
 import SectionWrapper from '../../../components/SectionWrapper';
 import MediaBackground from '../../../components/MediaBackground';
 
+const getAnimationProps = (animationType, index = 0) => {
+    switch (animationType) {
+        case 'fade': return { initial: { opacity: 0 }, whileInView: { opacity: 1 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'slide-up': return { initial: { opacity: 0, y: 30 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'scale-up': return { initial: { opacity: 0, scale: 0.95 }, whileInView: { opacity: 1, scale: 1 }, viewport: { once: true }, transition: { duration: 0.4 } };
+        case 'stagger': return { initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.4, delay: index * 0.1 } };
+        default: return {};
+    }
+};
+
 export default function FAQAccordion({ section, theme, onUpdate }) {
     const { title, subtitle, items = [], blocks = [], settings = {} } = section;
     const alignClass = getAlignmentClass(settings.alignment || 'center');
@@ -44,11 +54,11 @@ export default function FAQAccordion({ section, theme, onUpdate }) {
         <SectionWrapper settings={settings} className={`relative overflow-hidden ${alignClass}`}>
             <MediaBackground settings={settings} />
             <div className="max-w-4xl mx-auto relative z-10 py-12 px-6">
-                <div className="mb-16 flex flex-col gap-4">
+                <div className={`mb-16 flex flex-col gap-4 ${alignClass}`}>
                     {headingBlock ? (
-                        <BlockText block={headingBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } }} />
+                        <BlockText block={headingBlock} theme={theme} animProps={getAnimationProps(settings.entryAnimation, 0)} />
                     ) : (
-                        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+                        <motion.div {...getAnimationProps(settings.entryAnimation, 0)}>
                             <EditableText
                                 value={title}
                                 onChange={(val) => onUpdate?.({ title: val })}
@@ -61,9 +71,9 @@ export default function FAQAccordion({ section, theme, onUpdate }) {
                     )}
 
                     {subtitleBlock ? (
-                        <BlockText block={subtitleBlock} theme={theme} animProps={{ initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5, delay: 0.1 } }} />
+                        <BlockText block={subtitleBlock} theme={theme} animProps={getAnimationProps(settings.entryAnimation, 1)} />
                     ) : (
-                        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }}>
+                        <motion.div {...getAnimationProps(settings.entryAnimation, 1)}>
                             <EditableText
                                 value={subtitle}
                                 onChange={(val) => onUpdate?.({ subtitle: val })}
@@ -79,13 +89,11 @@ export default function FAQAccordion({ section, theme, onUpdate }) {
                 <div className="space-y-4 text-left">
                     {displayItems.map((item, i) => {
                         const isOpen = openIndex === i;
+                        const anim = getAnimationProps(settings.entryAnimation, 2 + i);
                         return (
                             <motion.div 
                                 key={i} 
-                                initial={{ opacity: 0, y: 20 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                                transition={{ duration: 0.4, delay: i * 0.1 }}
+                                {...anim}
                                 className={`rounded-3xl backdrop-blur-xl overflow-hidden transition-all duration-300 ${isMedia ? 'bg-white/10 border border-white/20' : 'bg-white border border-slate-100'} ${isOpen ? 'shadow-xl ring-2 ring-indigo-50/50' : 'shadow-sm hover:shadow-md hover:border-indigo-100'}`} 
                                 style={{ color: textColor }}
                             >
