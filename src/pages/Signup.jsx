@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
 import { getFriendlyErrorMessage } from "../utils/firebaseErrors";
@@ -107,6 +107,8 @@ export default function Signup() {
     const { t } = useLanguage();
     const { signup, loginWithGoogle } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const prefillStoreName = searchParams.get("storeName");
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -128,7 +130,7 @@ export default function Signup() {
             await signup(email, password);
             vibrate('success');
             toast.success(t('account_created') + " Veuillez vérifier votre boîte mail.");
-            navigate("/onboarding");
+            navigate("/onboarding", { state: { storeName: prefillStoreName } });
         } catch (err) {
             vibrate('error');
             toast.error(getFriendlyErrorMessage(err));
@@ -143,7 +145,7 @@ export default function Signup() {
             await loginWithGoogle();
             vibrate('success');
             toast.success(t('welcome_toast'));
-            navigate("/onboarding");
+            navigate("/onboarding", { state: { storeName: prefillStoreName } });
         } catch (err) {
             vibrate('error');
             toast.error(getFriendlyErrorMessage(err));

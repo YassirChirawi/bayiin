@@ -20,7 +20,7 @@ export default function Onboarding() {
 
     // Form State
     const [formData, setFormData] = useState({
-        name: "",
+        name: location.state?.storeName || "",
         currency: "MAD",
         phone: "",
         address: "",
