@@ -29,7 +29,8 @@ import {
     Barcode,
     ClipboardCheck,
     MessageCircle,
-    Paintbrush
+    Paintbrush,
+    Bell
 } from "lucide-react";
 import { useReconciliation } from "../hooks/useReconciliation";
 import { vibrate } from "../utils/haptics";
@@ -118,6 +119,7 @@ export default function Sidebar({ isOpen, onClose }) {
         { name: t('orders'), href: '/orders', icon: ShoppingBag, badge: pendingOffline > 0 ? `${pendingOffline} hors ligne` : null, badgeColor: 'bg-amber-100 text-amber-700' },
         { name: t('products'), href: '/products', icon: Package },
         { name: t('customers'), href: '/customers', icon: Users },
+        { name: t('notifications') || 'Notifications', href: '/notifications', icon: Bell },
         { name: t('automations') || 'Automations', href: '/automations', icon: Workflow, isLocked: true, badge: 'PRO' },
         { name: t('nav_warehouse') || 'Entrepôt & Scan', href: '/warehouse', icon: Barcode, isLocked: true, badge: 'PRO' },
         { name: t('nav_marketing') || 'Marketing', href: '/marketing', icon: Megaphone },

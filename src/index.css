@@ -19,6 +19,14 @@
   font-family: 'Tajawal', sans-serif;
 }
 
+[dir="rtl"] {
+  font-family: 'Tajawal', sans-serif;
+}
+
+[dir="rtl"] * {
+  font-family: 'Tajawal', sans-serif;
+}
+
 /* Glassmorphism Utilities */
 .glass-panel {
   @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl;

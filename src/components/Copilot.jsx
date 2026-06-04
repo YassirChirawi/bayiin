@@ -4,6 +4,8 @@ import { X, Send, Sparkles, Trash2, Mic, MicOff, CheckCircle2, XCircle, Undo2 } 
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
+import { useVoiceCopilot } from "../hooks/useVoiceCopilot";
+import { useLanguage } from "../context/LanguageContext";
 
 // --- COMPOSANT ACTION CONFIRMATION ---
 const ActionConfirmation = ({ action, onConfirm, onCancel, timeoutSeconds = 60 }) => {
@@ -77,42 +79,31 @@ const ActionConfirmation = ({ action, onConfirm, onCancel, timeoutSeconds = 60 }
 export default function Copilot() {
     const { isOpen, togglePanel, messages, sendMessage, loading, clearHistory, pendingActions, confirmAction, cancelAction, recentActions, undoLastAction, thinkingState } = useCopilot();
     const [input, setInput] = useState("");
-    const [isListening, setIsListening] = useState(false);
     const scrollRef = useRef(null);
-    const recognitionRef = useRef(null);
+    const { language: currentLang } = useLanguage();
 
+    // Voice Command Hook — multi-language with interim results
+    const voiceLang = currentLang === 'ar' ? 'ar' : currentLang === 'en' ? 'en' : 'fr';
+    const { 
+        isListening, isSupported: voiceSupported, interimTranscript, error: voiceError,
+        toggleListening, clearTranscript 
+    } = useVoiceCopilot({
+        language: voiceLang,
+        onTranscript: (text) => setInput(text),
+    });
+
+    // Show voice errors as toasts
     useEffect(() => {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (SpeechRecognition) {
-            recognitionRef.current = new SpeechRecognition();
-            recognitionRef.current.continuous = false;
-            recognitionRef.current.interimResults = false;
-            recognitionRef.current.lang = 'fr-FR'; // Peut être adapté selon la locale du store
-
-            recognitionRef.current.onstart = () => setIsListening(true);
-            recognitionRef.current.onend = () => setIsListening(false);
-            recognitionRef.current.onerror = (e) => {
-                console.error("Speech recognition error:", e.error);
-                setIsListening(false);
-            };
-            recognitionRef.current.onresult = (e) => {
-                const transcript = e.results[0][0].transcript;
-                setInput((prev) => prev + (prev ? " " : "") + transcript);
-            };
-        }
-    }, []);
+        if (voiceError) toast.error(voiceError);
+    }, [voiceError]);
 
     const toggleListen = (e) => {
         e.preventDefault();
-        if (!recognitionRef.current) {
+        if (!voiceSupported) {
             toast.error("La reconnaissance vocale n'est pas supportée sur ce navigateur.");
             return;
         }
-        if (isListening) recognitionRef.current.stop();
-        else {
-            try { recognitionRef.current.start(); } 
-            catch (err) { console.error(err); }
-        }
+        toggleListening();
     };
 
     useEffect(() => {
@@ -123,8 +114,10 @@ export default function Copilot() {
 
     const handleSend = (e) => {
         e.preventDefault();
+        if (!input.trim()) return;
         sendMessage(input);
         setInput("");
+        clearTranscript();
     };
 
     return (
@@ -271,6 +264,27 @@ export default function Copilot() {
 
                         {/* Input Area */}
                         <form onSubmit={handleSend} className="p-4 bg-white border-t border-gray-100">
+                            {/* Interim transcript indicator */}
+                            <AnimatePresence>
+                                {isListening && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        className="mb-2 px-3 py-2 bg-rose-50 rounded-lg border border-rose-100 flex items-center gap-2"
+                                    >
+                                        <div className="flex gap-1">
+                                            <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse" />
+                                            <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse" style={{ animationDelay: '0.15s' }} />
+                                            <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse" style={{ animationDelay: '0.3s' }} />
+                                        </div>
+                                        <span className="text-xs text-rose-600 font-medium truncate">
+                                            {interimTranscript || 'Écoute en cours...'}
+                                        </span>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
                             <div className="relative flex items-center">
                                 <input
                                     type="text"
@@ -284,10 +298,14 @@ export default function Copilot() {
                                     <button
                                         type="button"
                                         onClick={toggleListen}
-                                        className={`p-2 rounded-full transition-colors ${isListening ? "bg-rose-100 text-rose-600 animate-pulse" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"}`}
+                                        className={`relative p-2 rounded-full transition-all duration-300 ${isListening ? "bg-rose-500 text-white shadow-lg shadow-rose-500/30" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"}`}
                                         title="Parler à Beya3"
                                     >
-                                        {isListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+                                        {/* Animated ring when listening */}
+                                        {isListening && (
+                                            <span className="absolute inset-0 rounded-full border-2 border-rose-400 animate-ping opacity-50" />
+                                        )}
+                                        {isListening ? <Mic className="w-4 h-4 relative z-10" /> : <MicOff className="w-4 h-4" />}
                                     </button>
                                     <button
                                         type="submit"

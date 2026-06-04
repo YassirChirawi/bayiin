@@ -3,6 +3,8 @@ import { toast } from "react-hot-toast";
 import { useStoreData } from "../hooks/useStoreData";
 import { Search, MapPin, Users, DollarSign, TrendingUp, Eye, Trash2, RotateCcw, Download, Upload, Plus, Edit2, Sparkles } from "lucide-react";
 import CustomerDetailModal from "../components/CustomerDetailModal";
+import LoyaltyCard from "../components/LoyaltyCard";
+import { getCustomerLoyalty } from "../utils/loyaltyEngine";
 import CustomerModal from "../components/CustomerModal";
 import ImportModal from "../components/ImportModal";
 import Button from "../components/Button";
@@ -10,7 +12,7 @@ import { exportToCSV } from "../utils/csvHelper";
 import { orderBy, limit } from "firebase/firestore";
 import { useLanguage } from "../context/LanguageContext"; // NEW
 import { vibrate } from "../utils/haptics";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { getCustomerSegment } from "../utils/aiSegmentation"; // NEW
 import { getWhatsAppLink } from "../utils/whatsappTemplates"; // NEW
 import { MessageCircle } from "lucide-react"; // NEW icon
@@ -51,6 +53,7 @@ export default function Customers() {
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [showTrash, setShowTrash] = useState(false);
     const [segmentFilter, setSegmentFilter] = useState('ALL'); // NEW Filter
+    const [loyaltyCustomer, setLoyaltyCustomer] = useState(null); // Nqat Modal
 
     // --- Compute Segments for All Customers ---
     // Note: detailed order history per customer might not be fully loaded here in a real large app.
@@ -375,8 +378,15 @@ export default function Customers() {
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
                                         <div className="flex items-center gap-1">
                                             {customer.totalSpent ? `${customer.totalSpent.toFixed(2)} DH` : '0 DH'}
-                                            {(customer.totalSpent || 0) >= 1000 && (
-                                                <Sparkles className="w-3 h-3 text-amber-500" title={`${Math.floor(customer.totalSpent / 10)} Nqat`} />
+                                            {(customer.totalSpent || 0) > 0 && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setLoyaltyCustomer(customer); }}
+                                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold hover:bg-amber-100 transition-colors"
+                                                    title="Voir carte Nqat"
+                                                >
+                                                    <Sparkles className="w-2.5 h-2.5" />
+                                                    {getCustomerLoyalty(customer).formattedPoints}
+                                                </button>
                                             )}
                                         </div>
                                     </td>
@@ -487,11 +497,19 @@ export default function Customers() {
                                     <div className="text-right">
                                         <span className="flex items-center justify-end gap-1 font-bold text-green-600 text-lg">
                                             {customer.totalSpent ? `${customer.totalSpent.toFixed(0)}` : '0'} <span className="text-xs">DH</span>
-                                            {(customer.totalSpent || 0) >= 1000 && (
-                                                <Sparkles className="w-4 h-4 text-amber-500" title={`${Math.floor(customer.totalSpent / 10)} Nqat`} />
-                                            )}
                                         </span>
-                                        <span className="text-xs text-gray-400">{customer.orderCount || 0} Orders</span>
+                                        <div className="flex items-center justify-end gap-1.5">
+                                            <span className="text-xs text-gray-400">{customer.orderCount || 0} Orders</span>
+                                            {(customer.totalSpent || 0) > 0 && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setLoyaltyCustomer(customer); }}
+                                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold hover:bg-amber-100 transition-colors"
+                                                >
+                                                    <Sparkles className="w-2.5 h-2.5" />
+                                                    {getCustomerLoyalty(customer).formattedPoints}
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -584,6 +602,35 @@ export default function Customers() {
                 onSave={handleSaveCustomer}
                 customer={editingCustomer}
             />
+
+            {/* Nqat Loyalty Card Modal */}
+            <AnimatePresence>
+                {loyaltyCustomer && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+                        onClick={() => setLoyaltyCustomer(null)}
+                    >
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            className="w-full max-w-md max-h-[85vh] overflow-y-auto"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <LoyaltyCard customer={loyaltyCustomer} />
+                            <button
+                                onClick={() => setLoyaltyCustomer(null)}
+                                className="mt-4 w-full py-2.5 bg-white rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                            >
+                                Fermer
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <ImportModal
                 isOpen={isImportModalOpen}

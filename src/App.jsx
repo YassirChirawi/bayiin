@@ -48,6 +48,7 @@ const DemoDashboard = lazy(() => import("./pages/DemoDashboard"));
 const Assets = lazy(() => import("./pages/Assets"));
 const Marketing = lazy(() => import("./pages/Marketing"));
 const SupportAI = lazy(() => import("./pages/SupportAI"));
+const Notifications = lazy(() => import("./pages/Notifications"));
 const YouCanAuthRoute = lazy(() => import("./pages/YouCanAuthRoute"));
 const StoreCustomizer = lazy(() => import("./pages/HybridStoreBuilder"));
 
@@ -201,6 +202,7 @@ function App() {
                             <Route path="/orders" element={<Orders />} />
                             <Route path="/customers" element={<Customers />} />
                             <Route path="/planning" element={<Planning />} />
+                            <Route path="/notifications" element={<Notifications />} />
                             <Route path="/team" element={<Team />} />
                             <Route path="/settings" element={<Settings />} />
                             <Route path="/help" element={<Help />} />
