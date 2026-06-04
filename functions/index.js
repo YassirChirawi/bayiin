@@ -1,6 +1,7 @@
 const functions = require('firebase-functions');
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onRequest } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
@@ -56,6 +57,81 @@ exports.connectWhatsApp = connectWhatsApp;
 const { generateStorefront, enhanceCopywriting } = require('./hybridBuilder');
 exports.generateStorefront = generateStorefront;
 exports.enhanceCopywriting = enhanceCopywriting;
+
+// Vision AI (Beya3 Phase 4)
+const { processInvoiceOCR } = require('./copilot/visionAgent');
+exports.processInvoiceOCR = functions.https.onCall(async (data, context) => {
+    // Only logged-in users can call this
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+    const { storeId, imageUrl } = data;
+    if (!storeId || !imageUrl) {
+        throw new functions.https.HttpsError('invalid-argument', 'Missing storeId or imageUrl');
+    }
+    
+    try {
+        const result = await processInvoiceOCR(storeId, imageUrl);
+        return result;
+    } catch (err) {
+        throw new functions.https.HttpsError('internal', err.message);
+    }
+});
+
+// Autonomous Monitoring Engine (Beya3 Phase 1)
+const { runAnomalyScanner } = require('./copilot/proactiveAgent');
+exports.hourlyAnomalyScanner = onSchedule("0 * * * *", async (event) => {
+    console.log("[HourlyScanner] Starting anomaly detection for all stores...");
+    // Retrieve all stores (you might want to filter active ones later)
+    const storesSnap = await db.collection('stores').get();
+    
+    const promises = [];
+    storesSnap.forEach(doc => {
+        promises.push(runAnomalyScanner(doc.id));
+    });
+    
+    await Promise.allSettled(promises);
+    console.log(`[HourlyScanner] Completed for ${storesSnap.size} stores.`);
+});
+
+// Autonomous Action Layer (Beya3 Phase 2)
+const { executeDraft } = require('./copilot/actionExecutor');
+exports.onActionDraftUpdate = onDocumentWritten({
+    document: "stores/{storeId}/action_drafts/{draftId}",
+    database: "comsaas",
+}, async (event) => {
+    const after = event.data?.after;
+    const before = event.data?.before;
+    
+    if (!after?.exists) return;
+    const data = after.data();
+    const oldData = before?.exists ? before.data() : {};
+    
+    // Si le statut passe à 'approved', on exécute l'action en backend
+    if (data.status === 'approved' && oldData.status !== 'approved') {
+        const storeId = event.params.storeId;
+        console.log(`[Autonomous Action] Executing draft ${event.params.draftId} for store ${storeId}: ${data.toolName}`);
+        
+        // Mettre à jour le statut pour éviter les doubles exécutions
+        await after.ref.update({ status: 'executing' });
+        
+        try {
+            const result = await executeDraft(storeId, data);
+            
+            await after.ref.update({ 
+                status: 'executed',
+                executedAt: FieldValue.serverTimestamp(),
+                result: result || { success: true }
+            });
+        } catch (error) {
+            console.error("[Autonomous Action] Failed:", error);
+            await after.ref.update({ 
+                status: 'failed', 
+                error: error.message 
+            });
+        }
+    }
+});
 
 /**
  * Custom Claims Sync
@@ -609,7 +685,40 @@ exports.onOrderWrite = onDocumentWritten({
         }
     }
 
-    // 6. AUDIT LOGGING
+    // 6. KNOWLEDGE GRAPH EXTRACTION (Phase 3)
+    // Extraire les relations Produit/Ville/Transporteur lors d'une livraison ou retour
+    let kgPromise = Promise.resolve();
+    if (oldStatus !== newStatus && (newStatus === 'livré' || newStatus === 'retour') && after) {
+        const { upsertNode, incrementEdgeMetric } = require('./copilot/kgService');
+        const cityNodeId = `city_${(after.clientCity || 'unknown').toLowerCase().trim()}`;
+        const carrierNodeId = `carrier_${(after.carrier || 'unknown').toLowerCase().trim()}`;
+        const relationPrefix = newStatus === 'livré' ? 'DELIVERED' : 'RETURNED';
+        
+        const kgTasks = [];
+        
+        // Noeuds génériques
+        kgTasks.push(upsertNode(storeId, cityNodeId, 'city', { name: after.clientCity || 'Unknown' }));
+        kgTasks.push(upsertNode(storeId, carrierNodeId, 'carrier', { name: after.carrier || 'Unknown' }));
+        
+        // Edge Ville -> Transporteur
+        kgTasks.push(incrementEdgeMetric(storeId, cityNodeId, carrierNodeId, `${relationPrefix}_BY`, 'count', 1));
+
+        // Produits
+        if (Array.isArray(after.products)) {
+            for (const item of after.products) {
+                const prodNodeId = `product_${item.id}`;
+                kgTasks.push(upsertNode(storeId, prodNodeId, 'product', { name: item.name }));
+                // Edge Produit -> Ville
+                kgTasks.push(incrementEdgeMetric(storeId, prodNodeId, cityNodeId, `${relationPrefix}_IN`, 'count', 1));
+                // Edge Produit -> Transporteur
+                kgTasks.push(incrementEdgeMetric(storeId, prodNodeId, carrierNodeId, `${relationPrefix}_BY`, 'count', 1));
+            }
+        }
+        
+        kgPromise = Promise.all(kgTasks).catch(e => console.warn('[KnowledgeGraph] Extraction failed:', e.message));
+    }
+
+    // 7. AUDIT LOGGING
     // Log status changes in the store's audit trail
     if (oldStatus !== newStatus && storeId) {
         const auditRef = db.collection('stores').doc(storeId).collection('audit_logs').doc();
@@ -624,10 +733,10 @@ exports.onOrderWrite = onDocumentWritten({
             source: after?._updatedBy === 'carrier' ? 'Webhook' : 'Cloud Function'
         }).catch(e => console.warn('Audit logging failed:', e.message));
         
-        return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, auditPromise]);
+        return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, auditPromise, kgPromise]);
     }
 
-    return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise]);
+    return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, kgPromise]);
 });
 
 /**

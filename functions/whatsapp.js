@@ -157,7 +157,7 @@ async function handleIncomingMessage(msg, metadata) {
     const convDoc = await convRef.get();
     const conversation = convDoc.exists ? convDoc.data() : null;
 
-    // Log inbound message
+    // Log inbound message (WhatsApp Logs)
     await logWhatsAppMessage(storeId, {
         direction: "inbound",
         phone,
@@ -166,6 +166,21 @@ async function handleIncomingMessage(msg, metadata) {
         orderId: conversation?.orderId || "",
         timestamp: FieldValue.serverTimestamp()
     });
+
+    // PHASE 4: Feed the Omnichannel Inbox
+    try {
+        await db.collection("stores").doc(storeId)
+                .collection("omnichannel_inbox").add({
+            source: "whatsapp",
+            direction: "inbound",
+            sender: phone,
+            content: userText,
+            isRead: false,
+            timestamp: FieldValue.serverTimestamp()
+        });
+    } catch (err) {
+        console.warn("[WhatsApp] Failed to add to omnichannel_inbox:", err.message);
+    }
 
     // Route based on conversation state
     if (!conversation || conversation.state === "closed") {

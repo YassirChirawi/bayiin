@@ -6,7 +6,7 @@ import { useOrderActions } from "../hooks/useOrderActions";
 import { generateOpeningBrief, generateLocalResponse } from "../services/localCopilot";
 import { createRawWhatsAppLink } from "../utils/whatsappTemplates";
 import { db } from "../lib/firebase";
-import { collection, addDoc, serverTimestamp, query, orderBy, limit } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy, limit, onSnapshot, where, doc, updateDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { vibrate } from "../utils/haptics";
 import { queueOrder, getPendingCount } from "../services/offlineQueue";
@@ -97,36 +97,76 @@ export const CopilotProvider = ({ children }) => {
         }
     }, [orders.length, products.length, store?.id, businessContext]);
 
-    // Exécute réellement une action DRAFT une fois confirmée par l'utilisateur
+    // LISTEN FOR PROACTIVE INSIGHTS (Phase 1)
+    useEffect(() => {
+        if (!store?.id) return;
+        const q = query(
+            collection(db, `stores/${store.id}/beya3_scheduled_insights`),
+            where("isRead", "==", false)
+        );
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            snapshot.docChanges().forEach(change => {
+                if (change.type === "added") {
+                    const data = change.doc.data();
+                    const msg = {
+                        id: change.doc.id,
+                        role: 'assistant',
+                        content: `🔔 **Alerte Proactive** :\n${data.content}`
+                    };
+                    setMessages(prev => {
+                        if (prev.some(m => m.id === msg.id)) return prev;
+                        return [...prev, msg];
+                    });
+                    if (!isOpen) {
+                        toast("Nouveau message de Beya3", { icon: "💡" });
+                        vibrate('soft');
+                    }
+                    updateDoc(doc(db, `stores/${store.id}/beya3_scheduled_insights`, change.doc.id), { isRead: true });
+                }
+            });
+        });
+        return () => unsubscribe();
+    }, [store?.id, isOpen]);
+
+    // LISTEN FOR ACTION DRAFTS (Phase 2)
+    useEffect(() => {
+        if (!store?.id) return;
+        const q = query(
+            collection(db, `stores/${store.id}/action_drafts`),
+            where("status", "==", "pending_approval")
+        );
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const drafts = [];
+            snapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                drafts.push({
+                    toolCallId: docSnap.id,
+                    toolName: data.toolName,
+                    toolArgs: data.toolArgs,
+                    source: data.source
+                });
+            });
+            // Update state with drafts from Firestore (includes both chat and background drafts)
+            setPendingActions(drafts);
+        });
+        return () => unsubscribe();
+    }, [store?.id]);
+
+    // Approuve un DRAFT pour exécution par le backend
     const confirmAction = async (actionId, toolName, toolArgs) => {
         setPendingActions(prev => prev.filter(a => a.toolCallId !== actionId));
-        toast.loading("Exécution en cours...", { id: actionId });
+        toast.loading("Validation en cours...", { id: actionId });
         
         try {
-            switch (toolName) {
-                case "draft_expense":
-                    await addDoc(collection(db, "expenses"), {
-                        ...toolArgs,
-                        storeId: store?.id,
-                        date: new Date().toISOString().split('T')[0],
-                        createdAt: serverTimestamp()
-                    });
-                    toast.success("Dépense enregistrée !", { id: actionId });
-                    break;
-                case "bulk_update_orders":
-                    for (const orderId of toolArgs.orderIds) {
-                        await updateOrderStatus(orderId, toolArgs.newStatus);
-                    }
-                    toast.success(`Statut mis à jour pour ${toolArgs.orderIds.length} commandes.`, { id: actionId });
-                    break;
-                case "send_whatsapp_campaign":
-                    toast.success("Campagne préparée (Simulation)", { id: actionId });
-                    break;
-                default:
-                    toast.error("Action inconnue.", { id: actionId });
-            }
+            // PHASE 2: Autonomous Action Layer - Update Firestore draft status
+            const draftRef = doc(db, `stores/${store?.id}/action_drafts`, actionId);
+            await updateDoc(draftRef, {
+                status: 'approved',
+                approvedAt: serverTimestamp()
+            });
+            toast.success("Action approuvée ! Elle s'exécutera en arrière-plan.", { id: actionId });
         } catch (e) {
-            toast.error("Échec de l'exécution.", { id: actionId });
+            toast.error("Échec de l'approbation.", { id: actionId });
         }
 
         // Track for rollback
@@ -139,8 +179,15 @@ export const CopilotProvider = ({ children }) => {
         }]);
     };
 
-    const cancelAction = (actionId) => {
+    const cancelAction = async (actionId) => {
         setPendingActions(prev => prev.filter(a => a.toolCallId !== actionId));
+        try {
+            const draftRef = doc(db, `stores/${store?.id}/action_drafts`, actionId);
+            await updateDoc(draftRef, {
+                status: 'rejected',
+                rejectedAt: serverTimestamp()
+            });
+        } catch (e) {}
         toast("Action annulée.", { icon: "❌" });
     };
 
@@ -211,12 +258,10 @@ export const CopilotProvider = ({ children }) => {
                             setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content: currentText } : m));
                             if (currentText.length > 5) setThinkingState(null); // Stop thinking indicator once text starts streaming
                         }
-                        if (event.actions && event.actions.length > 0) {
-                            setPendingActions(prev => [...prev, ...event.actions]);
-                        }
                         if (event.thinking) {
                             setThinkingState(event.thinking);
                         }
+                        // Note: actionsDrafted sont maintenant récupérées par le listener onSnapshot
                     }
                 });
             }

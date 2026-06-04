@@ -11,7 +11,8 @@ const {
     getPendingCashflow, 
     getInventoryValue, 
     predictStockRunout, 
-    detectFinancialAnomalies 
+    detectFinancialAnomalies,
+    getCustomerList
 } = require("./copilot/financialEngine");
 const { 
     storeMemory, 
@@ -22,6 +23,7 @@ const {
     getMerchantProfile,
     setExplicitPreference
 } = require("./copilot/memoryService");
+const { queryGraph } = require("./copilot/kgService");
 const { shouldUseReAct, runReActLoop } = require("./copilot/reactAgent");
 const { executeWithRollback, rollbackLastAction } = require("./copilot/actionExecutor");
 const { getMarketBenchmark } = require("./copilot/benchmarkService");
@@ -90,6 +92,21 @@ async function executeFinancialTool(toolName, toolArgs, storeId, userId) {
             // ── ÉVOLUTION 6 — BENCHMARK MARCHÉ ──────────────
             case "get_market_benchmark":
                 return await getMarketBenchmark(storeId, toolArgs.metrics || ['margin', 'return_rate', 'avg_order_value']);
+                
+            // ── ÉVOLUTION 7 — KNOWLEDGE GRAPH ───────────────
+            case "query_knowledge_graph":
+                return await queryGraph(storeId, {
+                    sourceId: toolArgs.sourceId,
+                    targetId: toolArgs.targetId,
+                    relationType: toolArgs.relationType,
+                    orderBy: 'count', // Order by count (weight)
+                    limit: toolArgs.limit || 10,
+                    includeNodes: true
+                });
+
+            // ── ÉVOLUTION 8 — GESTION DES CLIENTS ───────────
+            case "get_customer_list":
+                return await getCustomerList(storeId, toolArgs.limit || 10);
                 
             default:
                 return { error: `Tool ${toolName} not implemented yet or is a draft tool.` };
@@ -304,6 +321,17 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
               
               if (DRAFT_TOOLS.includes(toolName)) {
                   actionsDrafted.push({ toolName, toolArgs, toolCallId: toolCall.id });
+                  
+                  // PHASE 2: Autonomous Action Layer - Save draft to Firestore
+                  const draftRef = getDb().collection(`stores/${storeId}/action_drafts`).doc(toolCall.id);
+                  await draftRef.set({
+                      toolName,
+                      toolArgs,
+                      status: 'pending_approval',
+                      source: 'copilot_chat',
+                      createdAt: FieldValue.serverTimestamp()
+                  });
+
                   toolResults.push({
                       tool_call_id: toolCall.id,
                       role: "tool",

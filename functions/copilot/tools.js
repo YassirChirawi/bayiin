@@ -205,6 +205,39 @@ const BEYA3_TOOLS = [
           }
         }
       }
+    },
+
+    // ── ÉVOLUTION 7 — KNOWLEDGE GRAPH ────────────────
+    {
+      type: "function",
+      function: {
+        name: "query_knowledge_graph",
+        description: "Interroge le Knowledge Graph (Mémoire Long Terme) pour trouver des relations complexes entre les produits, villes et transporteurs (ex: quels produits ont le plus de retours à Casablanca).",
+        parameters: {
+          type: "object",
+          properties: {
+            sourceId: { type: "string" },
+            targetId: { type: "string" },
+            relationType: { type: "string" },
+            limit: { type: "integer" }
+          }
+        }
+      }
+    },
+
+    // ── GESTION DES CLIENTS ─────────────────────────
+    {
+      type: "function",
+      function: {
+        name: "get_customer_list",
+        description: "Récupère la liste des clients récents de la boutique. À utiliser si le marchand demande 'qui sont mes clients', 'liste des clients', etc.",
+        parameters: {
+          type: "object",
+          properties: {
+            limit: { type: "integer", description: "Nombre de clients à récupérer (défaut 10)" }
+          }
+        }
+      }
     }
   ];
   
