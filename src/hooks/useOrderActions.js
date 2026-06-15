@@ -168,6 +168,12 @@ export const useOrderActions = () => {
         setLoading(true);
         setError(null);
         try {
+            // --- STATE MACHINE VALIDATION (defense-in-depth) ---
+            if (oldData.status !== newData.status && !isValidTransition(oldData.status, newData.status)) {
+                toast.error(`Transition invalide : ${oldData.status} → ${newData.status}`);
+                setLoading(false);
+                return false;
+            }
             // Non-transactional reads FIRST
             let existingCustomerId = null;
             if (!newData.customerId && newData.clientPhone) {

@@ -138,8 +138,6 @@ export default function Products() {
         });
 
         await Promise.all(promises);
-        await Promise.all(promises);
-        await Promise.all(promises);
         toast.success(t('success_import_products', { count: importedCount }));
     };
 
@@ -339,7 +337,7 @@ export default function Products() {
                                                                 title={`Vitesse: ${pred.dailyRate}/jour. Recommandation: ${pred.recommendedOrder}`}
                                                             >
                                                                 <Sparkles className="h-3 w-3" />
-                                                                {pred.daysLeft === 0 ? 'Rupture imminente' : `${pred.daysLeft} jours restants`}
+                                                                {pred.daysLeft === 0 ? (t('label_stockout_imminent') || 'Rupture imminente') : `${pred.daysLeft} ${t('label_days_remaining') || 'jours restants'}`}
                                                             </motion.div>
                                                         );
                                                     })()}
@@ -470,7 +468,7 @@ export default function Products() {
                                                         className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap border ${pred.isCritical ? 'bg-red-100 text-red-700 border-red-200' : 'bg-orange-100 text-orange-700 border-orange-200'}`}
                                                     >
                                                         <Sparkles className="h-2.5 w-2.5" />
-                                                        {pred.daysLeft === 0 ? 'Rupture imminente' : `${pred.daysLeft}j restants`}
+                                                        {pred.daysLeft === 0 ? (t('label_stockout_imminent') || 'Rupture imminente') : `${pred.daysLeft} ${t('label_days_remaining') || 'j restants'}`}
                                                     </motion.div>
                                                 );
                                             })()}

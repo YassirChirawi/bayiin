@@ -468,15 +468,11 @@ export default function Finances() {
 
             {ordersError && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                    <p className="font-bold">Error loading Orders</p>
+                    <p className="font-bold">{t('err_loading_orders') || 'Error loading Orders'}</p>
                     <p className="text-sm">{ordersError.message}</p>
                 </div>
             )}
-            {orders.length === 0 && !loadingOrders && (
-                <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg text-sm">
-                    <strong>DEBUG:</strong> 0 commandes trouvées pour cette période ({dateRange.start} au {dateRange.end}).
-                </div>
-            )}
+
 
             {/* AI Insight Block */}
             <div className="bg-gradient-to-r from-rose-50 to-white border border-rose-100 p-6 rounded-lg shadow-sm relative overflow-hidden">
@@ -487,9 +483,9 @@ export default function Finances() {
                     <div>
                         <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                             <Sparkles className="w-5 h-5 text-rose-500" />
-                            L'avis de Beya3 (AI)
+                            {t('title_ai_insights') || "Beya3 AI Insights"}
                         </h3>
-                        <p className="text-sm text-gray-600 mt-1">Demande une analyse instantanée de tes performances financières.</p>
+                        <p className="text-sm text-gray-600 mt-1">{t('subtitle_ai_insights') || 'Get instant AI-powered analysis of your financial performance.'}</p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
                         <Button
@@ -499,7 +495,7 @@ export default function Finances() {
                             className="bg-white border-rose-200 text-rose-600 hover:bg-rose-50 w-full sm:w-auto justify-center"
                             icon={Activity}
                         >
-                            Lancer Audit 🛡️
+                            {t('btn_run_audit') || 'Run Audit 🛡️'}
                         </Button>
                         <Button
                             onClick={askMervat}
@@ -507,7 +503,7 @@ export default function Finances() {
                             icon={MessageSquare}
                             className="bg-rose-500 hover:bg-rose-600 text-white border-none shadow-md w-full sm:w-auto justify-center"
                         >
-                            Analyser ma rentabilité
+                            {t('btn_analyze_profitability') || 'Analyze Profitability'}
                         </Button>
                     </div>
                 </div>
@@ -661,7 +657,7 @@ export default function Finances() {
                     <span className="text-sm text-amber-700 font-medium whitespace-nowrap">{store?.currency || "MAD"}</span>
                 </div>
                 {importFees && parseFloat(importFees) > 0 && (
-                    <p className="text-xs text-amber-700">⚠ Déduit du Net Profit</p>
+                    <p className="text-xs text-amber-700">⚠ {t('label_deducted_from_profit') || 'Deducted from Net Profit'}</p>
                 )}
             </div>
 
@@ -694,7 +690,7 @@ export default function Finances() {
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">{t('metric_roas')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
-                        <span className={`text - xl font - bold ${parseFloat(stats.res.roas) > 3 ? 'text-green-600' : 'text-gray-900'} `}>
+                        <span className={`text-xl font-bold ${parseFloat(stats.res.roas) > 3 ? 'text-green-600' : 'text-gray-900'}`}>
                             {stats.res.roas}x
                         </span>
                         <span className="text-xs text-gray-400">{t('target')}: &gt;3.0</span>
@@ -712,7 +708,7 @@ export default function Finances() {
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">{t('metric_shipping_ratio')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
-                        <span className={`text - xl font - bold ${parseFloat(stats.res.shippingRatio) > 15 ? 'text-red-600' : 'text-gray-900'} `}>
+                        <span className={`text-xl font-bold ${parseFloat(stats.res.shippingRatio) > 15 ? 'text-red-600' : 'text-gray-900'}`}>
                             {stats.res.shippingRatio}%
                         </span>
                         <span className="text-xs text-gray-400">{t('target')}: &lt;15%</span>
@@ -722,7 +718,7 @@ export default function Finances() {
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">{t('metric_profit_per_order')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
-                        <span className={`text - xl font - bold ${parseFloat(stats.res.profitPerOrder) > 0 ? 'text-green-600' : 'text-red-600'} `}>
+                        <span className={`text-xl font-bold ${parseFloat(stats.res.profitPerOrder) > 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {stats.res.profitPerOrder} DH
                         </span>
                     </div>
@@ -789,7 +785,7 @@ export default function Finances() {
                                             </span>
                                         </td>
                                         <td className="px-3 py-2 whitespace-nowrap text-right text-sm font-medium">
-                                            <button className="text-indigo-600 hover:text-indigo-900">Détails</button>
+                                            <button className="text-indigo-600 hover:text-indigo-900">{t('label_view_details') || 'Details'}</button>
                                         </td>
                                     </tr>
                                 ))}

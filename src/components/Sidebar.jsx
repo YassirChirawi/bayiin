@@ -93,21 +93,17 @@ export default function Sidebar({ isOpen, onClose }) {
             };
             const result = await syncPendingOrders(saveOrder);
             if (result.synced > 0) {
-                toast.success(`${result.synced} commandes synchronisées !`);
+                toast.success(t('msg_synced_count', { count: result.synced }) || `${result.synced} orders synced!`);
                 vibrate('success');
             }
         } catch (error) {
             console.error("Sync error:", error);
-            toast.error("Erreur de synchronisation");
+            toast.error(t('err_sync_error') || 'Sync error. Please try again.');
         } finally {
             setIsSyncing(false);
         }
     };
 
-    // Toggle Language
-    const toggleLanguage = () => {
-        setLanguage(prev => prev === 'min' ? 'fr' : (prev === 'fr' ? 'en' : 'fr'));
-    };
 
     const navigation = [
         // ── Franchise Hub (franchise_admin only) ──
@@ -172,7 +168,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
                 {/* Language Switcher */}
                 <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-lg border border-gray-200">
-                    {['fr', 'en', 'ar'].map((lang) => (
+                    {['fr', 'en'].map((lang) => (
                         <button
                             key={lang}
                             onClick={() => setLanguage(lang)}

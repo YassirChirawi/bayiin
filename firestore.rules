@@ -139,7 +139,10 @@ service cloud.firestore {
       }
       
       match /stats/{statId} {
-         allow read, write: if request.auth != null && (isOwnerOrManager(storeId) || isSuperAdmin());
+         // SEC: Stats are written exclusively by Cloud Functions (Admin SDK bypasses rules).
+         // Clients can read but NOT write to prevent data manipulation.
+         allow read: if request.auth != null && (isOwnerOrManager(storeId) || isSuperAdmin());
+         allow write: if false; // Cloud Functions use Admin SDK — no client writes needed
       }
       match /audit_logs/{logId} {
          allow read: if request.auth != null && (isOwnerOrManager(storeId) || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(storeId)));
@@ -279,9 +282,16 @@ service cloud.firestore {
        allow update, delete: if request.auth != null && (belongsToStore(resource.data.storeId) || isStoreOwner(resource.data.storeId) || isSuperAdmin());
     }
 
-    // Public Leads
+    // Public Leads — validated, no auth required but fields are enforced
     match /leads/{leadId} {
-       allow create: if true;
+       // SEC: Validate required fields to prevent spam/injection
+       allow create: if request.resource.data.keys().hasAll(['storeId', 'name', 'phone'])
+                     && request.resource.data.name is string
+                     && request.resource.data.name.size() > 0
+                     && request.resource.data.name.size() <= 200
+                     && request.resource.data.phone is string
+                     && request.resource.data.phone.size() > 0
+                     && request.resource.data.storeId is string;
        allow read: if request.auth != null && (belongsToStore(resource.data.storeId) || isStoreOwner(resource.data.storeId) || isSuperAdmin());
     }
 
@@ -341,9 +351,13 @@ service cloud.firestore {
     }
 
 
-    // Driver Applications
+    // Driver Applications — validated, no auth required but fields enforced
     match /driverApplications/{appId} {
-        allow create: if true;
+        // SEC: Validate required fields to prevent spam
+        allow create: if request.resource.data.keys().hasAll(['storeId', 'name', 'phone'])
+                      && request.resource.data.name is string
+                      && request.resource.data.name.size() > 0
+                      && request.resource.data.storeId is string;
         allow read, update, delete: if request.auth != null && (
             isSuperAdmin() ||
             belongsToStore(resource.data.storeId) ||

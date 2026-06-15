@@ -15,6 +15,13 @@ import { vibrate } from "../utils/haptics";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Onboarding() {
+    const { user, logout } = useAuth();
+    const { setStore, stores } = useTenant();
+    const { t } = useLanguage();
+    const navigate = useNavigate();
+    const location = useLocation();
+    const { uploadImage, uploading } = useImageUpload();
+
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
 
@@ -27,13 +34,6 @@ export default function Onboarding() {
         city: "",
         logoUrl: "",
     });
-
-    const { user, logout } = useAuth();
-    const { setStore, stores } = useTenant();
-    const { t } = useLanguage();
-    const navigate = useNavigate();
-    const location = useLocation();
-    const { uploadImage, uploading } = useImageUpload();
 
     // Auto-redirect if store exists
     useEffect(() => {

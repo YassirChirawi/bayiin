@@ -35,12 +35,19 @@ service firebase.storage {
     // 📂 TENANT DATA (/stores/{storeId})
     // ════════════════════════════════════════════════════════════════════════
     match /stores/{storeId}/{allPaths=**} {
-      // Anyone can read store assets (like logos, product images)
-      allow read: if true; 
-      
+      // SEC: Only specific paths are publicly readable (logos, product images, catalog).
+      // Sensitive subdirectories require store membership.
+      allow read: if (
+        // Public paths: logos, product images, public catalog media
+        request.path[3] == 'logo' ||
+        request.path[3] == 'products' ||
+        request.path[3] == 'catalog' ||
+        request.path[3] == 'public'
+      ) || isMemberOfStore(storeId); // All other paths require auth
+
       // Only store members can upload/modify, and files must be safe
-      allow write: if isMemberOfStore(storeId) 
-                   && isValidFileType() 
+      allow write: if isMemberOfStore(storeId)
+                   && isValidFileType()
                    && isReasonableSize();
                    
       // Only store members can delete

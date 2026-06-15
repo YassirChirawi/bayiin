@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import * as LucideIcons from 'lucide-react';
+import DOMPurify from 'dompurify';
 import SectionWrapper from '../../../components/SectionWrapper';
 import BlockButton from '../../../components/BlockButton';
 
@@ -119,7 +120,7 @@ export default function ImageTextAlternated({ section, theme }) {
                                             );
 
                                         case 'HTML':
-                                            return <motion.div key={block.id} {...anim} dangerouslySetInnerHTML={{ __html: block.settings.code }} />;
+                                            return <motion.div key={block.id} {...anim} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(block.settings.code || '') }} />;
 
                                         default:
                                             return null;

@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import DOMPurify from 'dompurify';
 
 export default function BlockText({ block, theme, animProps, className = '', style = {} }) {
     const combinedStyle = {
@@ -47,7 +48,7 @@ export default function BlockText({ block, theme, animProps, className = '', sty
                 <motion.div 
                     {...animProps} 
                     className={`w-full ${className}`} 
-                    dangerouslySetInnerHTML={{ __html: block.settings.code }} 
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(block.settings.code || '') }} 
                 />
             );
 

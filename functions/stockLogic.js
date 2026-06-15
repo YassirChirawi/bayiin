@@ -6,7 +6,7 @@ const { FieldValue } = require('firebase-admin/firestore');
 const getActiveItems = (o) => {
     if (!o) return [];
     // Statuts inactifs qui ne consomment pas de stock
-    if (['retour', 'annulé', 'pending_catalog'].includes(o.status)) return [];
+    if (['retour', 'annulé', 'pending_catalog', 'pas de réponse'].includes(o.status)) return [];
     
     let items = [];
     if (o.articleId) {

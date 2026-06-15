@@ -121,7 +121,7 @@ export default function Signup() {
 
         if (!termsAccepted) {
             vibrate('error');
-            toast.error("Veuillez accepter les conditions d'utilisation.");
+            toast.error(t('err_accept_terms') || "Please accept the Terms and Conditions.");
             return;
         }
 

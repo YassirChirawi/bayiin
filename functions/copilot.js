@@ -1,6 +1,23 @@
 const functions = require("firebase-functions");
 const Groq = require("groq-sdk");
-const cors = require("cors")({ origin: true });
+const cors = require('cors')({
+    origin: (origin, callback) => {
+        const ALLOWED = [
+            'https://bayiin.shop',
+            'https://app.bayiin.shop',
+            'https://commerce-saas-62f32.web.app',
+            'https://commerce-saas-62f32.firebaseapp.com',
+        ];
+        // Allow server-to-server calls (no origin) and whitelisted origins
+        if (!origin || ALLOWED.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.warn(`[SEC] CORS blocked origin: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+});
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 
@@ -174,10 +191,18 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
         return res.status(500).json({ error: "Configuration error" });
     }
 
-    // Tenant Isolation Check
+    // Tenant Isolation Check — SEC: storeId must match the authenticated user's store
     const db = getDb();
     const userDoc = await db.collection('users').doc(userId).get();
-    const role = userDoc.exists ? userDoc.data().role : 'user';
+    const userData = userDoc.exists ? userDoc.data() : {};
+    const role = userData.role || 'user';
+    const userStoreId = userData.storeId || null;
+
+    // Super admins can access any store; all others must own the store they request
+    if (role !== 'super_admin' && storeId !== userStoreId) {
+        console.warn(`[SEC] Tenant mismatch: user ${userId} (store: ${userStoreId}) tried to access store ${storeId}`);
+        return res.status(403).json({ error: 'Forbidden: storeId does not match your account' });
+    }
     
     // ── CHARGEMENT CONTEXTE ET MÉMOIRE ──────────────────────────
     const userLastMessage = messages[messages.length - 1].content;

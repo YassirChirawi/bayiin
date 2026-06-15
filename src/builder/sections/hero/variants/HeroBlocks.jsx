@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import * as LucideIcons from 'lucide-react';
+import DOMPurify from 'dompurify';
 import SectionWrapper from '../../../components/SectionWrapper';
 import BlockButton from '../../../components/BlockButton';
 
@@ -112,9 +113,8 @@ export default function HeroBlocks({ section, theme }) {
                                     </motion.div>
                                 );
                             
-                            case 'HTML':
                                 return (
-                                    <motion.div key={block.id} {...animProps} className="w-full" dangerouslySetInnerHTML={{ __html: block.settings.code }} />
+                                    <motion.div key={block.id} {...animProps} className="w-full" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(block.settings.code || '') }} />
                                 );
 
                             default:

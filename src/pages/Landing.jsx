@@ -82,12 +82,6 @@ export default function Landing() {
                             {/* Language Switcher - Compact on mobile */}
                             <div className="flex items-center bg-slate-100 rounded-lg p-1">
                                 <button
-                                    onClick={() => setLanguage('ar')}
-                                    className={`px-2 md:px-3 py-1 text-[10px] md:text-xs font-bold rounded-md transition-all ${language === 'ar' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    AR
-                                </button>
-                                <button
                                     onClick={() => setLanguage('fr')}
                                     className={`px-2 md:px-3 py-1 text-[10px] md:text-xs font-bold rounded-md transition-all ${language === 'fr' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
@@ -185,6 +179,7 @@ export default function Landing() {
                             )}
                         </motion.div>
                     </div>
+
 
                     {/* Arabic Caption always visible or context specific? User wants fully translated. */}
                     <p className="text-3xl md:text-5xl text-white mb-6 max-w-4xl mx-auto leading-relaxed font-arabic font-bold drop-shadow-sm" dir="rtl">

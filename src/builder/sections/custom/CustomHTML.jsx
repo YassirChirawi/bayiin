@@ -1,4 +1,5 @@
 import React from 'react';
+import DOMPurify from 'dompurify';
 
 export default function CustomHTML({ section }) {
     const blocks = section.blocks || [];
@@ -26,7 +27,7 @@ export default function CustomHTML({ section }) {
             {htmlBlocks.map(block => (
                 <div 
                     key={block.id} 
-                    dangerouslySetInnerHTML={{ __html: block.settings?.code || '' }} 
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(block.settings?.code || '') }} 
                 />
             ))}
         </section>
