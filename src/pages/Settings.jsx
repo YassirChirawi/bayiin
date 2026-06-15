@@ -28,12 +28,15 @@ const Beya3Settings = lazy(() => import('../components/settings/Beya3Settings'))
 import WhatsAppConnector from '../components/settings/WhatsAppConnector';
 import YouCanIntegration from '../components/integrations/YouCanIntegration';
 import ShopifyIntegration from '../components/integrations/ShopifyIntegration';
+import ConfirmDialog from "../components/ConfirmDialog";
+import { useConfirmDialog } from "../hooks/useConfirmDialog";
 
 import { Link } from "react-router-dom";
 
 export default function Settings() {
     const { store, setStore } = useTenant();
     const { t } = useLanguage(); // NEW
+    const { confirmState, confirm, close } = useConfirmDialog();
 
     const [activeTab, setActiveTab] = useState("general");
     const [loading, setLoading] = useState(null); // 'starter' | 'pro' | null
@@ -103,15 +106,25 @@ export default function Settings() {
     };
 
     const handleRecalculateStats = () => {
-        if (!window.confirm(t('confirm_recalc_customers') || "This will scan all orders to fix customer totals. Continue?")) return;
-        runReconciliation({ updateCustomers: true, forceReload: false });
+        confirm({
+            title: 'Recalcul',
+            message: t('confirm_recalc_customers') || "This will scan all orders to fix customer totals. Continue?",
+            onConfirm: () => {
+                runReconciliation({ updateCustomers: true, forceReload: false });
+            }
+        });
     };
 
     const handleRecalculateStoreStats = async () => {
         if (!store?.id) return;
-        if (!window.confirm(t('confirm_fix_financials') || "⚠️ WARNING: This will RESET your Dashboard Financials based on current active orders. Continue?")) return;
-
-        runReconciliation({ updateCustomers: true, forceReload: true });
+        confirm({
+            title: 'Recalcul Stats',
+            message: t('confirm_fix_financials') || "⚠️ WARNING: This will RESET your Dashboard Financials based on current active orders. Continue?",
+            isDestructive: true,
+            onConfirm: () => {
+                runReconciliation({ updateCustomers: true, forceReload: true });
+            }
+        });
     };
 
     // Audit Log State
@@ -155,12 +168,16 @@ export default function Settings() {
             }
         } else {
             // Disable
-            if (window.confirm("Désactiver le verrouillage biométrique ?")) {
-                localStorage.removeItem('biometricEnabled');
-                setBiometricEnabled(false);
-                vibrate('success');
-                toast.success(t('msg_biometric_disabled'));
-            }
+            confirm({
+                title: 'Désactiver',
+                message: "Désactiver le verrouillage biométrique ?",
+                onConfirm: () => {
+                    localStorage.removeItem('biometricEnabled');
+                    setBiometricEnabled(false);
+                    vibrate('success');
+                    toast.success(t('msg_biometric_disabled'));
+                }
+            });
         }
     };
 
@@ -705,6 +722,14 @@ export default function Settings() {
                 )}
 
             </div >
+            <ConfirmDialog 
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                message={confirmState.message}
+                onConfirm={confirmState.onConfirm}
+                onCancel={close}
+                isDestructive={confirmState.isDestructive}
+            />
         </div >
     );
 }

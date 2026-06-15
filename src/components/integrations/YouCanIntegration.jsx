@@ -6,9 +6,12 @@ import { db } from "../../lib/firebase";
 import { doc, getDoc, deleteDoc } from "firebase/firestore";
 import { toast } from "react-hot-toast";
 import { motion, AnimatePresence } from 'framer-motion';
+import ConfirmDialog from "../ConfirmDialog";
+import { useConfirmDialog } from "../../hooks/useConfirmDialog";
 
 export default function YouCanIntegration({ store }) {
     const { t } = useLanguage();
+    const { confirmState, confirm, close } = useConfirmDialog();
     const [config, setConfig] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
@@ -50,15 +53,20 @@ export default function YouCanIntegration({ store }) {
     };
 
     const handleDisconnect = async () => {
-        if (!window.confirm("Voulez-vous vraiment déconnecter votre boutique YouCan ? La synchronisation s'arrêtera.")) return;
-        
-        try {
-            await deleteDoc(doc(db, "stores", store.id, "youcan_integration", "config"));
-            setConfig(null);
-            toast.success("Boutique YouCan déconnectée avec succès.");
-        } catch (err) {
-            toast.error("Erreur lors de la déconnexion.");
-        }
+        confirm({
+            title: 'Déconnexion YouCan',
+            message: "Voulez-vous vraiment déconnecter votre boutique YouCan ? La synchronisation s'arrêtera.",
+            isDestructive: true,
+            onConfirm: async () => {
+                try {
+                    await deleteDoc(doc(db, "stores", store.id, "youcan_integration", "config"));
+                    setConfig(null);
+                    toast.success("Boutique YouCan déconnectée avec succès.");
+                } catch (err) {
+                    toast.error("Erreur lors de la déconnexion.");
+                }
+            }
+        });
     };
 
     const handleSyncNow = async () => {
@@ -333,6 +341,14 @@ export default function YouCanIntegration({ store }) {
                 </div>
             )}
             </div>
+            <ConfirmDialog 
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                message={confirmState.message}
+                onConfirm={confirmState.onConfirm}
+                onCancel={close}
+                isDestructive={confirmState.isDestructive}
+            />
         </div>
     );
 }

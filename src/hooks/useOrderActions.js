@@ -243,7 +243,7 @@ export const useOrderActions = () => {
                         phone: newData.clientPhone,
                         address: newData.clientAddress || "",
                         city: newData.clientCity || "",
-                        totalSpent: parseFloat(newData.price) || 0,
+                        totalSpent: 0, // BUG-03: incremented by Cloud Function onOrderWrite on 'livré'
                         orderCount: 1,
                         firstOrderDate: new Date().toISOString().split('T')[0],
                         lastOrderDate: new Date().toISOString().split('T')[0],

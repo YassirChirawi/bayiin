@@ -181,7 +181,9 @@ export default function Dashboard() {
         const totalExpenses = aggregatedStats.totals?.expenses || 0;
         const realizedRevenue = aggregatedStats.totals?.realizedRevenue || 0;
         const realizedCOGS = aggregatedStats.totals?.realizedCOGS || 0;
-        const netMarginValue = realizedRevenue - realizedCOGS - totalExpenses;
+        const realizedDeliveryCost = aggregatedStats.totals?.realizedDeliveryCost || 0;
+        const refunds = aggregatedStats.totals?.refunds || 0;
+        const netMarginValue = realizedRevenue - realizedCOGS - realizedDeliveryCost - totalExpenses - refunds;
         const marginPercentage = realizedRevenue > 0 ? ((netMarginValue / realizedRevenue) * 100).toFixed(1) : 0;
 
         return {

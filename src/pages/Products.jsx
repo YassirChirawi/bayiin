@@ -17,6 +17,8 @@ import { logActivity } from "../utils/logger"; // NEW
 import { useAuth } from "../context/AuthContext"; // NEW
 import { db } from "../lib/firebase"; // NEW
 import { predictStockout } from "../utils/stockPrediction";
+import ConfirmDialog from "../components/ConfirmDialog";
+import { useConfirmDialog } from "../hooks/useConfirmDialog";
 
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -35,6 +37,7 @@ const itemVariants = {
 
 export default function Products() {
     const { t } = useLanguage(); // NEW
+    const { confirmState, confirm, close } = useConfirmDialog();
     const [limitCount, setLimitCount] = useState(50);
 
     // Limit to 50 products for performance
@@ -85,17 +88,27 @@ export default function Products() {
     const handleDelete = async (id) => {
         vibrate('medium');
         if (showTrash) {
-            if (window.confirm(t('confirm_delete_permanent'))) {
-                await permanentDeleteStoreItem(id);
-                logActivity(db, store.id, user, 'PRODUCT_DELETE_PERMANENT', `Permanently deleted product ${id}`, { productId: id });
-                toast.success(t('msg_product_deleted_perm'));
-            }
+            confirm({
+                title: 'Suppression Définitive',
+                message: t('confirm_delete_permanent'),
+                isDestructive: true,
+                onConfirm: async () => {
+                    await permanentDeleteStoreItem(id);
+                    logActivity(db, store.id, user, 'PRODUCT_DELETE_PERMANENT', `Permanently deleted product ${id}`, { productId: id });
+                    toast.success(t('msg_product_deleted_perm'));
+                }
+            });
         } else {
-            if (window.confirm(t('confirm_move_trash'))) {
-                await deleteStoreItem(id);
-                logActivity(db, store.id, user, 'PRODUCT_TRASH', `Moved product ${id} to trash`, { productId: id });
-                toast.success(t('msg_product_moved_trash'));
-            }
+            confirm({
+                title: 'Corbeille',
+                message: t('confirm_move_trash'),
+                isDestructive: true,
+                onConfirm: async () => {
+                    await deleteStoreItem(id);
+                    logActivity(db, store.id, user, 'PRODUCT_TRASH', `Moved product ${id} to trash`, { productId: id });
+                    toast.success(t('msg_product_moved_trash'));
+                }
+            });
         }
     };
 
@@ -571,6 +584,14 @@ export default function Products() {
                 onClose={() => setIsOptimizerModalOpen(false)}
                 products={products}
                 orders={orders}
+            />
+            <ConfirmDialog 
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                message={confirmState.message}
+                onConfirm={confirmState.onConfirm}
+                onCancel={close}
+                isDestructive={confirmState.isDestructive}
             />
         </div>
     );

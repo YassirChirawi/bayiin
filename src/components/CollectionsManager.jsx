@@ -6,9 +6,12 @@ import Button from './Button';
 import Input from './Input';
 import { Plus, Trash2, X } from 'lucide-react';
 import { parseISO, format } from 'date-fns';
+import ConfirmDialog from './ConfirmDialog';
+import { useConfirmDialog } from '../hooks/useConfirmDialog';
 
 export default function CollectionsManager({ onClose, onSelect }) {
     const { t } = useLanguage();
+    const { confirmState, confirm, close } = useConfirmDialog();
     const { data: collections, addStoreItem, deleteStoreItem } = useStoreData('collections');
     const [form, setForm] = useState({ name: '', startDate: '', endDate: '' });
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,9 +38,14 @@ export default function CollectionsManager({ onClose, onSelect }) {
     };
 
     const handleDelete = async (id) => {
-        if (window.confirm(t('confirm_delete'))) {
-            await deleteStoreItem(id);
-        }
+        confirm({
+            title: 'Suppression',
+            message: t('confirm_delete'),
+            isDestructive: true,
+            onConfirm: async () => {
+                await deleteStoreItem(id);
+            }
+        });
     };
 
     return (
@@ -123,6 +131,14 @@ export default function CollectionsManager({ onClose, onSelect }) {
                     </div>
                 </div>
             </div>
+            <ConfirmDialog 
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                message={confirmState.message}
+                onConfirm={confirmState.onConfirm}
+                onCancel={close}
+                isDestructive={confirmState.isDestructive}
+            />
         </div>
     );
 }

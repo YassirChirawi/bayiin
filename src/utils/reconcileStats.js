@@ -10,16 +10,16 @@ import { collection, getDocs, query, where, doc, writeBatch } from "firebase/fir
  */
 export const reconcileStoreStats = async (db, storeId) => {
     try {
-        const ordersRef = collection(db, "orders");
-        const q = query(ordersRef, where("storeId", "==", storeId));
+        const ordersRef = collection(db, "stores", storeId, "orders");
+        const q = query(ordersRef);
         const snapshot = await getDocs(q);
 
-        const expensesRef = collection(db, "expenses");
-        const expQ = query(expensesRef, where("storeId", "==", storeId));
+        const expensesRef = collection(db, "stores", storeId, "expenses");
+        const expQ = query(expensesRef);
         const expSnapshot = await getDocs(expQ);
 
-        const refundsRef = collection(db, "refunds");
-        const refQ = query(refundsRef, where("storeId", "==", storeId));
+        const refundsRef = collection(db, "stores", storeId, "refunds");
+        const refQ = query(refundsRef);
         const refSnapshot = await getDocs(refQ);
 
         console.log(`Reconciling stats for ${storeId}. Found ${snapshot.size} orders and ${expSnapshot.size} expenses.`);
@@ -54,8 +54,12 @@ export const reconcileStoreStats = async (db, storeId) => {
             stats.totals.revenue += orderVal;
             stats.totals.count += 1;
 
-            if (order.isPaid) {
-                stats.totals.realizedRevenue += orderVal;
+            const amountCollected = (order.amountPaid !== undefined && order.amountPaid !== null && order.amountPaid !== "")
+                ? parseFloat(order.amountPaid) || 0
+                : (order.isPaid ? orderVal : 0);
+
+            if (amountCollected > 0 || order.isPaid) {
+                stats.totals.realizedRevenue += amountCollected;
                 stats.totals.realizedCOGS += orderCost;
                 stats.totals.realizedDeliveryCost += deliveryCost;
             }

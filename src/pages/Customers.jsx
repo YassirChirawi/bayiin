@@ -19,6 +19,8 @@ import { MessageCircle } from "lucide-react"; // NEW icon
 import PageTransition from "../components/PageTransition";
 import { TableSkeleton } from "../components/Skeleton";
 import InfiniteScrollTrigger from "../components/InfiniteScrollTrigger";
+import ConfirmDialog from "../components/ConfirmDialog";
+import { useConfirmDialog } from "../hooks/useConfirmDialog";
 
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -37,6 +39,7 @@ const itemVariants = {
 
 export default function Customers() {
     const { t } = useLanguage(); // NEW
+    const { confirmState, confirm, close } = useConfirmDialog();
     const [limitCount, setLimitCount] = useState(50);
     
     // Dynamically limit for pagination
@@ -110,15 +113,25 @@ export default function Customers() {
         e.stopPropagation();
         vibrate('medium');
         if (showTrash) {
-            if (window.confirm(t('confirm_delete_customer_perm'))) {
-                await permanentDeleteStoreItem(id);
-                toast.success(t('msg_customer_deleted_perm'));
-            }
+            confirm({
+                title: 'Suppression Définitive',
+                message: t('confirm_delete_customer_perm'),
+                isDestructive: true,
+                onConfirm: async () => {
+                    await permanentDeleteStoreItem(id);
+                    toast.success(t('msg_customer_deleted_perm'));
+                }
+            });
         } else {
-            if (window.confirm(t('confirm_move_customer_trash'))) {
-                await deleteStoreItem(id);
-                toast.success(t('msg_customer_moved_trash'));
-            }
+            confirm({
+                title: 'Corbeille',
+                message: t('confirm_move_customer_trash'),
+                isDestructive: true,
+                onConfirm: async () => {
+                    await deleteStoreItem(id);
+                    toast.success(t('msg_customer_moved_trash'));
+                }
+            });
         }
     };
 
@@ -631,6 +644,15 @@ export default function Customers() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            <ConfirmDialog 
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                message={confirmState.message}
+                onConfirm={confirmState.onConfirm}
+                onCancel={close}
+                isDestructive={confirmState.isDestructive}
+            />
 
             <ImportModal
                 isOpen={isImportModalOpen}

@@ -5,9 +5,12 @@ import { db } from '../../lib/firebase';
 import { toast } from 'react-hot-toast';
 import Button from '../Button';
 import { useLanguage } from '../../context/LanguageContext';
+import ConfirmDialog from '../ConfirmDialog';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 
 export default function Beya3Settings({ store, setStore }) {
     const { t } = useLanguage();
+    const { confirmState, confirm, close } = useConfirmDialog();
     const [isClearing, setIsClearing] = useState(false);
     
     // Default values if not set
@@ -30,28 +33,31 @@ export default function Beya3Settings({ store, setStore }) {
     };
 
     const handleClearMemory = async () => {
-        if (!window.confirm("Êtes-vous sûr de vouloir effacer toutes les mémoires de Beya3 ? Le profilage et l'historique d'apprentissage seront supprimés définitivement.")) {
-            return;
-        }
-
-        setIsClearing(true);
-        try {
-            const memoryRef = collection(db, `stores/${store.id}/beya3_memory`);
-            const snap = await getDocs(memoryRef);
-            
-            const batch = writeBatch(db);
-            snap.forEach(doc => {
-                batch.delete(doc.ref);
-            });
-            
-            await batch.commit();
-            toast.success("Toutes les mémoires de Beya3 ont été effacées.");
-        } catch (err) {
-            console.error(err);
-            toast.error("Erreur lors de la suppression des mémoires.");
-        } finally {
-            setIsClearing(false);
-        }
+        confirm({
+            title: 'Effacer les mémoires',
+            message: "Êtes-vous sûr de vouloir effacer toutes les mémoires de Beya3 ? Le profilage et l'historique d'apprentissage seront supprimés définitivement.",
+            isDestructive: true,
+            onConfirm: async () => {
+                setIsClearing(true);
+                try {
+                    const memoryRef = collection(db, `stores/${store.id}/beya3_memory`);
+                    const snap = await getDocs(memoryRef);
+                    
+                    const batch = writeBatch(db);
+                    snap.forEach(doc => {
+                        batch.delete(doc.ref);
+                    });
+                    
+                    await batch.commit();
+                    toast.success("Toutes les mémoires de Beya3 ont été effacées.");
+                } catch (err) {
+                    console.error(err);
+                    toast.error("Erreur lors de la suppression des mémoires.");
+                } finally {
+                    setIsClearing(false);
+                }
+            }
+        });
     };
 
     return (
@@ -142,6 +148,14 @@ export default function Beya3Settings({ store, setStore }) {
                     </div>
                 </div>
             </div>
+            <ConfirmDialog 
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                message={confirmState.message}
+                onConfirm={confirmState.onConfirm}
+                onCancel={close}
+                isDestructive={confirmState.isDestructive}
+            />
         </div>
     );
 }

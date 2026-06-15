@@ -26,10 +26,13 @@ import toast from "react-hot-toast";
 import { generateFinancialInsight, analyzeFinancialScenario, detectFinancialLeaks } from "../services/aiService";
 import SmartReconciliationWizard from "../components/finances/SmartReconciliationWizard";
 import CODReconciliation from "../components/finances/CODReconciliation";
+import ConfirmDialog from "../components/ConfirmDialog";
+import { useConfirmDialog } from "../hooks/useConfirmDialog";
 
 export default function Finances() {
     const { store } = useTenant();
     const { t } = useLanguage();
+    const { confirmState, confirm, close } = useConfirmDialog();
 
     // State
     const [expenseForm, setExpenseForm] = useState({ description: "", amount: "", category: "Other", collectionId: "" });
@@ -152,9 +155,14 @@ export default function Finances() {
     };
 
     const handleDeleteExpense = async (id) => {
-        if (window.confirm(t('btn_remove_expense'))) {
-            await deleteExpense(id);
-        }
+        confirm({
+            title: 'Suppression',
+            message: t('confirm_delete'),
+            isDestructive: true,
+            onConfirm: async () => {
+                await deleteExpense(id);
+            }
+        });
     }
 
     // --- AI Insight ---
@@ -988,6 +996,15 @@ export default function Finances() {
             </div>
 
             {/* Collections Modal */}
+            <ConfirmDialog 
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                message={confirmState.message}
+                onConfirm={confirmState.onConfirm}
+                onCancel={close}
+                isDestructive={confirmState.isDestructive}
+            />
+
             {showCollectionsModal && (
                 <CollectionsManager
                     onClose={() => setShowCollectionsModal(false)}
