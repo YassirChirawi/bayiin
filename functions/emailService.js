@@ -3,6 +3,15 @@ const { getFirestore } = require('firebase-admin/firestore');
 
 const db = getFirestore('comsaas');
 
+// Escape values interpolated into email HTML to prevent HTML/script injection via
+// customer- or product-controlled fields (names, SKUs, etc.).
+const escapeHtml = (v) => String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 // Note: Ensure RESEND_API_KEY is set in Firebase functions config or environment variables
 const resend = new Resend(process.env.RESEND_API_KEY || 're_placeholder');
 
@@ -31,9 +40,9 @@ async function sendStockAlert(storeId, product) {
             <p>Bonjour,</p>
             <p>Le produit suivant a atteint un niveau de stock critique :</p>
             <ul>
-                <li><strong>Produit :</strong> ${product.name}</li>
-                <li><strong>SKU :</strong> ${product.sku || 'N/A'}</li>
-                <li><strong>Stock actuel :</strong> <span style="color: red;">${product.stock}</span></li>
+                <li><strong>Produit :</strong> ${escapeHtml(product.name)}</li>
+                <li><strong>SKU :</strong> ${escapeHtml(product.sku || 'N/A')}</li>
+                <li><strong>Stock actuel :</strong> <span style="color: red;">${escapeHtml(product.stock)}</span></li>
             </ul>
             <p>Veuillez vous réapprovisionner au plus vite pour éviter des ruptures.</p>
             <br/>
@@ -76,10 +85,10 @@ async function sendInvoiceEmail(clientEmail, order, store) {
         let productsHtml = '';
         if (Array.isArray(order.products)) {
             order.products.forEach(p => {
-                productsHtml += `<li>${p.quantity}x ${p.name} - ${p.price} DH</li>`;
+                productsHtml += `<li>${escapeHtml(p.quantity)}x ${escapeHtml(p.name)} - ${escapeHtml(p.price)} DH</li>`;
             });
         } else {
-            productsHtml = `<li>${order.quantity || 1}x ${order.articleName} - ${order.price} DH</li>`;
+            productsHtml = `<li>${escapeHtml(order.quantity || 1)}x ${escapeHtml(order.articleName)} - ${escapeHtml(order.price)} DH</li>`;
         }
 
         const totalAmount = Array.isArray(order.products) 
@@ -88,9 +97,9 @@ async function sendInvoiceEmail(clientEmail, order, store) {
 
         const html = `
             <div style="font-family: sans-serif; max-width: 600px; margin: auto;">
-                <h2>Merci pour votre commande chez ${storeName} !</h2>
-                <p>Bonjour ${order.clientName || 'Client'},</p>
-                <p>Voici le récapitulatif de votre commande <strong>#${order.orderNumber}</strong> :</p>
+                <h2>Merci pour votre commande chez ${escapeHtml(storeName)} !</h2>
+                <p>Bonjour ${escapeHtml(order.clientName || 'Client')},</p>
+                <p>Voici le récapitulatif de votre commande <strong>#${escapeHtml(order.orderNumber)}</strong> :</p>
                 
                 <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px;">
                     <ul style="list-style: none; padding-left: 0;">
@@ -103,7 +112,7 @@ async function sendInvoiceEmail(clientEmail, order, store) {
                 <p>Si vous avez des questions, n'hésitez pas à nous contacter.</p>
                 <p>À très bientôt !</p>
                 <br/>
-                <p><em>L'équipe ${storeName}</em></p>
+                <p><em>L'équipe ${escapeHtml(storeName)}</em></p>
             </div>
         `;
 

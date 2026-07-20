@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLanguage } from "../../context/LanguageContext";
 import { MessageSquare, AlertCircle, CheckCircle } from "lucide-react";
 import Button from "../Button";
-import { db } from "../../lib/firebase";
+import { db, auth } from "../../lib/firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import { toast } from "react-hot-toast";
 import ConfirmDialog from "../ConfirmDialog";
@@ -81,12 +81,16 @@ export default function WhatsAppConnector({ store, setStore }) {
             // Appel à la Cloud Function "connectWhatsApp"
             const baseUrl = import.meta.env.VITE_API_URL || "https://us-central1-bayiin.cloudfunctions.net";
             
+            const idToken = await auth.currentUser?.getIdToken();
             const response = await fetch(`${baseUrl}/connectWhatsApp`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+                },
+                body: JSON.stringify({
                     storeId: store.id,
-                    accessToken: shortLivedToken 
+                    accessToken: shortLivedToken
                 })
             });
 

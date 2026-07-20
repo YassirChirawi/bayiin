@@ -14,7 +14,9 @@ function verifyShopifySignature(rawBody, signature, secret) {
         .createHmac('sha256', secret)
         .update(rawBody, 'utf8')
         .digest('base64');
-    return hash === signature;
+    const hashBuf = Buffer.from(hash);
+    const sigBuf = Buffer.from(signature);
+    return hashBuf.length === sigBuf.length && crypto.timingSafeEqual(hashBuf, sigBuf);
 }
 
 /**
