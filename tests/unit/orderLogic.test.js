@@ -7,12 +7,12 @@ describe('orderLogic', () => {
     describe('shouldRestock', () => {
         it('should return true when moving from Active to Cancelled', () => {
             expect(shouldRestock(ORDER_STATUS.RECEIVED, ORDER_STATUS.CANCELLED)).toBe(true);
-            expect(shouldRestock(ORDER_STATUS.SHIPPED, ORDER_STATUS.RETURNED)).toBe(true);
+            expect(shouldRestock(ORDER_STATUS.SHIPPING, ORDER_STATUS.RETURNED)).toBe(true);
         });
 
         it('should return false when moving between Active states', () => {
             expect(shouldRestock(ORDER_STATUS.RECEIVED, ORDER_STATUS.CONFIRMED)).toBe(false);
-            expect(shouldRestock(ORDER_STATUS.SHIPPED, ORDER_STATUS.DELIVERED)).toBe(false);
+            expect(shouldRestock(ORDER_STATUS.SHIPPING, ORDER_STATUS.DELIVERED)).toBe(false);
         });
 
         it('should return false when moving from Cancelled to Cancelled/Returned', () => {
@@ -23,7 +23,7 @@ describe('orderLogic', () => {
     describe('shouldDeductStock', () => {
         it('should return true when moving from Cancelled to Active', () => {
             expect(shouldDeductStock(ORDER_STATUS.CANCELLED, ORDER_STATUS.RECEIVED)).toBe(true);
-            expect(shouldDeductStock(ORDER_STATUS.RETURNED, ORDER_STATUS.SHIPPED)).toBe(true);
+            expect(shouldDeductStock(ORDER_STATUS.RETURNED, ORDER_STATUS.SHIPPING)).toBe(true);
         });
 
         it('should return false when moving between Active states', () => {

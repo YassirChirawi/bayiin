@@ -226,14 +226,14 @@ export default function Products() {
             </div>
 
             {/* Filters */}
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex gap-4">
+            <div className="glass-panel p-4 rounded-2xl flex gap-4">
                 <div className="relative flex-1 max-w-md">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <Search className="h-5 w-5 text-gray-400" />
                     </div>
                     <input
                         type="text"
-                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-150 ease-in-out"
+                        className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-all shadow-sm"
                         placeholder={t('search_placeholder')}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -260,7 +260,7 @@ export default function Products() {
             ) : (
                 <>
                     {/* Desktop List */}
-                    <div className="hidden md:block bg-white shadow overflow-hidden sm:rounded-md">
+                    <div className="hidden md:block glass-panel rounded-2xl overflow-hidden">
                         <motion.ul
                             variants={containerVariants}
                             initial="hidden"
@@ -268,8 +268,8 @@ export default function Products() {
                             className="divide-y divide-gray-200"
                         >
                             {filteredProducts.map((product) => (
-                                <motion.li key={product.id} variants={itemVariants}>
-                                    <div className="px-4 py-4 sm:px-6 hover:bg-gray-50 flex items-center justify-between">
+                                <motion.li key={product.id} variants={itemVariants} className="group border-b border-gray-100 last:border-0 hover:bg-indigo-50/30 transition-colors">
+                                    <div className="px-6 py-5 flex items-center justify-between">
                                         <div className="flex items-center gap-4 flex-1 min-w-0">
                                             <div className="flex-shrink-0 h-16 w-16 bg-gray-100 rounded-md overflow-hidden border border-gray-200">
                                                 {product.photoUrl ? (
@@ -376,9 +376,9 @@ export default function Products() {
                                         </div>
                                         <div className="flex items-center gap-4">
                                             <div className="text-right hidden sm:block">
-                                                <p className="text-sm font-semibold text-gray-900">{parseFloat(product.price).toFixed(2)} DH</p>
+                                                <p className="text-base font-bold text-gray-900">{parseFloat(product.price).toFixed(2)} DH</p>
                                             </div>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 {showTrash ? (
                                                     <>
                                                         <button
@@ -428,7 +428,7 @@ export default function Products() {
                         className="md:hidden space-y-4"
                     >
                         {filteredProducts.map((product) => (
-                            <motion.div key={product.id} variants={itemVariants} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                            <motion.div key={product.id} variants={itemVariants} className="glass-panel rounded-2xl overflow-hidden">
                                 <div className="flex p-4 gap-4">
                                     {/* Image */}
                                     <div className="flex-shrink-0 h-24 w-24 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">

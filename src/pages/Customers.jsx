@@ -269,50 +269,50 @@ export default function Customers() {
 
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg">
+                        <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl shadow-sm border border-indigo-100/50">
                             <Users className="h-6 w-6" />
                         </div>
                         <div>
-                            <p className="text-sm text-gray-500">{t('total_clients') || "Total Clients"}</p>
-                            <p className="text-2xl font-bold text-gray-900">{kpiStats.total}</p>
+                            <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">{t('total_clients') || "Total Clients"}</p>
+                            <p className="text-2xl font-black text-gray-900 mt-1">{kpiStats.total}</p>
                         </div>
                     </div>
                 </div>
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-green-50 text-green-600 rounded-lg">
+                        <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl shadow-sm border border-emerald-100/50">
                             <TrendingUp className="h-6 w-6" />
                         </div>
                         <div>
-                            <p className="text-sm text-gray-500">{t('kpi_ltv')}</p>
-                            <p className="text-2xl font-bold text-gray-900">{kpiStats.ltv} DH</p>
+                            <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">{t('kpi_ltv')}</p>
+                            <p className="text-2xl font-black text-gray-900 mt-1">{kpiStats.ltv} DH</p>
                         </div>
                     </div>
                 </div>
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-orange-50 text-orange-600 rounded-lg">
+                        <div className="p-3 bg-amber-50 text-amber-600 rounded-xl shadow-sm border border-amber-100/50">
                             <MapPin className="h-6 w-6" />
                         </div>
                         <div>
-                            <p className="text-sm text-gray-500">{t('kpi_top_city')}</p>
-                            <p className="text-2xl font-bold text-gray-900">{kpiStats.topCity}</p>
+                            <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">{t('kpi_top_city')}</p>
+                            <p className="text-2xl font-black text-gray-900 mt-1 truncate">{kpiStats.topCity}</p>
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Search & Filter */}
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4">
+            <div className="glass-panel p-4 rounded-2xl flex flex-col md:flex-row gap-4">
                 <div className="relative max-w-md flex-1">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <Search className="h-5 w-5 text-gray-400" />
                     </div>
                     <input
                         type="text"
-                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-all shadow-sm"
                         placeholder={t('search_placeholder')}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -322,7 +322,7 @@ export default function Customers() {
                     <select
                         value={segmentFilter}
                         onChange={(e) => setSegmentFilter(e.target.value)}
-                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                        className="block w-full pl-3 pr-10 py-3 text-base border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-xl transition-all shadow-sm bg-white"
                     >
                         <option value="ALL">Tous les segments</option>
                         <option value="VIP">🏆 VIP</option>
@@ -338,8 +338,8 @@ export default function Customers() {
             {loading ? (
                 <div className="hidden md:block"><TableSkeleton rows={8} cols={7} /></div>
             ) : (
-                <div className="hidden md:block bg-white shadow border-b border-gray-200 sm:rounded-lg overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
+                <div className="hidden md:block glass-panel rounded-2xl overflow-x-auto overflow-hidden">
+                    <table className="min-w-full divide-y divide-gray-100">
                         <thead className="bg-gray-50">
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 tracking-wider">{t('table_client')}</th>
@@ -355,14 +355,14 @@ export default function Customers() {
                             variants={containerVariants}
                             initial="hidden"
                             animate="show"
-                            className="bg-white divide-y divide-gray-200"
+                            className="divide-y divide-gray-100"
                         >
                             {filteredCustomers.length === 0 ? (
-                                <tr><td colSpan="7" className="px-6 py-4 text-center text-gray-500">{t('no_data')}</td></tr>
+                                <tr><td colSpan="7" className="px-6 py-8 text-center text-gray-500">{t('no_data')}</td></tr>
                             ) : filteredCustomers.map((customer) => {
                                 const segment = getSegment(customer);
                                 return (
-                                <motion.tr key={customer.id} variants={itemVariants} className="hover:bg-gray-50">
+                                <motion.tr key={customer.id} variants={itemVariants} className="hover:bg-indigo-50/30 transition-colors group">
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex flex-col">
                                             <div className="flex items-center gap-2">
@@ -406,8 +406,8 @@ export default function Customers() {
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {customer.lastOrderDate || '-'}
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <div className="flex items-center justify-end gap-2">
+                                    <td className="px-6 py-5 whitespace-nowrap text-right text-sm font-medium">
+                                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                             {showTrash ? (
                                                 <>
                                                     <button

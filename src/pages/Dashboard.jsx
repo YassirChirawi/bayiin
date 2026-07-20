@@ -300,130 +300,154 @@ export default function Dashboard() {
 
             {/* KPI Grid */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                <div className="glass-panel rounded-xl overflow-hidden p-5">
+                <motion.div 
+                    whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    className="glass-panel rounded-xl overflow-hidden p-5 bg-gradient-to-br from-white to-indigo-50/50"
+                >
                     <div className="flex items-center">
-                        <div className="flex-shrink-0 bg-indigo-50 rounded-md p-3">
+                        <div className="flex-shrink-0 bg-indigo-100/80 rounded-md p-3 shadow-sm border border-indigo-200/50">
                             <DollarSign className="h-6 w-6 text-indigo-600" />
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate flex items-center gap-2">
+                                <dt className="text-sm font-medium text-gray-600 truncate flex items-center gap-2">
                                     {t('kpi_revenue_today')}
                                     <HelpTooltip topic="dashboard" />
                                 </dt>
-                                <dd className="text-2xl font-semibold text-gray-900">
+                                <dd className="text-2xl font-bold text-gray-900 tracking-tight">
                                     {statsLoading ? "..." : (Math.max(0, dashboardData.revenueToday).toFixed(2) || "0.00")} DH
                                 </dd>
                             </dl>
                         </div>
                     </div>
-                </div>
+                </motion.div>
 
-                <div className="glass-panel rounded-xl overflow-hidden p-5">
+                <motion.div 
+                    whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    className="glass-panel rounded-xl overflow-hidden p-5 bg-gradient-to-br from-white to-amber-50/50"
+                >
                     <div className="flex items-center">
-                        <div className="flex-shrink-0 bg-yellow-50 rounded-md p-3">
-                            <ShoppingBag className="h-6 w-6 text-yellow-600" />
+                        <div className="flex-shrink-0 bg-amber-100/80 rounded-md p-3 shadow-sm border border-amber-200/50">
+                            <ShoppingBag className="h-6 w-6 text-amber-600" />
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate flex items-center gap-2">
+                                <dt className="text-sm font-medium text-gray-600 truncate flex items-center gap-2">
                                     {t('kpi_pending_orders')}
                                     <HelpTooltip topic="dashboard" />
                                 </dt>
-                                <dd className="text-2xl font-semibold text-gray-900">
+                                <dd className="text-2xl font-bold text-gray-900 tracking-tight">
                                     {statsLoading ? "..." : dashboardData.pendingOrders}
                                 </dd>
                             </dl>
                         </div>
                     </div>
-                </div>
+                </motion.div>
 
-                <div className="glass-panel rounded-xl overflow-hidden p-5">
+                <motion.div 
+                    whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    className="glass-panel rounded-xl overflow-hidden p-5 bg-gradient-to-br from-white to-orange-50/50"
+                >
                     <div className="flex items-center">
-                        <div className="flex-shrink-0 bg-orange-50 rounded-md p-3">
+                        <div className="flex-shrink-0 bg-orange-100/80 rounded-md p-3 shadow-sm border border-orange-200/50">
                             <RotateCcw className="h-6 w-6 text-orange-600" />
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate flex items-center gap-2">
+                                <dt className="text-sm font-medium text-gray-600 truncate flex items-center gap-2">
                                     {t('kpi_return_rate')}
                                     <HelpTooltip topic="dashboard" />
                                 </dt>
-                                <dd className="text-2xl font-semibold text-gray-900">
+                                <dd className="text-2xl font-bold text-gray-900 tracking-tight">
                                     {statsLoading ? "..." : dashboardData.returnRate}%
                                 </dd>
                             </dl>
                         </div>
                     </div>
-                </div>
+                </motion.div>
 
-                <div className="glass-panel rounded-xl overflow-hidden p-5">
+                <motion.div 
+                    whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    className="glass-panel rounded-xl overflow-hidden p-5 bg-gradient-to-br from-white to-red-50/50"
+                >
                     <div className="flex items-center">
-                        <div className="flex-shrink-0 bg-red-50 rounded-md p-3">
+                        <div className="flex-shrink-0 bg-red-100/80 rounded-md p-3 shadow-sm border border-red-200/50">
                             <AlertTriangle className="h-6 w-6 text-red-600" />
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate">{t('kpi_low_stock')}</dt>
-                                <dd className="text-2xl font-semibold text-gray-900">{lowStockProducts.length}</dd>
+                                <dt className="text-sm font-medium text-gray-600 truncate">{t('kpi_low_stock')}</dt>
+                                <dd className="text-2xl font-bold text-gray-900 tracking-tight">{lowStockProducts.length}</dd>
                             </dl>
                         </div>
                     </div>
                     {lowStockProducts.length > 0 && (
-                        <div className="mt-4 border-t border-gray-100 pt-3">
-                            <p className="text-xs font-medium text-gray-500 mb-2">{t('items_needing_restock')}</p>
-                            <ul className="space-y-1">
+                        <div className="mt-4 border-t border-red-100/50 pt-3">
+                            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-2">{t('items_needing_restock')}</p>
+                            <ul className="space-y-1.5">
                                 {lowStockProducts.slice(0, 3).map(p => (
-                                    <li key={p.id} className="flex justify-between text-xs">
-                                        <span className="text-gray-900 truncate">{p.name}</span>
-                                        <span className="text-red-600 font-bold">{t('msg_items_left', { count: p.stock })}</span>
+                                    <li key={p.id} className="flex justify-between text-xs items-center bg-white/40 p-1.5 rounded">
+                                        <span className="text-gray-700 font-medium truncate max-w-[100px]">{p.name}</span>
+                                        <span className="text-red-600 font-bold bg-red-100/50 px-1.5 py-0.5 rounded-md">{t('msg_items_left', { count: p.stock })}</span>
                                     </li>
                                 ))}
                             </ul>
                         </div>
                     )}
-                </div>
+                </motion.div>
 
-                <div className="glass-panel rounded-xl overflow-hidden p-5">
+                <motion.div 
+                    whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    className="glass-panel rounded-xl overflow-hidden p-5 bg-gradient-to-br from-white to-pink-50/50"
+                >
                     <div className="flex items-center">
-                        <div className="flex-shrink-0 bg-red-50 rounded-md p-3">
-                            <Activity className="h-6 w-6 text-red-600" />
+                        <div className="flex-shrink-0 bg-pink-100/80 rounded-md p-3 shadow-sm border border-pink-200/50">
+                            <Activity className="h-6 w-6 text-pink-600" />
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate flex items-center gap-2">
+                                <dt className="text-sm font-medium text-gray-600 truncate flex items-center gap-2">
                                     {t('kpi_total_expenses') || "Total Charges"}
                                     <HelpTooltip topic="dashboard" />
                                 </dt>
-                                <dd className="text-2xl font-semibold text-gray-900">
+                                <dd className="text-2xl font-bold text-gray-900 tracking-tight">
                                     {statsLoading ? "..." : (dashboardData.totalExpenses.toLocaleString())} DH
                                 </dd>
                             </dl>
                         </div>
                     </div>
-                </div>
+                </motion.div>
 
-                <div className="glass-panel rounded-xl overflow-hidden p-5">
+                <motion.div 
+                    whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    className="glass-panel rounded-xl overflow-hidden p-5 bg-gradient-to-br from-white to-emerald-50/50"
+                >
                     <div className="flex items-center">
-                        <div className="flex-shrink-0 bg-green-50 rounded-md p-3">
-                            <DollarSign className="h-6 w-6 text-green-600" />
+                        <div className="flex-shrink-0 bg-emerald-100/80 rounded-md p-3 shadow-sm border border-emerald-200/50">
+                            <DollarSign className="h-6 w-6 text-emerald-600" />
                         </div>
                         <div className="ml-5 w-0 flex-1">
                             <dl>
-                                <dt className="text-sm font-medium text-gray-500 truncate flex items-center gap-2">
+                                <dt className="text-sm font-medium text-gray-600 truncate flex items-center gap-2">
                                     {t('kpi_net_margin') || "Marge Nette"}
                                     <HelpTooltip topic="dashboard" />
                                 </dt>
-                                <dd className="text-2xl font-semibold text-gray-900">
+                                <dd className="text-2xl font-bold text-gray-900 tracking-tight">
                                     {statsLoading ? "..." : (dashboardData.netMarginValue.toLocaleString())} DH
                                 </dd>
-                                <dd className="text-sm font-medium text-green-600 mt-1">
+                                <dd className="text-sm font-bold text-emerald-600 mt-1.5 inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-100/50">
                                     {t('label_margin_suffix', { percent: dashboardData.marginPercentage })}
                                 </dd>
                             </dl>
                         </div>
                     </div>
-                </div>
+                </motion.div>
             </div>
 
             {/* 🚨 Animated Stock Alert Banner */}

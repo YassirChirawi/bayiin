@@ -147,10 +147,13 @@ async function saveConversationMessage(storeId, conversationId, data) {
         messageCount: FieldValue.increment(2)
     }, { merge: true });
     
+    const ttlDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
     await convRef.collection('messages').add({
         role: 'user',
         content: data.userMessage,
-        timestamp: FieldValue.serverTimestamp()
+        timestamp: FieldValue.serverTimestamp(),
+        expiresAt: ttlDate
     });
     
     await convRef.collection('messages').add({
@@ -159,7 +162,8 @@ async function saveConversationMessage(storeId, conversationId, data) {
         toolsUsed: data.toolsUsed || [],
         actionsDrafted: data.actionsDrafted || [],
         reactSteps: data.reactSteps || null,
-        timestamp: FieldValue.serverTimestamp()
+        timestamp: FieldValue.serverTimestamp(),
+        expiresAt: ttlDate
     });
 }
 
@@ -354,7 +358,8 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
                       toolArgs,
                       status: 'pending_approval',
                       source: 'copilot_chat',
-                      createdAt: FieldValue.serverTimestamp()
+                      createdAt: FieldValue.serverTimestamp(),
+                      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
                   });
 
                   toolResults.push({

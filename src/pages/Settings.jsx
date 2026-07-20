@@ -53,8 +53,8 @@ export default function Settings() {
         { id: "catalog", label: t('tab_catalog') || "Catalogue", icon: Package },
         { id: "billing", label: t('tab_billing') || "Plans & Facturation", icon: CreditCard },
         { id: "security", label: t('tab_security') || "Sécurité", icon: Shield },
-        { id: "beya3", label: "Copilot (Beya3)", icon: Sparkles },
-        { id: "qa", label: "Recette QA", icon: ShieldCheck },
+        { id: "beya3", label: t('tab_beya3') || "Copilot (Beya3)", icon: Sparkles },
+        { id: "qa", label: t('tab_qa') || "Recette QA", icon: ShieldCheck },
         { id: "activity", label: t('tab_activity') || "Journal d'Activité", icon: Activity },
     ], [t]);
 
@@ -169,8 +169,8 @@ export default function Settings() {
         } else {
             // Disable
             confirm({
-                title: 'Désactiver',
-                message: "Désactiver le verrouillage biométrique ?",
+                title: t('btn_disable') || 'Désactiver',
+                message: t('confirm_disable_biometrics') || "Désactiver le verrouillage biométrique ?",
                 onConfirm: () => {
                     localStorage.removeItem('biometricEnabled');
                     setBiometricEnabled(false);
@@ -199,8 +199,8 @@ export default function Settings() {
                 <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-6 mb-6 flex flex-col items-center justify-center text-center space-y-3">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
                     <div>
-                        <h3 className="text-lg font-bold text-indigo-900">Validation du paiement en cours...</h3>
-                        <p className="text-sm text-indigo-700">Nous attendons la confirmation sécurisée de notre partenaire de paiement. Cela peut prendre quelques secondes.</p>
+                        <h3 className="text-lg font-bold text-indigo-900">{t('msg_payment_validation') || "Validation du paiement en cours..."}</h3>
+                        <p className="text-sm text-indigo-700">{t('msg_payment_wait') || "Nous attendons la confirmation sécurisée de notre partenaire de paiement. Cela peut prendre quelques secondes."}</p>
                     </div>
                 </div>
             )}
@@ -245,8 +245,8 @@ export default function Settings() {
 
                 {activeTab === "general" && (
                     <div className="space-y-6">
-                        <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
-                            <div className="px-4 py-5 sm:p-6">
+                        <div className="glass-panel rounded-2xl overflow-hidden">
+                            <div className="px-6 py-6 sm:p-8">
                                 <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
                                     <Store className="h-5 w-5 text-gray-400" />
                                     {t('section_store_info')}
@@ -315,8 +315,8 @@ export default function Settings() {
                                     </div>
 
                                     {/* Invoice & Contact Details */}
-                                    <div className="sm:col-span-6 border-t border-gray-100 pt-6">
-                                        <h4 className="text-sm font-medium text-gray-900 mb-4">{t('section_invoice_details')}</h4>
+                                    <div className="sm:col-span-6 border-t border-gray-100 pt-8 mt-4">
+                                        <h4 className="text-sm font-bold text-gray-900 mb-6 uppercase tracking-wider">{t('section_invoice_details')}</h4>
                                         <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
                                             <div className="sm:col-span-3">
                                                 <label className="block text-sm font-medium text-gray-700">{t('label_store_phone')}</label>
@@ -325,7 +325,7 @@ export default function Settings() {
                                                     value={store?.phone || ''}
                                                     onChange={(e) => setStore(prev => ({ ...prev, phone: e.target.value }))}
                                                     placeholder="+212 6..."
-                                                    className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                                    className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-200 rounded-xl p-3 transition-all"
                                                 />
                                             </div>
                                             <div className="sm:col-span-3">
@@ -335,37 +335,37 @@ export default function Settings() {
                                                     value={store?.ice || ''}
                                                     onChange={(e) => setStore(prev => ({ ...prev, ice: e.target.value }))}
                                                     placeholder="Identifiant Commun de l'Entreprise"
-                                                    className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                                    className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-200 rounded-xl p-3 transition-all"
                                                 />
                                             </div>
                                             <div className="sm:col-span-3">
-                                                <label className="block text-sm font-medium text-gray-700">IF Fiscal</label>
+                                                <label className="block text-sm font-medium text-gray-700">{t('label_if_fiscal') || 'IF Fiscal'}</label>
                                                 <input
                                                     type="text"
                                                     value={store?.if_fiscal || ''}
                                                     onChange={(e) => setStore(prev => ({ ...prev, if_fiscal: e.target.value }))}
                                                     placeholder="Identifiant Fiscal"
-                                                    className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                                    className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-200 rounded-xl p-3 transition-all"
                                                 />
                                             </div>
                                             <div className="sm:col-span-3">
-                                                <label className="block text-sm font-medium text-gray-700">RC (Registre du Commerce)</label>
+                                                <label className="block text-sm font-medium text-gray-700">{t('label_rc') || 'RC (Registre du Commerce)'}</label>
                                                 <input
                                                     type="text"
                                                     value={store?.rc || ''}
                                                     onChange={(e) => setStore(prev => ({ ...prev, rc: e.target.value }))}
                                                     placeholder="Numéro RC"
-                                                    className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                                    className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-200 rounded-xl p-3 transition-all"
                                                 />
                                             </div>
                                             <div className="sm:col-span-3">
-                                                <label className="block text-sm font-medium text-gray-700">Patente</label>
+                                                <label className="block text-sm font-medium text-gray-700">{t('label_patente') || 'Patente'}</label>
                                                 <input
                                                     type="text"
                                                     value={store?.patente || ''}
                                                     onChange={(e) => setStore(prev => ({ ...prev, patente: e.target.value }))}
                                                     placeholder="N° Patente"
-                                                    className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                                    className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-200 rounded-xl p-3 transition-all"
                                                 />
                                             </div>
                                             <div className="sm:col-span-6">
@@ -374,11 +374,11 @@ export default function Settings() {
                                                     rows={2}
                                                     value={store?.address || ''}
                                                     onChange={(e) => setStore(prev => ({ ...prev, address: e.target.value }))}
-                                                    placeholder="123 Rue Mohammed V, Casablanca"
-                                                    className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                                    placeholder="123 Rue Mohammed V..."
+                                                    className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-200 rounded-xl p-3 transition-all"
                                                 />
                                             </div>
-                                            <div className="sm:col-span-6 flex justify-end">
+                                            <div className="sm:col-span-6 flex justify-end mt-4">
                                                 <Button
                                                     onClick={async () => {
                                                         try {
@@ -407,8 +407,8 @@ export default function Settings() {
                         </div>
 
                         {/* WhatsApp Configuration Section */}
-                        <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
-                            <div className="px-4 py-5 sm:p-6">
+                        <div className="glass-panel rounded-2xl overflow-hidden mt-6">
+                            <div className="px-6 py-6 sm:p-8">
                                 <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center gap-2">
                                     <MessageSquare className="h-5 w-5 text-gray-400" />
                                     {t('section_whatsapp_config')}
@@ -508,7 +508,7 @@ export default function Settings() {
                         {/* Shopify Integration Section */}
                         <ShopifyIntegration store={store} />
 
-                        <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
+                        <div className="glass-panel rounded-2xl p-6 sm:p-8">
                             <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
                                 <SettingsIcon className="h-5 w-5 text-gray-500" />
                                 {t('section_system_maintenance')}
