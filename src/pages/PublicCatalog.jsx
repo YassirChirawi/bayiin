@@ -151,7 +151,6 @@ export default function PublicCatalog() {
         try {
             const orderRefNum = `CMD-${Math.floor(1000 + Math.random() * 9000)}`;
             const cartTotal = parseFloat(product.price) * product.quantity;
-            const cartCount = product.quantity;
             const items = [product];
 
             // Save Draft Order to Firestore
@@ -172,7 +171,9 @@ export default function PublicCatalog() {
                     variant: item.selectedVariant ? item.selectedVariant.name : null
                 })),
                 articleName: items.map(i => `${i.quantity}x ${i.name}${i.selectedVariant ? ` (${i.selectedVariant.name})` : ''}`).join(', '),
-                quantity: cartCount,
+                // price already holds the cart TOTAL; keep top-level quantity=1 so downstream
+                // `price * quantity` aggregations don't double-count (per-item detail lives in products[]).
+                quantity: 1,
                 price: cartTotal,
                 createdAt: serverTimestamp(),
                 date: new Date().toISOString().split('T')[0],
@@ -207,7 +208,6 @@ export default function PublicCatalog() {
         setIsCheckingOut(true);
         try {
             const orderRefNum = `CMD-${Math.floor(1000 + Math.random() * 9000)}`;
-            const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
             // Save Draft Order to Firestore
             await addDoc(collection(db, "orders"), {
@@ -227,7 +227,9 @@ export default function PublicCatalog() {
                     variant: item.selectedVariant ? item.selectedVariant.name : null
                 })),
                 articleName: cart.map(i => `${i.quantity}x ${i.name}${i.selectedVariant ? ` (${i.selectedVariant.name})` : ''}`).join(', '),
-                quantity: cartCount,
+                // price holds the cart net TOTAL; top-level quantity=1 avoids double-counting in
+                // `price * quantity` aggregations (per-item detail is in products[]).
+                quantity: 1,
                 price: checkoutData.netTotal,
                 shippingFee: checkoutData.shippingFee,
                 createdAt: serverTimestamp(),

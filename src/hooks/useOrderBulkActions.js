@@ -100,6 +100,9 @@ export function useOrderBulkActions(orders, storeId, user, {
                 try {
                     const batch = writeBatch(db);
                     selectedOrders.forEach(id => {
+                        const order = orders.find(o => o.id === id);
+                        // Don't remit cancelled/returned orders — that would inflate realized/remitted revenue.
+                        if (!order || INACTIVE_STATUSES.includes(order.status)) return;
                         const orderRef = doc(db, "orders", id);
                         batch.update(orderRef, {
                             paymentStatus: PAYMENT_STATUS.REMITTED,

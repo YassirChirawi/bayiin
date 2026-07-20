@@ -12,6 +12,7 @@ import QRCode from "react-qr-code";
 import { exportToCSV } from "../utils/csvHelper";
 import { PAYMENT_STATUS, ORDER_STATUS } from "../utils/constants";
 import { getOrderStatusConfig } from "../utils/statusConfig";
+import { isValidTransition } from "../utils/orderStateMachine";
 
 import { useTenant } from "../context/TenantContext";
 import { useLanguage } from "../context/LanguageContext";
@@ -154,9 +155,15 @@ export default function Orders() {
 
     const handleNoAnswer = async (order) => {
         if (!store?.id) return;
+        // Respect the order state machine (also enforced by Firestore rules) — e.g. a delivered
+        // order cannot go back to "pas de réponse". Guard here for clearer UX than a rules rejection.
+        if (!isValidTransition(order.status, ORDER_STATUS.NO_ANSWER)) {
+            toast.error(t('err_invalid_transition') || "Transition de statut non autorisée.");
+            return;
+        }
         try {
             const batch = writeBatch(db);
-            batch.update(doc(db, "orders", order.id), { status: ORDER_STATUS.NO_ANSWER }); 
+            batch.update(doc(db, "orders", order.id), { status: ORDER_STATUS.NO_ANSWER });
             await batch.commit();
             logActivity(db, store.id, user, 'STATUS_UPDATE', `Order ${order.orderNumber} status set to No Answer`, { orderId: order.id, status: ORDER_STATUS.NO_ANSWER });
             vibrate('success');

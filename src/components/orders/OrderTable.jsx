@@ -50,7 +50,7 @@ const OrderRow = memo(({
 
     return (
         <tr
-            className={`hover:bg-gray-50/50 transition-colors cursor-pointer group ${isSelected ? 'bg-indigo-50/30' : ''}`}
+            className={`transition-all duration-200 ease-in-out cursor-pointer group ${isSelected ? 'bg-indigo-50/50' : 'hover:bg-slate-50'}`}
             onClick={(e) => {
                 if (e.target.closest('button') || e.target.closest('a')) return;
                 handleSelectOne(order.id);
@@ -114,7 +114,7 @@ const OrderRow = memo(({
                 ) : (
                     <span 
                         data-testid="order-status-badge"
-                        className={`px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md border cursor-pointer hover:opacity-80 transition-opacity ${getOrderStatusConfig(order.status).color.replace('bg-', 'bg-opacity-20 bg-').replace('text-', 'text-')}`}>
+                        className={`px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md border shadow-sm cursor-pointer hover:opacity-80 hover:shadow-md transition-all ${getOrderStatusConfig(order.status).color.replace('bg-', 'bg-opacity-20 bg-').replace('text-', 'text-')}`}>
                         {t(`status_${order.status.toLowerCase().replace(/\s+/g, '_')}`) || getOrderStatusConfig(order.status).label}
                     </span>
                 )}
@@ -145,8 +145,8 @@ const OrderRow = memo(({
                         </button>
                     </div>
                 ) : (
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={(e) => { e.stopPropagation(); setQrOrder(order); }} className="p-2 text-gray-400 hover:text-gray-900 transition-colors" title="Generate QR Code">
+                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <button onClick={(e) => { e.stopPropagation(); setQrOrder(order); }} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors" title="Generate QR Code">
                             <QrCode className="h-4 w-4" />
                         </button>
 
@@ -338,10 +338,10 @@ export default function OrderTable({
     t
 }) {
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white/80 backdrop-blur-lg rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto min-h-[400px]">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50/80 backdrop-blur-sm sticky top-0 z-10">
+                <table className="min-w-full divide-y divide-gray-100">
+                    <thead className="bg-slate-50/80 backdrop-blur-md sticky top-0 z-10 border-b border-gray-100">
                         <tr>
                             <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-12">
                                 <button onClick={handleSelectAll} className="text-gray-400 hover:text-gray-600 focus:outline-none transition-colors">
