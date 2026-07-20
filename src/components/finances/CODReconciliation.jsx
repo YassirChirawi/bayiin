@@ -100,7 +100,7 @@ export default function CODReconciliation({ orders = [] }) {
         
         try {
             const promises = orderIds.map(id => {
-                const orderRef = doc(db, `stores/${store.id}/orders`, id);
+                const orderRef = doc(db, "orders", id);
                 return updateDoc(orderRef, {
                     paymentStatus: 'remitted',
                     isPaid: true,

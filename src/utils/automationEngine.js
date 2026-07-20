@@ -31,7 +31,7 @@ const executeAction = async (actionNode, payload, store, delayMs = 0) => {
             const messagePreview = actionNode.config?.message ? `(Msg: ${actionNode.config.message.substring(0,10)}...)` : '';
             const followUpNote = `[Automatisation] ${actionNode.name} ${messagePreview}`.trim();
             
-            const orderRef = doc(db, `stores/${store.id}/orders`, payload.id);
+            const orderRef = doc(db, "orders", payload.id);
             await updateDoc(orderRef, {
                 followUpDate: dateStr,
                 followUpNote: followUpNote
@@ -51,7 +51,7 @@ const executeAction = async (actionNode, payload, store, delayMs = 0) => {
                 
                 // Save tracking info back to the order
                 if (result && result.trackingID) {
-                    const orderRef = doc(db, `stores/${store.id}/orders`, payload.id);
+                    const orderRef = doc(db, "orders", payload.id);
                     await updateDoc(orderRef, {
                         trackingId: result.trackingID,
                         carrierStatus: result.status,

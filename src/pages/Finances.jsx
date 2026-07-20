@@ -228,17 +228,20 @@ export default function Finances() {
             const month = dateRange.start.slice(0, 7); // YYYY-MM
             const filteredOrders = (orders || []).filter(o => !o.deleted);
 
-            // Calculations
-            const totalVentesHT = filteredOrders
+            // Calculations — au Maroc les prix COD sont TTC (taxe incluse) : on EXTRAIT la TVA
+            // du montant encaissé au lieu de l'ajouter par-dessus (cohérent avec financials.js).
+            const totalVentesTTC = filteredOrders
                 .filter(o => o.status === 'livré' || o.status === 'payé')
                 .reduce((s, o) => s + (parseFloat(o.price) * (parseInt(o.quantity) || 1)), 0);
-            const totalTVA = totalVentesHT * 0.20;
+            const totalVentesHT = totalVentesTTC / 1.2;
+            const totalTVA = totalVentesTTC - totalVentesHT;
             const totalCOGS = filteredOrders
                 .filter(o => o.status === 'livré' || o.status === 'payé')
                 .reduce((s, o) => s + ((parseFloat(o.costPrice) || 0) * (parseInt(o.quantity) || 1)), 0);
             const totalCharges = stats.totalExpenses || 0;
             const fraisImport = parseFloat(importFees) || 0;
-            const margeReelle = totalVentesHT - totalCOGS - totalCharges - fraisImport;
+            // Marge réelle sur base trésorerie (TTC encaissé - coûts), cohérente avec le Net Profit de l'app.
+            const margeReelle = totalVentesTTC - totalCOGS - totalCharges - fraisImport;
             const netApresCharges = margeReelle;
 
             // 1. CSV
@@ -249,7 +252,7 @@ export default function Finances() {
                 ['RUBRIQUE', 'MONTANT (MAD)'],
                 ['Total Ventes HT (livrées)', totalVentesHT.toFixed(2)],
                 ['TVA Collectée (20%)', totalTVA.toFixed(2)],
-                ['Total Ventes TTC', (totalVentesHT + totalTVA).toFixed(2)],
+                ['Total Ventes TTC', totalVentesTTC.toFixed(2)],
                 [],
                 ['CHARGES'],
                 ['Coût Achat Produits (COGS)', totalCOGS.toFixed(2)],
@@ -259,7 +262,7 @@ export default function Finances() {
                 ['RÉSULTAT'],
                 ['Marge Réelle', margeReelle.toFixed(2)],
                 ['Net Après Charges', netApresCharges.toFixed(2)],
-                ['Taux de Marge', `${totalVentesHT > 0 ? ((margeReelle / totalVentesHT) * 100).toFixed(1) : 0}%`],
+                ['Taux de Marge', `${totalVentesTTC > 0 ? ((margeReelle / totalVentesTTC) * 100).toFixed(1) : 0}%`],
             ];
             const csvContent = csvRows.map(r => r.join(';')).join('\n');
             const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8' });
@@ -296,14 +299,14 @@ export default function Finances() {
             section('📊 Ventes');
             line('Total Ventes HT (livrées)', totalVentesHT.toFixed(2));
             line('TVA Collectée (20%)', totalTVA.toFixed(2));
-            line('Total Ventes TTC', (totalVentesHT + totalTVA).toFixed(2), true);
+            line('Total Ventes TTC', totalVentesTTC.toFixed(2), true);
             section('📦 Charges');
             line('Coût Achat Produits (COGS)', totalCOGS.toFixed(2));
             line('Charges Opérationnelles', totalCharges.toFixed(2));
             line('Frais Import / Approche', fraisImport.toFixed(2));
             section('💰 Résultat');
             line('Marge Réelle', margeReelle.toFixed(2), true);
-            line('Taux de Marge', `${totalVentesHT > 0 ? ((margeReelle / totalVentesHT) * 100).toFixed(1) : 0}%`, true);
+            line('Taux de Marge', `${totalVentesTTC > 0 ? ((margeReelle / totalVentesTTC) * 100).toFixed(1) : 0}%`, true);
 
             doc.setFontSize(8); doc.setTextColor(150);
             doc.text('Document généré par BayIIn — Prêt pour votre comptable.', 20, 280);
@@ -483,7 +486,7 @@ export default function Finances() {
 
 
             {/* AI Insight Block */}
-            <div className="bg-gradient-to-r from-rose-50 to-white border border-rose-100 p-6 rounded-lg shadow-sm relative overflow-hidden">
+            <div className="glass-panel border border-rose-100/50 p-6 rounded-2xl relative overflow-hidden bg-gradient-to-br from-rose-50/30 to-white/50">
                 <div className="absolute top-0 right-0 p-4 opacity-10">
                     <Sparkles className="w-24 h-24 text-rose-500" />
                 </div>
@@ -539,7 +542,7 @@ export default function Finances() {
             {/* KPI Cards */}
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 {/* 1. Total Income (LIVRÉ) */}
-                <div data-testid="kpi-delivered-revenue" className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div data-testid="kpi-delivered-revenue" className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center">
                         <div className="flex-shrink-0">
                             <div className="flex items-center justify-center h-12 w-12 rounded-md bg-indigo-100 text-indigo-600">
@@ -556,7 +559,7 @@ export default function Finances() {
                 </div>
 
                 {/* 2. Total Paid (CASH) */}
-                <div data-testid="kpi-realized-revenue" className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div data-testid="kpi-realized-revenue" className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center">
                         <div className="flex-shrink-0">
                             <div className="flex items-center justify-center h-12 w-12 rounded-md bg-green-100 text-green-600">
@@ -573,7 +576,7 @@ export default function Finances() {
                 </div>
 
                 {/* 3. Net Profit */}
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center">
                         <div className="flex-shrink-0">
                             <div className="flex items-center justify-center h-12 w-12 rounded-md bg-purple-100 text-purple-600">
@@ -590,7 +593,7 @@ export default function Finances() {
                 </div>
 
                 {/* 4. Net Margin */}
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center">
                         <div className="flex-shrink-0">
                             <div className="flex items-center justify-center h-12 w-12 rounded-md bg-yellow-100 text-yellow-600">
@@ -607,7 +610,7 @@ export default function Finances() {
                 </div>
 
                 {/* 5. TVA à Collecter */}
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center">
                         <div className="flex-shrink-0">
                             <div className="flex items-center justify-center h-12 w-12 rounded-md bg-rose-100 text-rose-600">
@@ -624,7 +627,7 @@ export default function Finances() {
                 </div>
 
                 {/* 6. Avoirs / Remboursements */}
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-red-100 p-5">
+                <div className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center">
                         <div className="flex-shrink-0">
                             <div className="flex items-center justify-center h-12 w-12 rounded-md bg-red-100 text-red-600">
@@ -642,7 +645,7 @@ export default function Finances() {
             </div>
 
             {/* Frais d'approche (Import Fees) */}
-            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="bg-amber-50/50 border border-amber-100/50 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-5 mt-6">
                 <div className="flex items-center gap-3">
                     <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
                         <Truck className="w-5 h-5 text-amber-600" />
@@ -672,8 +675,8 @@ export default function Finances() {
             {/* ANALYTICS SECTION */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                 {/* Top Products */}
-                <div className="bg-white p-6 rounded-lg shadow border border-gray-100">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">{t('analytics_top_products')}</h3>
+                <div className="glass-panel p-6 rounded-2xl">
+                    <h3 className="text-lg font-bold text-gray-900 mb-6 uppercase tracking-wider">{t('analytics_top_products')}</h3>
                     {loadingOrders ? (
                         <div className="h-64 flex items-center justify-center text-gray-400">Loading...</div>
                     ) : (
@@ -682,8 +685,8 @@ export default function Finances() {
                 </div>
 
                 {/* City Revenue & Returns */}
-                <div className="bg-white p-6 rounded-lg shadow border border-gray-100">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">{t('analytics_city_performance')}</h3>
+                <div className="glass-panel p-6 rounded-2xl">
+                    <h3 className="text-lg font-bold text-gray-900 mb-6 uppercase tracking-wider">{t('analytics_city_performance')}</h3>
                     {loadingOrders ? (
                         <div className="h-64 flex items-center justify-center text-gray-400">Loading...</div>
                     ) : (
@@ -694,9 +697,9 @@ export default function Finances() {
 
 
             {/* ADVANCED METRICS SECTION */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">{t('metric_roas')}</p>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+                <div className="glass-panel p-5 rounded-2xl">
+                    <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">{t('metric_roas')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
                         <span className={`text-xl font-bold ${parseFloat(stats.res.roas) > 3 ? 'text-green-600' : 'text-gray-900'}`}>
                             {stats.res.roas}x
@@ -705,16 +708,16 @@ export default function Finances() {
                     </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">{t('metric_cac')}</p>
+                <div className="glass-panel p-5 rounded-2xl">
+                    <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">{t('metric_cac')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
                         <span className="text-xl font-bold text-gray-900">{stats.res.cac} DH</span>
                         <span className="text-xs text-gray-400">{t('label_ads_spending')}</span>
                     </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">{t('metric_shipping_ratio')}</p>
+                <div className="glass-panel p-5 rounded-2xl">
+                    <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">{t('metric_shipping_ratio')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
                         <span className={`text-xl font-bold ${parseFloat(stats.res.shippingRatio) > 15 ? 'text-red-600' : 'text-gray-900'}`}>
                             {stats.res.shippingRatio}%
@@ -723,8 +726,8 @@ export default function Finances() {
                     </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">{t('metric_profit_per_order')}</p>
+                <div className="glass-panel p-5 rounded-2xl">
+                    <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">{t('metric_profit_per_order')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
                         <span className={`text-xl font-bold ${parseFloat(stats.res.profitPerOrder) > 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {stats.res.profitPerOrder} DH

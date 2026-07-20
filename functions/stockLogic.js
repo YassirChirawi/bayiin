@@ -6,7 +6,7 @@ const { FieldValue } = require('firebase-admin/firestore');
 const getActiveItems = (o) => {
     if (!o) return [];
     // Statuts inactifs qui ne consomment pas de stock
-    if (['retour', 'annulé', 'pending_catalog', 'pas de réponse'].includes(o.status)) return [];
+    if (o.deleted === true || ['retour', 'annulé', 'pending_catalog', 'pas de réponse'].includes(o.status)) return [];
     
     let items = [];
     if (o.articleId) {
@@ -57,9 +57,9 @@ const applyBatchLogic = (batches, change) => {
 };
 
 /**
- * Calcule et applique les changements de stock à un batch Firestore
+ * Calcule et applique les changements de stock de manière atomique (Transaction)
  */
-const applyStockUpdates = async (db, batch, before, after) => {
+const applyStockUpdates = async (db, before, after) => {
     const oldItems = getActiveItems(before);
     const newItems = getActiveItems(after);
 
@@ -97,96 +97,98 @@ const applyStockUpdates = async (db, batch, before, after) => {
     if (productIds.length === 0) return;
 
     // Fetch tous les produits impactés
-    const productsToFetch = [...productIds];
-    const productDocs = {};
-    const bundleComponentDocs = {};
+    // Execute inside a strict transaction
+    await db.runTransaction(async (t) => {
+        const productDocs = {};
+        const bundleComponentDocs = {};
 
-    // 1. Lire les produits directs
-    for (const pid of productsToFetch) {
-        const snap = await db.collection('products').doc(pid).get();
-        if (snap.exists) productDocs[pid] = snap.data();
-    }
-
-    // 2. Vérifier les bundles et lire les composants
-    for (const pid of productsToFetch) {
-        const pData = productDocs[pid];
-        if (pData && pData.isBundle && pData.bundleItems) {
-            for (const comp of pData.bundleItems) {
-                if (!productDocs[comp.productId] && !bundleComponentDocs[comp.productId]) {
-                    const compSnap = await db.collection('products').doc(comp.productId).get();
-                    if (compSnap.exists) bundleComponentDocs[comp.productId] = compSnap.data();
-                }
-            }
+        // 1. Lire les produits directs
+        for (const pid of productIds) {
+            const pRef = db.collection('products').doc(pid);
+            const snap = await t.get(pRef);
+            if (snap.exists) productDocs[pid] = snap.data();
         }
-    }
 
-    // 3. Appliquer les mises à jour
-    for (const pid of productIds) {
-        const pData = productDocs[pid];
-        if (!pData) continue;
-        
-        const adj = deltas[pid];
-        const pRef = db.collection('products').doc(pid);
-        let updates = {};
-
-        // A. Mise à jour du produit Parent
-        if (pData.isVariable && Object.keys(adj.variants).length > 0) {
-            let newVariants = [...(pData.variants || [])];
-            for (const [vid, vDelta] of Object.entries(adj.variants)) {
-                newVariants = newVariants.map(v => {
-                    if (v.id === vid) {
-                        const vWStocks = { ...(v.warehouseStocks || {}) };
-                        // Simplification: on applique le delta global au warehouse de la commande si présent
-                        const wId = Object.keys(adj.warehouses)[0]; 
-                        if (wId) {
-                            vWStocks[wId] = (vWStocks[wId] || 0) + vDelta;
-                        }
-                        return { ...v, stock: (parseInt(v.stock) || 0) + vDelta, warehouseStocks: vWStocks };
+        // 2. Vérifier les bundles et lire les composants
+        for (const pid of productIds) {
+            const pData = productDocs[pid];
+            if (pData && pData.isBundle && pData.bundleItems) {
+                for (const comp of pData.bundleItems) {
+                    if (!productDocs[comp.productId] && !bundleComponentDocs[comp.productId]) {
+                        const compRef = db.collection('products').doc(comp.productId);
+                        const compSnap = await t.get(compRef);
+                        if (compSnap.exists) bundleComponentDocs[comp.productId] = compSnap.data();
                     }
-                    return v;
-                });
-            }
-            updates.variants = newVariants;
-            updates.stock = FieldValue.increment(adj.baseDelta);
-        } else {
-            updates.stock = FieldValue.increment(adj.baseDelta);
-            for (const [wId, wDelta] of Object.entries(adj.warehouses)) {
-                updates[`warehouseStocks.${wId}`] = FieldValue.increment(wDelta);
-            }
-            if (pData.inventoryBatches && pData.inventoryBatches.length > 0) {
-                updates.inventoryBatches = applyBatchLogic(pData.inventoryBatches, adj.baseDelta);
-            }
-        }
-
-        if (Object.keys(updates).length > 0) {
-            batch.update(pRef, updates);
-        }
-
-        // B. Mise à jour des composants du Bundle
-        if (pData.isBundle && pData.bundleItems) {
-            for (const comp of pData.bundleItems) {
-                const compData = productDocs[comp.productId] || bundleComponentDocs[comp.productId];
-                if (!compData) continue;
-
-                const compRef = db.collection('products').doc(comp.productId);
-                const netCompChange = adj.baseDelta * (parseInt(comp.qty) || 1);
-                
-                let compUpdates = { stock: FieldValue.increment(netCompChange) };
-                
-                // Warehouse du parent appliqué au composant
-                const mainWarehouseId = Object.keys(adj.warehouses)[0];
-                if (mainWarehouseId) {
-                    compUpdates[`warehouseStocks.${mainWarehouseId}`] = FieldValue.increment(netCompChange);
                 }
-
-                if (compData.inventoryBatches && compData.inventoryBatches.length > 0) {
-                    compUpdates.inventoryBatches = applyBatchLogic(compData.inventoryBatches, netCompChange);
-                }
-
-                batch.update(compRef, compUpdates);
             }
         }
-    }
+
+        // 3. Appliquer les mises à jour
+        for (const pid of productIds) {
+            const pData = productDocs[pid];
+            if (!pData) continue;
+            
+            const adj = deltas[pid];
+            const pRef = db.collection('products').doc(pid);
+            let updates = {};
+
+            // A. Mise à jour du produit Parent
+            if (pData.isVariable && Object.keys(adj.variants).length > 0) {
+                let newVariants = [...(pData.variants || [])];
+                for (const [vid, vDelta] of Object.entries(adj.variants)) {
+                    newVariants = newVariants.map(v => {
+                        if (v.id === vid) {
+                            const vWStocks = { ...(v.warehouseStocks || {}) };
+                            const wId = Object.keys(adj.warehouses)[0]; 
+                            if (wId) {
+                                vWStocks[wId] = (vWStocks[wId] || 0) + vDelta;
+                            }
+                            return { ...v, stock: (parseInt(v.stock) || 0) + vDelta, warehouseStocks: vWStocks };
+                        }
+                        return v;
+                    });
+                }
+                updates.variants = newVariants;
+                updates.stock = FieldValue.increment(adj.baseDelta);
+            } else {
+                updates.stock = FieldValue.increment(adj.baseDelta);
+                for (const [wId, wDelta] of Object.entries(adj.warehouses)) {
+                    updates[`warehouseStocks.${wId}`] = FieldValue.increment(wDelta);
+                }
+                if (pData.inventoryBatches && pData.inventoryBatches.length > 0) {
+                    updates.inventoryBatches = applyBatchLogic(pData.inventoryBatches, adj.baseDelta);
+                }
+            }
+
+            if (Object.keys(updates).length > 0) {
+                t.update(pRef, updates);
+            }
+
+            // B. Mise à jour des composants du Bundle
+            if (pData.isBundle && pData.bundleItems) {
+                for (const comp of pData.bundleItems) {
+                    const compData = productDocs[comp.productId] || bundleComponentDocs[comp.productId];
+                    if (!compData) continue;
+
+                    const compRef = db.collection('products').doc(comp.productId);
+                    const netCompChange = adj.baseDelta * (parseInt(comp.qty) || 1);
+                    
+                    let compUpdates = { stock: FieldValue.increment(netCompChange) };
+                    
+                    const mainWarehouseId = Object.keys(adj.warehouses)[0];
+                    if (mainWarehouseId) {
+                        compUpdates[`warehouseStocks.${mainWarehouseId}`] = FieldValue.increment(netCompChange);
+                    }
+
+                    if (compData.inventoryBatches && compData.inventoryBatches.length > 0) {
+                        compUpdates.inventoryBatches = applyBatchLogic(compData.inventoryBatches, netCompChange);
+                    }
+
+                    t.update(compRef, compUpdates);
+                }
+            }
+        }
+    });
 };
 
 module.exports = { applyStockUpdates };

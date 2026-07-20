@@ -251,10 +251,13 @@ export default function SmartReconciliationWizard({ orders, store, db, onReconci
 
             rowsToApply.forEach(row => {
                 if (!row.dbOrder) return;
-                const orderRef = doc(db, `stores/${store.id}/orders`, row.dbOrder.id);
+                const orderRef = doc(db, "orders", row.dbOrder.id);
                 
                 batch.update(orderRef, {
                     isPaid: true,
+                    // Record the ACTUAL cash the courier remitted so realized revenue reflects
+                    // real collections, not the full order value (handles price mismatches).
+                    amountPaid: row.courierAmount,
                     codRemittedAt: new Date().toISOString(),
                     paymentStatus: 'remitted',
                     reconciliationDetails: {

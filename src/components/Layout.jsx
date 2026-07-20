@@ -73,8 +73,9 @@ export default function Layout() {
         if (!navigator.onLine) return;
         
         const syncFn = async (orderData) => {
-            return await addDoc(collection(db, "stores", store.id, "orders"), {
+            return await addDoc(collection(db, "orders"), {
                 ...orderData,
+                storeId: store.id,
                 syncedAt: serverTimestamp(),
                 isOfflineCreated: true
             });

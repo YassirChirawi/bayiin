@@ -88,8 +88,8 @@ export default function Sidebar({ isOpen, onClose }) {
         try {
             const saveOrder = async (orderData) => {
                 if (!store?.id) throw new Error("No store ID");
-                const ordersRef = collection(db, "stores", store.id, "orders");
-                await addDoc(ordersRef, { ...orderData, createdAt: serverTimestamp() });
+                const ordersRef = collection(db, "orders");
+                await addDoc(ordersRef, { ...orderData, storeId: store.id, createdAt: serverTimestamp() });
             };
             const result = await syncPendingOrders(saveOrder);
             if (result.synced > 0) {
