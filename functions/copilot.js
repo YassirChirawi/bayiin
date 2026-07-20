@@ -45,6 +45,7 @@ const { shouldUseReAct, runReActLoop } = require("./copilot/reactAgent");
 const { executeWithRollback, rollbackLastAction } = require("./copilot/actionExecutor");
 const { getMarketBenchmark } = require("./copilot/benchmarkService");
 const { routeToAgent } = require("./copilot/multiAgent");
+const { assessStoreRisk } = require("./copilot/riskEngine");
 
 const getDb = () => getFirestore('comsaas');
 
@@ -124,7 +125,11 @@ async function executeFinancialTool(toolName, toolArgs, storeId, userId) {
             // ── ÉVOLUTION 8 — GESTION DES CLIENTS ───────────
             case "get_customer_list":
                 return await getCustomerList(storeId, toolArgs.limit || 10);
-                
+
+            // ── BAY-90 — INTELLIGENCE COD : RISQUE COMMANDES ─
+            case "assess_order_risk":
+                return await assessStoreRisk(storeId, toolArgs);
+
             default:
                 return { error: `Tool ${toolName} not implemented yet or is a draft tool.` };
         }

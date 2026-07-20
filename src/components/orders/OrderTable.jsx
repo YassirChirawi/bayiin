@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import {
     CheckSquare, Square, DollarSign, Edit2,
     Trash2, QrCode, RotateCcw, Truck,
@@ -7,9 +7,13 @@ import {
 import { toast } from 'react-hot-toast';
 import { getOrderStatusConfig } from '../../utils/statusConfig';
 import { createRawWhatsAppLink, getWhatsappMessage } from '../../utils/whatsappTemplates';
+import { buildRiskModel, scoreOrderRisk } from '../../services/aiRiskService';
+
+const RISK_ACTIVE_STATUSES = ['reçu', 'confirmation', 'packing', 'ramassage', 'livraison', 'reporté'];
 
 const OrderRow = memo(({
     order,
+    riskModel,
     isSelected,
     handleSelectOne,
     activeTab,
@@ -39,6 +43,10 @@ const OrderRow = memo(({
             : (order.price * order.quantity).toFixed(2))
         : '-';
 
+    // Smart COD Shield — badge risque pour les commandes encore actives.
+    const risk = (riskModel && RISK_ACTIVE_STATUSES.includes(order.status)) ? scoreOrderRisk(order, riskModel) : null;
+    const showRisk = risk && risk.score >= 40;
+
     // Prevent status click if pending_catalog
     const handleStatusClick = () => {
         if (activeTab === 'carts') {
@@ -67,6 +75,14 @@ const OrderRow = memo(({
                     <span className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
                         #{order.orderNumber || order.id?.substring(0, 8)}
                     </span>
+                    {showRisk && (
+                        <span
+                            title={risk.recommendation}
+                            className={`inline-flex items-center gap-1 mt-1 w-fit text-[10px] font-bold px-1.5 py-0.5 rounded-full ${risk.score >= 60 ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}
+                        >
+                            ⚠ {risk.level} {risk.score}
+                        </span>
+                    )}
                     <span className="text-xs text-gray-500 font-medium flex items-center gap-1 mt-0.5">
                         {order.date}
                         {order.source === 'public_catalog' && <span className="text-yellow-600">({t('catalog_source')})</span>}
@@ -337,6 +353,8 @@ export default function OrderTable({
     handleNoAnswer,
     t
 }) {
+    const riskModel = useMemo(() => buildRiskModel(orders), [orders]);
+
     return (
         <div className="bg-white/80 backdrop-blur-lg rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto min-h-[400px]">
@@ -367,6 +385,7 @@ export default function OrderTable({
                                 <OrderRow
                                     key={order.id}
                                     order={order}
+                                    riskModel={riskModel}
                                     isSelected={isSelected}
                                     handleSelectOne={handleSelectOne}
                                     activeTab={activeTab}
