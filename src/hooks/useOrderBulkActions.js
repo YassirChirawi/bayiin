@@ -3,6 +3,7 @@ import { db } from '../lib/firebase';
 import { doc, writeBatch, query, collection, where, getDocs, limit, increment } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { PAYMENT_STATUS } from '../utils/constants';
+import { isValidTransition } from '../utils/orderStateMachine';
 
 const INACTIVE_STATUSES = ['retour', 'annulé'];
 
@@ -99,6 +100,9 @@ export function useOrderBulkActions(orders, storeId, user, {
                 try {
                     const batch = writeBatch(db);
                     selectedOrders.forEach(id => {
+                        const order = orders.find(o => o.id === id);
+                        // Don't remit cancelled/returned orders — that would inflate realized/remitted revenue.
+                        if (!order || INACTIVE_STATUSES.includes(order.status)) return;
                         const orderRef = doc(db, "orders", id);
                         batch.update(orderRef, {
                             paymentStatus: PAYMENT_STATUS.REMITTED,
@@ -124,10 +128,17 @@ export function useOrderBulkActions(orders, storeId, user, {
             onConfirm: async () => {
                 try {
                     const batch = writeBatch(db);
+                    let skippedCount = 0;
 
                     selectedOrders.forEach(id => {
                         const order = orders.find(o => o.id === id);
                         if (!order) return;
+
+                        // --- STATE MACHINE VALIDATION (BUG-02 fix) ---
+                        if (order.status !== status && !isValidTransition(order.status, status)) {
+                            skippedCount++;
+                            return; // Skip invalid transition
+                        }
 
                         const orderRef = doc(db, "orders", id);
                         const updates = { status };
@@ -148,7 +159,12 @@ export function useOrderBulkActions(orders, storeId, user, {
 
                     await batch.commit();
                     setSelectedOrders([]);
-                    toast.success(t('msg_orders_status_updated', { status }));
+                    
+                    if (skippedCount > 0) {
+                        toast.success(t('msg_orders_status_updated', { status }) + ` (${skippedCount} ignorée(s) — transition invalide)`);
+                    } else {
+                        toast.success(t('msg_orders_status_updated', { status }));
+                    }
                 } catch (err) {
                     console.error("Error updating statuses:", err);
                     toast.error("Failed to update orders.");

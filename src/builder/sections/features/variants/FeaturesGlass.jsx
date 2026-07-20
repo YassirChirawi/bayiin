@@ -1,22 +1,43 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import MediaBackground from '../../../components/MediaBackground';
-import { getSectionStyle, getAlignmentClass } from '../../../utils/styles';
-
+import { getAlignmentClass } from '../../../utils/styles';
 import EditableText from '../../../components/EditableText';
+import BlockText from '../../../components/BlockText';
+import SectionWrapper from '../../../components/SectionWrapper';
+
+const getAnimationProps = (animationType, index = 0) => {
+    switch (animationType) {
+        case 'fade': return { initial: { opacity: 0 }, whileInView: { opacity: 1 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'slide-up': return { initial: { opacity: 0, y: 30 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.5 } };
+        case 'scale-up': return { initial: { opacity: 0, scale: 0.95 }, whileInView: { opacity: 1, scale: 1 }, viewport: { once: true }, transition: { duration: 0.4 } };
+        case 'stagger': return { initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { duration: 0.4, delay: index * 0.1 } };
+        default: return {};
+    }
+};
 
 export default function FeaturesGlass({ section, theme, onUpdate }) {
-    const { title, subtitle, content, items = [], settings = {} } = section;
-    const alignClass = getAlignmentClass(settings.alignment);
+    const { title, subtitle, content, items = [], blocks = [], settings = {} } = section;
+    const alignClass = getAlignmentClass(settings.alignment || 'center');
     
-    // Assurer qu'on a toujours au moins 3 éléments pour l'UI, et les initialiser s'ils manquent.
-    const displayItems = items.length > 0 ? items : [
+    // Merge blocks and legacy items
+    const featureBlocks = blocks.filter(b => b.type === 'FeatureCard').map(b => ({
+        title: b.settings.title,
+        content: b.settings.text,
+        emoji: b.settings.icon || "⭐" // Assuming icon might be an emoji or string here, we fallback to emoji style
+    }));
+
+    const rawItems = featureBlocks.length > 0 ? featureBlocks : items;
+
+    // Assurer qu'on a toujours au moins 3 éléments pour l'UI
+    const displayItems = rawItems.length > 0 ? rawItems : [
         { title: "Livraison Express", content: "Partout au Maroc en 24h", emoji: "🚀" },
         { title: "Paiement Sécurisé", content: "Payez à la réception", emoji: "🤝" },
         { title: "Qualité Garantie", content: "Satisfait ou remboursé", emoji: "💎" }
     ];
 
     const isMedia = settings.backgroundType === 'image' || settings.backgroundType === 'video';
-    const textColor = settings.textColor || '#0f172a';
+    const textColor = settings.textColor || '#ffffff';
 
     const updateItem = (index, field, value) => {
         const newItems = [...displayItems];
@@ -24,42 +45,68 @@ export default function FeaturesGlass({ section, theme, onUpdate }) {
         onUpdate?.({ items: newItems });
     };
 
+    // Extract Heading and Subtitle from blocks if they exist
+    const headingBlock = blocks.find(b => b.type === 'Heading');
+    const subtitleBlock = blocks.find(b => b.type === 'Subtitle');
+
     return (
-        <div className={`px-6 ${alignClass} relative overflow-hidden`} style={getSectionStyle(section, theme)}>
+        <SectionWrapper settings={settings} className={`relative overflow-hidden ${alignClass}`}>
             <MediaBackground settings={settings} />
-            <div className="max-w-6xl mx-auto relative z-10">
-                <EditableText
-                    value={title}
-                    onChange={(val) => onUpdate?.({ title: val })}
-                    as="h2"
-                    className="text-3xl md:text-5xl font-black mb-4 drop-shadow-sm"
-                    isReadOnly={!onUpdate}
-                />
-                <EditableText
-                    value={subtitle}
-                    onChange={(val) => onUpdate?.({ subtitle: val })}
-                    as="p"
-                    className="text-xl opacity-80 mb-16 drop-shadow-sm"
-                    isReadOnly={!onUpdate}
-                />
-                {content && (
-                    <EditableText
-                        value={content}
-                        onChange={(val) => onUpdate?.({ content: val })}
-                        as="p"
-                        className="leading-relaxed max-w-3xl mx-auto mb-12 opacity-90"
-                        isReadOnly={!onUpdate}
-                    />
-                )}
+            <div className="max-w-6xl mx-auto relative z-10 py-12 px-6">
+                <div className={`mb-16 flex flex-col gap-4 ${alignClass}`}>
+                    {headingBlock ? (
+                        <BlockText block={headingBlock} theme={theme} animProps={getAnimationProps(settings.entryAnimation, 0)} />
+                    ) : (
+                        <motion.div {...getAnimationProps(settings.entryAnimation, 0)}>
+                            <EditableText
+                                value={title}
+                                onChange={(val) => onUpdate?.({ title: val })}
+                                as="h2"
+                                className="text-4xl md:text-5xl font-black mb-4 drop-shadow-lg tracking-tight"
+                                isReadOnly={!onUpdate}
+                                style={{ color: textColor }}
+                            />
+                        </motion.div>
+                    )}
+
+                    {subtitleBlock ? (
+                        <BlockText block={subtitleBlock} theme={theme} animProps={getAnimationProps(settings.entryAnimation, 1)} />
+                    ) : (
+                        <motion.div {...getAnimationProps(settings.entryAnimation, 1)}>
+                            <EditableText
+                                value={subtitle}
+                                onChange={(val) => onUpdate?.({ subtitle: val })}
+                                as="p"
+                                className="text-xl opacity-90 max-w-2xl mx-auto drop-shadow-md"
+                                isReadOnly={!onUpdate}
+                                style={{ color: textColor }}
+                            />
+                        </motion.div>
+                    )}
+
+                    {content && (
+                        <motion.div {...getAnimationProps(settings.entryAnimation, 2)}>
+                            <EditableText
+                                value={content}
+                                onChange={(val) => onUpdate?.({ content: val })}
+                                as="p"
+                                className="leading-relaxed max-w-3xl mx-auto mb-12 opacity-80 text-lg drop-shadow-sm"
+                                isReadOnly={!onUpdate}
+                                style={{ color: textColor }}
+                            />
+                        </motion.div>
+                    )}
+                </div>
                 
                 <div className="grid md:grid-cols-3 gap-8">
                     {displayItems.map((item, i) => (
-                        <div 
+                        <motion.div 
                             key={i} 
-                            className={`p-10 rounded-3xl backdrop-blur-md shadow-xl hover:-translate-y-2 transition-transform duration-300 ${isMedia ? 'bg-white/10 border border-white/20' : 'bg-white border border-slate-100'}`} 
+                            {...getAnimationProps(settings.entryAnimation, 3 + i)}
+                            className={`p-10 rounded-3xl backdrop-blur-xl shadow-2xl hover:-translate-y-2 hover:shadow-[0_20px_50px_rgba(0,0,0,0.3)] transition-all duration-300 group ${isMedia ? 'bg-white/10 border border-white/20' : 'bg-white/60 border border-slate-200'}`} 
                             style={{ color: textColor }}
                         >
-                            <div className={`w-20 h-20 mx-auto rounded-2xl mb-8 flex items-center justify-center shadow-inner text-4xl ${isMedia ? 'bg-white/20' : 'bg-slate-50'}`}>
+                            <div className={`w-20 h-20 mx-auto rounded-2xl mb-8 flex items-center justify-center shadow-lg text-4xl group-hover:scale-110 transition-transform duration-300 ${isMedia ? 'bg-white/20' : 'bg-white/80 border border-slate-100'}`}>
                                 <EditableText
                                     value={item.emoji || "⭐"}
                                     onChange={(val) => updateItem(i, 'emoji', val)}
@@ -71,20 +118,20 @@ export default function FeaturesGlass({ section, theme, onUpdate }) {
                                 value={item.title}
                                 onChange={(val) => updateItem(i, 'title', val)}
                                 as="h3"
-                                className="font-black text-2xl mb-4 block"
+                                className="font-black text-2xl mb-4 block drop-shadow-sm"
                                 isReadOnly={!onUpdate}
                             />
                             <EditableText
                                 value={item.content}
                                 onChange={(val) => updateItem(i, 'content', val)}
                                 as="p"
-                                className="opacity-90 leading-relaxed text-lg"
+                                className="opacity-90 leading-relaxed text-lg font-medium drop-shadow-sm"
                                 isReadOnly={!onUpdate}
                             />
-                        </div>
+                        </motion.div>
                     ))}
                 </div>
             </div>
-        </div>
+        </SectionWrapper>
     );
 }

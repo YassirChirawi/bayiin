@@ -56,11 +56,11 @@ async function generateDailyBrief(storeId) {
 /**
  * Délivre un insight planifié au store
  */
-async function deliverInsight(storeId, contentObj, channel = 'dashboard', type = 'daily_brief', priority = 'medium') {
+async function deliverInsight(storeId, contentObj, channel = 'dashboard', type = 'daily_brief', priority = 'medium', customTextContent = null) {
     const db = getDb();
     
-    let textContent = '';
-    if (type === 'daily_brief') {
+    let textContent = customTextContent || '';
+    if (!customTextContent && type === 'daily_brief') {
         textContent = `📊 Résumé de la veille : ${contentObj.yesterday_performance.revenue} MAD de CA (${contentObj.yesterday_performance.orders} commandes). Profit net : ${contentObj.yesterday_performance.profit} MAD.`;
     }
 
@@ -80,15 +80,43 @@ async function deliverInsight(storeId, contentObj, channel = 'dashboard', type =
 }
 
 /**
- * Scanner d'anomalies (Toutes les 30 min)
+ * Scanner d'anomalies (Toutes les heures via Scheduler)
  */
 async function runAnomalyScanner(storeId) {
     const anomalies = await detectFinancialAnomalies(storeId);
     if (anomalies.hasAnomalies) {
-        // Here we could check if we already alerted for these specific anomalies today
-        // For POC, we'll just log it
-        console.log(`[AnomalyScanner] Store ${storeId} has anomalies: ${anomalies.summary}`);
-        // await deliverInsight(storeId, anomalies, 'dashboard', 'anomaly_alert', 'high');
+        let contentObj = {
+            summary: anomalies.summary,
+            ghostOrders: anomalies.ghostOrders.length,
+            negativeMargins: anomalies.negativeMargins.length
+        };
+        
+        let textContent = `⚠️ J'ai détecté des anomalies nécessitant ton attention :\n\n`;
+        if (anomalies.negativeMargins.length > 0) {
+            textContent += `- ${anomalies.negativeMargins.length} commandes ont une marge négative (tu perds de l'argent).\n`;
+        }
+        if (anomalies.ghostOrders.length > 0) {
+            textContent += `- ${anomalies.ghostOrders.length} commandes "fantômes" sont en transit depuis plus de 10 jours.\n`;
+        }
+        textContent += `\nJe t'ai préparé des actions correctives.`;
+        
+        await deliverInsight(storeId, contentObj, 'copilot_timeline', 'anomaly_alert', 'high', textContent);
+
+        // PHASE 2: Autonomous Action Layer - Create draft automatically
+        if (anomalies.ghostOrders.length > 0) {
+            const db = getDb();
+            const draftRef = db.collection(`stores/${storeId}/action_drafts`).doc();
+            await draftRef.set({
+                toolName: 'bulk_update_orders',
+                toolArgs: {
+                    orderIds: anomalies.ghostOrders,
+                    newStatus: 'retour' // Supposer un retour si bloqué en transit > 10j
+                },
+                status: 'pending_approval',
+                source: 'autonomous_monitoring',
+                createdAt: FieldValue.serverTimestamp()
+            });
+        }
     }
 }
 

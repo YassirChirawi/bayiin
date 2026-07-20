@@ -15,25 +15,25 @@ import { vibrate } from "../utils/haptics";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Onboarding() {
-    const [step, setStep] = useState(1);
-    const [loading, setLoading] = useState(false);
-
-    // Form State
-    const [formData, setFormData] = useState({
-        name: "",
-        currency: "MAD",
-        phone: "",
-        address: "",
-        city: "",
-        logoUrl: "",
-    });
-
     const { user, logout } = useAuth();
     const { setStore, stores } = useTenant();
     const { t } = useLanguage();
     const navigate = useNavigate();
     const location = useLocation();
     const { uploadImage, uploading } = useImageUpload();
+
+    const [step, setStep] = useState(1);
+    const [loading, setLoading] = useState(false);
+
+    // Form State
+    const [formData, setFormData] = useState({
+        name: location.state?.storeName || "",
+        currency: "MAD",
+        phone: "",
+        address: "",
+        city: "",
+        logoUrl: "",
+    });
 
     // Auto-redirect if store exists
     useEffect(() => {

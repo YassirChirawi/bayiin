@@ -2,12 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { useLanguage } from "../../context/LanguageContext";
 import { MessageSquare, AlertCircle, CheckCircle } from "lucide-react";
 import Button from "../Button";
-import { db } from "../../lib/firebase";
+import { db, auth } from "../../lib/firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import { toast } from "react-hot-toast";
+import ConfirmDialog from "../ConfirmDialog";
+import { useConfirmDialog } from "../../hooks/useConfirmDialog";
 
 export default function WhatsAppConnector({ store, setStore }) {
     const { t } = useLanguage();
+    const { confirmState, confirm, close } = useConfirmDialog();
     const [isSdkLoaded, setIsSdkLoaded] = useState(false);
     const [isConnecting, setIsConnecting] = useState(false);
 
@@ -78,12 +81,16 @@ export default function WhatsAppConnector({ store, setStore }) {
             // Appel à la Cloud Function "connectWhatsApp"
             const baseUrl = import.meta.env.VITE_API_URL || "https://us-central1-bayiin.cloudfunctions.net";
             
+            const idToken = await auth.currentUser?.getIdToken();
             const response = await fetch(`${baseUrl}/connectWhatsApp`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+                },
+                body: JSON.stringify({
                     storeId: store.id,
-                    accessToken: shortLivedToken 
+                    accessToken: shortLivedToken
                 })
             });
 
@@ -112,28 +119,33 @@ export default function WhatsAppConnector({ store, setStore }) {
     };
 
     const handleDisconnect = async () => {
-        if (!window.confirm("Voulez-vous vraiment déconnecter ce numéro WhatsApp ?")) return;
-        
-        try {
-            await updateDoc(doc(db, "stores", store.id), {
-                whatsappAccessToken: null,
-                whatsappPhoneNumberId: null,
-                whatsappWabaId: null,
-                whatsappEnabled: false
-            });
-            
-            setStore(prev => ({
-                ...prev,
-                whatsappAccessToken: null,
-                whatsappPhoneNumberId: null,
-                whatsappWabaId: null,
-                whatsappEnabled: false
-            }));
-            
-            toast.success("WhatsApp déconnecté.");
-        } catch (err) {
-            toast.error("Erreur lors de la déconnexion.");
-        }
+        confirm({
+            title: 'Déconnexion',
+            message: "Voulez-vous vraiment déconnecter ce numéro WhatsApp ?",
+            isDestructive: true,
+            onConfirm: async () => {
+                try {
+                    await updateDoc(doc(db, "stores", store.id), {
+                        whatsappAccessToken: null,
+                        whatsappPhoneNumberId: null,
+                        whatsappWabaId: null,
+                        whatsappEnabled: false
+                    });
+                    
+                    setStore(prev => ({
+                        ...prev,
+                        whatsappAccessToken: null,
+                        whatsappPhoneNumberId: null,
+                        whatsappWabaId: null,
+                        whatsappEnabled: false
+                    }));
+                    
+                    toast.success("WhatsApp déconnecté.");
+                } catch (err) {
+                    toast.error("Erreur lors de la déconnexion.");
+                }
+            }
+        });
     };
 
     if (!FACEBOOK_APP_ID) {
@@ -210,6 +222,14 @@ export default function WhatsAppConnector({ store, setStore }) {
                     </div>
                 </div>
             )}
+            <ConfirmDialog 
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                message={confirmState.message}
+                onConfirm={confirmState.onConfirm}
+                onCancel={close}
+                isDestructive={confirmState.isDestructive}
+            />
         </div>
     );
 }

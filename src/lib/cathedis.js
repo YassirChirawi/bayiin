@@ -62,10 +62,10 @@ export const createCathedisDelivery = async (jsessionid, order, store) => {
                         city: order.city || "Casablanca",
                         sector: "Autre", // Default sector
                         phone: order.clientPhone || order.phone || "",
-                        amount: String(order.price || 0),
+                        amount: String((parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1)),
                         caution: "0",
                         fragile: "0",
-                        declaredValue: String(order.price || 0),
+                        declaredValue: String((parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1)),
                         address: order.address || order.city || "Adresse",
                         nomOrder: order.orderNumber || String(order.id || "").substring(0, 8),
                         comment: order.note || "Livraison via Cathedis",

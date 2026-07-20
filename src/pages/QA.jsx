@@ -12,9 +12,12 @@ import {
 import { toast } from "react-hot-toast";
 import Button from "../components/Button";
 import { vibrate } from "../utils/haptics";
+import ConfirmDialog from "../components/ConfirmDialog";
+import { useConfirmDialog } from "../hooks/useConfirmDialog";
 
 export default function QA() {
     const { store: currentStore, refreshStores } = useTenant();
+    const { confirmState, confirm, close } = useConfirmDialog();
     const [searchParams] = useSearchParams();
     const adminStoreId = searchParams.get('storeId');
     const targetStoreId = adminStoreId || currentStore?.id;
@@ -170,126 +173,132 @@ export default function QA() {
     const [seeding, setSeeding] = useState(false);
     const seedDemoData = async () => {
         if (isReadOnly) return;
-        if (!targetStoreId || !window.confirm("Voulez-vous peupler la boutique avec des données de test (Produits & Clients), activer le plan PRO et configurer les clés de livraison de test ?")) return;
-        setSeeding(true);
-        try {
-            // Upgrade store to PRO plan and configure sandbox API keys in main store document
-            await updateDoc(doc(db, "stores", targetStoreId), {
-                plan: 'pro',
-                subscriptionStatus: 'active_promo',
-                promoCodeUsed: 'LAUNCH_PRO',
-                senditPublicKey: 'pk_test_sendit_12345',
-                olivraisonApiKey: 'api_test_olivraison_12345',
-                cathedisUsername: 'mock_cathedis_user'
-            });
+        if (!targetStoreId) return;
 
-            // Write all secrets into private/config sub-document
-            await setDoc(doc(db, "stores", targetStoreId, "private", "config"), {
-                senditPublicKey: 'pk_test_sendit_12345',
-                senditSecretKey: 'sk_test_sendit_12345',
-                olivraisonApiKey: 'api_test_olivraison_12345',
-                olivraisonSecretKey: 'sec_test_olivraison_12345',
-                cathedisUsername: 'mock_cathedis_user',
-                cathedisPassword: 'mock_cathedis_password'
-            }, { merge: true });
+        confirm({
+            title: 'Données Démo',
+            message: "Voulez-vous peupler la boutique avec des données de test (Produits & Clients), activer le plan PRO et configurer les clés de livraison de test ?",
+            onConfirm: async () => {
+                setSeeding(true);
+                try {
+                    // Upgrade store to PRO plan and configure sandbox API keys in main store document
+                    await updateDoc(doc(db, "stores", targetStoreId), {
+                        plan: 'pro',
+                        subscriptionStatus: 'active_promo',
+                        promoCodeUsed: 'LAUNCH_PRO',
+                        senditPublicKey: 'pk_test_sendit_12345',
+                        olivraisonApiKey: 'api_test_olivraison_12345',
+                        cathedisUsername: 'mock_cathedis_user'
+                    });
 
-            // Write Shopify integration config subdocument with actual credentials
-            await setDoc(doc(db, "stores", targetStoreId, "shopify_integration", "config"), {
-                isActive: true,
-                shopifyStoreUrl: "dev-bayiin.myshopify.com",
-                shopifyStoreId: "shopify_" + targetStoreId,
-                shopifyApiKey: import.meta.env.VITE_SHOPIFY_API_KEY || "cec6ed1c86e83b775767fcfba81cc341",
-                shopifyAccessToken: import.meta.env.VITE_SHOPIFY_ACCESS_TOKEN || "shpss_mock_access_token_12345",
-                connectedAt: serverTimestamp()
-            }, { merge: true });
+                    // Write all secrets into private/config sub-document
+                    await setDoc(doc(db, "stores", targetStoreId, "private", "config"), {
+                        senditPublicKey: 'pk_test_sendit_12345',
+                        senditSecretKey: 'sk_test_sendit_12345',
+                        olivraisonApiKey: 'api_test_olivraison_12345',
+                        olivraisonSecretKey: 'sec_test_olivraison_12345',
+                        cathedisUsername: 'mock_cathedis_user',
+                        cathedisPassword: 'mock_cathedis_password'
+                    }, { merge: true });
 
-            // Also update shopifyStoreUrl in main store document
-            await updateDoc(doc(db, "stores", targetStoreId), {
-                shopifyStoreUrl: "dev-bayiin.myshopify.com"
-            });
+                    // Write Shopify integration config subdocument with actual credentials
+                    await setDoc(doc(db, "stores", targetStoreId, "shopify_integration", "config"), {
+                        isActive: true,
+                        shopifyStoreUrl: "dev-bayiin.myshopify.com",
+                        shopifyStoreId: "shopify_" + targetStoreId,
+                        shopifyApiKey: import.meta.env.VITE_SHOPIFY_API_KEY || "cec6ed1c86e83b775767fcfba81cc341",
+                        shopifyAccessToken: import.meta.env.VITE_SHOPIFY_ACCESS_TOKEN || "shpss_mock_access_token_12345",
+                        connectedAt: serverTimestamp()
+                    }, { merge: true });
 
-            await refreshStores();
+                    // Also update shopifyStoreUrl in main store document
+                    await updateDoc(doc(db, "stores", targetStoreId), {
+                        shopifyStoreUrl: "dev-bayiin.myshopify.com"
+                    });
 
-            // Seed Products
-            const products = [
-                { name: "Sérum Vitamine C", category: "Soins Visage", price: 250, costPrice: 120, stock: 50, description: "Sérum éclat haute concentration" },
-                { name: "Crème Hydratante", category: "Soins Visage", price: 180, costPrice: 80, stock: 100, description: "Hydratation intense 24h" },
-                { name: "Huile d'Argan Bio", category: "Corps", price: 150, costPrice: 60, stock: 30, description: "Huile pure 100% naturelle" },
-                { name: "Shampoing solide", category: "Cheveux", price: 90, costPrice: 35, stock: 75, description: "Shampoing écologique sans sulfates" }
-            ];
+                    await refreshStores();
 
-            for (const p of products) {
-                await addDoc(collection(db, "products"), {
-                    ...p,
-                    storeId: targetStoreId,
-                    isVariable: false,
-                    photoUrl: "",
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp()
-                });
+                    // Seed Products
+                    const products = [
+                        { name: "Sérum Vitamine C", category: "Soins Visage", price: 250, costPrice: 120, stock: 50, description: "Sérum éclat haute concentration" },
+                        { name: "Crème Hydratante", category: "Soins Visage", price: 180, costPrice: 80, stock: 100, description: "Hydratation intense 24h" },
+                        { name: "Huile d'Argan Bio", category: "Corps", price: 150, costPrice: 60, stock: 30, description: "Huile pure 100% naturelle" },
+                        { name: "Shampoing solide", category: "Cheveux", price: 90, costPrice: 35, stock: 75, description: "Shampoing écologique sans sulfates" }
+                    ];
+
+                    for (const p of products) {
+                        await addDoc(collection(db, "products"), {
+                            ...p,
+                            storeId: targetStoreId,
+                            isVariable: false,
+                            photoUrl: "",
+                            createdAt: serverTimestamp(),
+                            updatedAt: serverTimestamp()
+                        });
+                    }
+
+                    // Seed Customers
+                    const customers = [
+                        { name: "Yassir Chirawi", phone: "+212600000001", email: "yassir@example.com", city: "Casablanca", totalSpent: 0, orderCount: 0 },
+                        { name: "Amine Bennani", phone: "+212600000002", email: "amine@example.com", city: "Rabat", totalSpent: 0, orderCount: 0 },
+                        { name: "Sara El Fassi", phone: "+212600000003", email: "sara@example.com", city: "Marrakech", totalSpent: 0, orderCount: 0 }
+                    ];
+
+                    for (const c of customers) {
+                        await addDoc(collection(db, "customers"), {
+                            ...c,
+                            storeId: targetStoreId,
+                            createdAt: serverTimestamp(),
+                            updatedAt: serverTimestamp()
+                        });
+                    }
+
+                    // Seed Orders (Last 7 days)
+                    const orderStatuses = ['livré', 'livré', 'retour', 'annulé', 'confirmation', 'reçu'];
+                    for (let i = 0; i < 15; i++) {
+                        const status = orderStatuses[i % orderStatuses.length];
+                        const date = new Date();
+                        date.setDate(date.getDate() - (i % 7)); // Spread over 7 days
+                        
+                        await addDoc(collection(db, "orders"), {
+                            storeId: targetStoreId,
+                            customerName: customers[i % customers.length].name,
+                            customerPhone: customers[i % customers.length].phone,
+                            price: 150 + (i * 20),
+                            quantity: 1,
+                            status: status,
+                            city: customers[i % customers.length].city,
+                            createdAt: date,
+                            updatedAt: date,
+                            statusHistory: [{ status, timestamp: date.toISOString(), note: "Auto-généré pour test" }]
+                        });
+                    }
+
+                    // Seed Expenses
+                    const expenses = [
+                        { label: "Publicité Facebook", amount: 500, category: "Marketing", date: new Date() },
+                        { label: "Loyer Bureau", amount: 2000, category: "Fixe", date: new Date() },
+                        { label: "Achat Emballages", amount: 350, category: "Logistique", date: new Date() }
+                    ];
+
+                    for (const e of expenses) {
+                        await addDoc(collection(db, "expenses"), {
+                            ...e,
+                            storeId: targetStoreId,
+                            createdAt: serverTimestamp()
+                        });
+                    }
+
+                    toast.success("Toute la plateforme a été peuplée avec succès !");
+                    vibrate('success');
+                } catch (e) {
+                    console.error(e);
+                    toast.error("Erreur lors de l'ajout des données");
+                } finally {
+                    setSeeding(false);
+                }
             }
-
-            // Seed Customers
-            const customers = [
-                { name: "Yassir Chirawi", phone: "+212600000001", email: "yassir@example.com", city: "Casablanca", totalSpent: 0, orderCount: 0 },
-                { name: "Amine Bennani", phone: "+212600000002", email: "amine@example.com", city: "Rabat", totalSpent: 0, orderCount: 0 },
-                { name: "Sara El Fassi", phone: "+212600000003", email: "sara@example.com", city: "Marrakech", totalSpent: 0, orderCount: 0 }
-            ];
-
-            for (const c of customers) {
-                await addDoc(collection(db, "customers"), {
-                    ...c,
-                    storeId: targetStoreId,
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp()
-                });
-            }
-
-            // Seed Orders (Last 7 days)
-            const orderStatuses = ['livré', 'livré', 'retour', 'annulé', 'confirmation', 'reçu'];
-            for (let i = 0; i < 15; i++) {
-                const status = orderStatuses[i % orderStatuses.length];
-                const date = new Date();
-                date.setDate(date.getDate() - (i % 7)); // Spread over 7 days
-                
-                await addDoc(collection(db, "orders"), {
-                    storeId: targetStoreId,
-                    customerName: customers[i % customers.length].name,
-                    customerPhone: customers[i % customers.length].phone,
-                    price: 150 + (i * 20),
-                    quantity: 1,
-                    status: status,
-                    city: customers[i % customers.length].city,
-                    createdAt: date,
-                    updatedAt: date,
-                    statusHistory: [{ status, timestamp: date.toISOString(), note: "Auto-généré pour test" }]
-                });
-            }
-
-            // Seed Expenses
-            const expenses = [
-                { label: "Publicité Facebook", amount: 500, category: "Marketing", date: new Date() },
-                { label: "Loyer Bureau", amount: 2000, category: "Fixe", date: new Date() },
-                { label: "Achat Emballages", amount: 350, category: "Logistique", date: new Date() }
-            ];
-
-            for (const e of expenses) {
-                await addDoc(collection(db, "expenses"), {
-                    ...e,
-                    storeId: targetStoreId,
-                    createdAt: serverTimestamp()
-                });
-            }
-
-
-            toast.success("Toute la plateforme a été peuplée avec succès !");
-            vibrate('success');
-        } catch (e) {
-            console.error(e);
-            toast.error("Erreur lors de l'ajout des données");
-        } finally {
-            setSeeding(false);
-        }
+        });
     };
 
     const calculateProgress = () => {
@@ -664,6 +673,14 @@ export default function QA() {
                     );
                 })}
             </div>
+            <ConfirmDialog 
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                message={confirmState.message}
+                onConfirm={confirmState.onConfirm}
+                onCancel={close}
+                isDestructive={confirmState.isDestructive}
+            />
         </div>
     );
 }

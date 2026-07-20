@@ -2,24 +2,22 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ShoppingBag, Plus, Minus, Trash2, ArrowRight, Zap, ChevronLeft } from 'lucide-react';
 
+import { useCart } from '../../contexts/CartContext';
+
 export default function CartDrawer({ 
-    isOpen, 
-    onClose, 
-    cart = [], 
-    onUpdateQuantity, 
-    onRemove, 
-    onCheckoutClick, 
     theme,
     upsellProduct,
     onAddUpsell,
-    isCheckingOut
+    isCheckingOut,
+    onCheckoutClick
 }) {
+    const { isCartOpen: isOpen, closeCart: onClose, cartItems: cart, updateQuantity: onUpdateQuantity, removeFromCart: onRemove, cartTotal: total } = useCart();
     const primaryColor = theme?.primaryColor || '#4f46e5';
     
     const [isCheckoutStep, setIsCheckoutStep] = useState(false);
     const [clientForm, setClientForm] = useState({ name: '', phone: '', city: '', address: '' });
 
-    const cartTotal = cart.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
+    const cartTotal = total || 0;
     const freeShippingThreshold = 300; // configurable later
     const amountToFreeShipping = Math.max(0, freeShippingThreshold - cartTotal);
     const progress = Math.min(100, (cartTotal / freeShippingThreshold) * 100);

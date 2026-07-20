@@ -15,6 +15,7 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const Groq = require("groq-sdk");
+const crypto = require("crypto");
 
 const {
     sendTextMessage,
@@ -33,7 +34,7 @@ const db = getFirestore("comsaas");
 
 const whatsappWebhook = onRequest(
     {
-        secrets: ["WHATSAPP_TOKEN", "WHATSAPP_PHONE_ID", "WHATSAPP_VERIFY_TOKEN", "GROQ_API_KEY"],
+        secrets: ["WHATSAPP_TOKEN", "WHATSAPP_PHONE_ID", "WHATSAPP_VERIFY_TOKEN", "GROQ_API_KEY", "FACEBOOK_APP_SECRET"],
         cors: false,
         maxInstances: 10
     },
@@ -55,6 +56,21 @@ const whatsappWebhook = onRequest(
 
         // ── POST : Incoming events from Meta ────────────────────────────
         if (req.method === "POST") {
+            // SEC (P0-7): verify Meta's X-Hub-Signature-256 HMAC before trusting the payload.
+            const appSecret = process.env.FACEBOOK_APP_SECRET;
+            const signature = req.headers["x-hub-signature-256"] || "";
+            if (!appSecret) {
+                console.error("[WhatsApp] FACEBOOK_APP_SECRET not configured — rejecting webhook");
+                return res.sendStatus(403);
+            }
+            const expected = "sha256=" + crypto.createHmac("sha256", appSecret).update(req.rawBody).digest("hex");
+            const sigBuf = Buffer.from(signature);
+            const expBuf = Buffer.from(expected);
+            if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+                console.warn("[WhatsApp] Invalid webhook signature — rejecting");
+                return res.sendStatus(403);
+            }
+
             const body = req.body;
 
             // Verify it's a WhatsApp Business Account event
@@ -157,7 +173,7 @@ async function handleIncomingMessage(msg, metadata) {
     const convDoc = await convRef.get();
     const conversation = convDoc.exists ? convDoc.data() : null;
 
-    // Log inbound message
+    // Log inbound message (WhatsApp Logs)
     await logWhatsAppMessage(storeId, {
         direction: "inbound",
         phone,
@@ -166,6 +182,21 @@ async function handleIncomingMessage(msg, metadata) {
         orderId: conversation?.orderId || "",
         timestamp: FieldValue.serverTimestamp()
     });
+
+    // PHASE 4: Feed the Omnichannel Inbox
+    try {
+        await db.collection("stores").doc(storeId)
+                .collection("omnichannel_inbox").add({
+            source: "whatsapp",
+            direction: "inbound",
+            sender: phone,
+            content: userText,
+            isRead: false,
+            timestamp: FieldValue.serverTimestamp()
+        });
+    } catch (err) {
+        console.warn("[WhatsApp] Failed to add to omnichannel_inbox:", err.message);
+    }
 
     // Route based on conversation state
     if (!conversation || conversation.state === "closed") {

@@ -14,43 +14,68 @@ exports.generateStorefront = functions.runWith({ secrets: ["GROQ_API_KEY"] }).ht
 
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-    const systemPrompt = `Tu es Beya3, un expert en création de sites e-commerce très sophistiqués et optimisés pour la conversion (Surtout en COD - Paiement à la livraison au Maroc).
-L'utilisateur te donne le nom de sa boutique et son secteur.
-Tu dois générer une structure JSON de 5 à 7 sections pour une page d'accueil ultra-développée, professionnelle et convaincante.
-Chaque section doit respecter cette interface :
+    const systemPrompt = `Act as a Principal Software Architect and Lead Frontend Engineer expert in Shopify's Liquid architecture (Dawn, Prestige, Impact), Headless Commerce, and multi-tenant SaaS deployments. 
+
+Our objective is to generate the JSON configuration of a BayIIn storefront. You must output a JSON structure defining the sections, variants, and blocks based on the following comprehensive mapping of a professional Shopify-grade theme:
+
+### THE 20 CORE MODULES & THEIR NESTED BLOCKS
+1. Header (Variants: Logo Centered, Logo Left, Transparent, Sticky | Blocks: Logo, Menu, Search, Icons).
+2. Hero (Variants: Classic, Video, Product, Luxury, Marketplace | Blocks: Heading, Subheading, Text, CTA, Media, SocialProof).
+3. Promotion Banner (Variants: Static, Marquee, Countdown | Settings: Text, Color, Animation).
+4. Collections (Variants: Grid, Carousel, Masonry, Cards | Blocks: Image, Title, Description, CTA).
+5. Featured Products (Variants: Manual, Collection-based, AI-driven, Shopify, Minimal).
+6. Product Card (Features: Image Hover, Quick Add, Badges: New/Promo/Bestseller).
+7. USP / Features (Variants: 3 cols, 4 cols, Cards | Blocks: Icon, Title, Description).
+8. Storytelling (Variants: Timeline, Alternated, Video | Blocks: History, Mission, Values, Founder).
+9. Numbers (Variants: Animated Counters, Cards | Blocks: Customers, Orders, Countries).
+10. Testimonials (Variants: Slider, Grid, Video, Social | Blocks: Avatar, Name, Review, Rating).
+11. FAQ (Variants: Accordion, Search, Categories | Blocks: Question, Answer).
+12. Newsletter (Variants: Simple, Popup, Floating | Blocks: Title, Description, EmailInput).
+13. Instagram / Feeds (Variants: Grid, Reels, UGC).
+14. Videos (Variants: YouTube, TikTok, Vimeo, Direct).
+15. Comparison (Blocks: Product A, Product B, Metrics).
+16. Blog (Blocks: Articles, Categories, Author).
+17. Contact (Blocks: Form, Phone, WhatsApp, Map).
+18. Footer (Blocks: Menus, Newsletter, Socials, Payments, Legal).
+19. Popups (Variants: Promo, Exit Intent, Newsletter, WhatsApp, Coupon).
+20. Product Page Core (Modules: Gallery, Price, Variants, Stock, Description, Delivery, Reviews, FAQ, Bundles, Cross-sell, Upsell).
+
+### BAYIIN EXCLUSIVE MOROCCAN MODULES (COD)
+- COD Confirmation (Auto WhatsApp validation).
+- Delivery Estimates (Casablanca: 25DH, Rabat: 30DH...).
+- Carrier Options (Cathedis, Sendit, O-Livraison, Amana).
+- WhatsApp Business (Floating button).
+- Beya3 AI ("Besoin d'aide ?").
+
+### OUTPUT SCHEMA & CONSTRAINTS
+Output exactly a JSON object matching this schema:
 {
-  "id": "unique-id",
-  "type": "Hero | Features | ProductGrid | ImageText | Testimonials | FAQ",
-  "variant": "String (Modern/Split for Hero, Glass/Minimal for Features, Classic for ProductGrid)",
-  "title": "String",
-  "subtitle": "String",
-  "content": "String (optional detailed description)",
-  "ctaText": "String (optional button text)",
-  "items": [ // OBLIGATOIRE pour Features, Testimonials et FAQ. Optionnel ailleurs.
-    { 
-      "title": "string", 
-      "content": "string", 
-      "emoji": "string (un emoji pertinent, ex: 🚀, 💎, 🚚. Pour Features uniquement)", 
-      "author": "string (ex: Fatima Z., pour Testimonials uniquement)", 
-      "rating": 5 // (nombre de 1 à 5, pour Testimonials uniquement)
+  "sections": [
+    {
+      "id": "unique-id",
+      "type": "Hero", // Choose from the list above (e.g. Hero, Features, Testimonials)
+      "variant": "Blocks", // Always use "Blocks" to trigger dynamic UI engine
+      "settings": {
+         "entryAnimation": "fade | slide-up | scale-up | stagger",
+         "paddingTop": 64, "paddingBottom": 64, "backgroundColor": "#ffffff"
+      },
+      "blocks": [
+        {
+          "id": "block-id",
+          "type": "Heading | Subtitle | Text | Button | Media",
+          "settings": {
+            // Include text, fontFamily (Outfit, Inter, Cairo, Tajawal), fontSize, label, icon, url, mediaType based on block type
+          }
+        }
+      ]
     }
-  ],
-  "settings": {
-    "alignment": "string (left ou center)",
-    "backgroundType": "string (color, image ou video. Utilise souvent 'image' ou 'video' pour le Hero ou CallToAction)",
-    "backgroundUrl": "string (Si image ou video, met une belle URL Unsplash ou Pexels pertinente, ex: https://images.unsplash.com/photo-1515378960530-7c0da622941f?q=80&w=2070 pour la mode)",
-    "overlayOpacity": number (0 à 100, ex: 40 si tu mets une image/video de fond pour que le texte blanc soit lisible),
-    "filterBlur": number (0 à 20, ex: 5 si tu veux flouter l'image de fond),
-    "textColor": "string (code hex, ex: #ffffff pour fond sombre, #0f172a pour fond clair)",
-    "backgroundColor": "string (code hex, ex: #ffffff, #f8fafc ou #1e293b)",
-    "paddingTop": number (ex: 64, 96, 128),
-    "paddingBottom": number (ex: 64, 96, 128)
-  }
+  ]
 }
 
-Réponds UNIQUEMENT avec un objet JSON valide ayant une clé "sections" qui est un tableau de ces objets. Pas de markdown, juste du JSON pur.
-Alterne intelligemment les types de fond (couleurs, images, vidéos) pour créer un rythme visuel premium.
-Le ton doit être premium, rassurant, et mettre fortement en avant les avantages du paiement à la livraison (COD) et de la livraison express.`;
+Target 5 to 7 high-converting sections for BayIIn V1.
+If the store niche is in Arabic or Morocco, YOU MUST assign RTL fonts like 'Cairo' or 'Tajawal' to text/heading blocks.
+Emphasize Cash on Delivery (COD) terminology heavily in copy.
+Return ONLY valid JSON (no markdown block wrappers).`;
 
     try {
         const completion = await groq.chat.completions.create({

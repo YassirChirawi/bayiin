@@ -1,6 +1,23 @@
 const functions = require("firebase-functions");
 const Groq = require("groq-sdk");
-const cors = require("cors")({ origin: true });
+const cors = require('cors')({
+    origin: (origin, callback) => {
+        const ALLOWED = [
+            'https://bayiin.shop',
+            'https://app.bayiin.shop',
+            'https://commerce-saas-62f32.web.app',
+            'https://commerce-saas-62f32.firebaseapp.com',
+        ];
+        // Allow server-to-server calls (no origin) and whitelisted origins
+        if (!origin || ALLOWED.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.warn(`[SEC] CORS blocked origin: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+});
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 
@@ -11,7 +28,8 @@ const {
     getPendingCashflow, 
     getInventoryValue, 
     predictStockRunout, 
-    detectFinancialAnomalies 
+    detectFinancialAnomalies,
+    getCustomerList
 } = require("./copilot/financialEngine");
 const { 
     storeMemory, 
@@ -22,6 +40,7 @@ const {
     getMerchantProfile,
     setExplicitPreference
 } = require("./copilot/memoryService");
+const { queryGraph } = require("./copilot/kgService");
 const { shouldUseReAct, runReActLoop } = require("./copilot/reactAgent");
 const { executeWithRollback, rollbackLastAction } = require("./copilot/actionExecutor");
 const { getMarketBenchmark } = require("./copilot/benchmarkService");
@@ -91,6 +110,21 @@ async function executeFinancialTool(toolName, toolArgs, storeId, userId) {
             case "get_market_benchmark":
                 return await getMarketBenchmark(storeId, toolArgs.metrics || ['margin', 'return_rate', 'avg_order_value']);
                 
+            // ── ÉVOLUTION 7 — KNOWLEDGE GRAPH ───────────────
+            case "query_knowledge_graph":
+                return await queryGraph(storeId, {
+                    sourceId: toolArgs.sourceId,
+                    targetId: toolArgs.targetId,
+                    relationType: toolArgs.relationType,
+                    orderBy: 'count', // Order by count (weight)
+                    limit: toolArgs.limit || 10,
+                    includeNodes: true
+                });
+
+            // ── ÉVOLUTION 8 — GESTION DES CLIENTS ───────────
+            case "get_customer_list":
+                return await getCustomerList(storeId, toolArgs.limit || 10);
+                
             default:
                 return { error: `Tool ${toolName} not implemented yet or is a draft tool.` };
         }
@@ -113,10 +147,13 @@ async function saveConversationMessage(storeId, conversationId, data) {
         messageCount: FieldValue.increment(2)
     }, { merge: true });
     
+    const ttlDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
     await convRef.collection('messages').add({
         role: 'user',
         content: data.userMessage,
-        timestamp: FieldValue.serverTimestamp()
+        timestamp: FieldValue.serverTimestamp(),
+        expiresAt: ttlDate
     });
     
     await convRef.collection('messages').add({
@@ -125,7 +162,8 @@ async function saveConversationMessage(storeId, conversationId, data) {
         toolsUsed: data.toolsUsed || [],
         actionsDrafted: data.actionsDrafted || [],
         reactSteps: data.reactSteps || null,
-        timestamp: FieldValue.serverTimestamp()
+        timestamp: FieldValue.serverTimestamp(),
+        expiresAt: ttlDate
     });
 }
 
@@ -157,10 +195,18 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
         return res.status(500).json({ error: "Configuration error" });
     }
 
-    // Tenant Isolation Check
+    // Tenant Isolation Check — SEC: storeId must match the authenticated user's store
     const db = getDb();
     const userDoc = await db.collection('users').doc(userId).get();
-    const role = userDoc.exists ? userDoc.data().role : 'user';
+    const userData = userDoc.exists ? userDoc.data() : {};
+    const role = userData.role || 'user';
+    const userStoreId = userData.storeId || null;
+
+    // Super admins can access any store; all others must own the store they request
+    if (role !== 'super_admin' && storeId !== userStoreId) {
+        console.warn(`[SEC] Tenant mismatch: user ${userId} (store: ${userStoreId}) tried to access store ${storeId}`);
+        return res.status(403).json({ error: 'Forbidden: storeId does not match your account' });
+    }
     
     // ── CHARGEMENT CONTEXTE ET MÉMOIRE ──────────────────────────
     const userLastMessage = messages[messages.length - 1].content;
@@ -304,6 +350,18 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
               
               if (DRAFT_TOOLS.includes(toolName)) {
                   actionsDrafted.push({ toolName, toolArgs, toolCallId: toolCall.id });
+                  
+                  // PHASE 2: Autonomous Action Layer - Save draft to Firestore
+                  const draftRef = getDb().collection(`stores/${storeId}/action_drafts`).doc(toolCall.id);
+                  await draftRef.set({
+                      toolName,
+                      toolArgs,
+                      status: 'pending_approval',
+                      source: 'copilot_chat',
+                      createdAt: FieldValue.serverTimestamp(),
+                      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                  });
+
                   toolResults.push({
                       tool_call_id: toolCall.id,
                       role: "tool",

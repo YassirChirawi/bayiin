@@ -9,11 +9,14 @@ import { Navigate } from "react-router-dom";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import { UserPlus, Trash2, User, Briefcase } from "lucide-react";
+import ConfirmDialog from "../components/ConfirmDialog";
+import { useConfirmDialog } from "../hooks/useConfirmDialog";
 
 export default function Team() {
     const { store } = useTenant();
     const { user } = useAuth();
     const { t } = useLanguage();
+    const { confirmState, confirm, close } = useConfirmDialog();
     const [members, setMembers] = useState([]);
     const [employees, setEmployees] = useState([]); // HR employees for badge matching
     const [loading, setLoading] = useState(true);
@@ -110,14 +113,20 @@ export default function Team() {
             toast.error(t('msg_cannot_remove_self'));
             return;
         }
-        if (!window.confirm(t('confirm_remove_member'))) return;
-        try {
-            await deleteDoc(doc(db, "allowed_users", id));
-            fetchMembers();
-        } catch (error) {
-            console.error("Error removing member:", error);
-            toast.error(t('err_remove_member'));
-        }
+        confirm({
+            title: 'Retirer accès',
+            message: t('confirm_remove_member'),
+            isDestructive: true,
+            onConfirm: async () => {
+                try {
+                    await deleteDoc(doc(db, "allowed_users", id));
+                    fetchMembers();
+                } catch (error) {
+                    console.error("Error removing member:", error);
+                    toast.error(t('err_remove_member'));
+                }
+            }
+        });
     };
 
     // Build a Set of employee emails for quick badge lookup
@@ -223,6 +232,14 @@ export default function Team() {
                     )}
                 </div>
             </div>
+            <ConfirmDialog 
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                message={confirmState.message}
+                onConfirm={confirmState.onConfirm}
+                onCancel={close}
+                isDestructive={confirmState.isDestructive}
+            />
         </div>
     );
 }

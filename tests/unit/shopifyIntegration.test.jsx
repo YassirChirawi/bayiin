@@ -143,7 +143,6 @@ describe('ShopifyIntegration Component', () => {
             })
         });
         deleteDoc.mockResolvedValue();
-        vi.spyOn(window, 'confirm').mockReturnValue(true);
 
         render(<ShopifyIntegration store={mockStore} />);
 
@@ -153,7 +152,11 @@ describe('ShopifyIntegration Component', () => {
         // 2. Déclencher le clic UNE SEULE FOIS en dehors du waitFor
         fireEvent.click(disconnectBtn);
 
-        // 3. Attendre les assertions asynchrones
+        // 3. Find and click confirm button in dialog
+        const confirmBtn = await screen.findByText('Confirmer');
+        fireEvent.click(confirmBtn);
+
+        // 4. Attendre les assertions asynchrones
         await waitFor(() => {
             expect(deleteDoc).toHaveBeenCalled();
             expect(toast.success).toHaveBeenCalledWith('Boutique Shopify déconnectée avec succès.');

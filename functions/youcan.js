@@ -406,15 +406,24 @@ exports.exchangeYoucanToken = onRequest({ secrets: ['YOUCAN_CLIENT_SECRET'], cor
  * Sécurisé par vérification de signature HMAC-SHA256.
  */
 exports.youcanWebhook = onRequest({ secrets: ['YOUCAN_CLIENT_SECRET'] }, async (req, res) => {
-    // Vérification signature HMAC-SHA256 (obligatoire)
-    const signature = req.headers['x-youcan-signature'];
+    // Vérification signature HMAC-SHA256 — timing-safe (obligatoire)
+    const signature = req.headers['x-youcan-signature'] || '';
     const payload = JSON.stringify(req.body);
     const expectedSig = crypto
         .createHmac('sha256', process.env.YOUCAN_CLIENT_SECRET)
         .update(payload)
         .digest('hex');
-    
-    if (signature !== expectedSig) {
+
+    let sigValid = false;
+    try {
+        const sigBuf = Buffer.from(signature, 'hex');
+        const expBuf = Buffer.from(expectedSig, 'hex');
+        sigValid = sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf);
+    } catch (_) {
+        sigValid = false;
+    }
+
+    if (!sigValid) {
         console.error('[YouCan] Signature invalide');
         return res.status(401).json({ error: 'Invalid signature' });
     }

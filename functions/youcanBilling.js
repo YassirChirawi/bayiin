@@ -1,5 +1,6 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const { getAuth } = require("firebase-admin/auth");
 const { getStoreIdFromYouCanId } = require("./youcanUtils");
 
 const db = getFirestore("comsaas");
@@ -92,6 +93,23 @@ exports.createYouCanSubscription = onRequest(
         const { storeId, planId } = req.body;
         if (!storeId || !planId) {
             return res.status(400).json({ error: 'Missing storeId or planId' });
+        }
+
+        // SEC (P0-6): authenticate the caller and verify they own the target store.
+        const authHeader = req.headers.authorization || "";
+        const idToken = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : null;
+        if (!idToken) {
+            return res.status(401).json({ error: "Unauthorized: missing ID token" });
+        }
+        let callerUid;
+        try {
+            callerUid = (await getAuth().verifyIdToken(idToken)).uid;
+        } catch (e) {
+            return res.status(401).json({ error: "Unauthorized: invalid ID token" });
+        }
+        const ownerSnap = await db.collection('stores').doc(storeId).get();
+        if (!ownerSnap.exists || ownerSnap.data().ownerId !== callerUid) {
+            return res.status(403).json({ error: "Forbidden: not the store owner" });
         }
 
         // Plan Free : pas de charge YouCan, on met juste le plan

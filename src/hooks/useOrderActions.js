@@ -168,6 +168,12 @@ export const useOrderActions = () => {
         setLoading(true);
         setError(null);
         try {
+            // --- STATE MACHINE VALIDATION (defense-in-depth) ---
+            if (oldData.status !== newData.status && !isValidTransition(oldData.status, newData.status)) {
+                toast.error(`Transition invalide : ${oldData.status} → ${newData.status}`);
+                setLoading(false);
+                return false;
+            }
             // Non-transactional reads FIRST
             let existingCustomerId = null;
             if (!newData.customerId && newData.clientPhone) {
@@ -237,7 +243,7 @@ export const useOrderActions = () => {
                         phone: newData.clientPhone,
                         address: newData.clientAddress || "",
                         city: newData.clientCity || "",
-                        totalSpent: parseFloat(newData.price) || 0,
+                        totalSpent: 0, // BUG-03: incremented by Cloud Function onOrderWrite on 'livré'
                         orderCount: 1,
                         firstOrderDate: new Date().toISOString().split('T')[0],
                         lastOrderDate: new Date().toISOString().split('T')[0],

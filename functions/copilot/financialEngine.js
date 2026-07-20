@@ -549,6 +549,45 @@ async function detectFinancialAnomalies(storeId) {
     };
 }
 
+/**
+ * GESTION DES CLIENTS
+ * Récupère la liste des clients récents de la boutique.
+ */
+async function getCustomerList(storeId, limit = 10) {
+    try {
+        const db = getDb();
+        const customersSnap = await db.collection("customers")
+            .where("storeId", "==", storeId)
+            .orderBy("lastOrderDate", "desc")
+            .limit(limit)
+            .get();
+
+        if (customersSnap.empty) {
+            return { customers: [], message: "Aucun client trouvé." };
+        }
+
+        const customers = [];
+        customersSnap.forEach(doc => {
+            const data = doc.data();
+            customers.push({
+                name: data.name || "Non renseigné",
+                phone: data.phone || "Non renseigné",
+                city: data.city || "Non renseigné",
+                totalOrders: data.totalOrders || 0,
+                totalSpent: data.totalSpent || 0,
+                lastOrderDate: data.lastOrderDate || "Inconnue"
+            });
+        });
+
+        return {
+            totalReturned: customersSnap.size,
+            customers
+        };
+    } catch (e) {
+        console.error("getCustomerList error:", e);
+        return { error: "Failed to retrieve customers" };
+    }
+}
 
 module.exports = {
     calculateNetProfit,
@@ -556,6 +595,7 @@ module.exports = {
     getInventoryValue,
     predictStockRunout,
     detectFinancialAnomalies,
+    getCustomerList,
     getUpcomingEvents,
     getSeasonalFactor,
     MOROCCAN_CALENDAR_2026,

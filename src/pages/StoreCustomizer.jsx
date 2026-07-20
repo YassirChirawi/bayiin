@@ -22,7 +22,7 @@ export default function StoreCustomizer() {
         heroTitle: 'Découvrez notre nouvelle collection',
         heroSubtitle: 'Des produits de qualité, livrés chez vous en 24h avec paiement à la livraison.',
         facebookPixelId: '',
-        fontFamily: 'Outfit',
+        typography: { heading: 'Outfit', body: 'Outfit' },
         logoUrl: '',
         faviconUrl: '',
         backgroundType: 'color', // 'color' | 'image' | 'video'
@@ -227,19 +227,37 @@ export default function StoreCustomizer() {
                                 </div>
                             </div>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1.5">Typographie</label>
-                            <select 
-                                value={config.fontFamily} 
-                                onChange={(e) => handleChange('fontFamily', e.target.value)}
-                                className="block w-full px-3 py-2.5 border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-slate-700"
-                            >
-                                <option value="Outfit">Outfit</option>
-                                <option value="Inter">Inter</option>
-                                <option value="Roboto">Roboto</option>
-                                <option value="Playfair Display">Playfair Display</option>
-                                <option value="Montserrat">Montserrat</option>
-                            </select>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Police des Titres</label>
+                                <select 
+                                    value={config.typography?.heading || 'Outfit'} 
+                                    onChange={(e) => handleChange('typography', { ...config.typography, heading: e.target.value })}
+                                    className="block w-full px-3 py-2.5 border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-slate-700"
+                                >
+                                    <option value="Outfit">Outfit</option>
+                                    <option value="Inter">Inter</option>
+                                    <option value="Poppins">Poppins</option>
+                                    <option value="Montserrat">Montserrat</option>
+                                    <option value="Cairo">Cairo (Arabic)</option>
+                                    <option value="Tajawal">Tajawal (Arabic)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Police du Texte</label>
+                                <select 
+                                    value={config.typography?.body || 'Outfit'} 
+                                    onChange={(e) => handleChange('typography', { ...config.typography, body: e.target.value })}
+                                    className="block w-full px-3 py-2.5 border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-slate-700"
+                                >
+                                    <option value="Outfit">Outfit</option>
+                                    <option value="Inter">Inter</option>
+                                    <option value="Poppins">Poppins</option>
+                                    <option value="Montserrat">Montserrat</option>
+                                    <option value="Cairo">Cairo (Arabic)</option>
+                                    <option value="Tajawal">Tajawal (Arabic)</option>
+                                </select>
+                            </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="border border-slate-200 rounded-xl p-4 flex flex-col items-center text-center relative overflow-hidden bg-white">

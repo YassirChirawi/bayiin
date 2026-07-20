@@ -8,6 +8,7 @@
 
 const { onRequest } = require("firebase-functions/v2/https");
 const { getFirestore } = require("firebase-admin/firestore");
+const { getAuth } = require("firebase-admin/auth");
 
 const db = getFirestore("comsaas");
 
@@ -27,6 +28,23 @@ exports.connectWhatsApp = onRequest(
 
         if (!storeId || !accessToken) {
             return res.status(400).json({ error: "Missing storeId or accessToken" });
+        }
+
+        // SEC (P0-6): authenticate the caller and verify they own the target store.
+        const authHeader = req.headers.authorization || "";
+        const idToken = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : null;
+        if (!idToken) {
+            return res.status(401).json({ error: "Unauthorized: missing ID token" });
+        }
+        let callerUid;
+        try {
+            callerUid = (await getAuth().verifyIdToken(idToken)).uid;
+        } catch (e) {
+            return res.status(401).json({ error: "Unauthorized: invalid ID token" });
+        }
+        const ownerSnap = await db.collection("stores").doc(storeId).get();
+        if (!ownerSnap.exists || ownerSnap.data().ownerId !== callerUid) {
+            return res.status(403).json({ error: "Forbidden: not the store owner" });
         }
 
         try {

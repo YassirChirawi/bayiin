@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Truck, Lock, MapPin, CreditCard } from 'lucide-react';
+import { useCart } from '../../contexts/CartContext';
 
 export default function CheckoutEditor({ theme, settings = {} }) {
+    const { cartItems, cartTotal } = useCart();
+    
     // Mock Data based on the ERP structure
     const erpLogisticsCities = [
         { id: 1, name: "Casablanca", fee: 20 },
@@ -11,8 +14,8 @@ export default function CheckoutEditor({ theme, settings = {} }) {
     ];
 
     const [selectedCity, setSelectedCity] = useState(erpLogisticsCities[0]);
-    const cartSubtotal = 498; // 2x 249 MAD par exemple
-    const discount = 50; // Promo ERP "VIP"
+    const cartSubtotal = cartTotal > 0 ? cartTotal : 0;
+    const discount = 0; // Promo ERP "VIP"
     
     const shippingFee = selectedCity ? selectedCity.fee : 0;
     const netTotal = cartSubtotal - discount + shippingFee;
@@ -90,18 +93,23 @@ export default function CheckoutEditor({ theme, settings = {} }) {
                         <h3 className="font-bold text-lg mb-6">Résumé de la commande</h3>
                         
                         <div className="space-y-4 mb-6">
-                            {/* Mock Cart Item */}
-                            <div className="flex gap-4">
-                                <div className="w-16 h-16 bg-white rounded-lg border border-slate-200 flex-shrink-0 relative">
-                                    <img src="https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=200&q=80" alt="Item" className="w-full h-full object-cover rounded-lg" />
-                                    <span className="absolute -top-2 -right-2 w-5 h-5 bg-slate-500 text-white text-xs font-bold flex items-center justify-center rounded-full">2</span>
-                                </div>
-                                <div>
-                                    <p className="font-bold text-sm">Pack Cosmétique Argan Premium</p>
-                                    <p className="text-xs text-slate-500 mt-0.5">Taille: 100ml</p>
-                                    <p className="font-bold text-sm mt-1">249 MAD</p>
-                                </div>
-                            </div>
+                            {cartItems.length > 0 ? (
+                                cartItems.map((item, index) => (
+                                    <div key={index} className="flex gap-4">
+                                        <div className="w-16 h-16 bg-white rounded-lg border border-slate-200 flex-shrink-0 relative">
+                                            <img src={item.image || "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=200&q=80"} alt={item.name} className="w-full h-full object-cover rounded-lg" />
+                                            <span className="absolute -top-2 -right-2 w-5 h-5 bg-slate-500 text-white text-xs font-bold flex items-center justify-center rounded-full">{item.quantity}</span>
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-sm">{item.name}</p>
+                                            {item.variant && <p className="text-xs text-slate-500 mt-0.5">{item.variant}</p>}
+                                            <p className="font-bold text-sm mt-1">{item.price} MAD</p>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-sm text-slate-500 text-center py-4">Votre panier est vide.</p>
+                            )}
                         </div>
 
                         <div className="space-y-3 pt-6 border-t border-slate-200 text-sm">

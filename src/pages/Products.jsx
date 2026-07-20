@@ -17,6 +17,8 @@ import { logActivity } from "../utils/logger"; // NEW
 import { useAuth } from "../context/AuthContext"; // NEW
 import { db } from "../lib/firebase"; // NEW
 import { predictStockout } from "../utils/stockPrediction";
+import ConfirmDialog from "../components/ConfirmDialog";
+import { useConfirmDialog } from "../hooks/useConfirmDialog";
 
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -35,6 +37,7 @@ const itemVariants = {
 
 export default function Products() {
     const { t } = useLanguage(); // NEW
+    const { confirmState, confirm, close } = useConfirmDialog();
     const [limitCount, setLimitCount] = useState(50);
 
     // Limit to 50 products for performance
@@ -85,17 +88,27 @@ export default function Products() {
     const handleDelete = async (id) => {
         vibrate('medium');
         if (showTrash) {
-            if (window.confirm(t('confirm_delete_permanent'))) {
-                await permanentDeleteStoreItem(id);
-                logActivity(db, store.id, user, 'PRODUCT_DELETE_PERMANENT', `Permanently deleted product ${id}`, { productId: id });
-                toast.success(t('msg_product_deleted_perm'));
-            }
+            confirm({
+                title: 'Suppression Définitive',
+                message: t('confirm_delete_permanent'),
+                isDestructive: true,
+                onConfirm: async () => {
+                    await permanentDeleteStoreItem(id);
+                    logActivity(db, store.id, user, 'PRODUCT_DELETE_PERMANENT', `Permanently deleted product ${id}`, { productId: id });
+                    toast.success(t('msg_product_deleted_perm'));
+                }
+            });
         } else {
-            if (window.confirm(t('confirm_move_trash'))) {
-                await deleteStoreItem(id);
-                logActivity(db, store.id, user, 'PRODUCT_TRASH', `Moved product ${id} to trash`, { productId: id });
-                toast.success(t('msg_product_moved_trash'));
-            }
+            confirm({
+                title: 'Corbeille',
+                message: t('confirm_move_trash'),
+                isDestructive: true,
+                onConfirm: async () => {
+                    await deleteStoreItem(id);
+                    logActivity(db, store.id, user, 'PRODUCT_TRASH', `Moved product ${id} to trash`, { productId: id });
+                    toast.success(t('msg_product_moved_trash'));
+                }
+            });
         }
     };
 
@@ -137,8 +150,6 @@ export default function Products() {
             }).then(() => { importedCount++; }).catch(e => console.error("Import error", e));
         });
 
-        await Promise.all(promises);
-        await Promise.all(promises);
         await Promise.all(promises);
         toast.success(t('success_import_products', { count: importedCount }));
     };
@@ -215,14 +226,14 @@ export default function Products() {
             </div>
 
             {/* Filters */}
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex gap-4">
+            <div className="glass-panel p-4 rounded-2xl flex gap-4">
                 <div className="relative flex-1 max-w-md">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <Search className="h-5 w-5 text-gray-400" />
                     </div>
                     <input
                         type="text"
-                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-150 ease-in-out"
+                        className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-all shadow-sm"
                         placeholder={t('search_placeholder')}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -249,7 +260,7 @@ export default function Products() {
             ) : (
                 <>
                     {/* Desktop List */}
-                    <div className="hidden md:block bg-white shadow overflow-hidden sm:rounded-md">
+                    <div className="hidden md:block glass-panel rounded-2xl overflow-hidden">
                         <motion.ul
                             variants={containerVariants}
                             initial="hidden"
@@ -257,8 +268,8 @@ export default function Products() {
                             className="divide-y divide-gray-200"
                         >
                             {filteredProducts.map((product) => (
-                                <motion.li key={product.id} variants={itemVariants}>
-                                    <div className="px-4 py-4 sm:px-6 hover:bg-gray-50 flex items-center justify-between">
+                                <motion.li key={product.id} variants={itemVariants} className="group border-b border-gray-100 last:border-0 hover:bg-indigo-50/30 transition-colors">
+                                    <div className="px-6 py-5 flex items-center justify-between">
                                         <div className="flex items-center gap-4 flex-1 min-w-0">
                                             <div className="flex-shrink-0 h-16 w-16 bg-gray-100 rounded-md overflow-hidden border border-gray-200">
                                                 {product.photoUrl ? (
@@ -339,7 +350,7 @@ export default function Products() {
                                                                 title={`Vitesse: ${pred.dailyRate}/jour. Recommandation: ${pred.recommendedOrder}`}
                                                             >
                                                                 <Sparkles className="h-3 w-3" />
-                                                                {pred.daysLeft === 0 ? 'Rupture imminente' : `${pred.daysLeft} jours restants`}
+                                                                {pred.daysLeft === 0 ? (t('label_stockout_imminent') || 'Rupture imminente') : `${pred.daysLeft} ${t('label_days_remaining') || 'jours restants'}`}
                                                             </motion.div>
                                                         );
                                                     })()}
@@ -365,9 +376,9 @@ export default function Products() {
                                         </div>
                                         <div className="flex items-center gap-4">
                                             <div className="text-right hidden sm:block">
-                                                <p className="text-sm font-semibold text-gray-900">{parseFloat(product.price).toFixed(2)} DH</p>
+                                                <p className="text-base font-bold text-gray-900">{parseFloat(product.price).toFixed(2)} DH</p>
                                             </div>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 {showTrash ? (
                                                     <>
                                                         <button
@@ -417,7 +428,7 @@ export default function Products() {
                         className="md:hidden space-y-4"
                     >
                         {filteredProducts.map((product) => (
-                            <motion.div key={product.id} variants={itemVariants} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                            <motion.div key={product.id} variants={itemVariants} className="glass-panel rounded-2xl overflow-hidden">
                                 <div className="flex p-4 gap-4">
                                     {/* Image */}
                                     <div className="flex-shrink-0 h-24 w-24 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
@@ -470,7 +481,7 @@ export default function Products() {
                                                         className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap border ${pred.isCritical ? 'bg-red-100 text-red-700 border-red-200' : 'bg-orange-100 text-orange-700 border-orange-200'}`}
                                                     >
                                                         <Sparkles className="h-2.5 w-2.5" />
-                                                        {pred.daysLeft === 0 ? 'Rupture imminente' : `${pred.daysLeft}j restants`}
+                                                        {pred.daysLeft === 0 ? (t('label_stockout_imminent') || 'Rupture imminente') : `${pred.daysLeft} ${t('label_days_remaining') || 'j restants'}`}
                                                     </motion.div>
                                                 );
                                             })()}
@@ -573,6 +584,14 @@ export default function Products() {
                 onClose={() => setIsOptimizerModalOpen(false)}
                 products={products}
                 orders={orders}
+            />
+            <ConfirmDialog 
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                message={confirmState.message}
+                onConfirm={confirmState.onConfirm}
+                onCancel={close}
+                isDestructive={confirmState.isDestructive}
             />
         </div>
     );

@@ -36,6 +36,10 @@ export const NotificationProvider = ({ children }) => {
         setLoading(true);
         const newAlerts = [];
 
+        // Load dismissed alerts from local storage
+        const dismissedKey = `dismissed_alerts_${store?.id || 'global'}`;
+        const dismissedAlerts = JSON.parse(localStorage.getItem(dismissedKey) || '[]');
+
         try {
             // 1. Financial Leaks (Ghost Orders & Margins) - Store Context
             if (store?.id) {
@@ -62,7 +66,8 @@ export const NotificationProvider = ({ children }) => {
                         title: 'Commandes Fantômes 👻',
                         message: `${leaks.ghostOrders.length} commandes livrées non payées (>15j).`,
                         link: '/finances',
-                        details: leaks.ghostOrders.map(o => o.reference).join(', ')
+                        details: leaks.ghostOrders.map(o => o.reference).join(', '),
+                        createdAt: Date.now()
                     });
                 }
 
@@ -72,7 +77,8 @@ export const NotificationProvider = ({ children }) => {
                         type: 'warning',
                         title: 'Marge Négative 💸',
                         message: `${leaks.negativeMargins.length} commandes à perte détectées.`,
-                        link: '/finances'
+                        link: '/finances',
+                        createdAt: Date.now()
                     });
                 }
             }
@@ -97,7 +103,8 @@ export const NotificationProvider = ({ children }) => {
                                         type: 'critical',
                                         title: 'Alerte Franchise 🚨',
                                         message: `Le magasin ${fStore.name || fStore.id} a un taux de retour critique (${rate.toFixed(1)}%).`,
-                                        link: '/dashboard'
+                                        link: '/dashboard',
+                                        createdAt: Date.now()
                                     });
                                 }
                             }
@@ -111,12 +118,9 @@ export const NotificationProvider = ({ children }) => {
             // 3. Unpaid Invoices (Sendit)
             if (store?.id && store.senditPublicKey) {
                 // Mock check or real check if lightweight
-                // implementation depends on Sendit API speed
-                // For now, let's assume we check "Pending" invoices from recent sync
-                // Or just a generic reminder if we haven't checked int
             }
 
-            // 3. Low Stock Alert (lightweight — only fetches products with low/no stock)
+            // 4. Low Stock Alert (lightweight — only fetches products with low/no stock)
             if (store?.id) {
                 try {
                     const lowStockSnap = await getDocs(
@@ -140,7 +144,8 @@ export const NotificationProvider = ({ children }) => {
                             title: 'Rupture de stock 📦',
                             message: `${outOfStock.length} produit(s) en rupture de stock.`,
                             link: '/products',
-                            details: outOfStock.map(d => d.data().name).slice(0, 5).join(', ')
+                            details: outOfStock.map(d => d.data().name).slice(0, 5).join(', '),
+                            createdAt: Date.now()
                         });
                     }
                     if (criticalLow.length > 0) {
@@ -150,7 +155,8 @@ export const NotificationProvider = ({ children }) => {
                             title: 'Stock critique ⚠️',
                             message: `${criticalLow.length} produit(s) avec stock ≤ 3 unités.`,
                             link: '/products',
-                            details: criticalLow.map(d => `${d.data().name} (${d.data().stock})`).slice(0, 5).join(', ')
+                            details: criticalLow.map(d => `${d.data().name} (${d.data().stock})`).slice(0, 5).join(', '),
+                            createdAt: Date.now()
                         });
                     }
                 } catch (e) {
@@ -161,8 +167,10 @@ export const NotificationProvider = ({ children }) => {
         } catch (err) {
             console.error("Notification Audit Error:", err);
         } finally {
-            setAlerts(newAlerts);
-            setUnreadCount(newAlerts.length);
+            // Filter out dismissed alerts unless they are critical
+            const filteredAlerts = newAlerts.filter(a => a.type === 'critical' || !dismissedAlerts.includes(a.id));
+            setAlerts(filteredAlerts);
+            setUnreadCount(filteredAlerts.length);
             setLoading(false);
         }
     };
@@ -178,6 +186,12 @@ export const NotificationProvider = ({ children }) => {
         loading,
         refreshAlerts: runAudit,
         dismissAlert: (id) => {
+            const dismissedKey = `dismissed_alerts_${store?.id || 'global'}`;
+            const dismissedAlerts = JSON.parse(localStorage.getItem(dismissedKey) || '[]');
+            if (!dismissedAlerts.includes(id)) {
+                dismissedAlerts.push(id);
+                localStorage.setItem(dismissedKey, JSON.stringify(dismissedAlerts));
+            }
             setAlerts(prev => prev.filter(a => a.id !== id));
             setUnreadCount(prev => Math.max(0, prev - 1));
         },

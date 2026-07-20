@@ -12,9 +12,11 @@ import { Toaster } from 'react-hot-toast';
 import { PWAProvider } from "./context/PWAContext";
 import ReloadPrompt from "./components/ReloadPrompt";
 import { ShopifyAppBridgeProvider } from "./context/ShopifyAppBridgeContext";
+import { CartProvider } from "./contexts/CartContext";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
+import FeatureProtectedRoute from "./components/FeatureProtectedRoute";
 import Layout from "./components/Layout";
 import BiometricLock from "./components/BiometricLock";
 import CookieBanner from "./components/CookieBanner";
@@ -47,6 +49,7 @@ const DemoDashboard = lazy(() => import("./pages/DemoDashboard"));
 const Assets = lazy(() => import("./pages/Assets"));
 const Marketing = lazy(() => import("./pages/Marketing"));
 const SupportAI = lazy(() => import("./pages/SupportAI"));
+const Notifications = lazy(() => import("./pages/Notifications"));
 const YouCanAuthRoute = lazy(() => import("./pages/YouCanAuthRoute"));
 const StoreCustomizer = lazy(() => import("./pages/HybridStoreBuilder"));
 
@@ -100,8 +103,9 @@ function App() {
               <AuthContextWrapper>
               <TenantProvider>
                 <CopilotProvider>
-                  <NotificationProvider>
-                    <BrowserRouter>
+                  <CartProvider>
+                    <NotificationProvider>
+                      <BrowserRouter>
                       <AnalyticsTracker />
                       <Toaster
                         position="top-right"
@@ -193,24 +197,25 @@ function App() {
                               </BiometricLock>
                             </ProtectedRoute>
                           }>
-                            <Route path="/dashboard" element={<Dashboard />} />
-                            <Route path="/finances" element={<Finances />} />
-                            <Route path="/products" element={<Products />} />
-                            <Route path="/orders" element={<Orders />} />
-                            <Route path="/customers" element={<Customers />} />
-                            <Route path="/planning" element={<Planning />} />
-                            <Route path="/team" element={<Team />} />
-                            <Route path="/settings" element={<Settings />} />
+                            <Route path="/dashboard" element={<FeatureProtectedRoute feature="dashboard"><Dashboard /></FeatureProtectedRoute>} />
+                            <Route path="/finances" element={<FeatureProtectedRoute feature="finances"><Finances /></FeatureProtectedRoute>} />
+                            <Route path="/products" element={<FeatureProtectedRoute feature="products"><Products /></FeatureProtectedRoute>} />
+                            <Route path="/orders" element={<FeatureProtectedRoute feature="orders"><Orders /></FeatureProtectedRoute>} />
+                            <Route path="/customers" element={<FeatureProtectedRoute feature="customers"><Customers /></FeatureProtectedRoute>} />
+                            <Route path="/planning" element={<FeatureProtectedRoute feature="planning"><Planning /></FeatureProtectedRoute>} />
+                            <Route path="/notifications" element={<Notifications />} />
+                            <Route path="/team" element={<FeatureProtectedRoute feature="team"><Team /></FeatureProtectedRoute>} />
+                            <Route path="/settings" element={<FeatureProtectedRoute feature="settings"><Settings /></FeatureProtectedRoute>} />
                             <Route path="/help" element={<Help />} />
-                            <Route path="/warehouse" element={<Warehouse />} />
+                            <Route path="/warehouse" element={<FeatureProtectedRoute feature="warehouse"><Warehouse /></FeatureProtectedRoute>} />
                             <Route path="/support-ai" element={<SupportAI />} />
-                            <Route path="/automations" element={<Automations />} />
-                            <Route path="/drivers" element={<Drivers />} />
-                            <Route path="/hr" element={<HR />} />
-                            <Route path="/purchases" element={<Purchases />} />
-                            <Route path="/returns" element={<Returns />} />
-                            <Route path="/marketing" element={<Marketing />} />
-                            <Route path="/assets" element={<Assets />} />
+                            <Route path="/automations" element={<FeatureProtectedRoute feature="automations"><Automations /></FeatureProtectedRoute>} />
+                            <Route path="/drivers" element={<FeatureProtectedRoute feature="drivers"><Drivers /></FeatureProtectedRoute>} />
+                            <Route path="/hr" element={<FeatureProtectedRoute feature="hr"><HR /></FeatureProtectedRoute>} />
+                            <Route path="/purchases" element={<FeatureProtectedRoute feature="purchases"><Purchases /></FeatureProtectedRoute>} />
+                            <Route path="/returns" element={<FeatureProtectedRoute feature="returns"><Returns /></FeatureProtectedRoute>} />
+                            <Route path="/marketing" element={<FeatureProtectedRoute feature="marketing"><Marketing /></FeatureProtectedRoute>} />
+                            <Route path="/assets" element={<FeatureProtectedRoute feature="assets"><Assets /></FeatureProtectedRoute>} />
                             <Route path="/qa" element={<QA />} />
                           </Route>
 
@@ -220,7 +225,8 @@ function App() {
                       <CookieBanner />
                       <ReloadPrompt />
                     </BrowserRouter>
-                  </NotificationProvider>
+                    </NotificationProvider>
+                  </CartProvider>
                 </CopilotProvider>
               </TenantProvider>
             </AuthContextWrapper>

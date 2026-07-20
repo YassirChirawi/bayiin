@@ -24,7 +24,7 @@ describe('Order Stock Management Logic', () => {
         });
 
         it('should return false when moving from RECEIVED to LIVRAISON (both active)', () => {
-            expect(shouldDeductStock(ORDER_STATUS.RECEIVED, ORDER_STATUS.LIVRAISON)).toBe(false);
+            expect(shouldDeductStock(ORDER_STATUS.RECEIVED, ORDER_STATUS.SHIPPING)).toBe(false);
         });
     });
 

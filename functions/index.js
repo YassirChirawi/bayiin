@@ -1,6 +1,7 @@
 const functions = require('firebase-functions');
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onRequest } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
@@ -57,6 +58,81 @@ const { generateStorefront, enhanceCopywriting } = require('./hybridBuilder');
 exports.generateStorefront = generateStorefront;
 exports.enhanceCopywriting = enhanceCopywriting;
 
+// Vision AI (Beya3 Phase 4)
+const { processInvoiceOCR } = require('./copilot/visionAgent');
+exports.processInvoiceOCR = functions.https.onCall(async (data, context) => {
+    // Only logged-in users can call this
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+    const { storeId, imageUrl } = data;
+    if (!storeId || !imageUrl) {
+        throw new functions.https.HttpsError('invalid-argument', 'Missing storeId or imageUrl');
+    }
+    
+    try {
+        const result = await processInvoiceOCR(storeId, imageUrl);
+        return result;
+    } catch (err) {
+        throw new functions.https.HttpsError('internal', err.message);
+    }
+});
+
+// Autonomous Monitoring Engine (Beya3 Phase 1)
+const { runAnomalyScanner } = require('./copilot/proactiveAgent');
+exports.hourlyAnomalyScanner = onSchedule("0 * * * *", async (event) => {
+    console.log("[HourlyScanner] Starting anomaly detection for all stores...");
+    // Retrieve all stores (you might want to filter active ones later)
+    const storesSnap = await db.collection('stores').get();
+    
+    const promises = [];
+    storesSnap.forEach(doc => {
+        promises.push(runAnomalyScanner(doc.id));
+    });
+    
+    await Promise.allSettled(promises);
+    console.log(`[HourlyScanner] Completed for ${storesSnap.size} stores.`);
+});
+
+// Autonomous Action Layer (Beya3 Phase 2)
+const { executeDraft } = require('./copilot/actionExecutor');
+exports.onActionDraftUpdate = onDocumentWritten({
+    document: "stores/{storeId}/action_drafts/{draftId}",
+    database: "comsaas",
+}, async (event) => {
+    const after = event.data?.after;
+    const before = event.data?.before;
+    
+    if (!after?.exists) return;
+    const data = after.data();
+    const oldData = before?.exists ? before.data() : {};
+    
+    // Si le statut passe à 'approved', on exécute l'action en backend
+    if (data.status === 'approved' && oldData.status !== 'approved') {
+        const storeId = event.params.storeId;
+        console.log(`[Autonomous Action] Executing draft ${event.params.draftId} for store ${storeId}: ${data.toolName}`);
+        
+        // Mettre à jour le statut pour éviter les doubles exécutions
+        await after.ref.update({ status: 'executing' });
+        
+        try {
+            const result = await executeDraft(storeId, data);
+            
+            await after.ref.update({ 
+                status: 'executed',
+                executedAt: FieldValue.serverTimestamp(),
+                result: result || { success: true }
+            });
+        } catch (error) {
+            console.error("[Autonomous Action] Failed:", error);
+            await after.ref.update({ 
+                status: 'failed', 
+                error: error.message 
+            });
+        }
+    }
+});
+
 /**
  * Custom Claims Sync
  * Whenever a user document is written, sync their role to Firebase Auth JWT claims.
@@ -76,13 +152,36 @@ exports.onUserWrite = onDocumentWritten({
     const role = userData?.role || null;
     const franchiseId = userData?.franchiseId || null;
 
+    // storeId in the doc is trustworthy: Firestore rules only let a user self-set it to a store
+    // they OWN (see users create rule). For invited STAFF who never onboarded (no storeId in doc),
+    // derive membership from allowed_users — invitations are written by the store owner/managers.
+    let storeId = userData?.storeId || null;
+    let effectiveRole = role;
+    if (!storeId) {
+        try {
+            let email = userData?.email || null;
+            if (!email) {
+                try { email = (await getAuth().getUser(userId)).email || null; } catch (e) { /* no auth user */ }
+            }
+            if (email) {
+                const invite = await db.collection('allowed_users').where('email', '==', email).limit(1).get();
+                if (!invite.empty) {
+                    storeId = invite.docs[0].data().storeId || null;
+                    if (!effectiveRole) effectiveRole = invite.docs[0].data().role || 'staff';
+                }
+            }
+        } catch (e) {
+            console.warn(`[CustomClaims] allowed_users lookup failed for ${userId}:`, e.message);
+        }
+    }
+
     try {
         await getAuth().setCustomUserClaims(userId, {
-            role,
-            storeId: userData?.storeId || null,
+            role: effectiveRole,
+            storeId: storeId,
             ...(franchiseId ? { franchiseId } : {})
         });
-        console.log(`[CustomClaims] Synced role="${role}" for user ${userId}`);
+        console.log(`[CustomClaims] Synced role="${effectiveRole}" storeId="${storeId}" for user ${userId}`);
     } catch (err) {
         console.error(`[CustomClaims] Failed to set claims for user ${userId}:`, err);
     }
@@ -429,8 +528,16 @@ exports.onOrderWrite = onDocumentWritten({
     // 7. [NEW] Realized COGS (totals.realizedCOGS) - Only 'livré'
 
     // Helpers
-    // Realized Revenue = Cash Collected (isPaid is true)
-    const isRealized = (order) => order && order.isPaid === true;
+    // Realized Revenue = cash actually collected. Honor partial `amountPaid` (COD), matching
+    // financials.js and manualReconciliation, not just the boolean isPaid flag.
+    const getCollectedValue = (order) => {
+        if (!order) return 0;
+        if (order.amountPaid !== undefined && order.amountPaid !== null && order.amountPaid !== "") {
+            return parseFloat(order.amountPaid) || 0;
+        }
+        return order.isPaid ? getOrderValue(order) : 0;
+    };
+    const isRealized = (order) => order && (getCollectedValue(order) > 0 || order.isPaid === true);
     const getCostValue = (order) => (parseFloat(order.costPrice) || 0) * (parseInt(order.quantity) || 1);
     const getDeliveryCost = (order) => parseFloat(order.realDeliveryCost) || 0;
     // const getDateKey = (dateString) => dateString || new Date().toISOString().split('T')[0]; // Already defined above
@@ -455,7 +562,7 @@ exports.onOrderWrite = onDocumentWritten({
         revenueDelta = getOrderValue(after);
         countDelta = 1;
         if (isRealized(after)) {
-            realizedRevDelta = getOrderValue(after);
+            realizedRevDelta = getCollectedValue(after);
             realizedCostDelta = getCostValue(after);
             realizedDeliveryCostDelta = getDeliveryCost(after);
         }
@@ -464,7 +571,7 @@ exports.onOrderWrite = onDocumentWritten({
         revenueDelta = -getOrderValue(before);
         countDelta = -1;
         if (isRealized(before)) {
-            realizedRevDelta = -getOrderValue(before);
+            realizedRevDelta = -getCollectedValue(before);
             realizedCostDelta = -getCostValue(before);
             realizedDeliveryCostDelta = -getDeliveryCost(before);
         }
@@ -472,6 +579,8 @@ exports.onOrderWrite = onDocumentWritten({
         // UPDATE
         const newVal = getOrderValue(after);
         const oldVal = getOrderValue(before);
+        const newCollected = getCollectedValue(after);
+        const oldCollected = getCollectedValue(before);
         const newCost = getCostValue(after);
         const oldCost = getCostValue(before);
         // Delivery Cost might change too
@@ -487,17 +596,17 @@ exports.onOrderWrite = onDocumentWritten({
 
         if (nowRealized && !wasRealized) {
             // Became Realized
-            realizedRevDelta = newVal;
+            realizedRevDelta = newCollected;
             realizedCostDelta = newCost;
             realizedDeliveryCostDelta = newDelivery;
         } else if (!nowRealized && wasRealized) {
             // No longer Realized
-            realizedRevDelta = -oldVal;
+            realizedRevDelta = -oldCollected;
             realizedCostDelta = -oldCost;
             realizedDeliveryCostDelta = -oldDelivery;
         } else if (nowRealized && wasRealized) {
-            // Stayed Realized (but maybe price/qty/cost/delivery changed)
-            realizedRevDelta = newVal - oldVal;
+            // Stayed Realized (but maybe amount collected / cost / delivery changed)
+            realizedRevDelta = newCollected - oldCollected;
             realizedCostDelta = newCost - oldCost;
             realizedDeliveryCostDelta = newDelivery - oldDelivery;
         }
@@ -547,7 +656,7 @@ exports.onOrderWrite = onDocumentWritten({
 
     // 4. STOCK MANAGEMENT (Centralized)
     const { applyStockUpdates } = require('./stockLogic');
-    await applyStockUpdates(db, batch, before, after);
+    await applyStockUpdates(db, before, after);
 
     // Execute Update
     const statsPromise = statsRef.set(updates, { merge: true });
@@ -609,7 +718,40 @@ exports.onOrderWrite = onDocumentWritten({
         }
     }
 
-    // 6. AUDIT LOGGING
+    // 6. KNOWLEDGE GRAPH EXTRACTION (Phase 3)
+    // Extraire les relations Produit/Ville/Transporteur lors d'une livraison ou retour
+    let kgPromise = Promise.resolve();
+    if (oldStatus !== newStatus && (newStatus === 'livré' || newStatus === 'retour') && after) {
+        const { upsertNode, incrementEdgeMetric } = require('./copilot/kgService');
+        const cityNodeId = `city_${(after.clientCity || 'unknown').toLowerCase().trim()}`;
+        const carrierNodeId = `carrier_${(after.carrier || 'unknown').toLowerCase().trim()}`;
+        const relationPrefix = newStatus === 'livré' ? 'DELIVERED' : 'RETURNED';
+        
+        const kgTasks = [];
+        
+        // Noeuds génériques
+        kgTasks.push(upsertNode(storeId, cityNodeId, 'city', { name: after.clientCity || 'Unknown' }));
+        kgTasks.push(upsertNode(storeId, carrierNodeId, 'carrier', { name: after.carrier || 'Unknown' }));
+        
+        // Edge Ville -> Transporteur
+        kgTasks.push(incrementEdgeMetric(storeId, cityNodeId, carrierNodeId, `${relationPrefix}_BY`, 'count', 1));
+
+        // Produits
+        if (Array.isArray(after.products)) {
+            for (const item of after.products) {
+                const prodNodeId = `product_${item.id}`;
+                kgTasks.push(upsertNode(storeId, prodNodeId, 'product', { name: item.name }));
+                // Edge Produit -> Ville
+                kgTasks.push(incrementEdgeMetric(storeId, prodNodeId, cityNodeId, `${relationPrefix}_IN`, 'count', 1));
+                // Edge Produit -> Transporteur
+                kgTasks.push(incrementEdgeMetric(storeId, prodNodeId, carrierNodeId, `${relationPrefix}_BY`, 'count', 1));
+            }
+        }
+        
+        kgPromise = Promise.all(kgTasks).catch(e => console.warn('[KnowledgeGraph] Extraction failed:', e.message));
+    }
+
+    // 7. AUDIT LOGGING
     // Log status changes in the store's audit trail
     if (oldStatus !== newStatus && storeId) {
         const auditRef = db.collection('stores').doc(storeId).collection('audit_logs').doc();
@@ -624,10 +766,10 @@ exports.onOrderWrite = onDocumentWritten({
             source: after?._updatedBy === 'carrier' ? 'Webhook' : 'Cloud Function'
         }).catch(e => console.warn('Audit logging failed:', e.message));
         
-        return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, auditPromise]);
+        return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, auditPromise, kgPromise]);
     }
 
-    return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise]);
+    return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, kgPromise]);
 });
 
 /**
@@ -1090,7 +1232,7 @@ exports.scheduledReconciliation = functions.pubsub.schedule('0 2 * * *')
 // ==========================================
 // BEYA3 COPILOT - PROACTIVE AGENT JOBS
 // ==========================================
-const { generateDailyBrief, deliverInsight, runAnomalyScanner } = require('./copilot/proactiveAgent');
+const { generateDailyBrief, deliverInsight } = require('./copilot/proactiveAgent'); // runAnomalyScanner already imported above (line ~82)
 
 /**
  * Daily Brief (Runs every day at 08:00 Casablanca time)
@@ -1153,3 +1295,120 @@ exports.beya3WeeklyBenchmark = functions.pubsub.schedule('0 2 * * 0')
 });
 
 // cleanYoucan: REMOVED (SEC-04 — was an unauthenticated destructive endpoint)
+
+/**
+ * Manual Reconciliation Function
+ * Called manually from the dashboard to recalculate all stats.
+ */
+exports.manualReconciliation = functions.runWith({ timeoutSeconds: 300, memory: '1GB' }).https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'User must be logged in');
+    }
+    const storeId = data.storeId;
+    if (!storeId) {
+        throw new functions.https.HttpsError('invalid-argument', 'Missing storeId');
+    }
+
+    // Verify user belongs to store
+    const userDoc = await db.collection('users').doc(context.auth.uid).get();
+    if (!userDoc.exists || (userDoc.data().storeId !== storeId && context.auth.token.role !== 'super_admin')) {
+        throw new functions.https.HttpsError('permission-denied', 'Not authorized for this store');
+    }
+
+    try {
+        console.log(`Starting manual reconciliation for store ${storeId}`);
+        const ordersRef = db.collection('orders').where('storeId', '==', storeId);
+        const expRef = db.collection('expenses').where('storeId', '==', storeId);
+        const refRef = db.collection('refunds').where('storeId', '==', storeId);
+
+        const [ordersSnap, expSnap, refSnap] = await Promise.all([
+            ordersRef.get(),
+            expRef.get(),
+            refRef.get()
+        ]);
+
+        const stats = {
+            totals: {
+                revenue: 0, count: 0, realizedRevenue: 0, realizedCOGS: 0, realizedDeliveryCost: 0,
+                deliveredRevenue: 0, expectedRevenue: 0, unremittedRevenue: 0, remittedRevenue: 0,
+                expenses: 0, refunds: 0, netProfit: 0
+            },
+            statusCounts: {},
+            daily: {}
+        };
+
+        const customerStats = {};
+
+        ordersSnap.forEach(doc => {
+            const order = doc.data();
+            const orderVal = (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
+            const orderCost = (parseFloat(order.costPrice) || 0) * (parseInt(order.quantity) || 1);
+            const deliveryCost = parseFloat(order.realDeliveryCost) || 0;
+            const dateKey = order.date ? order.date.split('T')[0] : 'unknown';
+
+            // Stats Aggregation
+            stats.totals.revenue += orderVal;
+            stats.totals.count += 1;
+
+            const amountCollected = (order.amountPaid !== undefined && order.amountPaid !== null && order.amountPaid !== "")
+                ? parseFloat(order.amountPaid) || 0
+                : (order.isPaid ? orderVal : 0);
+
+            if (amountCollected > 0 || order.isPaid) {
+                stats.totals.realizedRevenue += amountCollected;
+                stats.totals.realizedCOGS += orderCost;
+                stats.totals.realizedDeliveryCost += deliveryCost;
+            }
+
+            if (order.status === 'livraison' || order.status === 'ramassage') stats.totals.expectedRevenue += orderVal;
+            if (order.status === 'livré') {
+                stats.totals.deliveredRevenue += orderVal;
+                if (order.paymentStatus === 'remitted') stats.totals.remittedRevenue += orderVal;
+                else stats.totals.unremittedRevenue += orderVal;
+            }
+
+            const status = order.status || 'unknown';
+            stats.statusCounts[status] = (stats.statusCounts[status] || 0) + 1;
+
+            if (!stats.daily[dateKey]) stats.daily[dateKey] = { revenue: 0, count: 0 };
+            stats.daily[dateKey].revenue += orderVal;
+            stats.daily[dateKey].count += 1;
+
+            // Customer Stats Aggregation — count spend only for DELIVERED orders, matching the
+            // incremental onOrderWrite trigger, so "Sync Stats" doesn't inflate totalSpent with
+            // cancelled/returned/pending orders (the two paths must agree).
+            if (order.customerId) {
+                if (!customerStats[order.customerId]) customerStats[order.customerId] = { count: 0, spent: 0, dates: [] };
+                customerStats[order.customerId].count += 1;
+                if (order.status === 'livré') customerStats[order.customerId].spent += orderVal;
+                if (order.date) customerStats[order.customerId].dates.push(order.date);
+            }
+        });
+
+        expSnap.forEach(doc => { stats.totals.expenses += (parseFloat(doc.data().amount) || 0); });
+        refSnap.forEach(doc => { stats.totals.refunds += (parseFloat(doc.data().amount) || 0); });
+
+        stats.totals.netProfit = stats.totals.realizedRevenue - stats.totals.realizedCOGS - stats.totals.realizedDeliveryCost - stats.totals.expenses - stats.totals.refunds;
+
+        // Commit all updates using batch
+        const batch = db.batch();
+        batch.set(db.collection('stores').doc(storeId).collection('stats').doc('sales'), stats);
+
+        Object.entries(customerStats).forEach(([custId, cStats]) => {
+            const lastOrderDate = cStats.dates.sort().pop() || new Date().toISOString().split('T')[0];
+            batch.update(db.collection('customers').doc(custId), {
+                orderCount: cStats.count,
+                totalSpent: cStats.spent,
+                lastOrderDate: lastOrderDate
+            });
+        });
+
+        await batch.commit();
+        console.log(`Reconciliation completed for store ${storeId}`);
+        return { success: true };
+
+    } catch (error) {
+        console.error('Manual reconciliation error:', error);
+        throw new functions.https.HttpsError('internal', 'Reconciliation failed', error.message);
+    }
+});

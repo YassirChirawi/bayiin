@@ -10,7 +10,7 @@ import {
     RefreshCw, X, ShoppingBag, AlignLeft, AlignCenter, AlignRight, 
     ArrowUp, ArrowDown, Plus, Trash2, GripVertical, Image as ImageIcon, MessageSquare, HelpCircle, Layers,
     Monitor, Tablet, Smartphone, Copy, Eye, AlertCircle, ShieldCheck, Clock,
-    Undo2, Redo2
+    Undo2, Redo2, Code, TrendingUp, ListOrdered
 } from 'lucide-react';
 import Button from '../components/Button';
 import { useHistory } from '../builder/hooks/useHistory';
@@ -22,14 +22,16 @@ import { getAvailableVariants } from '../builder/registry';
 import TemplateGallery from '../builder/TemplateGallery';
 import FullScreenPreview from '../builder/FullScreenPreview';
 import StoreOnboarding from '../builder/components/StoreOnboarding';
+import CartDrawer from '../components/storefront/CartDrawer';
 
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import SortableSectionItem from '../builder/components/SortableSectionItem';
 import ResponsiveControl from '../builder/components/ResponsiveControl';
 import ItemsManager from '../builder/components/ItemsManager';
+import SectionBlocksManager from '../builder/components/SectionBlocksManager';
 
-const FONTS = ['Inter', 'Outfit', 'Roboto', 'Playfair Display', 'Montserrat'];
+const FONTS = ['Inter', 'Outfit', 'Poppins', 'Montserrat', 'Cairo', 'Tajawal', 'Roboto', 'Playfair Display'];
 
 // -- UTILS --
 const getButtonStyle = (style) => {
@@ -180,9 +182,12 @@ export default function HybridStoreBuilder() {
     // Google Fonts Injection
     useEffect(() => {
         if (!storefrontData.theme.typography) return;
-        const fontName = storefrontData.theme.typography.heading;
+        const headingFont = storefrontData.theme.typography.heading || 'Inter';
+        const bodyFont = storefrontData.theme.typography.body || 'Inter';
+        
         const link = document.createElement('link');
-        link.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/ /g, '+')}:wght@400;500;700;900&display=swap`;
+        const fonts = Array.from(new Set([headingFont, bodyFont])).map(f => `family=${f.replace(/ /g, '+')}:wght@400;500;700;900`).join('&');
+        link.href = `https://fonts.googleapis.com/css2?${fonts}&display=swap`;
         link.rel = 'stylesheet';
         document.head.appendChild(link);
         return () => document.head.removeChild(link);
@@ -573,6 +578,8 @@ export default function HybridStoreBuilder() {
         { type: 'TrustBadges', icon: <ShieldCheck />, desc: "Icônes de confiance (paiement, livraison)", pages: ['home', 'product', 'contact'] },
         { type: 'StatsCounter', icon: <Sparkles />, desc: "Compteurs de statistiques animés", pages: ['home', 'product', 'contact'] },
         { type: 'ProcessSteps', icon: <Layers />, desc: "Étapes / Comment ça marche", pages: ['home', 'product', 'contact'] },
+        { type: 'CustomHTML', icon: <Code />, desc: "Code brut (Avancé)", pages: ['home', 'product', 'contact'] },
+        { type: 'ImageText', icon: <Layers />, desc: "Texte & Image côte à côte", pages: ['home', 'product', 'contact'] }
     ];
     const SECTION_CATALOG = SECTION_CATALOG_ALL.filter(item => !item.pages || item.pages.includes(currentPage));
 
@@ -1106,6 +1113,8 @@ export default function HybridStoreBuilder() {
                                 onClick={() => { setSelectedSectionId('global-footer'); setSelectedSectionType('global'); }}
                                 onUpdate={(updates) => updateSection('global-footer', updates)}
                             />
+                            
+                            <CartDrawer theme={storefrontData.theme} />
                         </div>
                     </div>
                 </div>
@@ -1145,6 +1154,12 @@ export default function HybridStoreBuilder() {
 
                                     <div className="space-y-5">
                                         {activeSectionTab === 'content' ? (
+                                            selectedSection.variant === 'Blocks' ? (
+                                                <SectionBlocksManager 
+                                                    section={selectedSection} 
+                                                    onChange={(newBlocks) => updateSection(selectedSection.id, { blocks: newBlocks })} 
+                                                />
+                                            ) : (
                                             <>
                                                 {selectedSection.title !== undefined && (
                                                     <div>
@@ -1213,6 +1228,7 @@ export default function HybridStoreBuilder() {
                                                     onChange={(newItems) => updateSection(selectedSection.id, { items: newItems })}
                                                 />
                                             </>
+                                            )
                                         ) : (
                                             /* TAB DESIGN */
                                             <>
@@ -1295,20 +1311,101 @@ export default function HybridStoreBuilder() {
                                                     </div>
                                                 )}
 
-                                                {/* Couleurs */}
+                                                {/* Couleurs & Fond Avancé */}
                                                 <div className="pb-4 border-b border-slate-100">
-                                                    <label className="block text-sm font-bold text-slate-700 mb-3">Couleurs de la section</label>
-                                                    <div className="flex gap-4">
+                                                    <label className="block text-sm font-bold text-slate-700 mb-3">Fond & Couleurs</label>
+                                                    <div className="flex gap-4 mb-4">
                                                         <div className="flex flex-col items-center">
                                                             <input type="color" value={selectedSection.settings?.textColor || '#000000'} onChange={(e) => updateSectionSetting(selectedSection.id, 'textColor', e.target.value)} className="w-8 h-8 cursor-pointer rounded" />
                                                             <span className="text-[10px] text-slate-500 mt-1">Texte</span>
                                                         </div>
-                                                        {selectedSection.settings?.backgroundType !== 'image' && (
+                                                        <div className="flex flex-col items-center">
+                                                            <input type="color" value={selectedSection.settings?.backgroundColor || '#ffffff'} onChange={(e) => updateSectionSetting(selectedSection.id, 'backgroundColor', e.target.value)} className="w-8 h-8 cursor-pointer rounded" />
+                                                            <span className="text-[10px] text-slate-500 mt-1">Fond 1</span>
+                                                        </div>
+                                                        {selectedSection.settings?.backgroundGradient && selectedSection.settings.backgroundGradient !== 'none' && (
                                                             <div className="flex flex-col items-center">
-                                                                <input type="color" value={selectedSection.settings?.backgroundColor || '#ffffff'} onChange={(e) => updateSectionSetting(selectedSection.id, 'backgroundColor', e.target.value)} className="w-8 h-8 cursor-pointer rounded" />
-                                                                <span className="text-[10px] text-slate-500 mt-1">Fond</span>
+                                                                <input type="color" value={selectedSection.settings?.gradientColor2 || '#f8fafc'} onChange={(e) => updateSectionSetting(selectedSection.id, 'gradientColor2', e.target.value)} className="w-8 h-8 cursor-pointer rounded" />
+                                                                <span className="text-[10px] text-slate-500 mt-1">Fond 2</span>
                                                             </div>
                                                         )}
+                                                    </div>
+                                                    
+                                                    <select 
+                                                        value={selectedSection.settings?.backgroundGradient || 'none'} 
+                                                        onChange={(e) => updateSectionSetting(selectedSection.id, 'backgroundGradient', e.target.value)}
+                                                        className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none"
+                                                    >
+                                                        <option value="none">Uni (Pas de dégradé)</option>
+                                                        <option value="linear-to-b">Dégradé Vertical</option>
+                                                        <option value="linear-to-r">Dégradé Horizontal</option>
+                                                        <option value="linear-to-br">Dégradé Diagonal</option>
+                                                        <option value="radial">Dégradé Radial</option>
+                                                    </select>
+                                                </div>
+
+                                                {/* Style de Boîte (Box Style) */}
+                                                <div className="pb-4 border-b border-slate-100">
+                                                    <label className="block text-sm font-bold text-slate-700 mb-3">Style du conteneur</label>
+                                                    <div className="grid grid-cols-2 gap-2 mb-3">
+                                                        <button onClick={() => updateSectionSetting(selectedSection.id, 'boxStyle', 'none')} className={`py-1.5 text-xs font-bold rounded-lg border ${!selectedSection.settings?.boxStyle || selectedSection.settings.boxStyle === 'none' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600'}`}>Pleine largeur</button>
+                                                        <button onClick={() => updateSectionSetting(selectedSection.id, 'boxStyle', 'boxed')} className={`py-1.5 text-xs font-bold rounded-lg border ${selectedSection.settings?.boxStyle === 'boxed' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600'}`}>Encart (Boxed)</button>
+                                                    </div>
+                                                    {selectedSection.settings?.boxStyle === 'boxed' && (
+                                                        <div className="space-y-3">
+                                                            <div>
+                                                                <span className="text-xs text-slate-500 block mb-1">Arrondi (Radius)</span>
+                                                                <select value={selectedSection.settings?.borderRadius || 'none'} onChange={(e) => updateSectionSetting(selectedSection.id, 'borderRadius', e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-xs outline-none">
+                                                                    <option value="none">Carré</option>
+                                                                    <option value="rounded">Léger (rounded)</option>
+                                                                    <option value="rounded-lg">Moyen (rounded-lg)</option>
+                                                                    <option value="pill">Maximum (pill)</option>
+                                                                </select>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-xs text-slate-500 block mb-1">Ombre (Shadow)</span>
+                                                                <select value={selectedSection.settings?.shadow || 'none'} onChange={(e) => updateSectionSetting(selectedSection.id, 'shadow', e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-xs outline-none">
+                                                                    <option value="none">Aucune</option>
+                                                                    <option value="sm">Discrète (sm)</option>
+                                                                    <option value="md">Moyenne (md)</option>
+                                                                    <option value="lg">Prononcée (lg)</option>
+                                                                    <option value="glow">Glow (Lueur)</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Séparateurs (Dividers) */}
+                                                <div className="pb-4 border-b border-slate-100">
+                                                    <label className="block text-sm font-bold text-slate-700 mb-3">Formes de séparation</label>
+                                                    <div className="space-y-3">
+                                                        <div>
+                                                            <span className="text-xs text-slate-500 block mb-1">Haut de section</span>
+                                                            <div className="flex gap-2">
+                                                                <select value={selectedSection.settings?.dividerTop || 'none'} onChange={(e) => updateSectionSetting(selectedSection.id, 'dividerTop', e.target.value)} className="flex-1 p-2 border border-slate-200 rounded-lg text-xs outline-none">
+                                                                    <option value="none">Droit</option>
+                                                                    <option value="wave">Vague</option>
+                                                                    <option value="slant">Diagonale</option>
+                                                                </select>
+                                                                {selectedSection.settings?.dividerTop && selectedSection.settings.dividerTop !== 'none' && (
+                                                                    <input type="color" value={selectedSection.settings?.dividerTopColor || '#ffffff'} onChange={(e) => updateSectionSetting(selectedSection.id, 'dividerTopColor', e.target.value)} className="w-8 h-8 rounded shrink-0 cursor-pointer p-0 border-0" />
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-xs text-slate-500 block mb-1">Bas de section</span>
+                                                            <div className="flex gap-2">
+                                                                <select value={selectedSection.settings?.dividerBottom || 'none'} onChange={(e) => updateSectionSetting(selectedSection.id, 'dividerBottom', e.target.value)} className="flex-1 p-2 border border-slate-200 rounded-lg text-xs outline-none">
+                                                                    <option value="none">Droit</option>
+                                                                    <option value="wave">Vague</option>
+                                                                    <option value="slant">Diagonale</option>
+                                                                </select>
+                                                                {selectedSection.settings?.dividerBottom && selectedSection.settings.dividerBottom !== 'none' && (
+                                                                    <input type="color" value={selectedSection.settings?.dividerBottomColor || '#ffffff'} onChange={(e) => updateSectionSetting(selectedSection.id, 'dividerBottomColor', e.target.value)} className="w-8 h-8 rounded shrink-0 cursor-pointer p-0 border-0" />
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -1327,6 +1424,22 @@ export default function HybridStoreBuilder() {
                                                         defaultValues={{ desktop: 64, tablet: 48, mobile: 32 }}
                                                         onChange={(val) => updateSectionSetting(selectedSection.id, 'paddingBottom', val)}
                                                     />
+                                                </div>
+
+                                                {/* Animation d'entrée */}
+                                                <div className="pt-4 border-t border-slate-100">
+                                                    <label className="block text-sm font-bold text-slate-700 mb-2">Animation d'entrée (Framer Motion)</label>
+                                                    <select
+                                                        value={selectedSection.settings?.entryAnimation || 'none'}
+                                                        onChange={(e) => updateSectionSetting(selectedSection.id, 'entryAnimation', e.target.value)}
+                                                        className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                                                    >
+                                                        <option value="none">Aucune</option>
+                                                        <option value="fade">Fondu (Fade In)</option>
+                                                        <option value="slide-up">Glissement (Slide Up)</option>
+                                                        <option value="scale-up">Zoom (Scale Up)</option>
+                                                        <option value="stagger">En cascade (Stagger)</option>
+                                                    </select>
                                                 </div>
                                             </>
                                         )}
