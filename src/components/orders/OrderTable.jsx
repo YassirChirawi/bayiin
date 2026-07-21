@@ -351,9 +351,11 @@ export default function OrderTable({
     handleOpenTracking,
     setQrOrder,
     handleNoAnswer,
+    riskModel,
     t
 }) {
-    const riskModel = useMemo(() => buildRiskModel(orders), [orders]);
+    const builtModel = useMemo(() => buildRiskModel(orders), [orders]);
+    const model = riskModel || builtModel;
 
     return (
         <div className="bg-white/80 backdrop-blur-lg rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -385,7 +387,7 @@ export default function OrderTable({
                                 <OrderRow
                                     key={order.id}
                                     order={order}
-                                    riskModel={riskModel}
+                                    riskModel={model}
                                     isSelected={isSelected}
                                     handleSelectOne={handleSelectOne}
                                     activeTab={activeTab}
