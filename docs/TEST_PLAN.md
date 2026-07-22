@@ -6,7 +6,7 @@ Référentiel QA couvrant l'ensemble de l'application (OMS, WMS, CRM, finances, 
 - Type : `U` unitaire (Vitest) · `E2E` Playwright · `M` manuel · `SEC` sécurité (règles Firestore / auth) · `INT` intégration
 - Priorité : `P0` bloquant (argent, stock, sécurité) · `P1` important · `P2` confort
 
-**Couverture automatisée actuelle** : 257 tests unitaires verts · 11 specs E2E (automations, customers, finances, global, hr, marketing, orders, products, security, settings, warehouse).
+**Couverture automatisée actuelle** : 257 tests unitaires (`npm run test`) · **27 tests émulateur** (`npm run test:emulator` — 19 règles de sécurité + 8 intégration stock) · 11 specs E2E (automations, customers, finances, global, hr, marketing, orders, products, security, settings, warehouse).
 **Modules sans E2E** : Returns, Purchases, Drivers, Planning, FranchiseDashboard, PublicCatalog, Beya3.
 
 > ⚠️ En local, l'app pointe sur **Firebase PROD**. Utiliser une **boutique de test** dédiée pour tout test manuel qui écrit des données.
@@ -331,10 +331,10 @@ npm run build             # build production
 node --check functions/index.js   # syntaxe Cloud Functions
 ```
 
-## Priorités d'automatisation (gaps actuels)
+## Priorités d'automatisation
 
-1. **P0** — Tests de règles Firestore (`@firebase/rules-unit-testing`) : section 2 entière + 0.9→0.13.
-2. **P0** — Tests d'intégration du trigger `onOrderWrite` (stock + stats + `totalSpent`) : 0.1, 5.4→5.8, 6.2.
-3. **P0** — Tests de la réconciliation réelle (composant, pas une copie) : section 8.
+1. ✅ **FAIT** — Tests de règles Firestore (`tests/rules/`, 19 tests) : couvre 0.9→0.10, 2.1→2.4 et l'isolation multi-tenant.
+2. 🟡 **PARTIEL** — Intégration du moteur de stock (`tests/integration/orderStock.test.js`, 8 tests) : couvre 0.1, 5.4→5.6, 5.11 (création, suppression, annulation, delta quantité, multi-produits, bundles, entrepôts). **Restent** : agrégats `stats/sales` et `totalSpent` (6.2), concurrence/survente (5.8).
+3. **P0** — Tests de la réconciliation réelle (le composant, pas une copie) : section 8.
 4. **P1** — E2E manquants : Returns, Purchases, Drivers, Planning, Franchise, PublicCatalog.
 5. **P1** — Harnais d'évaluation Beya3 (golden set + suite d'injection) : 15.2, 15.3, 15.8.
