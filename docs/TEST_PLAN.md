@@ -6,8 +6,8 @@ Référentiel QA couvrant l'ensemble de l'application (OMS, WMS, CRM, finances, 
 - Type : `U` unitaire (Vitest) · `E2E` Playwright · `M` manuel · `SEC` sécurité (règles Firestore / auth) · `INT` intégration
 - Priorité : `P0` bloquant (argent, stock, sécurité) · `P1` important · `P2` confort
 
-**Couverture automatisée actuelle** : 257 tests unitaires (`npm run test`) · **27 tests émulateur** (`npm run test:emulator` — 19 règles de sécurité + 8 intégration stock) · 11 specs E2E (automations, customers, finances, global, hr, marketing, orders, products, security, settings, warehouse).
-**Modules sans E2E** : Returns, Purchases, Drivers, Planning, FranchiseDashboard, PublicCatalog, Beya3.
+**Couverture automatisée actuelle** : 257 tests unitaires (`npm run test`) · **27 tests émulateur** (`npm run test:emulator` — 19 règles de sécurité + 8 intégration stock) · **E2E 17/17 verts** (`npm run test:e2e` — sur émulateurs auth+firestore, `workers:1`, helper d'auth partagé `tests/e2e/_auth.js`, ~2.4 min, zéro écriture prod).
+**Modules sans E2E (à ajouter)** : Returns, Purchases, Drivers, Planning, FranchiseDashboard, PublicCatalog, Beya3.
 
 > ⚠️ En local, l'app pointe sur **Firebase PROD**. Utiliser une **boutique de test** dédiée pour tout test manuel qui écrit des données.
 
