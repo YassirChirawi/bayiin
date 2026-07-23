@@ -1,79 +1,19 @@
 import { test, expect } from '@playwright/test';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
-
-dotenv.config({ path: path.resolve(process.cwd(), '.env.test') });
-
-async function login(page) {
-    const uniqueEmail = `test_${Date.now()}_${Math.floor(Math.random() * 1000)}@bayiin.com`;
-    const testPassword = "Password123!";
-    
-    await page.goto('/signup');
-    await page.waitForLoadState('load');
-
-    await page.fill('input[type="email"]', uniqueEmail);
-    await page.fill('input[type="password"]', testPassword);
-    const confirmInput = page.locator('input[placeholder*="Confirmer"], input[placeholder*="Confirm"]');
-    if (await confirmInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await confirmInput.fill(testPassword);
-    }
-
-    const termsCheck = page.locator('form button[type="button"]').last();
-    if (await termsCheck.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await termsCheck.click({ force: true });
-    }
-    await page.click('button[type="submit"]', { force: true });
-
-    // Handle Onboarding if present
-    await page.waitForURL(/.*\/(onboarding|dashboard)/, { timeout: 15000 });
-    
-    if (page.url().includes('/onboarding')) {
-        // Step 1: Store Name
-        const nameInput = page.locator('input[placeholder*="My Awesome Store"], input[type="text"]').first();
-        await nameInput.waitFor({ state: 'visible', timeout: 5000 });
-        await nameInput.fill("Verification Store");
-        await page.getByRole('button', { name: /Suivant|Next/i }).click({ force: true });
-        await page.waitForTimeout(600);
-
-        // Step 2: Phone Number
-        const phoneInput = page.locator('input[placeholder*="212"], input[type="text"]').first();
-        await phoneInput.waitFor({ state: 'visible', timeout: 5000 });
-        await phoneInput.fill('0600000000');
-        await page.getByRole('button', { name: /Suivant|Next/i }).click({ force: true });
-        await page.waitForTimeout(600);
-
-        // Step 3: Finish
-        const finishBtn = page.getByRole('button', { name: /Terminer|Finish/i });
-        await finishBtn.waitFor({ state: 'visible', timeout: 5000 });
-        await finishBtn.click({ force: true });
-    }
-
-    // Dismiss Biometric prompt if visible
-    try {
-        const maybeLater = page.getByRole('button', { name: /plus tard|later/i });
-        if (await maybeLater.isVisible({ timeout: 4000 }).catch(() => false)) {
-            await maybeLater.click({ force: true });
-        }
-    } catch (e) {}
-
-    await page.waitForURL(/.*\/(dashboard|settings|orders|products)/, { timeout: 30000 });
-}
+import { signupAndOnboard } from './_auth.js';
 
 test.describe('Settings Module E2E', () => {
-
     test.beforeEach(async ({ page }) => {
-        await login(page);
+        await signupAndOnboard(page);
     });
 
-    test('Update store profile and currency', async ({ page }) => {
+    test('Modifier la devise de la boutique', async ({ page }) => {
         await page.goto('/settings');
-        
         const currencySelect = page.locator('select').first();
         await expect(currencySelect).toBeVisible({ timeout: 15000 });
         await currencySelect.selectOption('MAD');
     });
 
-    test('Toggle AI Features', async ({ page }) => {
+    test('Onglet Copilot (Beya3) accessible', async ({ page }) => {
         await page.goto('/settings?tab=beya3');
         const heading = page.locator('h3, h2, h1, div').filter({ hasText: /Beya3|Copilot/i }).first();
         await expect(heading).toBeVisible({ timeout: 25000 });

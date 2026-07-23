@@ -9,6 +9,10 @@ export default defineConfig({
   testDir: './tests',
   timeout: 60000,
   retries: process.env.CI ? 2 : 0,
+  // Un seul worker : les specs créent des comptes via /signup contre UN dev server
+  // et UN émulateur Firestore (mono-thread). En parallèle, la contention provoque
+  // des timeouts (waitForURL / "Firestore timeout"). En série, chaque spec passe.
+  workers: 1,
   use: {
     baseURL: BASE_URL,
     screenshot: 'only-on-failure',
