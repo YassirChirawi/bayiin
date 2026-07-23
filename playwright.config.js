@@ -22,7 +22,13 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
+    // SÉCURITÉ : les specs E2E créent de vrais comptes via /signup. Le serveur doit
+    // donc pointer sur les ÉMULATEURS, jamais sur Firebase PROD. Lancer via
+    // `npm run test:e2e` (qui démarre les émulateurs auth+firestore autour de Playwright).
+    env: { VITE_USE_FIREBASE_EMULATOR: 'true' },
+    // Volontairement false : réutiliser un `npm run dev` déjà lancé (sans le flag
+    // émulateur) ferait écrire les tests dans la base de PRODUCTION.
+    reuseExistingServer: false,
     timeout: 120 * 1000,
   }
 });
