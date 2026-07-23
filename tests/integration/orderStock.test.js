@@ -114,3 +114,41 @@ describe('applyStockUpdates — commandes multi-produits et bundles', () => {
     expect(p8.warehouseStocks.wh2).toBe(4);
   });
 });
+
+describe('applyStockUpdates — lots FEFO (BAY-79)', () => {
+  const batches = () => [
+    { batchNumber: 'FAR', quantity: 10, expiryDate: '2027-12-31' },
+    { batchNumber: 'NEAR', quantity: 5, expiryDate: '2026-01-31' },
+  ];
+
+  it('déduit d\'abord du lot dont la péremption est la plus proche (FEFO)', async () => {
+    await seedProduct('pb1', { storeId: 's1', name: 'PB1', price: 10, stock: 15, inventoryBatches: batches() });
+    await applyStockUpdates(db, null, { status: 'reçu', articleId: 'pb1', quantity: 3 });
+    const b = (await stockOf('pb1')).inventoryBatches;
+    const near = b.find((x) => x.batchNumber === 'NEAR');
+    const far = b.find((x) => x.batchNumber === 'FAR');
+    expect(near.quantity).toBe(2); // 5 - 3, épuisé en premier
+    expect(far.quantity).toBe(10); // intact
+  });
+
+  it('déborde sur le lot suivant quand le plus proche est épuisé', async () => {
+    await seedProduct('pb2', { storeId: 's1', name: 'PB2', price: 10, stock: 15, inventoryBatches: batches() });
+    await applyStockUpdates(db, null, { status: 'reçu', articleId: 'pb2', quantity: 7 });
+    const b = (await stockOf('pb2')).inventoryBatches;
+    expect(b.find((x) => x.batchNumber === 'NEAR').quantity).toBe(0); // 5 → 0
+    expect(b.find((x) => x.batchNumber === 'FAR').quantity).toBe(8);  // 10 - 2 restants
+  });
+
+  it('restock (annulation) réalimente le lot le plus proche de la péremption', async () => {
+    await seedProduct('pb3', { storeId: 's1', name: 'PB3', price: 10, stock: 15, inventoryBatches: batches() });
+    await applyStockUpdates(
+      db,
+      { status: 'reçu', articleId: 'pb3', quantity: 3 },
+      { status: 'annulé', articleId: 'pb3', quantity: 3 },
+    );
+    const b = (await stockOf('pb3')).inventoryBatches;
+    // Le stock restitué revient sur le lot à péremption la plus proche (NEAR), pas le plus lointain.
+    expect(b.find((x) => x.batchNumber === 'NEAR').quantity).toBe(8); // 5 + 3
+    expect(b.find((x) => x.batchNumber === 'FAR').quantity).toBe(10);
+  });
+});
