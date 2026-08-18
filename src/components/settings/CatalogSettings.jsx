@@ -20,20 +20,20 @@ export default function CatalogSettings({ store, setStore, t }) {
             await updateDoc(doc(db, "stores", store.id), { settings });
             setStore(prev => ({ ...prev, settings }));
             vibrate('success');
-            toast.success("Configurations du catalogue enregistrées !");
+            toast.success(t('msg_catalog_saved') || "Configurations du catalogue enregistrées !");
         } catch (e) {
             vibrate('error');
             console.error(e);
-            toast.error("Erreur de sauvegarde");
+            toast.error(t('err_save_failed') || "Erreur de sauvegarde");
         } finally {
             setSaving(false);
         }
     };
 
     const addProfile = () => {
-        const code = prompt("Code de la gamme (ex: DSV, SER, ...) :");
+        const code = prompt(t('prompt_line_code') || "Code de la gamme (ex: DSV, SER, ...) :");
         if (!code) return;
-        const name = prompt(`Nom de la gamme pour ${code} (ex: Soin Visage, Sérums, ...) :`);
+        const name = prompt(t('prompt_line_name', { code }) || `Nom de la gamme pour ${code} (ex: Soin Visage, Sérums, ...) :`);
         if (!name) return;
         setSettings(prev => ({
             ...prev,
@@ -48,7 +48,7 @@ export default function CatalogSettings({ store, setStore, t }) {
     };
 
     const addRule = (lineCode) => {
-        const targetCode = prompt(`Quel code de gamme suggérer avec ${lineCode} ?`);
+        const targetCode = prompt(t('prompt_suggest_code', { lineCode }) || `Quel code de gamme suggérer avec ${lineCode} ?`);
         if (!targetCode) return;
         const currentRules = settings.complementaryRules?.[lineCode] || [];
         if (currentRules.includes(targetCode.toUpperCase())) return;
@@ -75,28 +75,28 @@ export default function CatalogSettings({ store, setStore, t }) {
 
     return (
         <div className="space-y-6">
-            <div className="bg-white shadow rounded-lg border border-gray-100 overflow-hidden">
-                <div className="px-4 py-5 sm:p-6 space-y-6">
+            <div className="glass-panel rounded-2xl overflow-hidden">
+                <div className="px-6 py-6 sm:p-8 space-y-8">
                     <div>
-                        <h3 className="text-lg font-medium text-gray-900 border-b pb-2 mb-4">SKU & Validation</h3>
+                        <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-5 uppercase tracking-wider">{t('section_sku_validation') || 'SKU & Validation'}</h3>
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">Regex de validation SKU</label>
+                                <label className="block text-sm font-medium text-gray-700">{t('label_sku_regex') || 'Regex de validation SKU'}</label>
                                 <input
                                     type="text"
                                     value={settings.skuRegex || ''}
                                     onChange={e => setSettings(prev => ({ ...prev, skuRegex: e.target.value }))}
-                                    placeholder="Ex: ^[A-Z]{3,4}\d{3}$ (Force 3-4 lettres + 3 chiffres)"
-                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm font-mono focus:ring-indigo-500 focus:border-indigo-500"
+                                    placeholder={t('placeholder_sku_regex') || "Ex: ^[A-Z]{3,4}\\d{3}$"}
+                                    className="mt-2 block w-full border-gray-200 rounded-xl shadow-sm p-3 text-sm font-mono focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white/50"
                                 />
-                                <p className="mt-1 text-[10px] text-gray-400">Laissez vide pour autoriser n'importe quel SKU. Utilisez les regex standards JavaScript.</p>
+                                <p className="mt-2 text-xs text-gray-500">{t('help_sku_regex') || "Laissez vide pour autoriser n'importe quel SKU."}</p>
                             </div>
                         </div>
                     </div>
 
                     <div>
-                        <h3 className="text-lg font-medium text-gray-900 border-b pb-2 mb-4">Gammage & Profils</h3>
-                        <p className="text-xs text-gray-400 mb-4">Associez les préfixes de vos SKU à des noms de gammes pour personnaliser l'Advisor.</p>
+                        <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-5 uppercase tracking-wider">{t('section_line_profiles') || 'Gammage & Profils'}</h3>
+                        <p className="text-sm text-gray-500 mb-5">{t('help_line_profiles') || "Associez les préfixes de vos SKU à des noms de gammes pour personnaliser l'Advisor."}</p>
                         <div className="space-y-2">
                             {Object.entries(settings.lineProfiles || {}).map(([code, name]) => (
                                 <div key={code} className="flex items-center justify-between bg-gray-50 p-2 rounded-lg border border-gray-100">
@@ -114,8 +114,8 @@ export default function CatalogSettings({ store, setStore, t }) {
                     </div>
 
                     <div>
-                        <h3 className="text-lg font-medium text-gray-900 border-b pb-2 mb-4">{t('section_cross_selling') || 'Règles de Recommandation'}</h3>
-                        <p className="text-xs text-gray-400 mb-4">{t('ai_config_help')}</p>
+                        <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-5 uppercase tracking-wider">{t('section_cross_selling') || 'Règles de Recommandation'}</h3>
+                        <p className="text-sm text-gray-500 mb-5">{t('ai_config_help')}</p>
                         <div className="space-y-4">
                             {Object.keys(settings.lineProfiles || {}).map(lineCode => (
                                 <div key={lineCode} className="border border-gray-100 rounded-xl p-3 bg-gray-50/50">
@@ -137,8 +137,8 @@ export default function CatalogSettings({ store, setStore, t }) {
                         </div>
                     </div>
 
-                    <div className="flex justify-end pt-4 border-t border-gray-100">
-                        <Button onClick={handleSave} isLoading={saving} icon={Save}>Enregistrer les configurations</Button>
+                    <div className="flex justify-end pt-6 border-t border-gray-100 mt-4">
+                        <Button onClick={handleSave} isLoading={saving} icon={Save}>{t('btn_save_config') || 'Enregistrer les configurations'}</Button>
                     </div>
                 </div>
             </div>

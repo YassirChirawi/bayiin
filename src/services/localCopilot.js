@@ -221,6 +221,7 @@ ${getRandomAdvice('logistics')}`;
         { keys: ["catalogue", "lien public", "partager"], answer: "**Catalogue public :**\nChaque boutique a un lien public unique : `bayiin.shop/catalog/[ID]`.\nPartagez ce lien avec vos clients pour qu'ils puissent commander directement via WhatsApp." },
         { keys: ["import", "csv", "exporter"], answer: "**Import/Export :**\n- **Commandes** : importez via CSV (colonnes : téléphone, produit, prix, statut).\n- **Produits** : importez en masse depuis un fichier CSV.\n- **Export** : exportez vos commandes au format CSV depuis la page Commandes." },
         { keys: ["franchise", "multi boutique", "réseau"], answer: "**Mode Franchise :**\nAvec le compte Franchise, gérez plusieurs boutiques depuis un seul tableau de bord consolidé.\nComparez les performances, CA et stocks de chaque point de vente en temps réel." },
+        { keys: ["youcan", "synchronisation youcan", "ecommerce", "boutique externe"], answer: "**Intégration YouCan :**\nBayIIn se synchronise automatiquement avec YouCan.\nAllez dans **Paramètres → Boutiques Externes** pour connecter votre boutique YouCan.\nLes nouvelles commandes sont importées en temps réel." },
     ];
 
     for (const item of helpIntents) {
@@ -235,6 +236,7 @@ ${getRandomAdvice('logistics')}`;
     }
 
     // DEFAULT
+    return "Je ne suis pas sûr de comprendre. Peux-tu reformuler ? Je suis spécialisé dans tes ventes, tes commandes, ton stock et ton chiffre d'affaires.";
 };
 
 export function generateOpeningBrief(ctx) {

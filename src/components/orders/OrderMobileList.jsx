@@ -23,6 +23,7 @@ export default function OrderMobileList({
     openConfirmation,
     sendToOlivraison,
     sendToSendit,
+    sendToCathedis,
     handleOpenTracking,
     setQrOrder,
     handleNoAnswer,
@@ -48,7 +49,11 @@ export default function OrderMobileList({
                                 </button>
                                 <div>
                                     <h3 className="font-bold text-gray-900">#{order.orderNumber || order.id?.substring(0, 8)}</h3>
-                                    <p className="text-xs text-gray-500">{order.date}</p>
+                                    <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                                        {order.date}
+                                        {order.source === 'public_catalog' && <span className="text-yellow-600">({t('catalog_source')})</span>}
+                                        {order.source === 'youcan' && <span className="text-purple-600 font-bold bg-purple-50 px-1 rounded border border-purple-100">🟣 YouCan</span>}
+                                    </p>
                                 </div>
                             </div>
                             <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${activeTab === 'carts' ? 'bg-yellow-100 text-yellow-800' : getOrderStatusConfig(order.status).color}`}>
@@ -204,8 +209,44 @@ export default function OrderMobileList({
                                     <button disabled className="p-2 rounded-full bg-gray-50 text-gray-300 cursor-not-allowed" title="Amana Integration Coming Soon">
                                         <Package className="h-5 w-5" />
                                     </button>
-                                    {/* Cathedis Placeholder */}
-                                    <button disabled className="p-2 rounded-full bg-gray-50 text-gray-300 cursor-not-allowed" title="Cathedis Integration Coming Soon">
+                                    {/* Cathedis Action */}
+                                    <button
+                                        onClick={async () => {
+                                            if (!store?.cathedisUsername) {
+                                                toast.error("Please configure Cathedis credentials in Settings first.");
+                                                return;
+                                            }
+                                            if (order.carrier === 'cathedis') return;
+
+                                            openConfirmation({
+                                                title: "Send to Cathedis",
+                                                message: `Send Order #${order.orderNumber} to Cathedis?`,
+                                                onConfirm: async () => {
+                                                    try {
+                                                        toast.loading("Sending to Cathedis...");
+                                                        await sendToCathedis(order);
+                                                        toast.dismiss();
+                                                        toast.success("Order sent to Cathedis!");
+                                                    } catch (err) {
+                                                        toast.dismiss();
+                                                        toast.error(err.message);
+                                                    }
+                                                }
+                                            });
+                                        }}
+                                        disabled={!store?.cathedisUsername || order.carrier === 'cathedis'}
+                                        className={`p-2 rounded-full transition-colors ${!store?.cathedisUsername
+                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                            : order.carrier === 'cathedis'
+                                                ? 'bg-green-100 text-green-600 cursor-default'
+                                                : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+                                            }`}
+                                        title={
+                                            !store?.cathedisUsername ? "Configure Cathedis in Settings to enable"
+                                                : order.carrier === 'cathedis' ? "Order already sent to Cathedis"
+                                                    : "Send to Cathedis"
+                                        }
+                                    >
                                         <Box className="h-5 w-5" />
                                     </button>
                                     {/* WhatsApp Notification */}

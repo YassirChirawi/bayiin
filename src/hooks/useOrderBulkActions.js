@@ -3,6 +3,7 @@ import { db } from '../lib/firebase';
 import { doc, writeBatch, query, collection, where, getDocs, limit, increment } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { PAYMENT_STATUS } from '../utils/constants';
+import { isValidTransition } from '../utils/orderStateMachine';
 
 const INACTIVE_STATUSES = ['retour', 'annulé'];
 
@@ -99,6 +100,9 @@ export function useOrderBulkActions(orders, storeId, user, {
                 try {
                     const batch = writeBatch(db);
                     selectedOrders.forEach(id => {
+                        const order = orders.find(o => o.id === id);
+                        // Don't remit cancelled/returned orders — that would inflate realized/remitted revenue.
+                        if (!order || INACTIVE_STATUSES.includes(order.status)) return;
                         const orderRef = doc(db, "orders", id);
                         batch.update(orderRef, {
                             paymentStatus: PAYMENT_STATUS.REMITTED,
@@ -124,13 +128,17 @@ export function useOrderBulkActions(orders, storeId, user, {
             onConfirm: async () => {
                 try {
                     const batch = writeBatch(db);
-
-                    const statsRef = doc(db, "stores", storeId, "stats", "sales");
-                    const globalStatsUpdates = {};
+                    let skippedCount = 0;
 
                     selectedOrders.forEach(id => {
                         const order = orders.find(o => o.id === id);
                         if (!order) return;
+
+                        // --- STATE MACHINE VALIDATION (BUG-02 fix) ---
+                        if (order.status !== status && !isValidTransition(order.status, status)) {
+                            skippedCount++;
+                            return; // Skip invalid transition
+                        }
 
                         const orderRef = doc(db, "orders", id);
                         const updates = { status };
@@ -144,41 +152,19 @@ export function useOrderBulkActions(orders, storeId, user, {
                         }
 
                         batch.update(orderRef, updates);
-
-                        // Global Stats Logic
-                        if (order.status !== status) {
-                            globalStatsUpdates[`statusCounts.${order.status || 'reçu'}`] = increment(-1);
-                            globalStatsUpdates[`statusCounts.${status}`] = increment(1);
-
-                            if (status === 'livré' && order.status !== 'livré') {
-                                globalStatsUpdates["totals.deliveredRevenue"] = increment(parseFloat(order.price) || 0);
-                                globalStatsUpdates["totals.deliveredCount"] = increment(1);
-                                if (order.driverId) {
-                                    batch.update(doc(db, "drivers", order.driverId), {
-                                        "stats.totalDelivered": increment(1),
-                                        "stats.totalCOD": increment(parseFloat(order.price) || 0)
-                                    });
-                                }
-                            } else if (order.status === 'livré' && status !== 'livré') {
-                                globalStatsUpdates["totals.deliveredRevenue"] = increment(-(parseFloat(order.price) || 0));
-                                globalStatsUpdates["totals.deliveredCount"] = increment(-1);
-                                if (order.driverId) {
-                                    batch.update(doc(db, "drivers", order.driverId), {
-                                        "stats.totalDelivered": increment(-1),
-                                        "stats.totalCOD": increment(-(parseFloat(order.price) || 0))
-                                    });
-                                }
-                            }
-                        }
+                        
+                        // Note: Global Store Stats and Driver Stats are now handled centrally 
+                        // by onOrderWrite in functions/index.js. We don't update them here.
                     });
-
-                    if (Object.keys(globalStatsUpdates).length > 0) {
-                        batch.update(statsRef, globalStatsUpdates);
-                    }
 
                     await batch.commit();
                     setSelectedOrders([]);
-                    toast.success(t('msg_orders_status_updated', { status }));
+                    
+                    if (skippedCount > 0) {
+                        toast.success(t('msg_orders_status_updated', { status }) + ` (${skippedCount} ignorée(s) — transition invalide)`);
+                    } else {
+                        toast.success(t('msg_orders_status_updated', { status }));
+                    }
                 } catch (err) {
                     console.error("Error updating statuses:", err);
                     toast.error("Failed to update orders.");

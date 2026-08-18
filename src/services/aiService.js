@@ -1,24 +1,26 @@
-const COPILOT_URL = import.meta.env.VITE_COPILOT_URL || "/api/copilotChat";
+const COPILOT_URL = import.meta.env.VITE_COPILOT_URL || "/api/copilotChatV1";
 
 /**
  * Generic AI Response Generator
  * Used by other services for specific prompts
  */
 export async function generateAIResponse(prompt) {
-  return await generateCopilotResponse([{ role: "user", content: prompt }]);
+  return await generateCopilotResponse({ messages: [{ role: "user", content: prompt }] });
 }
 
-export async function generateCopilotResponse(
+export async function generateCopilotResponse({
   messages,
   businessContext = null,
   storeName = "BayIIn Store",
+  storeId = null,
+  conversationId = null,
   onChunk = null
-) {
+}) {
   try {
     const response = await fetch(COPILOT_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, businessContext, storeName })
+      body: JSON.stringify({ messages, businessContext, storeName, storeId, conversationId })
     });
 
     if (!response.ok) throw new Error("Copilot function error");
@@ -39,7 +41,11 @@ export async function generateCopilotResponse(
             const data = JSON.parse(line.slice(6));
             if (data.delta) {
               fullText += data.delta;
-              onChunk?.(fullText);
+              onChunk?.({ delta: fullText, actions: null, thinking: null });
+            } else if (data.type === 'actions_pending') {
+              onChunk?.({ delta: null, actions: data.actions, thinking: null });
+            } else if (data.type === 'thinking') {
+              onChunk?.({ delta: null, actions: null, thinking: data.text });
             }
           } catch (e) {
             console.warn("Error parsing stream chunk:", e);
@@ -237,5 +243,37 @@ export const predictChurn = (customer) => {
         probability,
         isAtRisk: probability > 0.5,
         daysSinceLastOrder: Math.floor(daysSinceLastOrder)
+    };
+};
+
+/**
+ * Marketing: calculateRFM
+ * Calculates Recency, Frequency, Monetary and assigns a segment.
+ */
+export const calculateRFM = (customer) => {
+    if (!customer.metrics) return { segment: "Nouveau Client (Newbie)" };
+
+    const { totalSpent, orderCount, lastPurchaseDate } = customer.metrics;
+    const now = new Date();
+    const lastOrder = lastPurchaseDate ? new Date(lastPurchaseDate) : now;
+    const daysSinceLastOrder = (now - lastOrder) / (1000 * 60 * 60 * 24);
+
+    let segment = "Nouveau Client (Newbie)";
+
+    if (orderCount >= 5 && totalSpent > 2000 && daysSinceLastOrder <= 30) {
+        segment = "VIP Buyer";
+    } else if (orderCount >= 2 && daysSinceLastOrder <= 60) {
+        segment = "Client Régulier (Regular)";
+    } else if (orderCount > 1 && daysSinceLastOrder > 90) {
+        segment = "Client à risque (Churning)";
+    } else if (orderCount === 1 && daysSinceLastOrder > 30) {
+        segment = "One-time Buyer";
+    }
+
+    return {
+        segment,
+        recency: daysSinceLastOrder,
+        frequency: orderCount,
+        monetary: totalSpent
     };
 };

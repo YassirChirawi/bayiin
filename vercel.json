@@ -1,6 +1,14 @@
 {
     "rewrites": [
         {
+            "source": "/api/copilotChat",
+            "destination": "https://us-central1-commerce-saas-62f32.cloudfunctions.net/copilotChatV1"
+        },
+        {
+            "source": "/api/:match*",
+            "destination": "https://us-central1-commerce-saas-62f32.cloudfunctions.net/:match*"
+        },
+        {
             "source": "/(.*)",
             "destination": "/index.html"
         }

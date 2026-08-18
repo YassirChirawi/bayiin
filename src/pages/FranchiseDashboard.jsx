@@ -20,6 +20,8 @@ import { addDoc, collection, getDocs, doc, setDoc, query, where, writeBatch } fr
 import { db } from "../lib/firebase";
 import { useLanguage } from "../context/LanguageContext";
 import { useAudit } from "../hooks/useAudit";
+import ConfirmDialog from "../components/ConfirmDialog";
+import { useConfirmDialog } from "../hooks/useConfirmDialog";
 
 // ── Color palette for per-store bars ──
 const STORE_COLORS = [
@@ -56,6 +58,7 @@ function StatCard({ icon: Icon, label, value, sub, color = 'indigo', loading }) 
 export default function FranchiseDashboard() {
     const { t } = useLanguage();
     const { logAction } = useAudit();
+    const { confirmState, confirm, close } = useConfirmDialog();
     const { user } = useAuth();
     const { franchise, franchiseStores, isFranchiseAdmin, refreshStores } = useTenant();
     
@@ -113,19 +116,24 @@ export default function FranchiseDashboard() {
 
     const toggleStoreStatus = async (storeId, currentStatus) => {
         const isCurrentlyActive = currentStatus !== false; 
-        if (window.confirm(`Voulez-vous vraiment ${isCurrentlyActive ? 'désactiver' : 'réactiver'} ce magasin ?`)) {
-            const toastId = toast.loading("Mise à jour...");
-            try {
-                await setDoc(doc(db, "stores", storeId), { isActive: !isCurrentlyActive }, { merge: true });
-                await refreshStores();
-                if (refreshData) refreshData();
-                toast.success(`Magasin ${isCurrentlyActive ? 'désactivé' : 'réactivé'} avec succès`, { id: toastId });
-                logAction('STORE_STATUS_TOGGLE', `Store ${storeId} ${isCurrentlyActive ? 'deactivated' : 'activated'}`);
-            } catch (err) {
-                console.error(err);
-                toast.error("Erreur de mise à jour", { id: toastId });
+        confirm({
+            title: isCurrentlyActive ? 'Désactiver' : 'Réactiver',
+            message: `Voulez-vous vraiment ${isCurrentlyActive ? 'désactiver' : 'réactiver'} ce magasin ?`,
+            isDestructive: isCurrentlyActive,
+            onConfirm: async () => {
+                const toastId = toast.loading("Mise à jour...");
+                try {
+                    await setDoc(doc(db, "stores", storeId), { isActive: !isCurrentlyActive }, { merge: true });
+                    await refreshStores();
+                    if (refreshData) refreshData();
+                    toast.success(`Magasin ${isCurrentlyActive ? 'désactivé' : 'réactivé'} avec succès`, { id: toastId });
+                    logAction('STORE_STATUS_TOGGLE', `Store ${storeId} ${isCurrentlyActive ? 'deactivated' : 'activated'}`);
+                } catch (err) {
+                    console.error(err);
+                    toast.error("Erreur de mise à jour", { id: toastId });
+                }
             }
-        }
+        });
     };
 
     const handleUpdateStore = async (e) => {
@@ -720,6 +728,14 @@ export default function FranchiseDashboard() {
                     </div>
                 </div>
             )}
+            <ConfirmDialog 
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                message={confirmState.message}
+                onConfirm={confirmState.onConfirm}
+                onCancel={close}
+                isDestructive={confirmState.isDestructive}
+            />
         </div>
     );
 }

@@ -4,21 +4,9 @@ import {
     RotateCcw
 } from "lucide-react";
 
-export const ORDER_STATUS = {
-    RECEIVED: 'reçu',
-    CONFIRMED: 'confirmation',
-    PACKING: 'packing',
-    RAMASSAGE: 'ramassage',
-    SHIPPING: 'livraison',
-    DELIVERED: 'livré',
-    PAID: 'payé',
-    CANCELLED: 'annulé',
-    RETURNED: 'retour',
-    RETURN_IN_PROGRESS: 'retour en cours',
-    NO_ANSWER: 'pas de réponse',
-    POSTPONED: 'reporté',
-    PENDING_CATALOG: 'pending_catalog'
-};
+// Import for local use + re-export — single source of truth is constants.js
+import { ORDER_STATUS } from './constants';
+export { ORDER_STATUS };
 
 export const ORDER_STATUS_CONFIG = {
     [ORDER_STATUS.RECEIVED]: {

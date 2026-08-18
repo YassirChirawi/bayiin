@@ -82,7 +82,11 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage', 'firebase/messaging'],
+          'vendor-charts': ['recharts'],
+          'vendor-ui': ['@headlessui/react', 'lucide-react', 'framer-motion', 'react-hot-toast'],
+          'vendor-utils': ['date-fns', 'papaparse', 'jspdf']
         }
       }
     }

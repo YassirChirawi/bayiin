@@ -21,21 +21,14 @@ service cloud.firestore {
     function isNumber(num) {
       return num is number || num is float || num is int;
     }
-    
-    function isString(str) {
-      return str is string;
-    }
 
     // --- VALIDATORS ---
 
-    // Validate Store Write
-    function isValidStoreUpdate(data) {
-       return !data.diff(resource.data).affectedKeys().hasAny(['plan', 'subscriptionStatus', 'stripeCustomerId']);
-    }
 
     // Validate Product
     function isValidProduct(data) {
-       return data.storeId != null &&
+       return data.keys().hasAll(['storeId', 'name', 'price', 'stock']) &&
+              data.storeId != null &&
               data.name is string && data.name.size() > 0 &&
               isNumber(data.price) && data.price >= 0 &&
               isNumber(data.stock) && data.stock >= 0;
@@ -43,15 +36,17 @@ service cloud.firestore {
 
     // Validate Order
     function isValidOrder(data) {
-       return data.storeId != null &&
-              isNumber(data.price) && data.price > 0 &&
-              isNumber(data.quantity) && data.quantity > 0 &&
-              (!("status" in data) || data.status in ['reçu', 'confirmation', 'packing', 'ramassage', 'livraison', 'reporté', 'livré', 'retour', 'retour en cours', 'annulé', 'pas de réponse', 'pending_catalog']);
+       return data.keys().hasAll(['storeId', 'status', 'price']) &&
+              data.storeId != null &&
+              data.storeId is string &&
+              isNumber(data.price) && data.price >= 0 &&
+              data.status in ['reçu', 'confirmation', 'packing', 'ramassage', 'livraison', 'reporté', 'livré', 'retour', 'retour en cours', 'annulé', 'pas de réponse', 'pending_catalog'];
     }
 
     // Validate Expense
     function isValidExpense(data) {
-       return data.storeId != null &&
+       return data.keys().hasAll(['storeId', 'amount', 'label']) &&
+              data.storeId != null &&
               isNumber(data.amount) && data.amount > 0 &&
               data.label is string && data.label.size() > 0;
     }
@@ -59,6 +54,14 @@ service cloud.firestore {
     // Check if user is Super Admin
     function isSuperAdmin() {
       return request.auth != null && request.auth.token.role == 'super_admin';
+    }
+
+    // Check if user is owner or manager (Excludes Staff)
+    function isOwnerOrManager(storeId) {
+      return request.auth != null && (
+        get(/databases/$(database)/documents/stores/$(storeId)).data.ownerId == request.auth.uid ||
+        (getUserData().storeId == storeId && (request.auth.token.role == 'manager' || getUserData().role == 'manager'))
+      );
     }
 
     // Validate Order Transitions
@@ -87,11 +90,6 @@ service cloud.firestore {
       return request.auth != null && get(/databases/$(database)/documents/stores/$(storeId)).data.ownerId == request.auth.uid;
     }
 
-    // Check if the user is staff for the store
-    function isStoreStaff(storeId) {
-      return request.auth != null && getUserData().storeId == storeId && request.auth.token.role == 'staff';
-    }
-
     // Check if user is a Franchise Admin
     function isFranchiseAdmin() {
       return request.auth != null && request.auth.token.role == 'franchise_admin';
@@ -104,32 +102,65 @@ service cloud.firestore {
 
     // --- RULES ---
 
+    // Super Admin Global Read
+    match /{document=**} {
+      allow read: if isSuperAdmin();
+    }
+
     // Users collection
     match /users/{userId} {
       allow read: if request.auth != null && (request.auth.uid == userId || isSuperAdmin());
-      allow create: if request.auth != null && request.auth.uid == userId;
-      allow update: if request.auth != null && request.auth.uid == userId && 
-                    !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
+      // SEC (P0-4): a user may only self-provision a profile pointing at a store they OWN,
+      // and may not self-assign an escalating role (owner/staff/driver only). This closes the
+      // tenant-hijack vector where an attacker set users/{uid}.storeId/role to a victim store.
+      allow create: if request.auth != null && request.auth.uid == userId
+                    && (!('storeId' in request.resource.data) || isStoreOwner(request.resource.data.storeId))
+                    && (!('role' in request.resource.data) || request.resource.data.role in ['owner', 'staff', 'driver']);
+      allow update: if request.auth != null && request.auth.uid == userId &&
+                    !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'storeId', 'franchiseId']);
       allow write: if request.auth != null && isSuperAdmin();
+    }
+
+    // Market Benchmarks (Évolution 6 — Anonymized aggregated data)
+    match /market_benchmarks/{segment}/{date} {
+      allow read: if request.auth != null; // Any authenticated user can read benchmarks
+      allow write: if false; // Only backend (admin SDK) writes benchmarks
     }
 
     // Stores collection
     match /stores/{storeId} {
-      allow create: if request.auth != null;
-      allow read: if true; 
-      allow update, delete: if isStoreOwner(storeId) || isSuperAdmin();
+      // SEC (P0-5): prevent self-granting a paid plan at creation. Owners create their own
+      // FREE store; privileged roles may provision stores on behalf of others.
+      allow create: if request.auth != null && (
+                      (request.resource.data.ownerId == request.auth.uid
+                       && request.resource.data.plan == 'free'
+                       && !request.resource.data.keys().hasAny(['stripeCustomerId', 'youcanChargeId', 'subscriptionSource', 'currentPeriodEnd']))
+                      || isSuperAdmin()
+                      || isFranchiseAdmin()
+                    );
+      // SEC-01: Restrict read to authenticated users related to the store, OR if publicCatalogEnabled is true
+      allow get: if (request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin() || isFranchiseAdmin())) 
+                  || resource.data.publicCatalogEnabled == true;
+      allow list: if (request.auth != null && (resource.data.ownerId == request.auth.uid || isSuperAdmin() || isFranchiseAdmin())) 
+                  || resource.data.publicCatalogEnabled == true;
+      allow update: if (isStoreOwner(storeId) || isSuperAdmin()) &&
+                    !request.resource.data.diff(resource.data).affectedKeys().hasAny(['plan', 'subscriptionStatus', 'currentPeriodEnd', 'stripeCustomerId', 'subscriptionSource', 'youcanChargeId']);
+      allow delete: if isStoreOwner(storeId) || isSuperAdmin();
 
       match /private/{document=**} {
         allow read, write: if isStoreOwner(storeId) || isSuperAdmin();
       }
       
       match /stats/{statId} {
-         allow read: if request.auth != null && (isStoreOwner(storeId) || (belongsToStore(storeId) && !isDriver(storeId)) || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(storeId)));
-         allow write: if request.auth != null && (isStoreOwner(storeId) || (belongsToStore(storeId) && !isDriver(storeId)) || isSuperAdmin());
+         // SEC: Stats are written exclusively by Cloud Functions (Admin SDK bypasses rules).
+         // Clients can read but NOT write to prevent data manipulation.
+         allow read: if request.auth != null && (isOwnerOrManager(storeId) || isSuperAdmin());
+         allow write: if false; // Cloud Functions use Admin SDK — no client writes needed
       }
       match /audit_logs/{logId} {
-         allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(storeId)));
+         allow read: if request.auth != null && (isOwnerOrManager(storeId) || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(storeId)));
          allow create: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+         allow update, delete: if false;
       }
       match /automations/{autoId} {
          allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(storeId)));
@@ -141,13 +172,66 @@ service cloud.firestore {
       match /stock_logs/{logId} {
          allow read, write: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
       }
+      match /beya3_memory/{memoryId} {
+        allow read, write: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+      }
+      match /beya3_conversations/{conversationId} {
+        allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+        allow write: if false; // Only backend writes to this log
+        
+        match /messages/{messageId} {
+            allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+            allow write: if false;
+        }
+      }
+      match /beya3_action_log/{actionId} {
+        allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+        allow write: if false; // Only backend writes to audit logs
+      }
+      match /action_drafts/{draftId} {
+        allow read, write: if request.auth != null && (isOwnerOrManager(storeId) || isSuperAdmin());
+      }
+      match /beya3_scheduled_insights/{insightId} {
+        allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+        allow update: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'isDismissed', 'userFeedback']);
+        allow create, delete: if false; // Backend only
+      }
+      
+      // Global configuration and stats (Beya3 Bot)
+      match /whatsapp_conversations/{phone} {
+         allow read, write: if request.auth != null && (isOwnerOrManager(storeId) || isSuperAdmin());
+      }
+      // WhatsApp Templates (Meta-approved templates registry)
+      match /whatsapp_templates/{templateName} {
+         allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+         allow write: if request.auth != null && (isStoreOwner(storeId) || isSuperAdmin());
+      }
+      // WhatsApp Message Logs (audit trail)
+      match /whatsapp_logs/{logId} {
+         allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(storeId)));
+         allow create: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+      }
+      // Notifications (WhatsApp handoff + general)
+      match /notifications/{notifId} {
+         allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+         allow write: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+      }
+      // YouCan Integration
+      match /youcan_integration/{docId} {
+         allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+         allow write: if request.auth != null && (isStoreOwner(storeId) || isSuperAdmin());
+      }
+      match /youcan_orders/{orderId} {
+         allow read: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+         allow write: if request.auth != null && (isStoreOwner(storeId) || isSuperAdmin());
+      }
     }
 
     // Products
     match /products/{productId} {
-       allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || (belongsToStore(resource.data.storeId) && !isDriver(resource.data.storeId)) || isSuperAdmin());
+       allow read: if (request.auth != null && (isStoreOwner(resource.data.storeId) || (belongsToStore(resource.data.storeId) && !isDriver(resource.data.storeId)) || isSuperAdmin())) || isPublicCatalogEnabled(resource.data.storeId);
        allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || (belongsToStore(request.resource.data.storeId) && !isDriver(request.resource.data.storeId)) || isSuperAdmin()) && isValidProduct(request.resource.data);
-       allow update: if request.auth != null && (isStoreOwner(resource.data.storeId) || (belongsToStore(resource.data.storeId) && !isDriver(resource.data.storeId)) || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId))) && isValidProduct(request.resource.data);
+       allow update: if request.auth != null && (isStoreOwner(resource.data.storeId) || (belongsToStore(resource.data.storeId) && !isDriver(resource.data.storeId)) || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId))) && isValidProduct(request.resource.data) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['storeId']);
        allow delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || (belongsToStore(resource.data.storeId) && !isDriver(resource.data.storeId)) || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId)));
     }
 
@@ -167,42 +251,44 @@ service cloud.firestore {
     match /orders/{orderId} {
        allow read: if request.auth != null && (
          isStoreOwner(resource.data.storeId) ||
-         resource.data.storeId == getUserData().storeId ||
+         (resource.data.storeId == getUserData().storeId && !isDriver(resource.data.storeId)) ||
          isSuperAdmin() ||
          (isFranchiseAdmin() && inSameFranchise(resource.data.storeId)) ||
          resource.data.livreurToken == request.auth.token.uid ||
-         (isDriver(resource.data.storeId) && resource.data.status == 'livraison') ||
+         (isDriver(resource.data.storeId) && resource.data.assignedDriver == request.auth.uid) ||
          (exists(/databases/$(database)/documents/driver_sessions/$(request.auth.uid)) && resource.data.livreurToken == get(/databases/$(database)/documents/driver_sessions/$(request.auth.uid)).data.token)
        );
                       
        allow create: if isValidOrder(request.resource.data) && (
-                         (request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin()))
+                         (request.auth != null && (isStoreOwner(request.resource.data.storeId) || (request.resource.data.storeId == getUserData().storeId && !isDriver(request.resource.data.storeId)) || isSuperAdmin()))
                          || (request.resource.data.status == 'pending_catalog' && isPublicCatalogEnabled(request.resource.data.storeId))
                       );
-                         
-       allow update: if isValidOrder(request.resource.data) && request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId))) &&
-                         isValidTransition(resource.data.status, request.resource.data.status);
+                          
+       allow update: if isValidOrder(request.resource.data) && request.auth != null && (isStoreOwner(resource.data.storeId) || (resource.data.storeId == getUserData().storeId && !isDriver(resource.data.storeId)) || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId))) &&
+                         isValidTransition(resource.data.status, request.resource.data.status) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['storeId']);
        
        allow update: if request.auth != null && (
                             (exists(/databases/$(database)/documents/driver_sessions/$(request.auth.uid)) && resource.data.livreurToken == get(/databases/$(database)/documents/driver_sessions/$(request.auth.uid)).data.token) || 
-                            isDriver(resource.data.storeId) || 
+                            (isDriver(resource.data.storeId) && resource.data.assignedDriver == request.auth.uid) || 
                             resource.data.livreurToken == request.auth.token.uid
                          ) &&
-                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'statusHistory', 'isPaid', 'driverNote']);
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'statusHistory', 'isPaid', 'driverNote', 'deliveryNote', 'deliveredAt']) &&
+                         request.resource.data.status in ['livraison', 'livré', 'retour', 'pas de réponse'];
                          
-       allow delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || (resource.data.storeId == getUserData().storeId && !isDriver(resource.data.storeId)) || isSuperAdmin());
     }
 
     // Expenses
     match /expenses/{expenseId} {
-       allow read, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || (belongsToStore(resource.data.storeId) && !isDriver(resource.data.storeId)) || isSuperAdmin());
-       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || (belongsToStore(request.resource.data.storeId) && !isDriver(request.resource.data.storeId)) || isSuperAdmin()) && isValidExpense(request.resource.data);
-       allow update: if request.auth != null && (isStoreOwner(resource.data.storeId) || (belongsToStore(resource.data.storeId) && !isDriver(resource.data.storeId)) || isSuperAdmin()) && isValidExpense(request.resource.data);
+       allow read, delete: if request.auth != null && (isOwnerOrManager(resource.data.storeId) || isSuperAdmin());
+       allow create: if request.auth != null && (isOwnerOrManager(request.resource.data.storeId) || isSuperAdmin()) && isValidExpense(request.resource.data);
+       allow update: if request.auth != null && (isOwnerOrManager(resource.data.storeId) || isSuperAdmin()) && isValidExpense(request.resource.data) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['storeId']);
     }
 
     // Customers
     match /customers/{customerId} {
-       allow read, update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || belongsToStore(resource.data.storeId) || isSuperAdmin());
+       allow read, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || belongsToStore(resource.data.storeId) || isSuperAdmin());
+       allow update: if request.auth != null && (isStoreOwner(resource.data.storeId) || belongsToStore(resource.data.storeId) || isSuperAdmin()) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['storeId']);
        allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || belongsToStore(request.resource.data.storeId) || isSuperAdmin());
     }
 
@@ -213,9 +299,16 @@ service cloud.firestore {
        allow update, delete: if request.auth != null && (belongsToStore(resource.data.storeId) || isStoreOwner(resource.data.storeId) || isSuperAdmin());
     }
 
-    // Public Leads
+    // Public Leads — validated, no auth required but fields are enforced
     match /leads/{leadId} {
-       allow create: if true;
+       // SEC: Validate required fields to prevent spam/injection
+       allow create: if request.resource.data.keys().hasAll(['storeId', 'name', 'phone'])
+                     && request.resource.data.name is string
+                     && request.resource.data.name.size() > 0
+                     && request.resource.data.name.size() <= 200
+                     && request.resource.data.phone is string
+                     && request.resource.data.phone.size() > 0
+                     && request.resource.data.storeId is string;
        allow read: if request.auth != null && (belongsToStore(resource.data.storeId) || isStoreOwner(resource.data.storeId) || isSuperAdmin());
     }
 
@@ -275,9 +368,13 @@ service cloud.firestore {
     }
 
 
-    // Driver Applications
+    // Driver Applications — validated, no auth required but fields enforced
     match /driverApplications/{appId} {
-        allow create: if true;
+        // SEC: Validate required fields to prevent spam
+        allow create: if request.resource.data.keys().hasAll(['storeId', 'name', 'phone'])
+                      && request.resource.data.name is string
+                      && request.resource.data.name.size() > 0
+                      && request.resource.data.storeId is string;
         allow read, update, delete: if request.auth != null && (
             isSuperAdmin() ||
             belongsToStore(resource.data.storeId) ||

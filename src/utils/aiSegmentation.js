@@ -19,8 +19,9 @@ export const getCustomerSegment = (customer, orders = []) => {
     }
 
     // 1. Calculate RFM Metrics
-    const totalSpent = orders.reduce((sum, order) => sum + (parseFloat(order.price || 0) * (parseInt(order.quantity || 1))), 0);
-    const orderCount = orders.length;
+    const deliveredOrders = orders.filter(o => o.status === 'livré');
+    const totalSpent = deliveredOrders.reduce((sum, order) => sum + (parseFloat(order.price || 0) * (parseInt(order.quantity || 1))), 0);
+    const orderCount = deliveredOrders.length;
 
     // Sort orders by date descending to find last purchase
     const sortedOrders = [...orders].sort((a, b) => new Date(b.createdAt?.seconds * 1000 || b.createdAt) - new Date(a.createdAt?.seconds * 1000 || a.createdAt));

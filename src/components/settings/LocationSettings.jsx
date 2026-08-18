@@ -48,12 +48,12 @@ export default function LocationSettings({ store, t }) {
                 });
             });
             vibrate('success');
-            toast.success("Transfert réussi !");
+            toast.success(t('msg_transfer_success') || "Transfert réussi !");
             setTransfer({ prodId: '', from: '', to: '', qty: 0 });
         } catch (e) {
             vibrate('error');
             console.error(e);
-            toast.error(e.message || "Erreur de transfert");
+            toast.error(t('err_transfer_failed') || e.message || "Erreur de transfert");
         } finally {
             setTransferring(false);
         }
@@ -125,14 +125,14 @@ export default function LocationSettings({ store, t }) {
 
     return (
         <div className="space-y-6">
-            <div className="bg-white shadow rounded-lg border border-gray-100 p-6">
-                <div className="flex items-center justify-between mb-6">
+            <div className="glass-panel rounded-2xl p-6 sm:p-8">
+                <div className="flex items-center justify-between mb-8">
                     <div>
-                        <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 uppercase tracking-wider">
                             <Truck className="h-5 w-5 text-indigo-500" />
-                            Boutiques & Dépôts
+                            {t('section_locations') || 'Boutiques & Dépôts'}
                         </h3>
-                        <p className="text-sm text-gray-500">Gérez vos emplacements physiques pour un inventaire précis.</p>
+                        <p className="text-sm text-gray-500 mt-1">{t('help_locations') || 'Gérez vos emplacements physiques pour un inventaire précis.'}</p>
                     </div>
                 </div>
 
@@ -169,49 +169,49 @@ export default function LocationSettings({ store, t }) {
                     )}
                 </div>
 
-                <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
-                    <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="bg-white/50 rounded-2xl p-6 border border-gray-100/50 mt-8">
+                    <h4 className="text-sm font-bold text-gray-900 mb-6 flex items-center gap-2 uppercase tracking-wider">
                         <Plus className="w-4 h-4 text-indigo-600" />
-                        Nouvel emplacement
+                        {t('section_new_location') || 'Nouvel emplacement'}
                     </h4>
                     <form onSubmit={handleCreate} className="space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Nom du Dépôt</label>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">{t('label_location_name') || 'Nom du Dépôt'}</label>
                                 <input 
                                     placeholder="Ex: Entrepôt Principal" 
-                                    className="w-full p-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                    className="w-full p-3 border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-sm" 
                                     value={newLoc.name}
                                     onChange={e => setNewLoc({...newLoc, name: e.target.value})}
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Adresse (optionnel)</label>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">{t('label_location_address') || 'Adresse (optionnel)'}</label>
                                 <input 
                                     placeholder="Ex: Zone Industrielle, Casa" 
-                                    className="w-full p-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                    className="w-full p-3 border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-sm" 
                                     value={newLoc.address}
                                     onChange={e => setNewLoc({...newLoc, address: e.target.value})}
                                 />
                             </div>
                         </div>
-                        <div className="flex justify-end">
-                            <Button type="submit" isLoading={creating} icon={Plus}>Créer l'emplacement</Button>
+                        <div className="flex justify-end mt-2">
+                            <Button type="submit" isLoading={creating} icon={Plus}>{t('btn_create_location') || "Créer l'emplacement"}</Button>
                         </div>
                     </form>
                 </div>
 
-                <div className="mt-8 pt-8 border-t border-gray-100">
-                    <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="mt-10 pt-8 border-t border-gray-100">
+                    <h4 className="text-sm font-bold text-gray-900 mb-6 flex items-center gap-2 uppercase tracking-wider">
                         <Zap className="w-4 h-4 text-amber-500" />
-                        Transfert de Stock Inter-Dépôts
+                        {t('section_stock_transfer') || 'Transfert de Stock Inter-Dépôts'}
                     </h4>
-                    <form onSubmit={handleTransfer} className="bg-amber-50/30 p-6 rounded-xl border border-amber-100 space-y-4">
+                    <form onSubmit={handleTransfer} className="bg-amber-50/50 p-6 rounded-2xl border border-amber-100/50 space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div className="md:col-span-1">
-                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Produit</label>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">{t('label_product') || 'Produit'}</label>
                                 <select 
-                                    className="w-full p-2 border rounded-lg text-sm bg-white"
+                                    className="w-full p-3 border-amber-200/50 rounded-xl text-sm bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all shadow-sm"
                                     value={transfer.prodId}
                                     onChange={e => setTransfer({...transfer, prodId: e.target.value})}
                                 >
@@ -222,9 +222,9 @@ export default function LocationSettings({ store, t }) {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">De (Source)</label>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">{t('label_from_source') || 'De (Source)'}</label>
                                 <select 
-                                    className="w-full p-2 border rounded-lg text-sm bg-white"
+                                    className="w-full p-3 border-amber-200/50 rounded-xl text-sm bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all shadow-sm"
                                     value={transfer.from}
                                     onChange={e => setTransfer({...transfer, from: e.target.value})}
                                 >
@@ -235,9 +235,9 @@ export default function LocationSettings({ store, t }) {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Vers (Destination)</label>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">{t('label_to_destination') || 'Vers (Destination)'}</label>
                                 <select 
-                                    className="w-full p-2 border rounded-lg text-sm bg-white"
+                                    className="w-full p-3 border-amber-200/50 rounded-xl text-sm bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all shadow-sm"
                                     value={transfer.to}
                                     onChange={e => setTransfer({...transfer, to: e.target.value})}
                                 >
@@ -248,18 +248,18 @@ export default function LocationSettings({ store, t }) {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Quantité</label>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">{t('label_quantity') || 'Quantité'}</label>
                                 <input 
                                     type="number" min="1"
-                                    className="w-full p-2 border rounded-lg text-sm bg-white"
+                                    className="w-full p-3 border-amber-200/50 rounded-xl text-sm bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all shadow-sm"
                                     value={transfer.qty}
                                     onChange={e => setTransfer({...transfer, qty: parseInt(e.target.value) || 0})}
                                 />
                             </div>
                         </div>
-                        <div className="flex justify-end">
+                        <div className="flex justify-end mt-2">
                             <Button type="submit" isLoading={transferring} icon={Zap} className="bg-amber-600 hover:bg-amber-700 text-white border-transparent">
-                                Exécuter le Transfert
+                                {t('btn_execute_transfer') || 'Exécuter le Transfert'}
                             </Button>
                         </div>
                     </form>

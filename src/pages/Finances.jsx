@@ -25,10 +25,14 @@ import { RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import { generateFinancialInsight, analyzeFinancialScenario, detectFinancialLeaks } from "../services/aiService";
 import SmartReconciliationWizard from "../components/finances/SmartReconciliationWizard";
+import CODReconciliation from "../components/finances/CODReconciliation";
+import ConfirmDialog from "../components/ConfirmDialog";
+import { useConfirmDialog } from "../hooks/useConfirmDialog";
 
 export default function Finances() {
     const { store } = useTenant();
     const { t } = useLanguage();
+    const { confirmState, confirm, close } = useConfirmDialog();
 
     // State
     const [expenseForm, setExpenseForm] = useState({ description: "", amount: "", category: "Other", collectionId: "" });
@@ -151,9 +155,14 @@ export default function Finances() {
     };
 
     const handleDeleteExpense = async (id) => {
-        if (window.confirm(t('btn_remove_expense'))) {
-            await deleteExpense(id);
-        }
+        confirm({
+            title: 'Suppression',
+            message: t('confirm_delete'),
+            isDestructive: true,
+            onConfirm: async () => {
+                await deleteExpense(id);
+            }
+        });
     }
 
     // --- AI Insight ---
@@ -219,17 +228,20 @@ export default function Finances() {
             const month = dateRange.start.slice(0, 7); // YYYY-MM
             const filteredOrders = (orders || []).filter(o => !o.deleted);
 
-            // Calculations
-            const totalVentesHT = filteredOrders
+            // Calculations — au Maroc les prix COD sont TTC (taxe incluse) : on EXTRAIT la TVA
+            // du montant encaissé au lieu de l'ajouter par-dessus (cohérent avec financials.js).
+            const totalVentesTTC = filteredOrders
                 .filter(o => o.status === 'livré' || o.status === 'payé')
                 .reduce((s, o) => s + (parseFloat(o.price) * (parseInt(o.quantity) || 1)), 0);
-            const totalTVA = totalVentesHT * 0.20;
+            const totalVentesHT = totalVentesTTC / 1.2;
+            const totalTVA = totalVentesTTC - totalVentesHT;
             const totalCOGS = filteredOrders
                 .filter(o => o.status === 'livré' || o.status === 'payé')
                 .reduce((s, o) => s + ((parseFloat(o.costPrice) || 0) * (parseInt(o.quantity) || 1)), 0);
             const totalCharges = stats.totalExpenses || 0;
             const fraisImport = parseFloat(importFees) || 0;
-            const margeReelle = totalVentesHT - totalCOGS - totalCharges - fraisImport;
+            // Marge réelle sur base trésorerie (TTC encaissé - coûts), cohérente avec le Net Profit de l'app.
+            const margeReelle = totalVentesTTC - totalCOGS - totalCharges - fraisImport;
             const netApresCharges = margeReelle;
 
             // 1. CSV
@@ -240,7 +252,7 @@ export default function Finances() {
                 ['RUBRIQUE', 'MONTANT (MAD)'],
                 ['Total Ventes HT (livrées)', totalVentesHT.toFixed(2)],
                 ['TVA Collectée (20%)', totalTVA.toFixed(2)],
-                ['Total Ventes TTC', (totalVentesHT + totalTVA).toFixed(2)],
+                ['Total Ventes TTC', totalVentesTTC.toFixed(2)],
                 [],
                 ['CHARGES'],
                 ['Coût Achat Produits (COGS)', totalCOGS.toFixed(2)],
@@ -250,7 +262,7 @@ export default function Finances() {
                 ['RÉSULTAT'],
                 ['Marge Réelle', margeReelle.toFixed(2)],
                 ['Net Après Charges', netApresCharges.toFixed(2)],
-                ['Taux de Marge', `${totalVentesHT > 0 ? ((margeReelle / totalVentesHT) * 100).toFixed(1) : 0}%`],
+                ['Taux de Marge', `${totalVentesTTC > 0 ? ((margeReelle / totalVentesTTC) * 100).toFixed(1) : 0}%`],
             ];
             const csvContent = csvRows.map(r => r.join(';')).join('\n');
             const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8' });
@@ -287,14 +299,14 @@ export default function Finances() {
             section('📊 Ventes');
             line('Total Ventes HT (livrées)', totalVentesHT.toFixed(2));
             line('TVA Collectée (20%)', totalTVA.toFixed(2));
-            line('Total Ventes TTC', (totalVentesHT + totalTVA).toFixed(2), true);
+            line('Total Ventes TTC', totalVentesTTC.toFixed(2), true);
             section('📦 Charges');
             line('Coût Achat Produits (COGS)', totalCOGS.toFixed(2));
             line('Charges Opérationnelles', totalCharges.toFixed(2));
             line('Frais Import / Approche', fraisImport.toFixed(2));
             section('💰 Résultat');
             line('Marge Réelle', margeReelle.toFixed(2), true);
-            line('Taux de Marge', `${totalVentesHT > 0 ? ((margeReelle / totalVentesHT) * 100).toFixed(1) : 0}%`, true);
+            line('Taux de Marge', `${totalVentesTTC > 0 ? ((margeReelle / totalVentesTTC) * 100).toFixed(1) : 0}%`, true);
 
             doc.setFontSize(8); doc.setTextColor(150);
             doc.text('Document généré par BayIIn — Prêt pour votre comptable.', 20, 280);
@@ -467,18 +479,14 @@ export default function Finances() {
 
             {ordersError && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                    <p className="font-bold">Error loading Orders</p>
+                    <p className="font-bold">{t('err_loading_orders') || 'Error loading Orders'}</p>
                     <p className="text-sm">{ordersError.message}</p>
                 </div>
             )}
-            {orders.length === 0 && !loadingOrders && (
-                <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg text-sm">
-                    <strong>DEBUG:</strong> 0 commandes trouvées pour cette période ({dateRange.start} au {dateRange.end}).
-                </div>
-            )}
+
 
             {/* AI Insight Block */}
-            <div className="bg-gradient-to-r from-rose-50 to-white border border-rose-100 p-6 rounded-lg shadow-sm relative overflow-hidden">
+            <div className="glass-panel border border-rose-100/50 p-6 rounded-2xl relative overflow-hidden bg-gradient-to-br from-rose-50/30 to-white/50">
                 <div className="absolute top-0 right-0 p-4 opacity-10">
                     <Sparkles className="w-24 h-24 text-rose-500" />
                 </div>
@@ -486,9 +494,9 @@ export default function Finances() {
                     <div>
                         <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                             <Sparkles className="w-5 h-5 text-rose-500" />
-                            L'avis de Beya3 (AI)
+                            {t('title_ai_insights') || "Beya3 AI Insights"}
                         </h3>
-                        <p className="text-sm text-gray-600 mt-1">Demande une analyse instantanée de tes performances financières.</p>
+                        <p className="text-sm text-gray-600 mt-1">{t('subtitle_ai_insights') || 'Get instant AI-powered analysis of your financial performance.'}</p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
                         <Button
@@ -498,7 +506,7 @@ export default function Finances() {
                             className="bg-white border-rose-200 text-rose-600 hover:bg-rose-50 w-full sm:w-auto justify-center"
                             icon={Activity}
                         >
-                            Lancer Audit 🛡️
+                            {t('btn_run_audit') || 'Run Audit 🛡️'}
                         </Button>
                         <Button
                             onClick={askMervat}
@@ -506,7 +514,7 @@ export default function Finances() {
                             icon={MessageSquare}
                             className="bg-rose-500 hover:bg-rose-600 text-white border-none shadow-md w-full sm:w-auto justify-center"
                         >
-                            Analyser ma rentabilité
+                            {t('btn_analyze_profitability') || 'Analyze Profitability'}
                         </Button>
                     </div>
                 </div>
@@ -534,7 +542,7 @@ export default function Finances() {
             {/* KPI Cards */}
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 {/* 1. Total Income (LIVRÉ) */}
-                <div data-testid="kpi-delivered-revenue" className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div data-testid="kpi-delivered-revenue" className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center">
                         <div className="flex-shrink-0">
                             <div className="flex items-center justify-center h-12 w-12 rounded-md bg-indigo-100 text-indigo-600">
@@ -551,7 +559,7 @@ export default function Finances() {
                 </div>
 
                 {/* 2. Total Paid (CASH) */}
-                <div data-testid="kpi-realized-revenue" className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div data-testid="kpi-realized-revenue" className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center">
                         <div className="flex-shrink-0">
                             <div className="flex items-center justify-center h-12 w-12 rounded-md bg-green-100 text-green-600">
@@ -568,7 +576,7 @@ export default function Finances() {
                 </div>
 
                 {/* 3. Net Profit */}
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center">
                         <div className="flex-shrink-0">
                             <div className="flex items-center justify-center h-12 w-12 rounded-md bg-purple-100 text-purple-600">
@@ -585,7 +593,7 @@ export default function Finances() {
                 </div>
 
                 {/* 4. Net Margin */}
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center">
                         <div className="flex-shrink-0">
                             <div className="flex items-center justify-center h-12 w-12 rounded-md bg-yellow-100 text-yellow-600">
@@ -602,7 +610,7 @@ export default function Finances() {
                 </div>
 
                 {/* 5. TVA à Collecter */}
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-gray-100 p-5">
+                <div className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center">
                         <div className="flex-shrink-0">
                             <div className="flex items-center justify-center h-12 w-12 rounded-md bg-rose-100 text-rose-600">
@@ -619,7 +627,7 @@ export default function Finances() {
                 </div>
 
                 {/* 6. Avoirs / Remboursements */}
-                <div className="bg-white overflow-hidden shadow rounded-lg border border-red-100 p-5">
+                <div className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center">
                         <div className="flex-shrink-0">
                             <div className="flex items-center justify-center h-12 w-12 rounded-md bg-red-100 text-red-600">
@@ -637,7 +645,7 @@ export default function Finances() {
             </div>
 
             {/* Frais d'approche (Import Fees) */}
-            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="bg-amber-50/50 border border-amber-100/50 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-5 mt-6">
                 <div className="flex items-center gap-3">
                     <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
                         <Truck className="w-5 h-5 text-amber-600" />
@@ -660,15 +668,15 @@ export default function Finances() {
                     <span className="text-sm text-amber-700 font-medium whitespace-nowrap">{store?.currency || "MAD"}</span>
                 </div>
                 {importFees && parseFloat(importFees) > 0 && (
-                    <p className="text-xs text-amber-700">⚠ Déduit du Net Profit</p>
+                    <p className="text-xs text-amber-700">⚠ {t('label_deducted_from_profit') || 'Deducted from Net Profit'}</p>
                 )}
             </div>
 
             {/* ANALYTICS SECTION */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                 {/* Top Products */}
-                <div className="bg-white p-6 rounded-lg shadow border border-gray-100">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">{t('analytics_top_products')}</h3>
+                <div className="glass-panel p-6 rounded-2xl">
+                    <h3 className="text-lg font-bold text-gray-900 mb-6 uppercase tracking-wider">{t('analytics_top_products')}</h3>
                     {loadingOrders ? (
                         <div className="h-64 flex items-center justify-center text-gray-400">Loading...</div>
                     ) : (
@@ -677,8 +685,8 @@ export default function Finances() {
                 </div>
 
                 {/* City Revenue & Returns */}
-                <div className="bg-white p-6 rounded-lg shadow border border-gray-100">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">{t('analytics_city_performance')}</h3>
+                <div className="glass-panel p-6 rounded-2xl">
+                    <h3 className="text-lg font-bold text-gray-900 mb-6 uppercase tracking-wider">{t('analytics_city_performance')}</h3>
                     {loadingOrders ? (
                         <div className="h-64 flex items-center justify-center text-gray-400">Loading...</div>
                     ) : (
@@ -689,39 +697,39 @@ export default function Finances() {
 
 
             {/* ADVANCED METRICS SECTION */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">{t('metric_roas')}</p>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+                <div className="glass-panel p-5 rounded-2xl">
+                    <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">{t('metric_roas')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
-                        <span className={`text - xl font - bold ${parseFloat(stats.res.roas) > 3 ? 'text-green-600' : 'text-gray-900'} `}>
+                        <span className={`text-xl font-bold ${parseFloat(stats.res.roas) > 3 ? 'text-green-600' : 'text-gray-900'}`}>
                             {stats.res.roas}x
                         </span>
                         <span className="text-xs text-gray-400">{t('target')}: &gt;3.0</span>
                     </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">{t('metric_cac')}</p>
+                <div className="glass-panel p-5 rounded-2xl">
+                    <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">{t('metric_cac')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
                         <span className="text-xl font-bold text-gray-900">{stats.res.cac} DH</span>
                         <span className="text-xs text-gray-400">{t('label_ads_spending')}</span>
                     </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">{t('metric_shipping_ratio')}</p>
+                <div className="glass-panel p-5 rounded-2xl">
+                    <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">{t('metric_shipping_ratio')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
-                        <span className={`text - xl font - bold ${parseFloat(stats.res.shippingRatio) > 15 ? 'text-red-600' : 'text-gray-900'} `}>
+                        <span className={`text-xl font-bold ${parseFloat(stats.res.shippingRatio) > 15 ? 'text-red-600' : 'text-gray-900'}`}>
                             {stats.res.shippingRatio}%
                         </span>
                         <span className="text-xs text-gray-400">{t('target')}: &lt;15%</span>
                     </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">{t('metric_profit_per_order')}</p>
+                <div className="glass-panel p-5 rounded-2xl">
+                    <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">{t('metric_profit_per_order')}</p>
                     <div className="flex items-baseline gap-2 mt-1">
-                        <span className={`text - xl font - bold ${parseFloat(stats.res.profitPerOrder) > 0 ? 'text-green-600' : 'text-red-600'} `}>
+                        <span className={`text-xl font-bold ${parseFloat(stats.res.profitPerOrder) > 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {stats.res.profitPerOrder} DH
                         </span>
                     </div>
@@ -788,7 +796,7 @@ export default function Finances() {
                                             </span>
                                         </td>
                                         <td className="px-3 py-2 whitespace-nowrap text-right text-sm font-medium">
-                                            <button className="text-indigo-600 hover:text-indigo-900">Détails</button>
+                                            <button className="text-indigo-600 hover:text-indigo-900">{t('label_view_details') || 'Details'}</button>
                                         </td>
                                     </tr>
                                 ))}
@@ -798,100 +806,14 @@ export default function Finances() {
                 )}
             </div>
 
-            {/* COD Cash Reconciliation Section */}
-            {(() => {
-                const unremittedOrders = orders.filter(o => o.status === 'livré' && o.codCollected && !o.isPaid);
-                const totalUnremitted = unremittedOrders.reduce((s, o) => s + (parseFloat(o.price) || 0) * (parseInt(o.quantity) || 1), 0);
-                
-                // Group by driver
-                const byDriver = {};
-                unremittedOrders.forEach(o => {
-                    const key = o.livreurToken || o.driverId || 'Inconnu';
-                    const name = o.driverName || o.livreurToken || 'Livreur inconnu';
-                    if (!byDriver[key]) byDriver[key] = { name, orders: [], total: 0 };
-                    byDriver[key].orders.push(o);
-                    byDriver[key].total += (parseFloat(o.price) || 0) * (parseInt(o.quantity) || 1);
-                });
-                const driverGroups = Object.entries(byDriver);
-
-                if (unremittedOrders.length === 0 && driverGroups.length === 0) return null;
-
-                const handleValidateRemittance = async (driverKey) => {
-                    const group = byDriver[driverKey];
-                    if (!group || !window.confirm(`Confirmer la réception de ${group.total.toFixed(0)} ${store?.currency || 'MAD'} en cash de ${group.name} ?`)) return;
-                    
-                    try {
-                        const { updateDoc, doc: docRef } = await import('firebase/firestore');
-                        // Mark all orders as paid
-                        for (const order of group.orders) {
-                            await updateDoc(docRef(db, `stores/${store.id}/orders`, order.id), {
-                                isPaid: true,
-                                codRemittedAt: new Date().toISOString(),
-                                paymentStatus: 'remitted'
-                            });
-                        }
-                        // Create a treasury/expense entry for the remittance
-                        await addExpense({
-                            description: `Remise COD — ${group.name} (${group.orders.length} commandes)`,
-                            amount: 0, // Not an expense, but a record
-                            category: 'COD Remittance',
-                            collectionId: null,
-                            date: new Date().toISOString(),
-                            metadata: {
-                                driverKey,
-                                driverName: group.name,
-                                orderCount: group.orders.length,
-                                totalAmount: group.total,
-                                orderIds: group.orders.map(o => o.id)
-                            }
-                        });
-                        toast.success(`✅ ${group.total.toFixed(0)} ${store?.currency || 'MAD'} réconcilié pour ${group.name}`);
-                    } catch (err) {
-                        console.error(err);
-                        toast.error('Erreur lors de la réconciliation');
-                    }
-                };
-
-                return (
-                    <div className="bg-white p-4 sm:p-6 rounded-lg shadow border border-amber-100 mb-6">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
-                            <div>
-                                <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
-                                    <DollarSign className="w-5 h-5 text-amber-500" />
-                                    Remises COD — Cash en attente
-                                </h3>
-                                <p className="text-sm text-gray-500 mt-0.5">
-                                    Commandes livrées dont le cash n'a pas encore été remis par le livreur
-                                </p>
-                            </div>
-                            <div className="bg-amber-50 border border-amber-200 px-4 py-2 rounded-xl text-center">
-                                <p className="text-2xl font-bold text-amber-700">{totalUnremitted.toLocaleString()} {store?.currency || 'MAD'}</p>
-                                <p className="text-xs text-amber-600">{unremittedOrders.length} commande{unremittedOrders.length > 1 ? 's' : ''}</p>
-                            </div>
-                        </div>
-
-                        {driverGroups.length > 0 && (
-                            <div className="space-y-3">
-                                {driverGroups.map(([key, group]) => (
-                                    <div key={key} className="flex items-center justify-between bg-amber-50/50 border border-amber-100 rounded-xl px-4 py-3">
-                                        <div>
-                                            <p className="font-semibold text-gray-900 text-sm">{group.name}</p>
-                                            <p className="text-xs text-gray-500">{group.orders.length} commande{group.orders.length > 1 ? 's' : ''} · {group.total.toFixed(0)} {store?.currency || 'MAD'}</p>
-                                        </div>
-                                        <button
-                                            onClick={() => handleValidateRemittance(key)}
-                                            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
-                                        >
-                                            <CheckCircle className="w-4 h-4" />
-                                            Valider la remise
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                );
-            })()}
+            {/* COD Cash Reconciliation Dashboard */}
+            <div className="bg-white p-4 sm:p-6 rounded-lg shadow border border-gray-100 mb-6">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-4">
+                    <DollarSign className="w-5 h-5 text-amber-500" />
+                    Réconciliation COD
+                </h3>
+                <CODReconciliation orders={orders} />
+            </div>
 
             {/* Smart COD Automated Reconciliation Wizard */}
             <SmartReconciliationWizard 
@@ -1077,6 +999,15 @@ export default function Finances() {
             </div>
 
             {/* Collections Modal */}
+            <ConfirmDialog 
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                message={confirmState.message}
+                onConfirm={confirmState.onConfirm}
+                onCancel={close}
+                isDestructive={confirmState.isDestructive}
+            />
+
             {showCollectionsModal && (
                 <CollectionsManager
                     onClose={() => setShowCollectionsModal(false)}

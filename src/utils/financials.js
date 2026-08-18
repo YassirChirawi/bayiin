@@ -12,7 +12,7 @@ const safeFloat = (val) => {
 // Helper: Safely parse an int
 const safeInt = (val) => {
     const num = parseInt(val);
-    return isNaN(num) ? 1 : num;
+    return isNaN(num) ? 0 : num;
 };
 
 /**
@@ -54,7 +54,7 @@ export const calculateFinancialStats = (orders, expenses, refunds = [], dateRang
 
     // 1. Process Orders
     orders.forEach(o => {
-        const qty = safeInt(o.quantity);
+        const qty = safeInt(o.quantity) || 1;
         const price = safeFloat(o.price);
         const cost = safeFloat(o.costPrice);
         const delivery = safeFloat(o.realDeliveryCost);
@@ -90,7 +90,7 @@ export const calculateFinancialStats = (orders, expenses, refunds = [], dateRang
         }
 
         // Delivery Costs: Incurred if shipped (delivered, returned, or manually recorded)
-        if (['livré', 'retour', 'livraison', 'ramassage'].includes(o.status) || delivery > 0) {
+        if (['livré', 'retour', 'retour en cours', 'livraison', 'ramassage'].includes(o.status)) {
             res.totalRealDelivery += delivery;
         }
     });

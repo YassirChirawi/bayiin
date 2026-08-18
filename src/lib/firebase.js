@@ -25,8 +25,31 @@ export const googleProvider = new GoogleAuthProvider();
 // Use the 'comsaas' database to match backend and scripts
 export const db = getFirestore(app, 'comsaas');
 
-// Enable persistence only in production/development, not in test mode to avoid hangs
-if (import.meta.env.MODE !== 'test') {
+export const storage = getStorage(app);
+
+// Emulator Support (BAY-102)
+// IMPORTANT : connectFirestoreEmulator DOIT être appelé avant toute opération sur
+// `db` (dont enableIndexedDbPersistence, qui démarre Firestore). Sinon il lève
+// "Firestore has already been started", ce throw top-level fait échouer tout le
+// module et l'app rend une page blanche. On connecte donc les émulateurs d'abord.
+const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === "true";
+console.log("Firebase Emulator Status:", useEmulator);
+
+if (useEmulator) {
+    try {
+        connectAuthEmulator(auth, "http://localhost:9099", { disableWarnings: true });
+    } catch (e) { console.warn("Auth emulator connect skipped:", e.message); }
+    try {
+        connectFirestoreEmulator(db, "localhost", 8080);
+    } catch (e) { console.warn("Firestore emulator connect skipped:", e.message); }
+    try {
+        connectStorageEmulator(storage, "localhost", 9199);
+    } catch (e) { console.warn("Storage emulator connect skipped:", e.message); }
+}
+
+// Persistance hors-ligne : jamais en mode test, ni en mode émulateur (inutile, et
+// cela démarrerait Firestore avant que l'émulateur puisse s'attacher — cf. ci-dessus).
+if (import.meta.env.MODE !== 'test' && !useEmulator) {
     enableIndexedDbPersistence(db).catch((err) => {
         if (err.code === 'failed-precondition') {
             console.warn("Multiple tabs open, persistence can only be enabled in one tab at a time.");
@@ -34,19 +57,6 @@ if (import.meta.env.MODE !== 'test') {
             console.warn("The current browser does not support all of the features required to enable persistence");
         }
     });
-}
-
-export const storage = getStorage(app);
-
-// Emulator Support
-const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === "true";
-console.log("Firebase Emulator Status:", useEmulator);
-
-if (useEmulator) {
-    console.log("Connecting to Firebase Emulators...");
-    connectAuthEmulator(auth, "http://localhost:9099");
-    connectFirestoreEmulator(db, "localhost", 8080);
-    connectStorageEmulator(storage, "localhost", 9199);
 }
 
 // Initialize messaging conditionally

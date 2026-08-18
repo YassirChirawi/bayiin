@@ -23,7 +23,6 @@ export function useStoreStats() {
         const unsubscribe = onSnapshot(statsRef,
             (docSnapshot) => {
                 if (docSnapshot.exists()) {
-                    console.log("Stats update:", docSnapshot.data());
                     setStats(docSnapshot.data());
                 } else {
                     // Initialize structure if missing

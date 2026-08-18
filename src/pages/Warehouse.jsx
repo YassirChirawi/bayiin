@@ -9,6 +9,8 @@ import Button from "../components/Button";
 import { Package, ShoppingBag, Barcode as BarcodeIcon, Truck, CheckCircle, RotateCcw } from "lucide-react";
 import { vibrate } from "../utils/haptics";
 import { useLanguage } from "../context/LanguageContext";
+import { ORDER_STATUS } from "../utils/constants";
+import { isValidTransition } from "../utils/orderStateMachine";
 import { logStockMovement } from "../lib/stockAudit";
 import { useAuth } from "../context/AuthContext";
 import ProFeatureGuard from "../components/ProFeatureGuard";
@@ -91,10 +93,17 @@ export default function Warehouse() {
     // --- QUICK ACTIONS ---
     const markOrderShipped = async () => {
         if (!scanResult || scanType !== 'order') return;
+        // "en_expedition" n'existe pas dans les statuts (isValidOrder aurait rejeté l'écriture).
+        // Le bon statut d'expédition est SHIPPING ('livraison'). On valide aussi la transition.
+        const target = ORDER_STATUS.SHIPPING;
+        if (scanResult.status && scanResult.status !== target && !isValidTransition(scanResult.status, target)) {
+            toast.error(`Transition invalide depuis « ${scanResult.status} ».`);
+            return;
+        }
         try {
-            await updateDoc(doc(db, "orders", scanResult.id), { status: "en_expedition" });
+            await updateDoc(doc(db, "orders", scanResult.id), { status: target });
             vibrate('success');
-            toast.success("Commande marquée en expédition !");
+            toast.success("Commande marquée en livraison !");
             handleResetScan();
         } catch (e) {
             toast.error("Erreur lors de la mise à jour.");

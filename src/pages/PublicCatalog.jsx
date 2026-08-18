@@ -1,143 +1,159 @@
-import { useState, useEffect, useMemo } from "react";
-import { useParams } from "react-router-dom";
-import { doc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "../lib/firebase";
-import { createRawWhatsAppLink } from "../utils/whatsappTemplates";
-import { Package, Search, Filter, ShoppingBag, MapPin, ShoppingCart, X, Plus, Minus, Trash2 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { vibrate } from "../utils/haptics";
+import React, { useState, useEffect, useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { doc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { createRawWhatsAppLink } from '../utils/whatsappTemplates';
+import { ShoppingBag, ChevronRight, Image as ImageIcon } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { vibrate } from '../utils/haptics';
+
+// Storefront Components
+import StoreBanner from '../components/storefront/StoreBanner';
+import StoreHeader from '../components/storefront/StoreHeader';
+import StoreFooter from '../components/storefront/StoreFooter';
+import CartDrawer from '../components/storefront/CartDrawer';
+import ProductPage from '../components/storefront/ProductPage';
+import StorefrontCheckout from '../components/storefront/StorefrontCheckout';
+import ContactPage from '../components/storefront/ContactPage';
+import ThankYouPage from '../components/storefront/ThankYouPage';
+import BlockRenderer from '../builder/renderer/BlockRenderer';
+
+// Default Fallback Theme
+const DEFAULT_THEME = {
+    primaryColor: '#6366f1',
+    typography: { heading: 'Inter', body: 'Inter' },
+    headerLayout: 'center',
+    buttonStyle: 'rounded',
+    bannerEnabled: true,
+    bannerText: 'Bienvenue sur notre boutique officielle',
+    social: { facebook: '', instagram: '', whatsapp: '' }
+};
 
 export default function PublicCatalog() {
     const { storeId } = useParams();
+    const navigate = useNavigate();
+    
+    // Core Data
     const [store, setStore] = useState(null);
     const [products, setProducts] = useState([]);
+    const [storefrontData, setStorefrontData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Cart State
+    // App State
+    const [currentView, setCurrentView] = useState('home'); // 'home', 'product', 'contact', 'thankyou'
+    const [selectedProduct, setSelectedProduct] = useState(null);
     const [cart, setCart] = useState([]);
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [isCheckingOut, setIsCheckingOut] = useState(false);
-
-    // Client form (capture before checkout)
-    const [clientForm, setClientForm] = useState({ name: '', phone: '', city: '', address: '' });
-    const [showClientForm, setShowClientForm] = useState(false);
-
-    // Social proof
-    const [todayOrderCount, setTodayOrderCount] = useState(0);
-
-    // Filters
-    const [searchTerm, setSearchTerm] = useState("");
-    const [selectedCategory, setSelectedCategory] = useState("All");
+    const [lastOrder, setLastOrder] = useState(null);
 
     useEffect(() => {
         async function fetchData() {
             setLoading(true);
             try {
-                // 1. Fetch Store Branding
+                // 1. Fetch Store
                 const storeDoc = await getDoc(doc(db, "stores", storeId));
                 if (!storeDoc.exists()) {
-                    setError("Store not found");
+                    setError("Boutique introuvable");
                     setLoading(false);
                     return;
                 }
-                setStore({ id: storeDoc.id, ...storeDoc.data() });
+                const storeData = { id: storeDoc.id, ...storeDoc.data() };
+                setStore(storeData);
 
-                // 2. Fetch Products
+                // 2. Load storefront config or create fallback
+                let config = storeData.storefront;
+                if (!config || !config.pages) {
+                    config = {
+                        subdomain: '',
+                        theme: DEFAULT_THEME,
+                        pages: {
+                            home: {
+                                sections: [
+                                    {
+                                        id: 'default-hero',
+                                        type: 'Hero',
+                                        title: `Bienvenue chez ${storeData.name}`,
+                                        subtitle: "Découvrez notre collection exclusive et profitez de la livraison à domicile.",
+                                        settings: { alignment: 'center', textColor: '#ffffff', backgroundType: 'color', backgroundColor: DEFAULT_THEME.primaryColor }
+                                    },
+                                    {
+                                        id: 'default-grid',
+                                        type: 'ProductGrid',
+                                        title: "Nos Produits",
+                                        subtitle: "Découvrez nos meilleures ventes.",
+                                        settings: { alignment: 'left', columns: 4 }
+                                    }
+                                ]
+                            },
+                            catalog: { sections: [] },
+                            product: { sections: [] },
+                            cart: { sections: [] },
+                            checkout: { sections: [] },
+                            portal: { sections: [] },
+                            contact: { sections: [] }
+                        }
+                    };
+                } else {
+                    config.theme = { ...DEFAULT_THEME, ...config.theme };
+                }
+                setStorefrontData(config);
+
+                // Inject Font
+                if (config.theme?.typography?.heading) {
+                    const fontName = config.theme.typography.heading;
+                    const link = document.createElement('link');
+                    link.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/ /g, '+')}:wght@400;500;700;900&display=swap`;
+                    link.rel = 'stylesheet';
+                    document.head.appendChild(link);
+                }
+
+                // 3. Fetch Products
                 const q = query(collection(db, "products"), where("storeId", "==", storeId));
                 const querySnapshot = await getDocs(q);
                 const productsData = querySnapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
                 })).filter(p => !p.deleted);
-
                 setProducts(productsData);
 
-                // 3. Social proof: count today's orders for this store
-                try {
-                    const today = new Date().toISOString().split('T')[0];
-                    const ordersQ = query(
-                        collection(db, "orders"),
-                        where("storeId", "==", storeId),
-                        where("date", "==", today)
-                    );
-                    const ordersSnap = await getDocs(ordersQ);
-                    setTodayOrderCount(ordersSnap.size);
-                } catch (_) { /* non-critical */ }
             } catch (err) {
-                console.error("Error fetching catalog:", err);
-                setError("Failed to load catalog");
+                console.error("Erreur chargement:", err);
+                setError("Impossible de charger la boutique");
             } finally {
                 setLoading(false);
             }
         }
-        if (storeId) {
-            fetchData();
-        }
+        if (storeId) fetchData();
     }, [storeId]);
 
     // Cart Logic
-    const addToCart = (product) => {
+    const handleAddToCart = (product, quantity = 1, selectedVariant = null) => {
         setCart(prev => {
-            const existing = prev.find(item => item.id === product.id);
+            const existing = prev.find(item => item.id === product.id && item.selectedVariant?.id === selectedVariant?.id);
             if (existing) {
-                return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+                return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item);
             }
-            return [...prev, { ...product, quantity: 1 }];
+            return [...prev, { ...product, quantity, selectedVariant }];
         });
         vibrate('soft');
         setIsCartOpen(true);
     };
 
-    const removeFromCart = (id) => {
-        setCart(prev => prev.filter(item => item.id !== id));
-    };
-
-    const updateQuantity = (id, delta) => {
-        setCart(prev => prev.map(item => {
-            if (item.id === id) {
-                const newQty = Math.max(1, item.quantity + delta);
-                return { ...item, quantity: newQty };
-            }
-            return item;
-        }));
-    };
-
-    const cartTotal = cart.reduce((acc, item) => acc + (parseFloat(item.price) * item.quantity), 0);
-    const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
-
-    // Free shipping threshold (configurable, default 300 DH)
-    const freeShippingThreshold = store?.freeShippingThreshold || 300;
-    const amountToFreeShipping = Math.max(0, freeShippingThreshold - cartTotal);
-    const freeShippingProgress = Math.min(100, (cartTotal / freeShippingThreshold) * 100);
-
-    // Cross-sell suggestions based on cart categories
-    const suggestedProducts = useMemo(() => {
-        if (cart.length === 0) return [];
-        const cartCategories = new Set(cart.map(item => item.category).filter(Boolean));
-        const cartIds = new Set(cart.map(item => item.id));
-        return products
-            .filter(p => !cartIds.has(p.id) && cartCategories.has(p.category) && (parseInt(p.stock) || 0) > 0)
-            .slice(0, 3);
-    }, [cart, products]);
-
-    const handleCheckout = async () => {
+    const handleExpressCheckout = async ({ product, clientForm }) => {
         if (!store?.phone) {
-            alert("Store phone number is not configured.");
-            return;
-        }
-        // Require client info
-        if (!clientForm.name || !clientForm.phone) {
-            setShowClientForm(true);
+            alert("Le numéro de la boutique n'est pas configuré.");
             return;
         }
 
         setIsCheckingOut(true);
         try {
-            // 1. Generate Order Ref
             const orderRefNum = `CMD-${Math.floor(1000 + Math.random() * 9000)}`;
+            const cartTotal = parseFloat(product.price) * product.quantity;
+            const items = [product];
 
-            // 2. Save Draft Order to Firestore (with client info)
+            // Save Draft Order to Firestore
             await addDoc(collection(db, "orders"), {
                 storeId: store.id,
                 orderNumber: orderRefNum,
@@ -146,445 +162,317 @@ export default function PublicCatalog() {
                 clientPhone: clientForm.phone,
                 clientCity: clientForm.city,
                 clientAddress: clientForm.address,
-                products: cart.map(item => ({
+                products: items.map(item => ({
                     id: item.id,
                     name: item.name,
                     quantity: item.quantity,
                     price: parseFloat(item.price),
-                    photoUrl: item.photoUrl || null
+                    photoUrl: item.photoUrl || null,
+                    variant: item.selectedVariant ? item.selectedVariant.name : null
                 })),
-                articleName: cart.map(i => `${i.quantity}x ${i.name}`).join(', '),
-                quantity: cartCount,
+                articleName: items.map(i => `${i.quantity}x ${i.name}${i.selectedVariant ? ` (${i.selectedVariant.name})` : ''}`).join(', '),
+                // price already holds the cart TOTAL; keep top-level quantity=1 so downstream
+                // `price * quantity` aggregations don't double-count (per-item detail lives in products[]).
+                quantity: 1,
                 price: cartTotal,
                 createdAt: serverTimestamp(),
                 date: new Date().toISOString().split('T')[0],
-                source: 'public_catalog'
+                source: 'public_catalog_express'
             });
 
-
-            // 3. Build WhatsApp Message
-            // We use a temporary order object structure that matches what getWhatsappMessage expects
-            const tempOrderForMsg = {
-                clientName: clientForm.name,
-                clientCity: clientForm.city,
-                articleName: cart.map(i => `${i.quantity}x ${i.name}`).join(', '),
-                orderNumber: orderRefNum,
-                price: cartTotal,
-                shippingCost: 0,
-                quantity: 1
-            };
-
-            // Hack: We want the Ticket text to be the list of items. 
-            // The getWhatsappMessage function builds a ticket based on price/quantity. 
-            // We might just want to construct a custom message here using getWhatsappLink directly for better control of the list.
-
+            // Build WhatsApp Message
             const currency = store.currency || 'MAD';
-            const itemsList = cart.map(item => `- ${item.quantity}x ${item.name} (${(parseFloat(item.price) * item.quantity).toFixed(2)} ${currency})`).join('\n');
+            const itemsList = items.map(item => `- ${item.quantity}x ${item.name}${item.selectedVariant ? ` (${item.selectedVariant.name})` : ''} (${(parseFloat(item.price) * item.quantity).toFixed(2)} ${currency})`).join('\n');
             const totalLine = `*TOTAL: ${cartTotal.toFixed(2)} ${currency}*`;
-
-            let message = "";
             const clientInfo = `\n\n📋 *Client:* ${clientForm.name}\n📱 ${clientForm.phone}${clientForm.city ? `\n📍 ${clientForm.city}` : ''}${clientForm.address ? ` — ${clientForm.address}` : ''}`;
 
-            if (store.whatsappLanguage === 'darija') {
-                message = `Salam ${store.name}, bghit ncommandi hadchi:\n\n${itemsList}\n\n${totalLine}${clientInfo}\nRef: ${orderRefNum}`;
-            } else {
-                message = `Bonjour ${store.name}, je souhaite commander :\n\n${itemsList}\n\n${totalLine}${clientInfo}\nRef: ${orderRefNum}`;
-            }
-
+            const message = `Bonjour ${store.name}, je souhaite commander :\n\n${itemsList}\n\n${totalLine}${clientInfo}\nRef: ${orderRefNum}`;
             const url = createRawWhatsAppLink(store.phone, message);
+            
             vibrate('success');
             window.open(url, '_blank');
 
-            // 4. Clear Cart
-            setCart([]);
-            setIsCartOpen(false);
-            setClientForm({ name: '', phone: '', city: '', address: '' });
-            setShowClientForm(false);
+            setLastOrder({ orderNumber: orderRefNum, price: cartTotal });
+            setCurrentView('thankyou');
+            window.scrollTo(0, 0);
 
         } catch (err) {
             console.error("Checkout Error:", err);
-            alert("Failed to create order. Please try again.");
+            alert("Erreur lors de la création de la commande. Veuillez réessayer.");
         } finally {
             setIsCheckingOut(false);
         }
     };
 
-    // Derived Data for Filters
-    const categories = useMemo(() => {
-        const cats = new Set(products.map(p => p.category).filter(Boolean));
-        return ["All", ...Array.from(cats)];
-    }, [products]);
+    const submitFullCheckout = async (checkoutData) => {
+        setIsCheckingOut(true);
+        try {
+            const orderRefNum = `CMD-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    const filteredProducts = products.filter(p => {
-        const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesCategory = selectedCategory === "All" || p.category === selectedCategory;
-        return matchesSearch && matchesCategory;
-    });
+            // Save Draft Order to Firestore
+            await addDoc(collection(db, "orders"), {
+                storeId: store.id,
+                orderNumber: orderRefNum,
+                status: 'pending_catalog',
+                clientName: checkoutData.name,
+                clientPhone: checkoutData.phone,
+                clientCity: checkoutData.city,
+                clientAddress: checkoutData.address,
+                products: cart.map(item => ({
+                    id: item.id,
+                    name: item.name,
+                    quantity: item.quantity,
+                    price: parseFloat(item.price),
+                    photoUrl: item.photoUrl || null,
+                    variant: item.selectedVariant ? item.selectedVariant.name : null
+                })),
+                articleName: cart.map(i => `${i.quantity}x ${i.name}${i.selectedVariant ? ` (${i.selectedVariant.name})` : ''}`).join(', '),
+                // price holds the cart net TOTAL; top-level quantity=1 avoids double-counting in
+                // `price * quantity` aggregations (per-item detail is in products[]).
+                quantity: 1,
+                price: checkoutData.netTotal,
+                shippingFee: checkoutData.shippingFee,
+                createdAt: serverTimestamp(),
+                date: new Date().toISOString().split('T')[0],
+                source: 'public_catalog_checkout'
+            });
+
+            // Build WhatsApp Message (Optional fallback/notification)
+            const currency = store.currency || 'MAD';
+            const itemsList = cart.map(item => `- ${item.quantity}x ${item.name}${item.selectedVariant ? ` (${item.selectedVariant.name})` : ''} (${(parseFloat(item.price) * item.quantity).toFixed(2)} ${currency})`).join('\n');
+            const totalLine = `*TOTAL: ${checkoutData.netTotal.toFixed(2)} ${currency}*`;
+            const clientInfo = `\n\n📋 *Client:* ${checkoutData.name}\n📱 ${checkoutData.phone}${checkoutData.city ? `\n📍 ${checkoutData.city}` : ''}${checkoutData.address ? ` — ${checkoutData.address}` : ''}`;
+
+            const message = `Bonjour ${store.name}, je viens de valider ma commande sur le site :\n\n${itemsList}\n\n${totalLine}${clientInfo}\nRef: ${orderRefNum}`;
+            
+            // We can choose to open WhatsApp or just show Thank You page. 
+            // In Morocco, WhatsApp is preferred, so we open it in background or let the user choose.
+            // For headless ERP, we just show ThankYouPage directly, as the order is in the ERP.
+            
+            vibrate('success');
+            
+            setLastOrder({ orderNumber: orderRefNum, price: checkoutData.netTotal });
+            setCart([]);
+            setIsCartOpen(false);
+            setCurrentView('thankyou');
+            window.scrollTo(0, 0);
+
+        } catch (err) {
+            console.error("Checkout Error:", err);
+            alert("Erreur lors de la création de la commande. Veuillez réessayer.");
+        } finally {
+            setIsCheckingOut(false);
+        }
+    };
+
+    const handleCartCheckoutClick = () => {
+        setIsCartOpen(false);
+        setCurrentView('checkout');
+        window.scrollTo(0, 0);
+    };
+
 
     if (loading) return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <div className="min-h-screen flex items-center justify-center bg-white">
+            <div className="w-12 h-12 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin" />
         </div>
     );
 
-    if (error) return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    if (error || !storefrontData) return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
             <div className="text-center">
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">Oops!</h1>
-                <p className="text-gray-600">{error}</p>
+                <h1 className="text-2xl font-bold text-slate-900 mb-2">Oops!</h1>
+                <p className="text-slate-600">{error}</p>
             </div>
         </div>
     );
+
+    const theme = storefrontData.theme;
 
     return (
-        <div className="min-h-screen bg-gray-50 font-['Outfit'] pb-24">
-            {/* COD Trust Badge */}
-            <div className="bg-emerald-600 text-white text-center py-2 px-4">
-                <p className="text-sm font-medium flex items-center justify-center gap-2">
-                    🚚 Paiement à la livraison disponible · Livraison partout au Maroc
-                </p>
-            </div>
+        <div 
+            className="min-h-screen bg-slate-50 flex flex-col relative"
+            style={{ fontFamily: `"${theme.typography?.body || 'Inter'}", sans-serif` }}
+        >
+            {/* Banner */}
+            <StoreBanner 
+                text={theme.bannerText} 
+                enabled={theme.bannerEnabled ?? !!theme.bannerText} 
+                primaryColor={theme.primaryColor} 
+            />
 
-            {/* Header / Store Branding */}
-            <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-full overflow-hidden bg-indigo-50 border border-indigo-100 flex items-center justify-center">
-                            {store.logoUrl ? (
-                                <img src={store.logoUrl} alt={store.name} className="h-full w-full object-cover" />
-                            ) : (
-                                <ShoppingBag className="h-6 w-6 text-indigo-600" />
-                            )}
-                        </div>
-                        <div>
-                            <h1 className="text-xl font-bold text-gray-900">{store.name}</h1>
-                            {store.city && (
-                                <div className="flex items-center gap-1 text-xs text-gray-500">
-                                    <MapPin className="h-3 w-3" />
-                                    {store.city}
-                                </div>
-                            )}
-                        </div>
-                    </div>
+            {/* Header */}
+            <StoreHeader 
+                layout={theme.headerLayout} 
+                storeName={store?.name} 
+                primaryColor={theme.primaryColor} 
+                logoUrl={store?.logoUrl}
+                cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
+                onCartClick={() => setIsCartOpen(true)}
+                onNavClick={(view) => {
+                    setCurrentView(view);
+                    window.scrollTo(0, 0);
+                }}
+            />
 
-                    {/* Cart Trigger (Desktop) */}
-                    <button
-                        onClick={() => setIsCartOpen(true)}
-                        className="relative p-2 text-gray-600 hover:text-indigo-600 transition-colors"
-                    >
-                        <ShoppingBag className="h-6 w-6" />
-                        {cartCount > 0 && (
-                            <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                                {cartCount}
-                            </span>
-                        )}
-                    </button>
-                </div>
-            </div>
-
-            {/* Social Proof Bar */}
-            {todayOrderCount > 0 && (
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-                    <div className="bg-orange-50 border border-orange-100 rounded-xl px-4 py-2.5 flex items-center justify-center gap-2">
-                        <span className="text-orange-600 text-sm font-medium">
-                            🔥 {todayOrderCount} personne{todayOrderCount > 1 ? 's' : ''} {todayOrderCount > 1 ? 'ont' : 'a'} commandé aujourd'hui
-                        </span>
-                    </div>
-                </div>
-            )}
-
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="flex flex-col lg:flex-row gap-8">
-
-                    {/* Sidebar Filters */}
-                    <div className="w-full lg:w-64 flex-shrink-0 space-y-6">
-                        {/* Search */}
-                        <div className="relative">
-                            <input
-                                type="text"
-                                placeholder="Search products..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-3 rounded-xl border-gray-200 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
+            {/* Main Content Area */}
+            <main className="flex-1">
+                {currentView === 'home' && (
+                    <div className="animate-in fade-in duration-500">
+                        {(storefrontData.pages?.home?.sections || []).map(section => (
+                            <BlockRenderer 
+                                key={section.id} 
+                                isReadOnly={true} 
+                                section={section} 
+                                theme={theme} 
+                                contextData={{
+                                    products,
+                                    onProductClick: (p) => {
+                                        setSelectedProduct(p);
+                                        setCurrentView('product');
+                                        window.scrollTo(0, 0);
+                                    }
+                                }}
                             />
-                            <Search className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
-                        </div>
+                        ))}
+                    </div>
+                )}
 
-                        {/* Categories */}
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-                            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                                <Filter className="h-4 w-4" /> Categories
-                            </h3>
-                            <div className="space-y-2">
-                                {categories.map(cat => (
-                                    <label key={cat} className="flex items-center gap-3 cursor-pointer group">
-                                        <div className={`
-                                            w-4 h-4 rounded-full border flex items-center justify-center transition-colors
-                                            ${selectedCategory === cat ? 'border-indigo-600 bg-indigo-600' : 'border-gray-300 group-hover:border-indigo-400'}
-                                        `}>
-                                            {selectedCategory === cat && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
-                                        </div>
-                                        <span onClick={() => setSelectedCategory(cat)} className={`text-sm ${selectedCategory === cat ? 'font-medium text-gray-900' : 'text-gray-600'}`}>
-                                            {cat}
-                                        </span>
-                                    </label>
-                                ))}
-                            </div>
+                {currentView === 'catalog' && (
+                    <div className="animate-in fade-in duration-500">
+                        {(storefrontData.pages?.catalog?.sections || []).map(section => (
+                            <BlockRenderer 
+                                key={section.id} 
+                                isReadOnly={true} 
+                                section={section} 
+                                theme={theme} 
+                                contextData={{
+                                    products,
+                                    onProductClick: (p) => {
+                                        setSelectedProduct(p);
+                                        setCurrentView('product');
+                                        window.scrollTo(0, 0);
+                                    }
+                                }}
+                            />
+                        ))}
+                    </div>
+                )}
+
+                {currentView === 'product' && selectedProduct && (
+                    <div className="animate-in slide-in-from-right-8 duration-300">
+                        <ProductPage 
+                            product={selectedProduct} 
+                            theme={theme} 
+                            cities={store?.senditCities || []}
+                            isCheckingOut={isCheckingOut}
+                            onAddToCart={(item) => handleAddToCart(item, item.quantity || 1, item.selectedVariant)}
+                            onExpressCheckout={handleExpressCheckout}
+                            onBack={() => {
+                                setCurrentView('home');
+                                window.scrollTo(0, 0);
+                            }}
+                        />
+                        {/* Custom Sections for Product Page */}
+                        <div className="mt-8">
+                            {(storefrontData.pages?.product?.sections || []).map(section => (
+                                <BlockRenderer 
+                                    key={section.id} 
+                                    isReadOnly={true} 
+                                    section={section} 
+                                    theme={theme} 
+                                />
+                            ))}
                         </div>
                     </div>
+                )}
 
-                    {/* Product Grid */}
-                    <div className="flex-1">
-                        <div className="flex justify-between items-center mb-6">
-                            <p className="text-gray-500 text-sm">
-                                Showing <span className="font-semibold text-gray-900">{filteredProducts.length}</span> products
-                            </p>
-                        </div>
-
-                        {filteredProducts.length === 0 ? (
-                            <div className="text-center py-20 bg-white rounded-2xl border border-gray-100 border-dashed">
-                                <Package className="mx-auto h-12 w-12 text-gray-300" />
-                                <h3 className="mt-2 text-sm font-medium text-gray-900">No products found</h3>
-                                <p className="mt-1 text-sm text-gray-500">Try adjusting your search or filters.</p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filteredProducts.map((product) => (
-                                    <motion.div
-                                        key={product.id}
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow group"
-                                    >
-                                        <div className="aspect-[4/3] bg-gray-100 relative overflow-hidden">
-                                            {product.photoUrl ? (
-                                                <img
-                                                    src={product.photoUrl}
-                                                    alt={product.name}
-                                                    loading="lazy"
-                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                                />
-                                            ) : (
-                                                <div className="flex items-center justify-center h-full text-gray-300">
-                                                    <Package className="h-12 w-12" />
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="p-4">
-                                            <div className="flex justify-between items-start mb-1">
-                                                <h3 className="font-bold text-gray-900 line-clamp-2 text-lg">{product.name}</h3>
-                                                <p className="font-bold text-indigo-600 whitespace-nowrap ml-2">
-                                                    {parseFloat(product.price).toFixed(0)} <span className="text-sm">DH</span>
-                                                </p>
-                                            </div>
-
-                                            <div className="flex items-center justify-between mt-4">
-                                                {/* Stock Indicator */}
-                                                {(parseInt(product.stock) || 0) > 0 ? (
-                                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700">
-                                                        In Stock
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700">
-                                                        Out of Stock
-                                                    </span>
-                                                )}
-
-                                                <button
-                                                    onClick={() => addToCart(product)}
-                                                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm shadow-indigo-200"
-                                                >
-                                                    <ShoppingCart className="h-4 w-4" />
-                                                    Add to Cart
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        )}
+                {currentView === 'checkout' && (
+                    <div className="animate-in slide-in-from-right-8 duration-300 mx-auto py-8 w-full">
+                        {/* Custom Sections for Checkout before the form */}
+                        {(storefrontData.pages?.checkout?.sections || []).map(section => (
+                            <BlockRenderer 
+                                key={section.id} 
+                                isReadOnly={true} 
+                                section={section} 
+                                theme={theme} 
+                            />
+                        ))}
+                        <StorefrontCheckout 
+                            theme={theme}
+                            cart={cart}
+                            cities={store?.senditCities || []}
+                            isCheckingOut={isCheckingOut}
+                            onCheckout={submitFullCheckout}
+                        />
                     </div>
-                </div>
+                )}
+
+                {currentView === 'contact' && (
+                    <div className="animate-in fade-in duration-300">
+                        <ContactPage theme={theme} store={store} />
+                        {/* Custom Sections for Contact Page */}
+                        <div className="mt-8">
+                            {(storefrontData.pages?.contact?.sections || []).map(section => (
+                                <BlockRenderer 
+                                    key={section.id} 
+                                    isReadOnly={true} 
+                                    section={section} 
+                                    theme={theme} 
+                                />
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {currentView === 'thankyou' && lastOrder && (
+                    <div className="animate-in zoom-in-95 duration-500">
+                        <ThankYouPage 
+                            order={lastOrder}
+                            theme={theme}
+                            onBackToCatalog={() => {
+                                setCurrentView('home');
+                                setLastOrder(null);
+                            }}
+                        />
+                    </div>
+                )}
             </main>
 
-            {/* Floating Cart Button (Mobile) */}
+            {/* Footer */}
+            <StoreFooter theme={theme} storeName={store?.name} />
+
+            {/* Cart Drawer */}
+            <CartDrawer 
+                isOpen={isCartOpen}
+                onClose={() => setIsCartOpen(false)}
+                cart={cart}
+                cities={store?.senditCities || []}
+                onUpdateQuantity={(id, delta) => setCart(prev => prev.map(item => item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item))}
+                onRemove={(id) => setCart(prev => prev.filter(item => item.id !== id))}
+                onCheckoutClick={handleCartCheckoutClick}
+                isCheckingOut={isCheckingOut}
+                theme={theme}
+                upsellProduct={products.find(p => p.id !== selectedProduct?.id && parseInt(p.stock) > 0)} // Simple upsell logic
+                onAddUpsell={(p) => handleAddToCart(p, 1)}
+            />
+            
+            {/* Mobile Floating Cart Button */}
             <AnimatePresence>
-                {cartCount > 0 && !isCartOpen && (
+                {cart.length > 0 && !isCartOpen && (
                     <motion.button
                         initial={{ scale: 0, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0, opacity: 0 }}
                         onClick={() => setIsCartOpen(true)}
-                        className="fixed bottom-6 right-6 z-40 bg-indigo-600 text-white p-4 rounded-full shadow-lg shadow-indigo-400/50 md:hidden flex items-center justify-center"
+                        className="fixed bottom-6 right-6 z-40 text-white p-4 rounded-full shadow-lg flex items-center justify-center md:hidden"
+                        style={{ backgroundColor: theme.primaryColor }}
                     >
                         <ShoppingBag className="h-6 w-6" />
                         <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">
-                            {cartCount}
+                            {cart.reduce((sum, item) => sum + item.quantity, 0)}
                         </span>
                     </motion.button>
-                )}
-            </AnimatePresence>
-
-            {/* Cart Drawer */}
-            <AnimatePresence>
-                {isCartOpen && (
-                    <>
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => setIsCartOpen(false)}
-                            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50"
-                        />
-                        <motion.div
-                            initial={{ x: "100%" }}
-                            animate={{ x: 0 }}
-                            exit={{ x: "100%" }}
-                            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="fixed inset-y-0 right-0 z-50 w-full sm:w-96 bg-white shadow-2xl flex flex-col"
-                        >
-                            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                                    <ShoppingCart className="h-5 w-5" /> Your Cart
-                                </h2>
-                                <button onClick={() => setIsCartOpen(false)} className="text-gray-400 hover:text-gray-500">
-                                    <X className="h-6 w-6" />
-                                </button>
-                            </div>
-
-                            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                                {cart.length === 0 ? (
-                                    <div className="h-full flex flex-col items-center justify-center text-gray-400">
-                                        <ShoppingBag className="h-16 w-16 mb-4 opacity-50" />
-                                        <p>Your cart is empty.</p>
-                                        <button
-                                            onClick={() => setIsCartOpen(false)}
-                                            className="mt-4 text-indigo-600 font-medium hover:underline"
-                                        >
-                                            Start Shopping
-                                        </button>
-                                    </div>
-                                ) : (
-                                    cart.map(item => (
-                                        <div key={item.id} className="flex transition-colors bg-white border border-gray-100 rounded-xl p-3 shadow-sm hover:border-indigo-100">
-                                            <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-                                                {item.photoUrl ? (
-                                                    <img src={item.photoUrl} alt={item.name} className="h-full w-full object-cover" />
-                                                ) : (
-                                                    <div className="h-full w-full flex items-center justify-center text-gray-400">
-                                                        <Package className="h-8 w-8" />
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="ml-4 flex flex-1 flex-col justify-between">
-                                                <div>
-                                                    <div className="flex justify-between text-base font-medium text-gray-900">
-                                                        <h3 className="line-clamp-2 text-sm">{item.name}</h3>
-                                                        <p className="ml-4 tabular-nums">{(parseFloat(item.price) * item.quantity).toFixed(0)}</p>
-                                                    </div>
-                                                    <p className="mt-1 text-sm text-gray-500 tabular-nums">{parseFloat(item.price)} DH</p>
-                                                </div>
-
-                                                <div className="flex items-center justify-between text-sm">
-                                                    <div className="flex items-center border border-gray-200 rounded-lg">
-                                                        <button
-                                                            onClick={() => updateQuantity(item.id, -1)}
-                                                            className="p-1 hover:bg-gray-100 text-gray-500"
-                                                        >
-                                                            <Minus className="h-3 w-3" />
-                                                        </button>
-                                                        <span className="w-8 text-center font-medium tabular-nums">{item.quantity}</span>
-                                                        <button
-                                                            onClick={() => updateQuantity(item.id, 1)}
-                                                            className="p-1 hover:bg-gray-100 text-gray-500"
-                                                        >
-                                                            <Plus className="h-3 w-3" />
-                                                        </button>
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => removeFromCart(item.id)}
-                                                        className="font-medium text-red-500 hover:text-red-600 flex items-center gap-1"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-
-                            {cart.length > 0 && (
-                                <div className="border-t border-gray-200 p-6 bg-gray-50 space-y-4">
-                                    {/* Free Shipping Progress */}
-                                    {amountToFreeShipping > 0 ? (
-                                        <div>
-                                            <p className="text-sm text-gray-600 mb-1.5">
-                                                🚚 Plus que <span className="font-bold text-indigo-600">{amountToFreeShipping.toFixed(0)} DH</span> pour la livraison gratuite !
-                                            </p>
-                                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                                <div className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full transition-all duration-500" style={{ width: `${freeShippingProgress}%` }} />
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-center">
-                                            <p className="text-sm font-bold text-emerald-700">✅ Livraison gratuite débloquée !</p>
-                                        </div>
-                                    )}
-
-                                    {/* Cross-sell suggestions */}
-                                    {suggestedProducts.length > 0 && (
-                                        <div>
-                                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Complétez votre commande</p>
-                                            <div className="flex gap-2 overflow-x-auto pb-1">
-                                                {suggestedProducts.map(p => (
-                                                    <button key={p.id} onClick={() => addToCart(p)} className="flex-shrink-0 flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 hover:border-indigo-300 transition-colors">
-                                                        {p.photoUrl && <img src={p.photoUrl} alt="" className="w-8 h-8 rounded object-cover" />}
-                                                        <div className="text-left">
-                                                            <p className="text-xs font-medium text-gray-900 line-clamp-1">{p.name}</p>
-                                                            <p className="text-xs text-indigo-600 font-bold">{parseFloat(p.price).toFixed(0)} DH</p>
-                                                        </div>
-                                                        <Plus className="w-4 h-4 text-gray-400" />
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="flex justify-between text-base font-bold text-gray-900">
-                                        <p>Total</p>
-                                        <p>{cartTotal.toFixed(2)} DH</p>
-                                    </div>
-
-                                    {/* Client Form (inline) */}
-                                    {showClientForm && (
-                                        <div className="space-y-3 bg-white border border-indigo-100 rounded-xl p-4">
-                                            <p className="text-sm font-bold text-gray-800">📋 Vos coordonnées</p>
-                                            <input type="text" placeholder="Votre nom *" value={clientForm.name} onChange={e => setClientForm(f => ({ ...f, name: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none" />
-                                            <input type="tel" placeholder="Téléphone (ex: 0612345678) *" value={clientForm.phone} onChange={e => setClientForm(f => ({ ...f, phone: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none" />
-                                            <input type="text" placeholder="Ville" value={clientForm.city} onChange={e => setClientForm(f => ({ ...f, city: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none" />
-                                            <input type="text" placeholder="Adresse de livraison" value={clientForm.address} onChange={e => setClientForm(f => ({ ...f, address: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none" />
-                                        </div>
-                                    )}
-
-                                    <button
-                                        onClick={() => { if (!clientForm.name || !clientForm.phone) { setShowClientForm(true); } else { handleCheckout(); } }}
-                                        disabled={isCheckingOut}
-                                        className="w-full flex items-center justify-center rounded-xl border border-transparent bg-green-500 px-6 py-3 text-base font-medium text-white shadow-sm hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-transform active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
-                                    >
-                                        {isCheckingOut ? (
-                                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />
-                                        ) : (
-                                            <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" className="h-5 w-5 mr-2 filter brightness-0 invert" alt="" />
-                                        )}
-                                        {isCheckingOut ? "Envoi en cours..." : showClientForm && (!clientForm.name || !clientForm.phone) ? "Remplissez vos coordonnées" : "Commander via WhatsApp"}
-                                    </button>
-                                </div>
-                            )}
-                        </motion.div>
-                    </>
                 )}
             </AnimatePresence>
         </div>

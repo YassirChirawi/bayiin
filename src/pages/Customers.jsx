@@ -3,6 +3,8 @@ import { toast } from "react-hot-toast";
 import { useStoreData } from "../hooks/useStoreData";
 import { Search, MapPin, Users, DollarSign, TrendingUp, Eye, Trash2, RotateCcw, Download, Upload, Plus, Edit2, Sparkles } from "lucide-react";
 import CustomerDetailModal from "../components/CustomerDetailModal";
+import LoyaltyCard from "../components/LoyaltyCard";
+import { getCustomerLoyalty } from "../utils/loyaltyEngine";
 import CustomerModal from "../components/CustomerModal";
 import ImportModal from "../components/ImportModal";
 import Button from "../components/Button";
@@ -10,13 +12,15 @@ import { exportToCSV } from "../utils/csvHelper";
 import { orderBy, limit } from "firebase/firestore";
 import { useLanguage } from "../context/LanguageContext"; // NEW
 import { vibrate } from "../utils/haptics";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { getCustomerSegment } from "../utils/aiSegmentation"; // NEW
 import { getWhatsAppLink } from "../utils/whatsappTemplates"; // NEW
 import { MessageCircle } from "lucide-react"; // NEW icon
 import PageTransition from "../components/PageTransition";
 import { TableSkeleton } from "../components/Skeleton";
 import InfiniteScrollTrigger from "../components/InfiniteScrollTrigger";
+import ConfirmDialog from "../components/ConfirmDialog";
+import { useConfirmDialog } from "../hooks/useConfirmDialog";
 
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -35,6 +39,7 @@ const itemVariants = {
 
 export default function Customers() {
     const { t } = useLanguage(); // NEW
+    const { confirmState, confirm, close } = useConfirmDialog();
     const [limitCount, setLimitCount] = useState(50);
     
     // Dynamically limit for pagination
@@ -51,6 +56,7 @@ export default function Customers() {
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [showTrash, setShowTrash] = useState(false);
     const [segmentFilter, setSegmentFilter] = useState('ALL'); // NEW Filter
+    const [loyaltyCustomer, setLoyaltyCustomer] = useState(null); // Nqat Modal
 
     // --- Compute Segments for All Customers ---
     // Note: detailed order history per customer might not be fully loaded here in a real large app.
@@ -107,15 +113,25 @@ export default function Customers() {
         e.stopPropagation();
         vibrate('medium');
         if (showTrash) {
-            if (window.confirm(t('confirm_delete_customer_perm'))) {
-                await permanentDeleteStoreItem(id);
-                toast.success(t('msg_customer_deleted_perm'));
-            }
+            confirm({
+                title: 'Suppression Définitive',
+                message: t('confirm_delete_customer_perm'),
+                isDestructive: true,
+                onConfirm: async () => {
+                    await permanentDeleteStoreItem(id);
+                    toast.success(t('msg_customer_deleted_perm'));
+                }
+            });
         } else {
-            if (window.confirm(t('confirm_move_customer_trash'))) {
-                await deleteStoreItem(id);
-                toast.success(t('msg_customer_moved_trash'));
-            }
+            confirm({
+                title: 'Corbeille',
+                message: t('confirm_move_customer_trash'),
+                isDestructive: true,
+                onConfirm: async () => {
+                    await deleteStoreItem(id);
+                    toast.success(t('msg_customer_moved_trash'));
+                }
+            });
         }
     };
 
@@ -253,50 +269,50 @@ export default function Customers() {
 
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg">
+                        <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl shadow-sm border border-indigo-100/50">
                             <Users className="h-6 w-6" />
                         </div>
                         <div>
-                            <p className="text-sm text-gray-500">{t('total_clients') || "Total Clients"}</p>
-                            <p className="text-2xl font-bold text-gray-900">{kpiStats.total}</p>
+                            <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">{t('kpi_total_clients') || "Total Clients"}</p>
+                            <p className="text-2xl font-black text-gray-900 mt-1">{kpiStats.total}</p>
                         </div>
                     </div>
                 </div>
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-green-50 text-green-600 rounded-lg">
+                        <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl shadow-sm border border-emerald-100/50">
                             <TrendingUp className="h-6 w-6" />
                         </div>
                         <div>
-                            <p className="text-sm text-gray-500">{t('kpi_ltv')}</p>
-                            <p className="text-2xl font-bold text-gray-900">{kpiStats.ltv} DH</p>
+                            <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">{t('kpi_ltv')}</p>
+                            <p className="text-2xl font-black text-gray-900 mt-1">{kpiStats.ltv} DH</p>
                         </div>
                     </div>
                 </div>
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div className="glass-panel p-6 rounded-2xl hover:translate-y-[-2px] transition-transform duration-300">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-orange-50 text-orange-600 rounded-lg">
+                        <div className="p-3 bg-amber-50 text-amber-600 rounded-xl shadow-sm border border-amber-100/50">
                             <MapPin className="h-6 w-6" />
                         </div>
                         <div>
-                            <p className="text-sm text-gray-500">{t('kpi_top_city')}</p>
-                            <p className="text-2xl font-bold text-gray-900">{kpiStats.topCity}</p>
+                            <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">{t('kpi_top_city')}</p>
+                            <p className="text-2xl font-black text-gray-900 mt-1 truncate">{kpiStats.topCity}</p>
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Search & Filter */}
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4">
+            <div className="glass-panel p-4 rounded-2xl flex flex-col md:flex-row gap-4">
                 <div className="relative max-w-md flex-1">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <Search className="h-5 w-5 text-gray-400" />
                     </div>
                     <input
                         type="text"
-                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-all shadow-sm"
                         placeholder={t('search_placeholder')}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -306,7 +322,7 @@ export default function Customers() {
                     <select
                         value={segmentFilter}
                         onChange={(e) => setSegmentFilter(e.target.value)}
-                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                        className="block w-full pl-3 pr-10 py-3 text-base border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-xl transition-all shadow-sm bg-white"
                     >
                         <option value="ALL">Tous les segments</option>
                         <option value="VIP">🏆 VIP</option>
@@ -322,8 +338,8 @@ export default function Customers() {
             {loading ? (
                 <div className="hidden md:block"><TableSkeleton rows={8} cols={7} /></div>
             ) : (
-                <div className="hidden md:block bg-white shadow border-b border-gray-200 sm:rounded-lg overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
+                <div className="hidden md:block glass-panel rounded-2xl overflow-x-auto overflow-hidden">
+                    <table className="min-w-full divide-y divide-gray-100">
                         <thead className="bg-gray-50">
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 tracking-wider">{t('table_client')}</th>
@@ -339,14 +355,14 @@ export default function Customers() {
                             variants={containerVariants}
                             initial="hidden"
                             animate="show"
-                            className="bg-white divide-y divide-gray-200"
+                            className="divide-y divide-gray-100"
                         >
                             {filteredCustomers.length === 0 ? (
-                                <tr><td colSpan="7" className="px-6 py-4 text-center text-gray-500">{t('no_data')}</td></tr>
+                                <tr><td colSpan="7" className="px-6 py-8 text-center text-gray-500">{t('no_data')}</td></tr>
                             ) : filteredCustomers.map((customer) => {
                                 const segment = getSegment(customer);
                                 return (
-                                <motion.tr key={customer.id} variants={itemVariants} className="hover:bg-gray-50">
+                                <motion.tr key={customer.id} variants={itemVariants} className="hover:bg-indigo-50/30 transition-colors group">
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex flex-col">
                                             <div className="flex items-center gap-2">
@@ -375,16 +391,23 @@ export default function Customers() {
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
                                         <div className="flex items-center gap-1">
                                             {customer.totalSpent ? `${customer.totalSpent.toFixed(2)} DH` : '0 DH'}
-                                            {(customer.totalSpent || 0) >= 1000 && (
-                                                <Sparkles className="w-3 h-3 text-amber-500" title={`${Math.floor(customer.totalSpent / 10)} Nqat`} />
+                                            {(customer.totalSpent || 0) > 0 && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setLoyaltyCustomer(customer); }}
+                                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold hover:bg-amber-100 transition-colors"
+                                                    title="Voir carte Nqat"
+                                                >
+                                                    <Sparkles className="w-2.5 h-2.5" />
+                                                    {getCustomerLoyalty(customer).formattedPoints}
+                                                </button>
                                             )}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {customer.lastOrderDate || '-'}
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <div className="flex items-center justify-end gap-2">
+                                    <td className="px-6 py-5 whitespace-nowrap text-right text-sm font-medium">
+                                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                             {showTrash ? (
                                                 <>
                                                     <button
@@ -487,11 +510,19 @@ export default function Customers() {
                                     <div className="text-right">
                                         <span className="flex items-center justify-end gap-1 font-bold text-green-600 text-lg">
                                             {customer.totalSpent ? `${customer.totalSpent.toFixed(0)}` : '0'} <span className="text-xs">DH</span>
-                                            {(customer.totalSpent || 0) >= 1000 && (
-                                                <Sparkles className="w-4 h-4 text-amber-500" title={`${Math.floor(customer.totalSpent / 10)} Nqat`} />
-                                            )}
                                         </span>
-                                        <span className="text-xs text-gray-400">{customer.orderCount || 0} Orders</span>
+                                        <div className="flex items-center justify-end gap-1.5">
+                                            <span className="text-xs text-gray-400">{customer.orderCount || 0} Orders</span>
+                                            {(customer.totalSpent || 0) > 0 && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setLoyaltyCustomer(customer); }}
+                                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold hover:bg-amber-100 transition-colors"
+                                                >
+                                                    <Sparkles className="w-2.5 h-2.5" />
+                                                    {getCustomerLoyalty(customer).formattedPoints}
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -583,6 +614,44 @@ export default function Customers() {
                 onClose={() => { setIsEditModalOpen(false); setEditingCustomer(null); }}
                 onSave={handleSaveCustomer}
                 customer={editingCustomer}
+            />
+
+            {/* Nqat Loyalty Card Modal */}
+            <AnimatePresence>
+                {loyaltyCustomer && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+                        onClick={() => setLoyaltyCustomer(null)}
+                    >
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            className="w-full max-w-md max-h-[85vh] overflow-y-auto"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <LoyaltyCard customer={loyaltyCustomer} />
+                            <button
+                                onClick={() => setLoyaltyCustomer(null)}
+                                className="mt-4 w-full py-2.5 bg-white rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                            >
+                                Fermer
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <ConfirmDialog 
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                message={confirmState.message}
+                onConfirm={confirmState.onConfirm}
+                onCancel={close}
+                isDestructive={confirmState.isDestructive}
             />
 
             <ImportModal

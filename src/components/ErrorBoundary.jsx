@@ -36,7 +36,7 @@ class ErrorBoundary extends React.Component {
                     </div>
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Oups! Quelque chose s'est mal passé.</h2>
                     <p className="text-gray-500 mb-6 max-w-md">
-                        Une erreur inattendue s'est produite dans cette partie de l'application. Nos équipes ont été notifiées.
+                        Une erreur inattendue s'est produite dans cette partie de l'application. Rechargez la page pour continuer ; si le problème persiste, contactez le support.
                     </p>
 
                     {import.meta.env.DEV && this.state.error && (

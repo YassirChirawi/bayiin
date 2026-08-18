@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import {
     CheckSquare, Square, DollarSign, Edit2,
     Trash2, QrCode, RotateCcw, Truck,
@@ -7,9 +7,13 @@ import {
 import { toast } from 'react-hot-toast';
 import { getOrderStatusConfig } from '../../utils/statusConfig';
 import { createRawWhatsAppLink, getWhatsappMessage } from '../../utils/whatsappTemplates';
+import { buildRiskModel, scoreOrderRisk } from '../../services/aiRiskService';
+
+const RISK_ACTIVE_STATUSES = ['reçu', 'confirmation', 'packing', 'ramassage', 'livraison', 'reporté'];
 
 const OrderRow = memo(({
     order,
+    riskModel,
     isSelected,
     handleSelectOne,
     activeTab,
@@ -23,6 +27,7 @@ const OrderRow = memo(({
     openConfirmation,
     sendToOlivraison,
     sendToSendit,
+    sendToCathedis,
     handleOpenTracking,
     setQrOrder,
     handleNoAnswer,
@@ -38,6 +43,10 @@ const OrderRow = memo(({
             : (order.price * order.quantity).toFixed(2))
         : '-';
 
+    // Smart COD Shield — badge risque pour les commandes encore actives.
+    const risk = (riskModel && RISK_ACTIVE_STATUSES.includes(order.status)) ? scoreOrderRisk(order, riskModel) : null;
+    const showRisk = risk && risk.score >= 40;
+
     // Prevent status click if pending_catalog
     const handleStatusClick = () => {
         if (activeTab === 'carts') {
@@ -49,7 +58,7 @@ const OrderRow = memo(({
 
     return (
         <tr
-            className={`hover:bg-gray-50/50 transition-colors cursor-pointer group ${isSelected ? 'bg-indigo-50/30' : ''}`}
+            className={`transition-all duration-200 ease-in-out cursor-pointer group ${isSelected ? 'bg-indigo-50/50' : 'hover:bg-slate-50'}`}
             onClick={(e) => {
                 if (e.target.closest('button') || e.target.closest('a')) return;
                 handleSelectOne(order.id);
@@ -66,9 +75,18 @@ const OrderRow = memo(({
                     <span className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
                         #{order.orderNumber || order.id?.substring(0, 8)}
                     </span>
-                    <span className="text-xs text-gray-500 font-medium">
+                    {showRisk && (
+                        <span
+                            title={risk.recommendation}
+                            className={`inline-flex items-center gap-1 mt-1 w-fit text-[10px] font-bold px-1.5 py-0.5 rounded-full ${risk.score >= 60 ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}
+                        >
+                            ⚠ {risk.level} {risk.score}
+                        </span>
+                    )}
+                    <span className="text-xs text-gray-500 font-medium flex items-center gap-1 mt-0.5">
                         {order.date}
-                        {order.source === 'public_catalog' && <span className="ml-1 text-yellow-600">({t('catalog_source')})</span>}
+                        {order.source === 'public_catalog' && <span className="text-yellow-600">({t('catalog_source')})</span>}
+                        {order.source === 'youcan' && <span className="text-purple-600 font-bold bg-purple-50 px-1 rounded border border-purple-100">🟣 YouCan</span>}
                     </span>
                 </div>
             </td>
@@ -112,7 +130,7 @@ const OrderRow = memo(({
                 ) : (
                     <span 
                         data-testid="order-status-badge"
-                        className={`px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md border cursor-pointer hover:opacity-80 transition-opacity ${getOrderStatusConfig(order.status).color.replace('bg-', 'bg-opacity-20 bg-').replace('text-', 'text-')}`}>
+                        className={`px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md border shadow-sm cursor-pointer hover:opacity-80 hover:shadow-md transition-all ${getOrderStatusConfig(order.status).color.replace('bg-', 'bg-opacity-20 bg-').replace('text-', 'text-')}`}>
                         {t(`status_${order.status.toLowerCase().replace(/\s+/g, '_')}`) || getOrderStatusConfig(order.status).label}
                     </span>
                 )}
@@ -143,8 +161,8 @@ const OrderRow = memo(({
                         </button>
                     </div>
                 ) : (
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={(e) => { e.stopPropagation(); setQrOrder(order); }} className="p-2 text-gray-400 hover:text-gray-900 transition-colors" title="Generate QR Code">
+                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <button onClick={(e) => { e.stopPropagation(); setQrOrder(order); }} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors" title="Generate QR Code">
                             <QrCode className="h-4 w-4" />
                         </button>
 
@@ -250,7 +268,40 @@ const OrderRow = memo(({
                             <Package className="h-4 w-4" />
                         </button>
 
-                        <button disabled className="p-2 text-gray-200 cursor-not-allowed" title="Cathedis">
+                        <button
+                            onClick={async (e) => {
+                                e.stopPropagation();
+                                if (!store?.cathedisUsername) {
+                                    toast.error(t('err_no_cathedis_keys') || "Veuillez configurer Cathedis dans les Paramètres.");
+                                    return;
+                                }
+                                if (order.carrier === 'cathedis') return;
+
+                                openConfirmation({
+                                    title: t('send_to_cathedis') || "Envoyer à Cathedis",
+                                    message: t('confirm_send_cathedis', { orderNumber: order.orderNumber }) || `Envoyer la commande #${order.orderNumber} à Cathedis ?`,
+                                    onConfirm: async () => {
+                                        try {
+                                            toast.loading(t('sending_to_carrier') || "Envoi en cours...");
+                                            await sendToCathedis(order);
+                                            toast.dismiss();
+                                            toast.success(t('success_send_cathedis') || "Commande envoyée à Cathedis !");
+                                        } catch (err) {
+                                            toast.dismiss();
+                                            toast.error(err.message);
+                                        }
+                                    }
+                                });
+                            }}
+                            disabled={!store?.cathedisUsername || order.carrier === 'cathedis'}
+                            className={`p-2 transition-colors ${!store?.cathedisUsername
+                                ? 'text-gray-300 cursor-not-allowed'
+                                : order.carrier === 'cathedis'
+                                    ? 'text-green-500 cursor-default'
+                                    : 'text-gray-400 hover:text-purple-600'
+                                }`}
+                            title={!store?.cathedisUsername ? (t('err_no_cathedis_keys') || "Veuillez configurer Cathedis") : order.carrier === 'cathedis' ? (t('success_send_cathedis') || "Envoyé à Cathedis") : (t('send_to_cathedis') || "Envoyer à Cathedis")}
+                        >
                             <Box className="h-4 w-4" />
                         </button>
 
@@ -296,16 +347,21 @@ export default function OrderTable({
     openConfirmation,
     sendToOlivraison,
     sendToSendit,
+    sendToCathedis,
     handleOpenTracking,
     setQrOrder,
     handleNoAnswer,
+    riskModel,
     t
 }) {
+    const builtModel = useMemo(() => buildRiskModel(orders), [orders]);
+    const model = riskModel || builtModel;
+
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white/80 backdrop-blur-lg rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto min-h-[400px]">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50/80 backdrop-blur-sm sticky top-0 z-10">
+                <table className="min-w-full divide-y divide-gray-100">
+                    <thead className="bg-slate-50/80 backdrop-blur-md sticky top-0 z-10 border-b border-gray-100">
                         <tr>
                             <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-12">
                                 <button onClick={handleSelectAll} className="text-gray-400 hover:text-gray-600 focus:outline-none transition-colors">
@@ -331,6 +387,7 @@ export default function OrderTable({
                                 <OrderRow
                                     key={order.id}
                                     order={order}
+                                    riskModel={model}
                                     isSelected={isSelected}
                                     handleSelectOne={handleSelectOne}
                                     activeTab={activeTab}
@@ -344,6 +401,7 @@ export default function OrderTable({
                                     openConfirmation={openConfirmation}
                                     sendToOlivraison={sendToOlivraison}
                                     sendToSendit={sendToSendit}
+                                    sendToCathedis={sendToCathedis}
                                     handleOpenTracking={handleOpenTracking}
                                     setQrOrder={setQrOrder}
                                     handleNoAnswer={handleNoAnswer}

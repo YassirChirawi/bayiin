@@ -4,7 +4,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { doc, updateDoc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { toast } from "react-hot-toast";
-import { Save, Truck, Info, Globe, RefreshCw, ShieldCheck, Key } from "lucide-react";
+import { Save, Truck, Info, Globe, RefreshCw, ShieldCheck, Key, Copy } from "lucide-react";
 import { authenticateSendit, getSenditDistricts } from "../lib/sendit";
 import Button from "../components/Button";
 
@@ -12,11 +12,15 @@ export default function ShippingSettings() {
     const { store } = useTenant();
     const { t } = useLanguage();
 
+    const [webhookSecret, setWebhookSecret] = useState("");
+
     // ── Local API Key State (avoids mutating store context directly) ──
     const [olivraisonKeys, setOlivraisonKeys] = useState({ apiKey: "", secretKey: "" });
     const [senditKeys, setSenditKeys] = useState({ publicKey: "", secretKey: "" });
+    const [cathedisKeys, setCathedisKeys] = useState({ username: "", password: "" });
     const [loading, setLoading] = useState(false);
     const [senditInfoLoading, setSenditInfoLoading] = useState(false);
+    const [cathedisLoading, setCathedisLoading] = useState(false);
     const [senditCities, setSenditCities] = useState([]);
     const [loadingCities, setLoadingCities] = useState(false);
 
@@ -42,6 +46,26 @@ export default function ShippingSettings() {
                         publicKey: privateData.senditPublicKey || "",
                         secretKey: privateData.senditSecretKey || "",
                     });
+                    setCathedisKeys({
+                        username: privateData.cathedisUsername || "",
+                        password: privateData.cathedisPassword || "",
+                    });
+                    
+                    if (privateData.webhookSecret) {
+                        setWebhookSecret(privateData.webhookSecret);
+                    } else {
+                        // Generate missing webhook secret automatically
+                        const newSecret = 'whsec_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                        setWebhookSecret(newSecret);
+                        updateDoc(doc(db, "stores", store.id, "private", "config"), {
+                            webhookSecret: newSecret
+                        }).catch(console.error);
+                    }
+                } else {
+                    // Create config with a generated secret if it doesn't exist
+                    const newSecret = 'whsec_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                    setWebhookSecret(newSecret);
+                    setDoc(doc(db, "stores", store.id, "private", "config"), { webhookSecret: newSecret }).catch(console.error);
                 }
             } catch (err) {
                 console.error("Failed to load private config:", err);
@@ -86,6 +110,9 @@ export default function ShippingSettings() {
                 olivraisonApiKey: olivraisonKeys.apiKey,
                 olivraisonSecretKey: olivraisonKeys.secretKey,
             });
+            await updateDoc(doc(db, "stores", store.id), {
+                olivraisonApiKey: olivraisonKeys.apiKey
+            });
             toast.success(t('msg_olivraison_saved'));
         } catch (e) {
             console.error(e);
@@ -107,6 +134,7 @@ export default function ShippingSettings() {
 
             // Update sender info in main store document (public info)
             await updateDoc(doc(db, "stores", store.id), {
+                senditPublicKey: senditKeys.publicKey,
                 senditSenderName: senditSender.name,
                 senditSenderPhone: senditSender.phone,
                 senditSenderAddress: senditSender.address,
@@ -121,8 +149,37 @@ export default function ShippingSettings() {
         }
     };
 
+    const handleSaveCathedis = async () => {
+        if (!store?.id) return;
+        setCathedisLoading(true);
+        try {
+            await updateDoc(doc(db, "stores", store.id, "private", "config"), {
+                cathedisUsername: cathedisKeys.username,
+                cathedisPassword: cathedisKeys.password,
+            });
+            await updateDoc(doc(db, "stores", store.id), {
+                cathedisUsername: cathedisKeys.username
+            });
+            toast.success(t('msg_cathedis_saved') || "Configuration Cathedis enregistrée ✓");
+        } catch (e) {
+            console.error(e);
+            toast.error(t('err_save_failed'));
+        } finally {
+            setCathedisLoading(false);
+        }
+    };
+
     // ── Shared input style ──
     const inputCls = "mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition";
+    
+    // Webhook URLs
+    const olivraisonWebhookUrl = webhookSecret ? `https://us-central1-commerce-saas-62f32.cloudfunctions.net/olivraisonWebhook?store=${store?.id}&token=${webhookSecret}` : '';
+    const senditWebhookUrl = webhookSecret ? `https://us-central1-commerce-saas-62f32.cloudfunctions.net/senditWebhook?store=${store?.id}&token=${webhookSecret}` : '';
+
+    const handleCopy = (text) => {
+        navigator.clipboard.writeText(text);
+        toast.success("Copié dans le presse-papier !");
+    };
 
     return (
         <div className="space-y-6">
@@ -180,6 +237,28 @@ export default function ShippingSettings() {
                                 {t('btn_save_keys')}
                             </Button>
                         </div>
+                        
+                        {/* Webhook O-Livraison */}
+                        {webhookSecret && (
+                            <div className="mt-6 pt-4 border-t border-gray-100">
+                                <h4 className="font-medium text-gray-900 mb-2 flex items-center gap-2">
+                                    <Globe className="h-4 w-4 text-indigo-500" />
+                                    URL de Webhook (Sécurisée)
+                                </h4>
+                                <p className="text-xs text-gray-500 mb-2">Copiez ce lien et collez-le dans les paramètres de webhook sur votre compte O-Livraison. Ce lien permet à O-Livraison de mettre à jour automatiquement le statut de vos commandes sur BayIIn.</p>
+                                <div className="flex gap-2 items-center">
+                                    <input 
+                                        type="text" 
+                                        readOnly 
+                                        value={olivraisonWebhookUrl} 
+                                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-mono text-gray-600 focus:outline-none"
+                                    />
+                                    <Button variant="secondary" onClick={() => handleCopy(olivraisonWebhookUrl)} title="Copier l'URL">
+                                        <Copy className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -328,6 +407,84 @@ export default function ShippingSettings() {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Webhook Sendit */}
+                        {webhookSecret && (
+                            <div className="border-t border-gray-100 pt-4 mt-4">
+                                <h4 className="font-medium text-gray-900 mb-2 flex items-center gap-2">
+                                    <Globe className="h-4 w-4 text-indigo-500" />
+                                    URL de Webhook (Sécurisée)
+                                </h4>
+                                <p className="text-xs text-gray-500 mb-2">Copiez ce lien et collez-le dans les paramètres API / Webhook de votre compte Sendit. Ce lien est unique à votre boutique et hautement sécurisé.</p>
+                                <div className="flex gap-2 items-center">
+                                    <input 
+                                        type="text" 
+                                        readOnly 
+                                        value={senditWebhookUrl} 
+                                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-mono text-gray-600 focus:outline-none"
+                                    />
+                                    <Button variant="secondary" onClick={() => handleCopy(senditWebhookUrl)} title="Copier l'URL">
+                                        <Copy className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Cathedis Integration ── */}
+            <div className="bg-white shadow rounded-xl border border-gray-100 overflow-hidden relative">
+                {/* OVERLAY BIENTOT DISPONIBLE */}
+                <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-50 flex items-center justify-center">
+                    <span className="bg-orange-500 text-white font-black px-6 py-2 rounded-full shadow-xl transform -rotate-12 text-xl border-4 border-white shadow-orange-500/30">🚀 Bientôt Disponible</span>
+                </div>
+                <div className="px-6 py-5 opacity-40 pointer-events-none select-none">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Globe className="h-5 w-5 text-indigo-500" />
+                        <h3 className="text-lg font-semibold text-gray-900">{t('cathedis_title') || 'Cathedis Integration'}</h3>
+                        {store?.cathedisUsername && (
+                            <span className="ml-auto inline-flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                                <ShieldCheck className="h-3 w-3" /> Actif
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-sm text-gray-500 mb-5">{t('cathedis_desc') || 'Configure your Cathedis credentials to enable automatic shipping.'}</p>
+
+                    <div className="max-w-xl space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <Key className="inline h-3.5 w-3.5 mr-1 text-gray-400" />
+                                {t('label_login') || 'Identifiant (Username)'}
+                            </label>
+                            <input
+                                type="text"
+                                value={cathedisKeys.username}
+                                onChange={(e) => setCathedisKeys(prev => ({ ...prev, username: e.target.value }))}
+                                className={inputCls}
+                                placeholder="Votre Login Cathedis"
+                                autoComplete="off"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <Key className="inline h-3.5 w-3.5 mr-1 text-gray-400" />
+                                {t('label_password') || 'Mot de passe (Password)'}
+                            </label>
+                            <input
+                                type="password"
+                                value={cathedisKeys.password}
+                                onChange={(e) => setCathedisKeys(prev => ({ ...prev, password: e.target.value }))}
+                                className={inputCls}
+                                placeholder="••••••••••••••••"
+                                autoComplete="new-password"
+                            />
+                        </div>
+                        <div className="flex justify-end pt-2">
+                            <Button onClick={handleSaveCathedis} isLoading={cathedisLoading} icon={Save}>
+                                {t('btn_save_keys') || 'Enregistrer les clés'}
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -346,22 +503,6 @@ export default function ShippingSettings() {
                         <div>
                             <label className="block text-xs font-medium text-gray-500">{t('label_password')}</label>
                             <input type="password" disabled className="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm sm:text-sm" placeholder="••••••••" />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Cathedis */}
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-5 relative overflow-hidden">
-                    <div className="absolute top-2 right-2 bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded-full font-medium">{t('coming_soon')}</div>
-                    <h3 className="font-semibold text-gray-700 mb-4">Cathedis</h3>
-                    <div className="space-y-3 pointer-events-none select-none">
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500">{t('label_api_key')}</label>
-                            <input type="text" disabled className="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm sm:text-sm" placeholder="••••••••" />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500">{t('label_account_id')}</label>
-                            <input type="text" disabled className="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm sm:text-sm" placeholder="••••••••" />
                         </div>
                     </div>
                 </div>

@@ -68,7 +68,60 @@ export default function Terms() {
                         </p>
                     </section>
 
-                    {/* Section 4 */}
+                    {/* Section 3 bis — YouCan Billing */}
+                    <section className="p-5 bg-indigo-50 rounded-xl border border-indigo-100">
+                        <div className="flex items-center gap-3 mb-4 text-gray-900">
+                            <Shield className="w-6 h-6 text-indigo-600" />
+                            <h2 className="text-2xl font-bold">3 bis. Facturation via YouCan (Marchands YouCan)</h2>
+                        </div>
+                        <p className="mb-4">
+                            Les marchands qui installent BayIIn depuis le <strong>marketplace YouCan</strong> bénéficient
+                            d'une facturation gérée directement par YouCan (<em>YouCan Managed Billing</em>).
+                            Les plans disponibles via YouCan sont les suivants :
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                            <div className="bg-white rounded-lg p-4 border border-indigo-200">
+                                <h4 className="font-bold text-gray-900 mb-1">Plan Free</h4>
+                                <p className="text-2xl font-extrabold text-gray-900 mb-1">0 MAD <span className="text-sm font-normal text-gray-500">/mois</span></p>
+                                <ul className="text-sm text-gray-600 space-y-1">
+                                    <li>✓ Jusqu'à 50 commandes / mois</li>
+                                    <li>✓ Gestion produits &amp; stock</li>
+                                    <li>✓ Synchronisation YouCan</li>
+                                </ul>
+                            </div>
+                            <div className="bg-white rounded-lg p-4 border border-purple-200">
+                                <h4 className="font-bold text-gray-900 mb-1">Plan Pro</h4>
+                                <p className="text-2xl font-extrabold text-gray-900 mb-1">99 MAD <span className="text-sm font-normal text-gray-500">/mois</span></p>
+                                <ul className="text-sm text-gray-600 space-y-1">
+                                    <li>✓ Commandes illimitées</li>
+                                    <li>✓ IA Beya3 (CFO/COO)</li>
+                                    <li>✓ Analytics avancés</li>
+                                    <li>✓ 30 jours d'essai gratuit</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <ul className="text-sm text-gray-700 space-y-2">
+                            <li>
+                                <strong>Essai gratuit :</strong> Le Plan Pro inclut 30 jours d'essai gratuit. Aucune facturation
+                                n'est déclenchée avant la fin de la période d'essai.
+                            </li>
+                            <li>
+                                <strong>Renouvellement automatique :</strong> L'abonnement se renouvelle automatiquement
+                                chaque mois via YouCan. Vous pouvez annuler à tout moment depuis votre dashboard YouCan.
+                            </li>
+                            <li>
+                                <strong>Remboursement :</strong> En cas de non-satisfaction dans les <strong>30 premiers jours</strong>
+                                {' '}suivant le premier paiement, vous pouvez demander un remboursement intégral à{' '}
+                                <a href="mailto:contact@bayiin.shop" className="text-indigo-600">contact@bayiin.shop</a>.
+                            </li>
+                            <li>
+                                <strong>Annulation :</strong> L'annulation entraîne le passage automatique au Plan Free
+                                à la fin de la période en cours. Vos données sont conservées pendant 3 ans après résiliation.
+                            </li>
+                        </ul>
+                    </section>
+
+
                     <section>
                         <div className="flex items-center gap-3 mb-4 text-gray-900">
                             <Lock className="w-6 h-6 text-indigo-600" />

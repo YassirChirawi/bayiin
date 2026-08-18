@@ -27,7 +27,10 @@ import {
     RotateCcw,
     Megaphone,
     Barcode,
-    ClipboardCheck
+    ClipboardCheck,
+    MessageCircle,
+    Paintbrush,
+    Bell
 } from "lucide-react";
 import { useReconciliation } from "../hooks/useReconciliation";
 import { vibrate } from "../utils/haptics";
@@ -85,26 +88,22 @@ export default function Sidebar({ isOpen, onClose }) {
         try {
             const saveOrder = async (orderData) => {
                 if (!store?.id) throw new Error("No store ID");
-                const ordersRef = collection(db, "stores", store.id, "orders");
-                await addDoc(ordersRef, { ...orderData, createdAt: serverTimestamp() });
+                const ordersRef = collection(db, "orders");
+                await addDoc(ordersRef, { ...orderData, storeId: store.id, createdAt: serverTimestamp() });
             };
             const result = await syncPendingOrders(saveOrder);
             if (result.synced > 0) {
-                toast.success(`${result.synced} commandes synchronisées !`);
+                toast.success(t('msg_synced_count', { count: result.synced }) || `${result.synced} orders synced!`);
                 vibrate('success');
             }
         } catch (error) {
             console.error("Sync error:", error);
-            toast.error("Erreur de synchronisation");
+            toast.error(t('err_sync_error') || 'Sync error. Please try again.');
         } finally {
             setIsSyncing(false);
         }
     };
 
-    // Toggle Language
-    const toggleLanguage = () => {
-        setLanguage(prev => prev === 'min' ? 'fr' : (prev === 'fr' ? 'en' : 'fr'));
-    };
 
     const navigation = [
         // ── Franchise Hub (franchise_admin only) ──
@@ -116,6 +115,7 @@ export default function Sidebar({ isOpen, onClose }) {
         { name: t('orders'), href: '/orders', icon: ShoppingBag, badge: pendingOffline > 0 ? `${pendingOffline} hors ligne` : null, badgeColor: 'bg-amber-100 text-amber-700' },
         { name: t('products'), href: '/products', icon: Package },
         { name: t('customers'), href: '/customers', icon: Users },
+        { name: t('notifications') || 'Notifications', href: '/notifications', icon: Bell },
         { name: t('automations') || 'Automations', href: '/automations', icon: Workflow, isLocked: true, badge: 'PRO' },
         { name: t('nav_warehouse') || 'Entrepôt & Scan', href: '/warehouse', icon: Barcode, isLocked: true, badge: 'PRO' },
         { name: t('nav_marketing') || 'Marketing', href: '/marketing', icon: Megaphone },
@@ -127,6 +127,7 @@ export default function Sidebar({ isOpen, onClose }) {
         ...(role !== 'staff' ? [
             { name: t('finances'), href: '/finances', icon: DollarSign },
             { name: t('team'), href: '/team', icon: UserPlus },
+            { name: 'Vitrine (Customizer)', href: '/customizer', icon: Paintbrush },
             { name: t('settings'), href: '/settings', icon: Settings },
         ] : []),
         ...(store?.testerMode ? [
@@ -167,7 +168,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
                 {/* Language Switcher */}
                 <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-lg border border-gray-200">
-                    {['fr', 'en', 'ar'].map((lang) => (
+                    {['fr', 'en'].map((lang) => (
                         <button
                             key={lang}
                             onClick={() => setLanguage(lang)}

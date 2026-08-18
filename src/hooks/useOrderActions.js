@@ -5,6 +5,7 @@ import { ORDER_STATUS } from '../utils/constants';
 import { useTenant } from '../context/TenantContext';
 import { authenticateOlivraison, createOlivraisonPackage } from '../lib/olivraison';
 import { authenticateSendit, createSenditPackage } from '../lib/sendit';
+import { authenticateCathedis, createCathedisDelivery } from '../lib/cathedis';
 import { logActivity } from '../utils/logger'; // NEW
 import { useAuth } from '../context/AuthContext'; // NEW
 import { runAutomations } from '../utils/automationEngine'; // NEW
@@ -41,7 +42,7 @@ export const useOrderActions = () => {
                 }
             }
 
-            // Products to process
+            // Products to process (For logging and costPrice)
             const itemsToProcess = [];
             if (orderData.articleId) {
                 itemsToProcess.push({ id: orderData.articleId, variantId: orderData.variantId, quantity: orderData.quantity });
@@ -51,50 +52,38 @@ export const useOrderActions = () => {
                 }
             }
 
+            // Fetch costPrice if not provided
+            let costPrice = parseFloat(orderData.costPrice) || 0;
+            if (costPrice === 0 && itemsToProcess.length > 0) {
+                try {
+                    const prodSnap = await getDoc(doc(db, "products", itemsToProcess[0].id));
+                    if (prodSnap.exists()) {
+                        costPrice = parseFloat(prodSnap.data().costPrice) || 0;
+                    }
+                } catch (e) {
+                    console.warn("Failed to fetch product costPrice", e);
+                }
+            }
+
             const newOrderRef = doc(db, "orders", crypto.randomUUID());
 
             await runTransaction(db, async (transaction) => {
-                // === 1. READ PHASE (ALL reads MUST happen before ANY writes) ===
-                
-                // Read product docs
-                const productDocs = {};
-                for (const item of itemsToProcess) {
-                    if (!productDocs[item.id]) {
-                        productDocs[item.id] = await transaction.get(doc(db, "products", item.id));
-                    }
-                }
-
-                // Read bundle component docs (if any product is a bundle)
-                const bundleComponentDocs = {};
-                for (const item of itemsToProcess) {
-                    const snap = productDocs[item.id];
-                    if (snap && snap.exists()) {
-                        const product = snap.data();
-                        if (product.isBundle && product.bundleItems) {
-                            for (const component of product.bundleItems) {
-                                if (!bundleComponentDocs[component.productId] && !productDocs[component.productId]) {
-                                    bundleComponentDocs[component.productId] = await transaction.get(doc(db, "products", component.productId));
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Read stats doc for sequential numbers
+                // === 1. READ PHASE ===
                 const statsRef = doc(db, "stores", store.id, "stats", "sales");
                 const statsSnap = await transaction.get(statsRef);
                 const currentStats = statsSnap.exists() ? statsSnap.data() : {};
                 const nextOrderNumber = (parseInt(currentStats.lastOrderNumber) || 1000) + 1;
                 const nextCustomerNumber = (parseInt(currentStats.lastCustomerNumber) || 5000) + 1;
 
-                // === 2. WRITE PHASE (No more reads after this point) ===
+                // === 2. WRITE PHASE ===
                 let finalCustomerId = customerId || existingCustomerId;
                 
                 // Write Customer
                 if (existingCustomerId) {
                     transaction.update(doc(db, "customers", existingCustomerId), {
                         lastOrderDate: new Date().toISOString().split('T')[0],
-                        totalSpent: increment(parseFloat(orderData.price) || 0),
+                        // BUG-03 FIX: totalSpent is now ONLY managed by onOrderWrite Cloud Function
+                        // when order transitions to 'livré'. Removed duplicate increment here.
                         orderCount: increment(1),
                         updatedAt: serverTimestamp()
                     });
@@ -103,141 +92,43 @@ export const useOrderActions = () => {
                     finalCustomerId = newCustomerRef.id;
                     transaction.set(newCustomerRef, {
                         storeId: store.id,
-                        customerNumber: nextCustomerNumber, // NEW UNIQUE ID
+                        customerNumber: nextCustomerNumber,
                         name: orderData.clientName,
                         phone: orderData.clientPhone,
                         address: orderData.clientAddress || "",
                         city: orderData.clientCity || "",
-                        totalSpent: parseFloat(orderData.price) || 0,
+                        totalSpent: 0, // BUG-03 FIX: starts at 0, incremented by Cloud Function on 'livré'
                         orderCount: 1,
                         firstOrderDate: new Date().toISOString().split('T')[0],
                         lastOrderDate: new Date().toISOString().split('T')[0],
                         createdAt: serverTimestamp(),
                         updatedAt: serverTimestamp()
                     });
-                    // Increment customer number in stats
                     transaction.set(statsRef, { lastCustomerNumber: nextCustomerNumber }, { merge: true });
                 }
 
-                // Write Products
-                for (const item of itemsToProcess) {
-                    const snap = productDocs[item.id];
-                    if (snap && snap.exists()) {
-                        const productRef = doc(db, "products", item.id);
-                        const product = snap.data();
-                        const qty = parseInt(item.quantity) || 1;
-
-                        if (product.isVariable && item.variantId) {
-                            const newVariants = (product.variants || []).map(v => {
-                                if (v.id === item.variantId) {
-                                    const vWStocks = { ...(v.warehouseStocks || {}) };
-                                    if (orderData.warehouseId) {
-                                        vWStocks[orderData.warehouseId] = (vWStocks[orderData.warehouseId] || 0) - qty;
-                                    }
-                                    return { ...v, stock: (parseInt(v.stock) || 0) - qty, warehouseStocks: vWStocks };
-                                }
-                                return v;
-                            });
-                            const pUpdates = {
-                                variants: newVariants,
-                                stock: increment(-qty)
-                            };
-                            if (orderData.warehouseId) {
-                                pUpdates[`warehouseStocks.${orderData.warehouseId}`] = increment(-qty);
-                            }
-                            transaction.update(productRef, pUpdates);
-                        } else {
-                            let stockUpdates = { stock: increment(-qty) };
-                            if (orderData.warehouseId) {
-                                stockUpdates[`warehouseStocks.${orderData.warehouseId}`] = increment(-qty);
-                            }
-
-                            if (product.inventoryBatches && product.inventoryBatches.length > 0) {
-                                let updatedBatches = [...product.inventoryBatches].sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
-                                let remainingQty = qty;
-
-                                for (let i = 0; i < updatedBatches.length && remainingQty > 0; i++) {
-                                    let batch = updatedBatches[i];
-                                    let batchQty = parseInt(batch.quantity) || 0;
-
-                                    if (batchQty > 0) {
-                                        let deductAmount = Math.min(batchQty, remainingQty);
-                                        batch.quantity = batchQty - deductAmount;
-                                        remainingQty -= deductAmount;
-                                    }
-                                }
-                                stockUpdates.inventoryBatches = updatedBatches;
-                            }
-
-                            transaction.update(productRef, stockUpdates);
-                        }
-
-                        // --- BUNDLE STOCK DEDUCTION (Épique 3) ---
-                        if (product.isBundle && product.bundleItems) {
-                            for (const component of product.bundleItems) {
-                                const compRef = doc(db, "products", component.productId);
-                                const compSnap = bundleComponentDocs[component.productId] || productDocs[component.productId];
-                                if (compSnap && compSnap.exists()) {
-                                    const compData = compSnap.data();
-                                    const totalDeduct = qty * (parseInt(component.qty) || 1);
-                                    // Apply deduction to component (supporting simple or batches)
-                                    let compUpdates = { stock: increment(-totalDeduct) };
-                                    if (orderData.warehouseId) {
-                                        compUpdates[`warehouseStocks.${orderData.warehouseId}`] = increment(-totalDeduct);
-                                    }
-                                    if (compData.inventoryBatches && compData.inventoryBatches.length > 0) {
-                                        let compUpdatedBatches = [...compData.inventoryBatches].sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
-                                        let remainingQty = totalDeduct;
-                                        for (let i = 0; i < compUpdatedBatches.length && remainingQty > 0; i++) {
-                                            let b = compUpdatedBatches[i];
-                                            let bQty = parseInt(b.quantity) || 0;
-                                            if (bQty > 0) {
-                                                let deductAmount = Math.min(bQty, remainingQty);
-                                                b.quantity = bQty - deductAmount;
-                                                remainingQty -= deductAmount;
-                                            }
-                                        }
-                                        compUpdates.inventoryBatches = compUpdatedBatches;
-                                    }
-                                    transaction.update(compRef, compUpdates);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // --- AUTOMATED FINANCIALS ---
+                // Financials
                 const price = parseFloat(orderData.price) || 0;
-                // Try to get costPrice from the first product if not provided
-                let costPrice = parseFloat(orderData.costPrice) || 0;
-                if (costPrice === 0 && itemsToProcess.length > 0) {
-                    const firstProdSnap = productDocs[itemsToProcess[0].id];
-                    if (firstProdSnap && firstProdSnap.exists()) {
-                        costPrice = parseFloat(firstProdSnap.data().costPrice) || 0;
-                    }
-                }
                 const qty = parseInt(orderData.quantity) || 1;
-                const totalCost = costPrice * qty;
-                const totalRevenue = price * qty;
-                const profit = totalRevenue - totalCost;
+                const profit = (price * qty) - (costPrice * qty);
 
-                // Write Order
+                // Write Order (No _stockManagedByClient flag anymore, backend handles it)
                 transaction.set(newOrderRef, {
                     ...orderData,
                     orderNumber: nextOrderNumber,
                     profit: profit,
-                    costPrice: costPrice, // Preserve the cost price at time of purchase
+                    costPrice: costPrice,
                     customerId: finalCustomerId || null,
                     createdAt: serverTimestamp(),
                     status: ORDER_STATUS.RECEIVED,
                     isPaid: false,
-                    paymentMethod: 'cod',
-                    _stockManagedByClient: true
+                    paymentMethod: 'cod'
                 });
 
-                // Update Store Stats (statusCounts + lastOrderNumber)
+                // Update Store Stats
+                // (Note: onOrderWrite will NOT increment statusCounts.reçu for newly created orders if they already have a status,
+                // wait, actually onOrderWrite DOES increment it for creates. So we must NOT double-increment here!)
                 transaction.set(statsRef, {
-                    [`statusCounts.${ORDER_STATUS.RECEIVED}`]: increment(1),
                     lastOrderNumber: nextOrderNumber
                 }, { merge: true });
             });
@@ -277,6 +168,12 @@ export const useOrderActions = () => {
         setLoading(true);
         setError(null);
         try {
+            // --- STATE MACHINE VALIDATION (defense-in-depth) ---
+            if (oldData.status !== newData.status && !isValidTransition(oldData.status, newData.status)) {
+                toast.error(`Transition invalide : ${oldData.status} → ${newData.status}`);
+                setLoading(false);
+                return false;
+            }
             // Non-transactional reads FIRST
             let existingCustomerId = null;
             if (!newData.customerId && newData.clientPhone) {
@@ -308,156 +205,13 @@ export const useOrderActions = () => {
                     customerDoc = await transaction.get(customerRef);
                 }
 
-                // Read all involved products
-                const productDocs = {};
-                for (const productId of Object.keys(groupedByProduct)) {
-                    if (!productDocs[productId]) {
-                        productDocs[productId] = await transaction.get(doc(db, "products", productId));
-                    }
-                }
-
-                // Pre-fetch bundle component docs
-                const bundleComponentDocs = {};
-                for (const productId of Object.keys(groupedByProduct)) {
-                    const snap = productDocs[productId];
-                    if (snap && snap.exists()) {
-                        const product = snap.data();
-                        if (product.isBundle && product.bundleItems) {
-                            for (const component of product.bundleItems) {
-                                if (!bundleComponentDocs[component.productId] && !productDocs[component.productId]) {
-                                    bundleComponentDocs[component.productId] = await transaction.get(doc(db, "products", component.productId));
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Read stats doc for sequential numbers
+                // Read stats doc for sequential numbers (only needed for new customer creation)
                 const statsRef = doc(db, "stores", store.id, "stats", "sales");
                 const statsSnap = await transaction.get(statsRef);
                 const currentStats = statsSnap.exists() ? statsSnap.data() : {};
                 const nextCustomerNumber = (parseInt(currentStats.lastCustomerNumber) || 5000) + 1;
 
-                // --- 2. WRITE PHASE (No more reads after this point) ---
-                
-                // Stock Adjustments
-                for (const [productId, productAdjs] of Object.entries(groupedByProduct)) {
-                    const snap = productDocs[productId];
-                    if (snap && snap.exists()) {
-                        const productRef = doc(db, "products", productId);
-                        const product = snap.data();
-                        
-                        let totalStockChange = 0;
-                        let newVariants = product.variants ? [...product.variants] : [];
-                        let updatedBatches = product.inventoryBatches ? [...product.inventoryBatches] : [];
-                        let stockUpdates = {};
-
-                        for (const adj of productAdjs) {
-                            totalStockChange += adj.netChange;
-
-                            if (product.isVariable && adj.variantId) {
-                                newVariants = newVariants.map(v => {
-                                    if (v.id === adj.variantId) {
-                                        const vWStocks = { ...(v.warehouseStocks || {}) };
-                                        if (adj.warehouseId) {
-                                            vWStocks[adj.warehouseId] = (vWStocks[adj.warehouseId] || 0) + adj.netChange;
-                                        }
-                                        return { ...v, stock: (parseInt(v.stock) || 0) + adj.netChange, warehouseStocks: vWStocks };
-                                    }
-                                    return v;
-                                });
-                            } else { // Not variable or no variantId
-                                let change = adj.netChange;
-                                if (updatedBatches.length > 0) {
-                                    if (change > 0) {
-                                        // Restock to the oldest batch (simplest approach for restock)
-                                        updatedBatches.sort((a, b) => new Date(b.expiryDate || 0) - new Date(a.expiryDate || 0));
-                                        updatedBatches[0].quantity = (parseInt(updatedBatches[0].quantity) || 0) + change;
-                                    } else if (change < 0) {
-                                        // Deduct from FEFO
-                                        let remainingQty = Math.abs(change);
-                                        updatedBatches.sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
-                                        for (let i = 0; i < updatedBatches.length && remainingQty > 0; i++) {
-                                            let batch = updatedBatches[i];
-                                            let batchQty = parseInt(batch.quantity) || 0;
-                                            if (batchQty > 0) {
-                                                let deductAmount = Math.min(batchQty, remainingQty);
-                                                batch.quantity = batchQty - deductAmount;
-                                                remainingQty -= deductAmount;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        if (product.isVariable) {
-                            stockUpdates = { variants: newVariants, stock: increment(totalStockChange) };
-                            // Apply net warehouse changes for variable product (grouped)
-                            // Actually, for variable products, warehouse stocks are inside the variants array.
-                            // But we might also track a global warehouse stock for the parent product for some reason?
-                            // Usually not, but if so, we'd need to loop over adjs.
-                            // For simplicity, let's just use the current order warehouse for the parent if needed.
-                            if (newData.warehouseId && totalStockChange !== 0) {
-                                // This is tricky because totalStockChange might be across multiple warehouses if switched.
-                                // But parent stock is usually the sum of all.
-                                stockUpdates[`warehouseStocks.${newData.warehouseId}`] = increment(totalStockChange);
-                            }
-                        } else {
-                            stockUpdates = { stock: increment(totalStockChange) };
-                            // Apply warehouse adjustments for simple product
-                            for (const adj of productAdjs) {
-                                if (adj.warehouseId) {
-                                    stockUpdates[`warehouseStocks.${adj.warehouseId}`] = increment(adj.netChange);
-                                }
-                            }
-                            if (updatedBatches.length > 0) stockUpdates.inventoryBatches = updatedBatches;
-                        }
-
-                        transaction.update(productRef, stockUpdates);
-
-                        // --- BUNDLE STOCK SYNC (Épique 3) ---
-                        if (product.isBundle && product.bundleItems) {
-                            for (const component of product.bundleItems) {
-                                const compRef = doc(db, "products", component.productId);
-                                const compSnap = productDocs[component.productId] || bundleComponentDocs[component.productId];
-                                if (compSnap && compSnap.exists()) {
-                                    const compData = compSnap.data();
-                                    // totalStockChange is the net change for the bundle product itself
-                                    const netCompChange = totalStockChange * (parseInt(component.qty) || 1);
-                                    let compUpdates = { stock: increment(netCompChange) };
-                                    if (newData.warehouseId) {
-                                        compUpdates[`warehouseStocks.${newData.warehouseId}`] = increment(netCompChange);
-                                    }
-
-                                    // Handle batches for component
-                                    if (compData.inventoryBatches && compData.inventoryBatches.length > 0) {
-                                        let compUpdatedBatches = [...compData.inventoryBatches];
-                                        if (netCompChange > 0) {
-                                            compUpdatedBatches.sort((a, b) => new Date(b.expiryDate || 0) - new Date(a.expiryDate || 0));
-                                            compUpdatedBatches[0].quantity = (parseInt(compUpdatedBatches[0].quantity) || 0) + netCompChange;
-                                        } else if (netCompChange < 0) {
-                                            let remainingQty = Math.abs(netCompChange);
-                                            compUpdatedBatches.sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
-                                            for (let i = 0; i < compUpdatedBatches.length && remainingQty > 0; i++) {
-                                                let b = compUpdatedBatches[i];
-                                                let bQty = parseInt(b.quantity) || 0;
-                                                if (bQty > 0) {
-                                                    let deduct = Math.min(bQty, remainingQty);
-                                                    b.quantity = bQty - deduct;
-                                                    remainingQty -= deduct;
-                                                }
-                                            }
-                                        }
-                                        compUpdates.inventoryBatches = compUpdatedBatches;
-                                    }
-                                    transaction.update(compRef, compUpdates);
-                                }
-                            }
-                        }
-                    }
-                }
-
+                // --- 2. WRITE PHASE ---
                 // Update Customer Profile OR CREATE — with lifecycle-aware totalSpent
                 let finalCustomerId = newData.customerId;
 
@@ -469,22 +223,6 @@ export const useOrderActions = () => {
                         city: newData.clientCity,
                         updatedAt: serverTimestamp()
                     };
-
-                    if (restock) {
-                        // Commande annulée/retournée → retirer le montant et le comptage
-                        customerUpdates.totalSpent = increment(-(parseFloat(oldData.price) || 0));
-                        customerUpdates.orderCount = increment(-1);
-                    } else if (deduct) {
-                        // Commande réactivée → remettre le montant et le comptage
-                        customerUpdates.totalSpent = increment(parseFloat(newData.price) || 0);
-                        customerUpdates.orderCount = increment(1);
-                    } else {
-                        // Commande toujours active — ajuster le delta de prix si modifié
-                        const priceDelta = (parseFloat(newData.price) || 0) - (parseFloat(oldData.price) || 0);
-                        if (priceDelta !== 0) {
-                            customerUpdates.totalSpent = increment(priceDelta);
-                        }
-                    }
 
                     transaction.update(customerRef, customerUpdates);
                 } else if (!newData.customerId && existingCustomerId) {
@@ -505,70 +243,25 @@ export const useOrderActions = () => {
                         phone: newData.clientPhone,
                         address: newData.clientAddress || "",
                         city: newData.clientCity || "",
-                        totalSpent: parseFloat(newData.price) || 0,
+                        totalSpent: 0, // BUG-03: incremented by Cloud Function onOrderWrite on 'livré'
                         orderCount: 1,
                         firstOrderDate: new Date().toISOString().split('T')[0],
                         lastOrderDate: new Date().toISOString().split('T')[0],
                         createdAt: serverTimestamp(),
                         updatedAt: serverTimestamp()
                     });
-                    // Increment customer number in stats
                     transaction.set(statsRef, { lastCustomerNumber: nextCustomerNumber }, { merge: true });
                 }
 
-                // Update Order
+                // Update Order (No _stockManagedByClient flag anymore)
                 transaction.update(orderRef, {
                     ...newData,
                     customerId: finalCustomerId || null,
-                    updatedAt: serverTimestamp(),
-                    _stockManagedByClient: true
+                    updatedAt: serverTimestamp()
                 });
 
-                // Update Global Store Stats
-                const statsUpdates = {};
-                if (oldData.status !== newData.status) {
-                    statsUpdates[`statusCounts.${oldData.status || 'reçu'}`] = increment(-1);
-                    statsUpdates[`statusCounts.${newData.status}`] = increment(1);
-
-                    if (newData.status === 'livré' && oldData.status !== 'livré') {
-                        statsUpdates["totals.deliveredRevenue"] = increment(parseFloat(newData.price) || 0);
-                        statsUpdates["totals.deliveredCount"] = increment(1);
-                    } else if (oldData.status === 'livré' && newData.status !== 'livré') {
-                        statsUpdates["totals.deliveredRevenue"] = increment(-(parseFloat(oldData.price) || 0));
-                        statsUpdates["totals.deliveredCount"] = increment(-1);
-                    }
-                }
-                if (Object.keys(statsUpdates).length > 0) {
-                    transaction.set(statsRef, statsUpdates, { merge: true });
-                }
-
-                // --- DRIVER STATS AUTOMATION ---
-                if (oldData.driverId && oldData.status !== newData.status) {
-                    const driverRef = doc(db, "drivers", oldData.driverId);
-                    const driverUpdates = {};
-
-                    // Handle Delivery -> Delivered
-                    if (newData.status === 'livré' && oldData.status !== 'livré') {
-                        driverUpdates["stats.totalDelivered"] = increment(1);
-                        driverUpdates["stats.totalCOD"] = increment(parseFloat(newData.price) || 0);
-                    } 
-                    // Handle move AWAY from Delivered
-                    else if (oldData.status === 'livré' && newData.status !== 'livré') {
-                        driverUpdates["stats.totalDelivered"] = increment(-1);
-                        driverUpdates["stats.totalCOD"] = increment(-(parseFloat(oldData.price) || 0));
-                    }
-
-                    // Handle Returns
-                    if (newData.status === 'retour' && oldData.status !== 'retour') {
-                        driverUpdates["stats.totalReturned"] = increment(1);
-                    } else if (oldData.status === 'retour' && newData.status !== 'retour') {
-                        driverUpdates["stats.totalReturned"] = increment(-1);
-                    }
-
-                    if (Object.keys(driverUpdates).length > 0) {
-                        transaction.update(driverRef, driverUpdates);
-                    }
-                }
+                // Note: Global Store Stats and Driver Stats are now handled centrally by onOrderWrite 
+                // in functions/index.js. We don't update them here to prevent double-counting.
             });
 
             if (oldData.status !== newData.status) {
@@ -697,6 +390,41 @@ export const useOrderActions = () => {
         }
     };
 
+    const sendToCathedis = async (order) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const configDoc = await getDoc(doc(db, "stores", store.id, "private", "config"));
+            const secrets = configDoc.exists() ? configDoc.data() : {};
+
+            if (!secrets.cathedisUsername || !secrets.cathedisPassword) {
+                throw new Error("Cathedis API credentials not configured in Settings.");
+            }
+
+            const jsessionid = await authenticateCathedis(secrets.cathedisUsername, secrets.cathedisPassword);
+            const result = await createCathedisDelivery(jsessionid, order, store);
+
+            await runTransaction(db, async (transaction) => {
+                const orderRef = doc(db, "orders", order.id);
+                transaction.update(orderRef, {
+                    carrier: 'cathedis',
+                    trackingId: String(result.id) || 'PENDING',
+                    carrierStatus: result.deliveryStatus || 'CREATED',
+                    status: 'livraison',
+                    updatedAt: serverTimestamp()
+                });
+            });
+
+            setLoading(false);
+            return result;
+        } catch (err) {
+            console.error("Cathedis Error:", err);
+            setError(err.message);
+            setLoading(false);
+            throw err;
+        }
+    };
+
     const updateOrderStatus = async (orderId, newStatus) => {
         setLoading(true);
         setError(null);
@@ -730,5 +458,5 @@ export const useOrderActions = () => {
         }
     };
 
-    return { createOrder, updateOrder, updateOrderStatus, sendToOlivraison, sendToSendit, loading, error };
+    return { createOrder, updateOrder, updateOrderStatus, sendToOlivraison, sendToSendit, sendToCathedis, loading, error };
 };

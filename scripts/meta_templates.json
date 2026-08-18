@@ -1,0 +1,121 @@
+[
+    {
+        "name": "order_confirmation_fr",
+        "language": "fr",
+        "category": "UTILITY",
+        "components": [
+            {
+                "type": "HEADER",
+                "format": "TEXT",
+                "text": "Confirmation de commande 🛍️"
+            },
+            {
+                "type": "BODY",
+                "text": "Bonjour {{1}},\n\nMerci pour votre commande #{{2}} ! 🎉\n\n📦 Produit : {{3}}\n💰 Total : {{4}} DH (Paiement à la livraison)\n\nPour *confirmer* votre commande, veuillez répondre par OUI.\nPour annuler, répondez par NON."
+            },
+            {
+                "type": "FOOTER",
+                "text": "BayIIn E-commerce"
+            },
+            {
+                "type": "BUTTONS",
+                "buttons": [
+                    {
+                        "type": "QUICK_REPLY",
+                        "text": "✅ OUI, je confirme"
+                    },
+                    {
+                        "type": "QUICK_REPLY",
+                        "text": "❌ NON, j'annule"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "name": "order_confirmation_darija",
+        "language": "fr",
+        "category": "UTILITY",
+        "components": [
+            {
+                "type": "HEADER",
+                "format": "TEXT",
+                "text": "Ta2kid l'commande 🛍️"
+            },
+            {
+                "type": "BODY",
+                "text": "Salam {{1}},\n\nChokran 3la l'commande dyalak #{{2}} ! 🎉\n\n📦 Produit : {{3}}\n💰 Total : {{4}} DH (Paiement à la livraison)\n\nBach t'confirmer l'commande, jawb b OUI.\nIla bghiti t'annuler, jawb b NON."
+            },
+            {
+                "type": "FOOTER",
+                "text": "BayIIn E-commerce"
+            },
+            {
+                "type": "BUTTONS",
+                "buttons": [
+                    {
+                        "type": "QUICK_REPLY",
+                        "text": "✅ OUI (Confirmer)"
+                    },
+                    {
+                        "type": "QUICK_REPLY",
+                        "text": "❌ NON (Annuler)"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "name": "order_shipped_fr",
+        "language": "fr",
+        "category": "UTILITY",
+        "components": [
+            {
+                "type": "HEADER",
+                "format": "TEXT",
+                "text": "Commande expédiée 🚚"
+            },
+            {
+                "type": "BODY",
+                "text": "Bonne nouvelle {{1}} !\n\nVotre commande #{{2}} est en route. Le livreur vous contactera prochainement.\n\nNuméro de suivi : {{3}}\n\nPréparez le montant exact de {{4}} DH pour faciliter la livraison."
+            },
+            {
+                "type": "FOOTER",
+                "text": "BayIIn E-commerce"
+            }
+        ]
+    },
+    {
+        "name": "order_delivered_fr",
+        "language": "fr",
+        "category": "MARKETING",
+        "components": [
+            {
+                "type": "HEADER",
+                "format": "TEXT",
+                "text": "Commande livrée ✅"
+            },
+            {
+                "type": "BODY",
+                "text": "Bonjour {{1}},\n\nVotre commande #{{2}} a bien été livrée ! Nous espérons que vous êtes satisfait de votre achat.\n\nDonnez-nous votre avis ou contactez-nous si vous avez besoin d'assistance."
+            },
+            {
+                "type": "FOOTER",
+                "text": "BayIIn E-commerce"
+            },
+            {
+                "type": "BUTTONS",
+                "buttons": [
+                    {
+                        "type": "QUICK_REPLY",
+                        "text": "🌟 Laisser un avis"
+                    },
+                    {
+                        "type": "QUICK_REPLY",
+                        "text": "🎧 Contacter le support"
+                    }
+                ]
+            }
+        ]
+    }
+]
