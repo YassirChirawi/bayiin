@@ -76,10 +76,15 @@ export default function CODReconciliation({ orders = [] }) {
         // Sort by amount descending
         const driverList = Object.values(byDriver).sort((a, b) => b.totalAmount - a.totalAmount);
 
-        // KPI totals
-        const totalInTransit = inTransit.reduce((sum, o) => sum + (parseFloat(o.price) || 0) * (parseInt(o.quantity) || 1), 0);
-        const totalUnremitted = unremitted.reduce((sum, o) => sum + (parseFloat(o.price) || 0) * (parseInt(o.quantity) || 1), 0);
-        const totalRemitted = remitted.reduce((sum, o) => sum + (parseFloat(o.price) || 0) * (parseInt(o.quantity) || 1), 0);
+        // KPI totals. Pour l'ENCAISSÉ on privilégie le cash réellement remis (amountPaid) quand
+        // il est renseigné — cohérent avec financials.js — sinon la valeur pleine de la commande.
+        const expected = (o) => (parseFloat(o.price) || 0) * (parseInt(o.quantity) || 1);
+        const collected = (o) => (o.amountPaid !== undefined && o.amountPaid !== null && o.amountPaid !== "")
+            ? (parseFloat(o.amountPaid) || 0)
+            : expected(o);
+        const totalInTransit = inTransit.reduce((sum, o) => sum + expected(o), 0);
+        const totalUnremitted = unremitted.reduce((sum, o) => sum + expected(o), 0);
+        const totalRemitted = remitted.reduce((sum, o) => sum + collected(o), 0);
 
         return {
             totalInTransit,

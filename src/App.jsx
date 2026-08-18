@@ -12,7 +12,7 @@ import { Toaster } from 'react-hot-toast';
 import { PWAProvider } from "./context/PWAContext";
 import ReloadPrompt from "./components/ReloadPrompt";
 import { ShopifyAppBridgeProvider } from "./context/ShopifyAppBridgeContext";
-import { CartProvider } from "./contexts/CartContext";
+import { CartProvider } from "./context/CartContext";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleProtectedRoute from "./components/RoleProtectedRoute";

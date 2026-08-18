@@ -1,4 +1,5 @@
-const { FieldValue } = require('firebase-admin/firestore');
+// FieldValue.increment n'est plus utilisé : les mises à jour de stock sont calculées et
+// bornées à 0 dans la transaction (stock négatif impossible).
 
 /**
  * Extrait les items actifs d'une commande (qui consomment du stock).
@@ -140,21 +141,21 @@ const applyStockUpdates = async (db, before, after) => {
                     newVariants = newVariants.map(v => {
                         if (v.id === vid) {
                             const vWStocks = { ...(v.warehouseStocks || {}) };
-                            const wId = Object.keys(adj.warehouses)[0]; 
+                            const wId = Object.keys(adj.warehouses)[0];
                             if (wId) {
-                                vWStocks[wId] = (vWStocks[wId] || 0) + vDelta;
+                                vWStocks[wId] = Math.max(0, (vWStocks[wId] || 0) + vDelta); // stock négatif impossible
                             }
-                            return { ...v, stock: (parseInt(v.stock) || 0) + vDelta, warehouseStocks: vWStocks };
+                            return { ...v, stock: Math.max(0, (parseInt(v.stock) || 0) + vDelta), warehouseStocks: vWStocks };
                         }
                         return v;
                     });
                 }
                 updates.variants = newVariants;
-                updates.stock = FieldValue.increment(adj.baseDelta);
+                updates.stock = Math.max(0, (parseInt(pData.stock) || 0) + adj.baseDelta); // borne à 0
             } else {
-                updates.stock = FieldValue.increment(adj.baseDelta);
+                updates.stock = Math.max(0, (parseInt(pData.stock) || 0) + adj.baseDelta); // borne à 0
                 for (const [wId, wDelta] of Object.entries(adj.warehouses)) {
-                    updates[`warehouseStocks.${wId}`] = FieldValue.increment(wDelta);
+                    updates[`warehouseStocks.${wId}`] = Math.max(0, ((pData.warehouseStocks && pData.warehouseStocks[wId]) || 0) + wDelta);
                 }
                 if (pData.inventoryBatches && pData.inventoryBatches.length > 0) {
                     updates.inventoryBatches = applyBatchLogic(pData.inventoryBatches, adj.baseDelta);
@@ -174,11 +175,11 @@ const applyStockUpdates = async (db, before, after) => {
                     const compRef = db.collection('products').doc(comp.productId);
                     const netCompChange = adj.baseDelta * (parseInt(comp.qty) || 1);
                     
-                    let compUpdates = { stock: FieldValue.increment(netCompChange) };
-                    
+                    let compUpdates = { stock: Math.max(0, (parseInt(compData.stock) || 0) + netCompChange) };
+
                     const mainWarehouseId = Object.keys(adj.warehouses)[0];
                     if (mainWarehouseId) {
-                        compUpdates[`warehouseStocks.${mainWarehouseId}`] = FieldValue.increment(netCompChange);
+                        compUpdates[`warehouseStocks.${mainWarehouseId}`] = Math.max(0, ((compData.warehouseStocks && compData.warehouseStocks[mainWarehouseId]) || 0) + netCompChange);
                     }
 
                     if (compData.inventoryBatches && compData.inventoryBatches.length > 0) {

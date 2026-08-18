@@ -23,6 +23,7 @@ export default function ShippingSettings() {
     const [cathedisLoading, setCathedisLoading] = useState(false);
     const [senditCities, setSenditCities] = useState([]);
     const [loadingCities, setLoadingCities] = useState(false);
+    const [customerPaysShipping, setCustomerPaysShipping] = useState(false);
 
     // Sender info local state
     const [senditSender, setSenditSender] = useState({
@@ -81,7 +82,21 @@ export default function ShippingSettings() {
             pickupCityId: store.senditPickupCityId || "",
         });
         if (store.senditCities) setSenditCities(store.senditCities);
+        setCustomerPaysShipping(store.customerPaysShipping === true);
     }, [store]);
+
+    const handleToggleShipping = async (e) => {
+        const value = e.target.checked;
+        setCustomerPaysShipping(value);
+        try {
+            await updateDoc(doc(db, "stores", store.id), { customerPaysShipping: value });
+            toast.success(value ? "Le client paiera la livraison (ajoutée au COD)." : "Livraison non facturée au client.");
+        } catch (err) {
+            console.error(err);
+            toast.error("Échec de l'enregistrement.");
+            setCustomerPaysShipping(!value);
+        }
+    };
 
     const handleSyncCities = async () => {
         if (!senditKeys.publicKey || !senditKeys.secretKey) {
@@ -188,6 +203,31 @@ export default function ShippingSettings() {
                 <div>
                     <h2 className="text-xl font-bold text-gray-900">{t('page_title_shipping')}</h2>
                     <p className="text-sm text-gray-500">{t('page_subtitle_shipping')}</p>
+                </div>
+            </div>
+
+            {/* ── Politique de livraison (COD) — s'applique à TOUS les transporteurs ── */}
+            <div className="bg-white shadow rounded-xl border border-gray-100 overflow-hidden">
+                <div className="px-6 py-5">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Truck className="h-5 w-5 text-indigo-500" />
+                        <h3 className="text-lg font-semibold text-gray-900">Politique de livraison (COD)</h3>
+                    </div>
+                    <p className="text-sm text-gray-500 mb-4">
+                        Détermine le montant encaissé par le transporteur à la livraison — appliqué à Sendit, O-Livraison et Cathedis de façon identique.
+                    </p>
+                    <label className="flex items-start gap-3 cursor-pointer select-none">
+                        <input
+                            type="checkbox"
+                            checked={customerPaysShipping}
+                            onChange={handleToggleShipping}
+                            className="mt-1 h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm text-gray-700">
+                            <span className="font-medium text-gray-900">Le client paie les frais de livraison</span><br />
+                            Coché : les frais de livraison sont <strong>ajoutés</strong> au montant COD. Décoché : le montant COD = total des produits uniquement.
+                        </span>
+                    </label>
                 </div>
             </div>
 

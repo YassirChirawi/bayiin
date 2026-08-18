@@ -331,8 +331,9 @@ exports.stripeWebhook = functions
 
     } catch (error) {
         console.error(`[Stripe] Error processing event ${event.type}:`, error);
-        // Still return 200 to Stripe to prevent infinite retries for non-transient errors
-        return res.status(200).json({ received: true, error: error.message });
+        // Return 500 so Stripe RETRIES (backoff, capped ~72h). A 200 here would silently drop
+        // a legitimate activation on a transient error → a paying customer left inactive.
+        return res.status(500).json({ received: false, error: error.message });
     }
 
     res.json({ received: true });

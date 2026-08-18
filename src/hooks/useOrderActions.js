@@ -22,6 +22,18 @@ export const useOrderActions = () => {
     const { user } = useAuth();
     const { logAction } = useAudit();
 
+    // Empêche l'envoi transporteur quand l'état n'autorise pas → 'livraison' (ex. 'reçu', 'livré').
+    // Sinon on crée un colis chez le transporteur PUIS l'update Firestore status:'livraison' est
+    // rejeté par les règles (transition invalide) → colis fantôme + commande incohérente.
+    const assertCanShip = (order) => {
+        const target = ORDER_STATUS.SHIPPING; // 'livraison'
+        if (order?.status && order.status !== target && !isValidTransition(order.status, target)) {
+            const msg = `Impossible d'expédier : « ${order.status} → livraison » non autorisé. Confirmez la commande d'abord.`;
+            toast.error(msg);
+            throw new Error(msg);
+        }
+    };
+
     const createOrder = async (orderData) => {
         setLoading(true);
         setError(null);
@@ -74,6 +86,30 @@ export const useOrderActions = () => {
                 const currentStats = statsSnap.exists() ? statsSnap.data() : {};
                 const nextOrderNumber = (parseInt(currentStats.lastOrderNumber) || 1000) + 1;
                 const nextCustomerNumber = (parseInt(currentStats.lastCustomerNumber) || 5000) + 1;
+
+                // Contrôle de disponibilité — stock négatif impossible (pas de backorder).
+                // Lectures AVANT toute écriture (contrainte des transactions Firestore).
+                const productSnaps = {};
+                for (const item of itemsToProcess) {
+                    if (item.id && !productSnaps[item.id]) {
+                        productSnaps[item.id] = await transaction.get(doc(db, "products", item.id));
+                    }
+                }
+                for (const item of itemsToProcess) {
+                    const snap = productSnaps[item.id];
+                    if (!snap || !snap.exists()) continue;
+                    const p = snap.data();
+                    const qty = parseInt(item.quantity) || 1;
+                    let available;
+                    if (item.variantId && Array.isArray(p.variants)) {
+                        available = parseInt(p.variants.find(x => x.id === item.variantId)?.stock) || 0;
+                    } else {
+                        available = parseInt(p.stock) || 0;
+                    }
+                    if (available < qty) {
+                        throw new Error(`Stock insuffisant pour « ${p.name || 'ce produit'} » : ${available} en stock, ${qty} demandé(s).`);
+                    }
+                }
 
                 // === 2. WRITE PHASE ===
                 let finalCustomerId = customerId || existingCustomerId;
@@ -159,6 +195,7 @@ export const useOrderActions = () => {
         } catch (err) {
             console.error("Transaction Error:", err);
             setError(err.message);
+            if (/stock insuffisant/i.test(err.message || '')) toast.error(err.message);
             setLoading(false);
             return false;
         }
@@ -313,6 +350,7 @@ export const useOrderActions = () => {
         setLoading(true);
         setError(null);
         try {
+            assertCanShip(order);
             // Load secrets
             const configDoc = await getDoc(doc(db, "stores", store.id, "private", "config"));
             const secrets = configDoc.exists() ? configDoc.data() : {};
@@ -353,6 +391,7 @@ export const useOrderActions = () => {
         setLoading(true);
         setError(null);
         try {
+            assertCanShip(order);
             // Load secrets
             const configDoc = await getDoc(doc(db, "stores", store.id, "private", "config"));
             const secrets = configDoc.exists() ? configDoc.data() : {};
@@ -394,6 +433,7 @@ export const useOrderActions = () => {
         setLoading(true);
         setError(null);
         try {
+            assertCanShip(order);
             const configDoc = await getDoc(doc(db, "stores", store.id, "private", "config"));
             const secrets = configDoc.exists() ? configDoc.data() : {};
 

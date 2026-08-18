@@ -11,6 +11,8 @@ const API_URL = "https://v1.cathedis.delivery";
  * @param {string} password 
  * @returns {Promise<string>} JSESSIONID
  */
+import { computeCodAmount } from './codAmount';
+
 export const authenticateCathedis = async (username, password) => {
     try {
         const response = await fetch(`${API_URL}/login.jsp`, {
@@ -62,7 +64,7 @@ export const createCathedisDelivery = async (jsessionid, order, store) => {
                         city: order.city || "Casablanca",
                         sector: "Autre", // Default sector
                         phone: order.clientPhone || order.phone || "",
-                        amount: String((parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1)),
+                        amount: String(computeCodAmount(order, store)),
                         caution: "0",
                         fragile: "0",
                         declaredValue: String((parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1)),

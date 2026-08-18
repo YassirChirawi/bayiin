@@ -127,3 +127,41 @@ describe('Isolation multi-tenant', () => {
     await assertFails(getDoc(doc(testEnv.unauthenticatedContext().firestore(), 'products', 'pA')));
   });
 });
+
+describe('Livreur : mise à jour de commande (livreurToken == uid)', () => {
+  const driver = () => testEnv.authenticatedContext('driverX').firestore();
+
+  const seedOrder = (data) => testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'orders', 'ord1'), {
+      storeId: 'storeA', status: 'livraison', price: 100, quantity: 1, livreurToken: 'driverX', ...data,
+    });
+  });
+
+  it("autorise le passage à 'livré' avec encaissement COD (codCollected/codCollectedAt)", async () => {
+    await seedOrder({});
+    await assertSucceeds(updateDoc(doc(driver(), 'orders', 'ord1'), {
+      status: 'livré', isPaid: false, codCollected: true, codCollectedAt: '2026-07-24',
+      statusHistory: { livré: '2026-07-24' },
+    }));
+  });
+
+  it("autorise 'retour en cours' (était rejeté avant le fix)", async () => {
+    await seedOrder({});
+    await assertSucceeds(updateDoc(doc(driver(), 'orders', 'ord1'), { status: 'retour en cours' }));
+  });
+
+  it('refuse un champ non autorisé (prix)', async () => {
+    await seedOrder({});
+    await assertFails(updateDoc(doc(driver(), 'orders', 'ord1'), { status: 'livré', price: 1 }));
+  });
+
+  it("refuse un livreur avec le mauvais token", async () => {
+    await seedOrder({ livreurToken: 'autreDriver' });
+    await assertFails(updateDoc(doc(driver(), 'orders', 'ord1'), { status: 'livré' }));
+  });
+
+  it("refuse une transition invalide (livré → pas de réponse)", async () => {
+    await seedOrder({ status: 'livré' });
+    await assertFails(updateDoc(doc(driver(), 'orders', 'ord1'), { status: 'pas de réponse' }));
+  });
+});

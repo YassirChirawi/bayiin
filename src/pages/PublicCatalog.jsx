@@ -146,6 +146,12 @@ export default function PublicCatalog() {
             alert("Le numéro de la boutique n'est pas configuré.");
             return;
         }
+        // Stock négatif impossible (BAY-74) : on refuse une commande au-delà du stock.
+        const availableExpress = parseInt(product.stock) || 0;
+        if ((parseInt(product.quantity) || 1) > availableExpress) {
+            alert(`Stock insuffisant : il reste ${availableExpress} unité(s) de « ${product.name} ».`);
+            return;
+        }
 
         setIsCheckingOut(true);
         try {
@@ -205,6 +211,12 @@ export default function PublicCatalog() {
     };
 
     const submitFullCheckout = async (checkoutData) => {
+        // Stock négatif impossible (BAY-74) : refuser si un article du panier dépasse le stock.
+        const outOfStock = cart.find(item => (parseInt(item.quantity) || 1) > (parseInt(item.stock) || 0));
+        if (outOfStock) {
+            alert(`Stock insuffisant : il reste ${parseInt(outOfStock.stock) || 0} unité(s) de « ${outOfStock.name} ».`);
+            return;
+        }
         setIsCheckingOut(true);
         try {
             const orderRefNum = `CMD-${Math.floor(1000 + Math.random() * 9000)}`;

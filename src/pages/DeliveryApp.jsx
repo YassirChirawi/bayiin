@@ -244,7 +244,7 @@ function ProfileTab({ token, storeName, storePhone, storeWhatsApp, orders }) {
     const delivered = orders.filter(o => o.status === 'livré').length;
     const returned = orders.filter(o => ['retour', 'retour en cours'].length).length;
     const rate = total > 0 ? Math.round((delivered / total) * 100) : 0;
-    const totalCOD = orders.filter(o => o.status === 'livré').reduce((s, o) => s + Number(o.price || 0), 0);
+    const totalCOD = orders.filter(o => o.status === 'livré').reduce((s, o) => s + Number(o.price || 0) * Number(o.quantity || 1), 0);
 
     return (
         <div className="px-4 pb-8 space-y-4 pt-4">
