@@ -139,6 +139,14 @@ describe('applyStockUpdates — lots FEFO (BAY-79)', () => {
     expect(b.find((x) => x.batchNumber === 'FAR').quantity).toBe(8);  // 10 - 2 restants
   });
 
+  it('borne le stock à 0 : une commande > stock ne rend pas le stock négatif', async () => {
+    await seedProduct('pneg', { storeId: 's1', name: 'PNEG', price: 10, stock: 3, warehouseStocks: { wh1: 3 } });
+    await applyStockUpdates(db, null, { status: 'reçu', articleId: 'pneg', quantity: 5, warehouseId: 'wh1' });
+    const p = await stockOf('pneg');
+    expect(p.stock).toBe(0);
+    expect(p.warehouseStocks.wh1).toBe(0);
+  });
+
   it('restock (annulation) réalimente le lot le plus proche de la péremption', async () => {
     await seedProduct('pb3', { storeId: 's1', name: 'PB3', price: 10, stock: 15, inventoryBatches: batches() });
     await applyStockUpdates(

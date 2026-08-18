@@ -87,6 +87,30 @@ export const useOrderActions = () => {
                 const nextOrderNumber = (parseInt(currentStats.lastOrderNumber) || 1000) + 1;
                 const nextCustomerNumber = (parseInt(currentStats.lastCustomerNumber) || 5000) + 1;
 
+                // Contrôle de disponibilité — stock négatif impossible (pas de backorder).
+                // Lectures AVANT toute écriture (contrainte des transactions Firestore).
+                const productSnaps = {};
+                for (const item of itemsToProcess) {
+                    if (item.id && !productSnaps[item.id]) {
+                        productSnaps[item.id] = await transaction.get(doc(db, "products", item.id));
+                    }
+                }
+                for (const item of itemsToProcess) {
+                    const snap = productSnaps[item.id];
+                    if (!snap || !snap.exists()) continue;
+                    const p = snap.data();
+                    const qty = parseInt(item.quantity) || 1;
+                    let available;
+                    if (item.variantId && Array.isArray(p.variants)) {
+                        available = parseInt(p.variants.find(x => x.id === item.variantId)?.stock) || 0;
+                    } else {
+                        available = parseInt(p.stock) || 0;
+                    }
+                    if (available < qty) {
+                        throw new Error(`Stock insuffisant pour « ${p.name || 'ce produit'} » : ${available} en stock, ${qty} demandé(s).`);
+                    }
+                }
+
                 // === 2. WRITE PHASE ===
                 let finalCustomerId = customerId || existingCustomerId;
                 
@@ -171,6 +195,7 @@ export const useOrderActions = () => {
         } catch (err) {
             console.error("Transaction Error:", err);
             setError(err.message);
+            if (/stock insuffisant/i.test(err.message || '')) toast.error(err.message);
             setLoading(false);
             return false;
         }
