@@ -662,7 +662,18 @@ async function getStoreData(storeId) {
 async function updateOrderStatus(storeId, orderId, newStatus) {
     if (!orderId) return;
     try {
-        await db.collection("orders").doc(orderId).update({
+        const ref = db.collection("orders").doc(orderId);
+        // Le bot utilise l'Admin SDK (contourne les règles Firestore). On garde donc contre la
+        // régression d'une commande déjà résolue — ex. un client qui répond « oui » après que
+        // la commande a été livrée / retournée / annulée.
+        const snap = await ref.get();
+        const current = snap.exists ? snap.data().status : null;
+        const RESOLVED = ['livré', 'retour', 'retour en cours', 'annulé'];
+        if (current && current !== newStatus && RESOLVED.includes(current)) {
+            console.log(`[WhatsApp] skip ${orderId}: '${current}' → '${newStatus}' (commande déjà résolue)`);
+            return;
+        }
+        await ref.update({
             status: newStatus,
             _updatedBy: "whatsapp_bot"
         });
