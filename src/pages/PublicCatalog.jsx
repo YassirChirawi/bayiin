@@ -6,6 +6,7 @@ import { createRawWhatsAppLink } from '../utils/whatsappTemplates';
 import { ShoppingBag, ChevronRight, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { vibrate } from '../utils/haptics';
+import { normalizePhoneMA } from '../utils/phone';
 
 // Storefront Components
 import StoreBanner from '../components/storefront/StoreBanner';
@@ -165,7 +166,7 @@ export default function PublicCatalog() {
                 orderNumber: orderRefNum,
                 status: 'pending_catalog',
                 clientName: clientForm.name,
-                clientPhone: clientForm.phone,
+                clientPhone: normalizePhoneMA(clientForm.phone),
                 clientCity: clientForm.city,
                 clientAddress: clientForm.address,
                 products: items.map(item => ({
@@ -227,7 +228,7 @@ export default function PublicCatalog() {
                 orderNumber: orderRefNum,
                 status: 'pending_catalog',
                 clientName: checkoutData.name,
-                clientPhone: checkoutData.phone,
+                clientPhone: normalizePhoneMA(checkoutData.phone),
                 clientCity: checkoutData.city,
                 clientAddress: checkoutData.address,
                 products: cart.map(item => ({
