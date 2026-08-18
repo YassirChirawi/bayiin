@@ -238,6 +238,22 @@ const BEYA3_TOOLS = [
           }
         }
       }
+    },
+
+    // ── INTELLIGENCE COD — RISQUE COMMANDES (Smart COD Shield) ──
+    {
+      type: "function",
+      function: {
+        name: "assess_order_risk",
+        description: "Évalue le RISQUE COD (retour / annulation / pas de réponse) des commandes ACTIVES et recommande des actions concrètes. À utiliser quand le marchand demande quelles commandes sont risquées, lesquelles confirmer en priorité, ou comment réduire les retours. Le score est basé sur les taux d'échec réels de la boutique par ville et par client.",
+        parameters: {
+          type: "object",
+          properties: {
+            minScore: { type: "number", description: "Score minimum (0-100) pour lister une commande comme à risque. Défaut 60." },
+            limit: { type: "integer", description: "Nombre max de commandes à retourner. Défaut 15." }
+          }
+        }
+      }
     }
   ];
   

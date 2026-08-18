@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "react-hot-toast";
 import { useStoreData } from "../hooks/useStoreData";
-import { Plus, Upload, Download, Package, ShoppingCart, X } from "lucide-react";
+import { Plus, Upload, Download, Package, ShoppingCart, X, ShieldAlert } from "lucide-react";
+import { buildRiskModel, scoreOrderRisk } from "../services/aiRiskService";
 import Button from "../components/Button";
 import OrderModal from "../components/OrderModal";
 import ConfirmationModal from "../components/ConfirmationModal";
@@ -38,6 +39,8 @@ import { TableSkeleton } from "../components/Skeleton";
 import InfiniteScrollTrigger from "../components/InfiniteScrollTrigger";
 import { vibrate } from "../utils/haptics";
 
+const RISK_ACTIVE_STATUSES = ['reçu', 'confirmation', 'packing', 'ramassage', 'livraison', 'reporté'];
+
 export default function Orders() {
     const { store } = useTenant();
     const { t } = useLanguage();
@@ -54,6 +57,15 @@ export default function Orders() {
     // Data Fetching
     const { data: orders = [], loading, addStoreItem, deleteStoreItem, restoreStoreItem, permanentDeleteStoreItem } = useStoreData("orders", filterState.orderConstraints);
     const filteredOrders = filterState.filterData(orders);
+
+    // Smart COD Shield — filtre rapide sur les commandes actives à risque élevé.
+    const riskModel = useMemo(() => buildRiskModel(orders), [orders]);
+    const [riskOnly, setRiskOnly] = useState(false);
+    const riskyActive = useMemo(
+        () => filteredOrders.filter(o => RISK_ACTIVE_STATUSES.includes(o.status) && scoreOrderRisk(o, riskModel).score >= 60),
+        [filteredOrders, riskModel]
+    );
+    const displayOrders = riskOnly ? riskyActive : filteredOrders;
 
     // Modals & UI State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -241,20 +253,28 @@ export default function Orders() {
                     <button onClick={() => setActiveTab('carts')} className={`${activeTab === 'carts' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}><ShoppingCart className="h-5 w-5"/> {t('tab_carts')}
                          {orders.filter(o => o.status === 'pending_catalog').length > 0 && <span className="bg-red-100 text-red-600 py-0.5 px-2.5 rounded-full text-xs font-bold">{orders.filter(o => o.status === 'pending_catalog').length}</span>}
                     </button>
+                    <button
+                        onClick={() => setRiskOnly(v => !v)}
+                        title="Bouclier COD — commandes actives à risque élevé à confirmer en priorité"
+                        className={`ml-auto whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${riskOnly ? 'border-rose-500 text-rose-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                    >
+                        <ShieldAlert className="h-5 w-5"/> Bouclier COD
+                        {riskyActive.length > 0 && <span className="bg-rose-100 text-rose-600 py-0.5 px-2.5 rounded-full text-xs font-bold">{riskyActive.length}</span>}
+                    </button>
                 </nav>
             </div>
 
             <OrderFilters {...filterState} showTrash={showTrash} setShowTrash={setShowTrash} handleSearch={() => filterState.setActiveSearch(filterState.searchTerm)} handleKeyDown={(e) => e.key === 'Enter' && filterState.setActiveSearch(filterState.searchTerm)} clearSearch={() => {filterState.setSearchTerm(""); filterState.setActiveSearch("");}} setIsModalOpen={setIsModalOpen} t={t} />
 
-            <OrderBulkActions {...bulkActions} handleSelectAll={() => bulkActions.handleSelectAll(filteredOrders)} filteredOrdersCount={filteredOrders.length} activeTab={activeTab} showTrash={showTrash} store={store} t={t} handleRequestPickup={handleRequestPickup} setIsInternalPickupModalOpen={setIsInternalPickupModalOpen} />
+            <OrderBulkActions {...bulkActions} handleSelectAll={() => bulkActions.handleSelectAll(displayOrders)} filteredOrdersCount={displayOrders.length} activeTab={activeTab} showTrash={showTrash} store={store} t={t} handleRequestPickup={handleRequestPickup} setIsInternalPickupModalOpen={setIsInternalPickupModalOpen} />
 
-            {loading ? <TableSkeleton rows={10} cols={8} /> : filteredOrders.length === 0 ? <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow p-8"><p>{t('msg_no_orders_filter')}</p></div> : (
+            {loading ? <TableSkeleton rows={10} cols={8} /> : displayOrders.length === 0 ? <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow p-8"><p>{riskOnly ? "Aucune commande active à risque élevé 🎉" : t('msg_no_orders_filter')}</p></div> : (
                 <>
                     <div className="hidden md:block">
-                        <OrderTable orders={filteredOrders} selectedOrders={bulkActions.selectedOrders} handleSelectAll={() => bulkActions.handleSelectAll(filteredOrders)} handleSelectOne={bulkActions.handleSelectOne} activeTab={activeTab} showTrash={showTrash} store={store} togglePaid={togglePaid} handleEdit={(o) => {setEditingOrder(o); setIsModalOpen(true);}} deleteStoreItem={deleteStoreItem} handleRestore={handleRestore} handleDelete={handleDelete} handleNoAnswer={handleNoAnswer} openConfirmation={openConfirmation} sendToOlivraison={sendToOlivraison} sendToSendit={sendToSendit} sendToCathedis={sendToCathedis} handleOpenTracking={handleOpenTracking} setQrOrder={setQrOrder} t={t} />
+                        <OrderTable orders={displayOrders} riskModel={riskModel} selectedOrders={bulkActions.selectedOrders} handleSelectAll={() => bulkActions.handleSelectAll(displayOrders)} handleSelectOne={bulkActions.handleSelectOne} activeTab={activeTab} showTrash={showTrash} store={store} togglePaid={togglePaid} handleEdit={(o) => {setEditingOrder(o); setIsModalOpen(true);}} deleteStoreItem={deleteStoreItem} handleRestore={handleRestore} handleDelete={handleDelete} handleNoAnswer={handleNoAnswer} openConfirmation={openConfirmation} sendToOlivraison={sendToOlivraison} sendToSendit={sendToSendit} sendToCathedis={sendToCathedis} handleOpenTracking={handleOpenTracking} setQrOrder={setQrOrder} t={t} />
                     </div>
                     <div className="md:hidden">
-                        <OrderMobileList orders={filteredOrders} selectedOrders={bulkActions.selectedOrders} handleSelectOne={bulkActions.handleSelectOne} activeTab={activeTab} showTrash={showTrash} store={store} togglePaid={togglePaid} handleEdit={(o) => {setEditingOrder(o); setIsModalOpen(true);}} deleteStoreItem={deleteStoreItem} handleRestore={handleRestore} handleDelete={handleDelete} handleNoAnswer={handleNoAnswer} openConfirmation={openConfirmation} sendToOlivraison={sendToOlivraison} sendToSendit={sendToSendit} sendToCathedis={sendToCathedis} handleOpenTracking={handleOpenTracking} setQrOrder={setQrOrder} t={t} />
+                        <OrderMobileList orders={displayOrders} selectedOrders={bulkActions.selectedOrders} handleSelectOne={bulkActions.handleSelectOne} activeTab={activeTab} showTrash={showTrash} store={store} togglePaid={togglePaid} handleEdit={(o) => {setEditingOrder(o); setIsModalOpen(true);}} deleteStoreItem={deleteStoreItem} handleRestore={handleRestore} handleDelete={handleDelete} handleNoAnswer={handleNoAnswer} openConfirmation={openConfirmation} sendToOlivraison={sendToOlivraison} sendToSendit={sendToSendit} sendToCathedis={sendToCathedis} handleOpenTracking={handleOpenTracking} setQrOrder={setQrOrder} t={t} />
                     </div>
                 </>
             )}

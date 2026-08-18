@@ -655,8 +655,15 @@ exports.onOrderWrite = onDocumentWritten({
     }
 
     // 4. STOCK MANAGEMENT (Centralized)
-    const { applyStockUpdates } = require('./stockLogic');
-    await applyStockUpdates(db, before, after);
+    // BAY-80 : on saute la déduction à la CRÉATION des commandes d'intégration dont le
+    // webhook a déjà déduit le stock (Woo/Shopify posent _stockManagedByClient) — sinon le
+    // trigger déduit une seconde fois (double décrément). Le client ne pose jamais ce flag ;
+    // sur les mises à jour ultérieures (changement de statut), le trigger s'exécute normalement.
+    const stockAlreadyDeducted = !before && !!after && after._stockManagedByClient === true;
+    if (!stockAlreadyDeducted) {
+        const { applyStockUpdates } = require('./stockLogic');
+        await applyStockUpdates(db, before, after);
+    }
 
     // Execute Update
     const statsPromise = statsRef.set(updates, { merge: true });

@@ -33,22 +33,23 @@ const getActiveItems = (o) => {
  */
 const applyBatchLogic = (batches, change) => {
     if (!batches || batches.length === 0) return batches;
-    let updatedBatches = [...batches];
-    
+    // Clone en profondeur : ne jamais muter les objets partagés de pData.inventoryBatches.
+    let updatedBatches = batches.map(b => ({ ...b }));
+
     if (change > 0) {
-        // Restock : on remet dans le lot le plus ancien par simplicité
-        updatedBatches.sort((a, b) => new Date(b.expiryDate || 0) - new Date(a.expiryDate || 0));
+        // Restock : on remet dans le lot dont la péremption est la plus PROCHE, pour qu'il
+        // soit écoulé en premier (cohérent avec la déduction FEFO ci-dessous).
+        updatedBatches.sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
         updatedBatches[0].quantity = (parseInt(updatedBatches[0].quantity) || 0) + change;
     } else if (change < 0) {
-        // Déduction : FEFO strict
+        // Déduction : FEFO strict (péremption la plus proche d'abord).
         let remainingQty = Math.abs(change);
         updatedBatches.sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
         for (let i = 0; i < updatedBatches.length && remainingQty > 0; i++) {
-            let batch = updatedBatches[i];
-            let batchQty = parseInt(batch.quantity) || 0;
+            let batchQty = parseInt(updatedBatches[i].quantity) || 0;
             if (batchQty > 0) {
                 let deductAmount = Math.min(batchQty, remainingQty);
-                batch.quantity = batchQty - deductAmount;
+                updatedBatches[i].quantity = batchQty - deductAmount;
                 remainingQty -= deductAmount;
             }
         }

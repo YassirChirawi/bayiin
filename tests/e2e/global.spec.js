@@ -32,37 +32,52 @@ const handleOverlays = async (page) => {
     } catch (e) { /* ignore */ }
 };
 
-// Helper for Login to handle the Role Picker and various redirections
-async function login(page, email, password) {
-    await page.goto('/login');
-    
-    await handleOverlays(page);
-    
-    // 1. Handle Role Picker
-    const magasinBtn = page.getByTestId('role-owner-button');
-    try { await magasinBtn.waitFor({ state: 'visible', timeout: 5000 }); await magasinBtn.click(); } catch (e) {}
+// Auth helper : crée un compte NEUF via /signup (compatible émulateur — un compte
+// fixe n'existe pas dans l'émulateur). Complète l'onboarding puis atterrit dans l'app.
+async function login(page) {
+    const uniqueEmail = `test_${Date.now()}_${Math.floor(Math.random() * 1000)}@bayiin.com`;
+    const testPassword = 'Password123!';
 
-    // 2. Fill credentials
-    await page.waitForSelector('[data-testid="login-email"]', { timeout: 10000 });
-    await page.fill('[data-testid="login-email"]', email);
-    await page.fill('[data-testid="login-password"]', password);
-    
-    // 3. Submit
-    await page.click('[data-testid="login-submit"]');
-
-    // 4. Handle Redirection & Post-login overlays
-    // We wait for either dashboard, onboarding, or the biometric modal
-    await Promise.race([
-        page.waitForURL(/.*\/(dashboard|onboarding)/, { timeout: 15000 }),
-        page.waitForSelector('text=/biométrie|biometric|plus tard/i', { timeout: 10000 }).catch(() => {})
-    ]);
-
+    await page.goto('/signup');
     await handleOverlays(page);
 
-    // Final check for URL
-    await expect(page).toHaveURL(/.*\/(dashboard|onboarding)/, { timeout: 10000 });
-    
-    console.log(`Login successful, currently at: ${page.url()}`);
+    await page.fill('input[type="email"]', uniqueEmail);
+    await page.fill('input[type="password"]', testPassword);
+    const confirmInput = page.locator('input[placeholder*="Confirmer"], input[placeholder*="Confirm"]');
+    if (await confirmInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await confirmInput.fill(testPassword);
+    }
+    const terms = page.locator('form button[type="button"]').last();
+    if (await terms.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await terms.click({ force: true });
+    }
+    await page.click('button[type="submit"]', { force: true });
+
+    await page.waitForURL(/.*\/(onboarding|dashboard)/, { timeout: 20000 });
+
+    if (page.url().includes('/onboarding')) {
+        await handleOverlays(page);
+        await page.getByLabel(/Nom|Store/i).fill('Verification Store');
+        await page.getByRole('button', { name: /Suivant|Next/i }).click({ force: true });
+        await page.waitForTimeout(500);
+
+        await handleOverlays(page);
+        const phone = page.getByLabel(/WhatsApp|Phone|Tél/i);
+        if (await phone.isVisible({ timeout: 5000 }).catch(() => false)) await phone.fill('0600000000');
+        const city = page.getByLabel(/Ville|City/i);
+        if (await city.isVisible({ timeout: 2000 }).catch(() => false)) await city.fill('Casablanca');
+        await page.getByRole('button', { name: /Suivant|Next/i }).click({ force: true });
+        await page.waitForTimeout(500);
+
+        await handleOverlays(page);
+        const finishBtn = page.getByRole('button', { name: /Terminer|Finish/i });
+        await finishBtn.waitFor({ state: 'visible', timeout: 8000 });
+        await finishBtn.click({ force: true });
+    }
+
+    await handleOverlays(page);
+    await page.waitForURL(/.*\/(dashboard|orders|products|settings)/, { timeout: 40000 });
+    console.log(`Signup/onboard successful, currently at: ${page.url()}`);
 }
 
 test.describe('Global PWA Test Scenario', () => {
@@ -96,9 +111,6 @@ test.describe('Global PWA Test Scenario', () => {
 
         await page.context().clearCookies();
     });
-
-    const envEmail = process.env.TEST_EMAIL || 'amadou@abadou.com';
-    const envPassword = process.env.TEST_PASSWORD || '123456';
 
     test('Authentication & Onboarding flow', async ({ page }) => {
         const uniqueEmail = `test_${Date.now()}@bayiin.com`;
@@ -143,7 +155,7 @@ test.describe('Global PWA Test Scenario', () => {
     });
 
     test('Core Store Operations robustness', async ({ page }) => {
-        await login(page, envEmail, envPassword);
+        await login(page);
         
         // Navigate to Products
         await page.goto('/products');
@@ -171,7 +183,7 @@ test.describe('Global PWA Test Scenario', () => {
     });
 
     test('Finances & Analytics view', async ({ page }) => {
-        await login(page, envEmail, envPassword);
+        await login(page);
         
         await page.goto('/finances');
         await handleOverlays(page);

@@ -45,6 +45,8 @@ const { shouldUseReAct, runReActLoop } = require("./copilot/reactAgent");
 const { executeWithRollback, rollbackLastAction } = require("./copilot/actionExecutor");
 const { getMarketBenchmark } = require("./copilot/benchmarkService");
 const { routeToAgent } = require("./copilot/multiAgent");
+const { assessStoreRisk } = require("./copilot/riskEngine");
+const { parseTextFallbackTool } = require("./copilot/fallbackParser");
 
 const getDb = () => getFirestore('comsaas');
 
@@ -124,7 +126,11 @@ async function executeFinancialTool(toolName, toolArgs, storeId, userId) {
             // ── ÉVOLUTION 8 — GESTION DES CLIENTS ───────────
             case "get_customer_list":
                 return await getCustomerList(storeId, toolArgs.limit || 10);
-                
+
+            // ── BAY-90 — INTELLIGENCE COD : RISQUE COMMANDES ─
+            case "assess_order_risk":
+                return await assessStoreRisk(storeId, toolArgs);
+
             default:
                 return { error: `Tool ${toolName} not implemented yet or is a draft tool.` };
         }
@@ -318,16 +324,10 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
       const firstChoice = firstPass.choices[0];
       let toolCalls = firstChoice.message.tool_calls || [];
       
-      // FALLBACK JSON
+      // FALLBACK JSON — parseur pur, restreint aux outils lecture seule (anti-injection)
       if (toolCalls.length === 0 && firstChoice.message.content) {
-          const jsonMatch = firstChoice.message.content.match(/\{\s*"action"\s*:\s*"([^"]+)"\s*,\s*"data"\s*:\s*(\{.*\})\s*\}/i);
-          if (jsonMatch) {
-              const fallbackToolName = jsonMatch[1].toLowerCase() === 'analyze_finances' ? 'analyze_profit' : jsonMatch[1];
-              toolCalls = [{
-                  id: 'call_fallback_' + Date.now(),
-                  function: { name: fallbackToolName, arguments: jsonMatch[2] }
-              }];
-          }
+          const fb = parseTextFallbackTool(firstChoice.message.content);
+          if (fb) toolCalls = [fb];
       }
       
       const toolResults = [];

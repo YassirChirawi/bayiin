@@ -7,6 +7,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { doc, writeBatch } from "firebase/firestore";
 import toast from "react-hot-toast";
+import { findMatchingOrder, evaluateMatch, orderAmount } from "../../utils/reconciliationMatcher";
 
 const COURIER_PROFILES = {
     sendit: {
@@ -46,35 +47,8 @@ export default function SmartReconciliationWizard({ orders, store, db, onReconci
     const fileInputRef = useRef(null);
 
     // Heuristics: Clean reference to compare raw numbers
-    const cleanRef = (refStr) => {
-        if (!refStr) return "";
-        return String(refStr).toLowerCase().replace(/[^a-z0-9]/g, "");
-    };
-
-    // Extract raw numbers from a reference string (e.g. CMD-1025 -> 1025)
-    const extractNumber = (refStr) => {
-        if (!refStr) return "";
-        const match = String(refStr).match(/\d+/);
-        return match ? match[0] : "";
-    };
-
-    // Helper to find matching order in database list
-    const findMatchingOrder = (courierRef, courierAmount) => {
-        if (!courierRef) return null;
-        
-        const cleanedCourierRef = cleanRef(courierRef);
-        const numCourierRef = extractNumber(courierRef);
-
-        // 1. Try exact reference match
-        let matched = orders.find(o => cleanRef(o.orderNumber) === cleanedCourierRef || cleanRef(o.id) === cleanedCourierRef);
-
-        // 2. Try raw number fallback (for cases where courier strips prefixes)
-        if (!matched && numCourierRef) {
-            matched = orders.find(o => extractNumber(o.orderNumber) === numCourierRef);
-        }
-
-        return matched || null;
-    };
+    // cleanRef / extractNumber / findMatchingOrder / evaluateMatch : logique pure et
+    // testée dans utils/reconciliationMatcher.js (importée ci-dessus).
 
     // Parsing Handler
     const handleCSVFile = (file) => {
@@ -139,25 +113,9 @@ export default function SmartReconciliationWizard({ orders, store, db, onReconci
 
             if (!refValue) return; // Skip completely empty rows
 
-            const dbOrder = findMatchingOrder(refValue, amountValue);
-            
-            let matchType = "orphan"; // default
-            let dbAmount = 0;
-            
-            if (dbOrder) {
-                dbAmount = (parseFloat(dbOrder.price) || 0) * (parseInt(dbOrder.quantity) || 1);
-                
-                if (dbOrder.isPaid) {
-                    matchType = "already_paid";
-                } else {
-                    const diff = Math.abs(dbAmount - amountValue);
-                    if (diff < 1) {
-                        matchType = "perfect";
-                    } else {
-                        matchType = "mismatch";
-                    }
-                }
-            }
+            const dbOrder = findMatchingOrder(orders, refValue);
+            const matchType = evaluateMatch(dbOrder, amountValue);
+            const dbAmount = dbOrder ? orderAmount(dbOrder) : 0;
 
             const evalRow = {
                 id: `row-${index}`,
