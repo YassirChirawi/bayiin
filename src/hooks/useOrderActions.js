@@ -22,6 +22,18 @@ export const useOrderActions = () => {
     const { user } = useAuth();
     const { logAction } = useAudit();
 
+    // Empêche l'envoi transporteur quand l'état n'autorise pas → 'livraison' (ex. 'reçu', 'livré').
+    // Sinon on crée un colis chez le transporteur PUIS l'update Firestore status:'livraison' est
+    // rejeté par les règles (transition invalide) → colis fantôme + commande incohérente.
+    const assertCanShip = (order) => {
+        const target = ORDER_STATUS.SHIPPING; // 'livraison'
+        if (order?.status && order.status !== target && !isValidTransition(order.status, target)) {
+            const msg = `Impossible d'expédier : « ${order.status} → livraison » non autorisé. Confirmez la commande d'abord.`;
+            toast.error(msg);
+            throw new Error(msg);
+        }
+    };
+
     const createOrder = async (orderData) => {
         setLoading(true);
         setError(null);
@@ -313,6 +325,7 @@ export const useOrderActions = () => {
         setLoading(true);
         setError(null);
         try {
+            assertCanShip(order);
             // Load secrets
             const configDoc = await getDoc(doc(db, "stores", store.id, "private", "config"));
             const secrets = configDoc.exists() ? configDoc.data() : {};
@@ -353,6 +366,7 @@ export const useOrderActions = () => {
         setLoading(true);
         setError(null);
         try {
+            assertCanShip(order);
             // Load secrets
             const configDoc = await getDoc(doc(db, "stores", store.id, "private", "config"));
             const secrets = configDoc.exists() ? configDoc.data() : {};
@@ -394,6 +408,7 @@ export const useOrderActions = () => {
         setLoading(true);
         setError(null);
         try {
+            assertCanShip(order);
             const configDoc = await getDoc(doc(db, "stores", store.id, "private", "config"));
             const secrets = configDoc.exists() ? configDoc.data() : {};
 
