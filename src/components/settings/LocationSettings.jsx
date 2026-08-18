@@ -216,7 +216,9 @@ export default function LocationSettings({ store, t }) {
                                     onChange={e => setTransfer({...transfer, prodId: e.target.value})}
                                 >
                                     <option value="">Sélectionner...</option>
-                                    {allProds.filter(p => !p.isBundle).map(p => (
+                                    {/* Exclut bundles ET produits à variantes : un transfert au niveau
+                                        produit ne peut pas répartir correctement le stock par variante. */}
+                                    {allProds.filter(p => !p.isBundle && !p.isVariable).map(p => (
                                         <option key={p.id} value={p.id}>{p.name} ({p.stock || 0})</option>
                                     ))}
                                 </select>

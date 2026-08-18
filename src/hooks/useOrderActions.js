@@ -14,6 +14,7 @@ import { shouldRestock, shouldDeductStock, calculateStockDeltas } from '../utils
 import { logAudit } from '../lib/audit';
 import { logStockMovement } from '../lib/stockAudit';
 import { isValidTransition } from '../utils/orderStateMachine';
+import { normalizePhoneMA } from '../utils/phone';
 import { toast } from 'react-hot-toast';
 export const useOrderActions = () => {
     const [loading, setLoading] = useState(false);
@@ -38,6 +39,8 @@ export const useOrderActions = () => {
         setLoading(true);
         setError(null);
         try {
+            // Normalise le téléphone au format MA standard (dédup client — voir utils/phone.js).
+            if (orderData.clientPhone) orderData = { ...orderData, clientPhone: normalizePhoneMA(orderData.clientPhone) };
             // Non-transactional reads FIRST
             let customerId = orderData.customerId;
             let existingCustomerId = null;
@@ -205,6 +208,8 @@ export const useOrderActions = () => {
         setLoading(true);
         setError(null);
         try {
+            // Normalise le téléphone au format MA standard (dédup client).
+            if (newData.clientPhone) newData = { ...newData, clientPhone: normalizePhoneMA(newData.clientPhone) };
             // --- STATE MACHINE VALIDATION (defense-in-depth) ---
             if (oldData.status !== newData.status && !isValidTransition(oldData.status, newData.status)) {
                 toast.error(`Transition invalide : ${oldData.status} → ${newData.status}`);
