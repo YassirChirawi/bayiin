@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Truck, Lock, MapPin, CreditCard } from 'lucide-react';
-import { useCart } from '../../contexts/CartContext';
+import { useCart } from '../../context/CartContext';
 
 export default function CheckoutEditor({ theme, settings = {} }) {
     const { cartItems, cartTotal } = useCart();

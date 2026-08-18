@@ -160,22 +160,24 @@ async function calculateNetProfit(storeId, startDate, endDate, breakdown = 'tota
             const dateKey = orderDate.toISOString().split('T')[0];
             const cityKey = order.clientCity || 'Inconnu';
 
-            if (order.status === 'livré') {
-                grossRevenue += (price * qty);
-                cogs += (cost * qty);
-                deliveryCosts += realDeliveryCost;
-                ordersCount++;
+            // Base TRÉSORERIE, cohérente avec src/utils/financials.js (le "vrai cash") : on
+            // compte le montant réellement encaissé (amountPaid, sinon isPaid → total), pas le
+            // simple statut "livré". Sinon Beya3 annonce un profit ≠ de la page Finances.
+            const collected = (order.amountPaid !== undefined && order.amountPaid !== null && order.amountPaid !== "")
+                ? (parseFloat(order.amountPaid) || 0)
+                : (order.isPaid ? price * qty : 0);
+            const isRealized = collected > 0 || order.isPaid === true;
 
-                // Breakdowns
-                if (breakdown === 'by_city') {
-                    byCity[cityKey] = (byCity[cityKey] || 0) + (price * qty);
-                }
-                if (breakdown === 'by_day') {
-                    byDay[dateKey] = (byDay[dateKey] || 0) + (price * qty);
-                }
-            } else if (order.status === 'retour') {
-                // Impact négatif: On a payé la livraison (aller/retour souvent) mais pas encaissé
-                returnImpact += realDeliveryCost; // Simplified: Only counting delivery loss on returns
+            if (isRealized) {
+                grossRevenue += collected;
+                cogs += (cost * qty); // COGS plein dès qu'un paiement est reçu (comme financials.js)
+                ordersCount++;
+                if (breakdown === 'by_city') byCity[cityKey] = (byCity[cityKey] || 0) + collected;
+                if (breakdown === 'by_day') byDay[dateKey] = (byDay[dateKey] || 0) + collected;
+            }
+            // Coûts de livraison : encourus dès l'expédition (livré/retour/en cours/livraison/ramassage).
+            if (['livré', 'retour', 'retour en cours', 'livraison', 'ramassage'].includes(order.status)) {
+                deliveryCosts += realDeliveryCost;
             }
         }
     });

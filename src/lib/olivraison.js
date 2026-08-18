@@ -16,6 +16,8 @@ const API_URL = "https://partners.olivraison.com";
  * @param {string} secretKey 
  * @returns {Promise<string>} token
  */
+import { computeCodAmount } from './codAmount';
+
 export const authenticateOlivraison = async (apiKey, secretKey) => {
     try {
         const response = await fetch(`${API_URL}/auth/login`, {
@@ -53,7 +55,7 @@ export const createOlivraisonPackage = async (token, order, store) => {
         // Map Local Order to O-Livraison Payload
         const payload = {
             name: `Order #${order.orderNumber}`,
-            price: parseFloat(order.price) * parseInt(order.quantity || 1), // Total Price (COD)
+            price: computeCodAmount(order, store), // COD : produits + livraison si le client la paie
             inventory: false,
             description: `${order.productName} (Qty: ${order.quantity})`,
             comment: order.note || "",

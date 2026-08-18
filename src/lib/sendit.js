@@ -3,6 +3,8 @@ import { doc, getDoc } from 'firebase/firestore';
 
 const API_BASE = "https://app.sendit.ma/api/v1";
 
+import { computeCodAmount } from './codAmount';
+
 let cachedDistricts = null;
 
 /**
@@ -176,7 +178,7 @@ const senditService = {
                 name: order.clientName || order.customer || "Client",
                 phone: order.clientPhone || order.phone || "",
                 address: order.clientAddress || order.address || order.city || "Adresse inconnue",
-                amount: parseFloat(order.price * (order.quantity || 1)) + (parseFloat(order.shippingCost || 0)),
+                amount: computeCodAmount(order, store),
                 comment: order.note || order.notes || "",
                 reference: order.orderNumber || order.displayId || order.id || "",
                 products: productsString,

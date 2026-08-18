@@ -6,15 +6,18 @@ service cloud.firestore {
     // --- HELPERS ---
 
     // Get the signed-in user's data (cached by Firestore rules for same request)
+    // Sûr même si l'utilisateur n'a pas (encore) de doc users : renvoie {} au lieu de planter.
     function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : {};
     }
 
     // Check if the user belongs to the store they are trying to access
     function belongsToStore(storeId) {
        // Primary check: JWT Claim (Fastest, supports queries) OR Fallback: Document lookup
-       return (request.auth != null && request.auth.token.storeId == storeId) || 
-              (request.auth != null && getUserData().storeId == storeId);
+       return (request.auth != null && request.auth.token.get('storeId', '') == storeId) || 
+              (request.auth != null && getUserData().get('storeId', '') == storeId);
     }
 
     // Type Checks
@@ -53,26 +56,32 @@ service cloud.firestore {
 
     // Check if user is Super Admin
     function isSuperAdmin() {
-      return request.auth != null && request.auth.token.role == 'super_admin';
+      return request.auth != null && request.auth.token.get('role', '') == 'super_admin';
     }
 
     // Check if user is owner or manager (Excludes Staff)
     function isOwnerOrManager(storeId) {
       return request.auth != null && (
         get(/databases/$(database)/documents/stores/$(storeId)).data.ownerId == request.auth.uid ||
-        (getUserData().storeId == storeId && (request.auth.token.role == 'manager' || getUserData().role == 'manager'))
+        (getUserData().get('storeId', '') == storeId && (request.auth.token.get('role', '') == 'manager' || getUserData().get('role', '') == 'manager'))
       );
     }
 
     // Validate Order Transitions
+    // DOIT rester synchronisée avec src/utils/orderStateMachine.js (VALID_TRANSITIONS).
     function isValidTransition(from, to) {
-      return (from == 'reçu' && to in ['confirmation', 'packing', 'annulé']) ||
+      return (from == to) ||
+             (from == 'reçu' && to in ['confirmation', 'packing', 'annulé']) ||
              (from == 'confirmation' && to in ['packing', 'livraison', 'annulé']) ||
-             (from == 'packing' && to in ['livraison', 'annulé']) ||
-             (from == 'livraison' && to in ['livré', 'retour', 'annulé', 'pas de réponse']) ||
+             (from == 'packing' && to in ['ramassage', 'livraison', 'annulé']) ||
+             (from == 'ramassage' && to in ['livraison', 'annulé']) ||
+             (from == 'livraison' && to in ['livré', 'retour', 'retour en cours', 'annulé', 'pas de réponse', 'reporté']) ||
              (from == 'livré' && to == 'retour') ||
-             (from == 'pas de réponse' && to in ['confirmation', 'annulé']) ||
-             (from == to);
+             (from == 'annulé' && to == 'reçu') ||
+             (from == 'retour en cours' && to in ['retour', 'annulé']) ||
+             (from == 'pas de réponse' && to in ['confirmation', 'livraison', 'annulé', 'reporté']) ||
+             (from == 'reporté' && to in ['confirmation', 'livraison', 'annulé', 'pas de réponse']) ||
+             (from == 'pending_catalog' && to in ['reçu', 'annulé']);
     }
 
     // Check if store exists and has public catalog enabled
@@ -82,7 +91,7 @@ service cloud.firestore {
 
     // Check if user is a Driver
     function isDriver(storeId) {
-      return request.auth != null && getUserData().storeId == storeId && request.auth.token.role == 'driver';
+      return request.auth != null && getUserData().get('storeId', '') == storeId && request.auth.token.get('role', '') == 'driver';
     }
 
     // Check if the user owns the store
@@ -92,12 +101,12 @@ service cloud.firestore {
 
     // Check if user is a Franchise Admin
     function isFranchiseAdmin() {
-      return request.auth != null && request.auth.token.role == 'franchise_admin';
+      return request.auth != null && request.auth.token.get('role', '') == 'franchise_admin';
     }
 
     // Check if a store belongs to the franchise admin's franchise
     function inSameFranchise(storeId) {
-      return request.auth != null && request.auth.token.franchiseId == get(/databases/$(database)/documents/stores/$(storeId)).data.franchiseId;
+      return request.auth != null && request.auth.token.get('franchiseId', '') == get(/databases/$(database)/documents/stores/$(storeId)).data.franchiseId;
     }
 
     // --- RULES ---
@@ -237,9 +246,9 @@ service cloud.firestore {
 
     // Warehouses
     match /warehouses/{warehouseId} {
-       allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
-       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
-       allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().get('storeId', '') || isSuperAdmin());
+       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().get('storeId', '') || isSuperAdmin());
+       allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().get('storeId', '') || isSuperAdmin());
     }
 
     // Driver Sessions (for anonymous driver auth)
@@ -251,31 +260,33 @@ service cloud.firestore {
     match /orders/{orderId} {
        allow read: if request.auth != null && (
          isStoreOwner(resource.data.storeId) ||
-         (resource.data.storeId == getUserData().storeId && !isDriver(resource.data.storeId)) ||
+         (resource.data.storeId == getUserData().get('storeId', '') && !isDriver(resource.data.storeId)) ||
          isSuperAdmin() ||
          (isFranchiseAdmin() && inSameFranchise(resource.data.storeId)) ||
-         resource.data.livreurToken == request.auth.token.uid ||
+         resource.data.livreurToken == request.auth.uid ||
          (isDriver(resource.data.storeId) && resource.data.assignedDriver == request.auth.uid) ||
          (exists(/databases/$(database)/documents/driver_sessions/$(request.auth.uid)) && resource.data.livreurToken == get(/databases/$(database)/documents/driver_sessions/$(request.auth.uid)).data.token)
        );
                       
        allow create: if isValidOrder(request.resource.data) && (
-                         (request.auth != null && (isStoreOwner(request.resource.data.storeId) || (request.resource.data.storeId == getUserData().storeId && !isDriver(request.resource.data.storeId)) || isSuperAdmin()))
+                         (request.auth != null && (isStoreOwner(request.resource.data.storeId) || (request.resource.data.storeId == getUserData().get('storeId', '') && !isDriver(request.resource.data.storeId)) || isSuperAdmin()))
                          || (request.resource.data.status == 'pending_catalog' && isPublicCatalogEnabled(request.resource.data.storeId))
                       );
                           
-       allow update: if isValidOrder(request.resource.data) && request.auth != null && (isStoreOwner(resource.data.storeId) || (resource.data.storeId == getUserData().storeId && !isDriver(resource.data.storeId)) || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId))) &&
+       allow update: if isValidOrder(request.resource.data) && request.auth != null && (isStoreOwner(resource.data.storeId) || (resource.data.storeId == getUserData().get('storeId', '') && !isDriver(resource.data.storeId)) || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId))) &&
                          isValidTransition(resource.data.status, request.resource.data.status) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['storeId']);
        
        allow update: if request.auth != null && (
-                            (exists(/databases/$(database)/documents/driver_sessions/$(request.auth.uid)) && resource.data.livreurToken == get(/databases/$(database)/documents/driver_sessions/$(request.auth.uid)).data.token) || 
-                            (isDriver(resource.data.storeId) && resource.data.assignedDriver == request.auth.uid) || 
-                            resource.data.livreurToken == request.auth.token.uid
+                            // Chemin sûr d'abord (pas de getUserData(), qui plante si le livreur n'a pas de doc users)
+                            resource.data.livreurToken == request.auth.uid ||
+                            (exists(/databases/$(database)/documents/driver_sessions/$(request.auth.uid)) && resource.data.livreurToken == get(/databases/$(database)/documents/driver_sessions/$(request.auth.uid)).data.token) ||
+                            (isDriver(resource.data.storeId) && resource.data.assignedDriver == request.auth.uid)
                          ) &&
-                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'statusHistory', 'isPaid', 'driverNote', 'deliveryNote', 'deliveredAt']) &&
-                         request.resource.data.status in ['livraison', 'livré', 'retour', 'pas de réponse'];
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'statusHistory', 'isPaid', 'codCollected', 'codCollectedAt', 'driverNote', 'deliveryNote', 'deliveredAt', 'remarksHistory']) &&
+                         isValidTransition(resource.data.status, request.resource.data.status) &&
+                         request.resource.data.status in ['livraison', 'livré', 'retour', 'retour en cours', 'pas de réponse', 'reporté'];
                          
-       allow delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || (resource.data.storeId == getUserData().storeId && !isDriver(resource.data.storeId)) || isSuperAdmin());
+       allow delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || (resource.data.storeId == getUserData().get('storeId', '') && !isDriver(resource.data.storeId)) || isSuperAdmin());
     }
 
     // Expenses
@@ -321,15 +332,15 @@ service cloud.firestore {
 
     // Custom Events
     match /events/{eventId} {
-       allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId)));
-       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
-       allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().get('storeId', '') || isSuperAdmin() || (isFranchiseAdmin() && inSameFranchise(resource.data.storeId)));
+       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().get('storeId', '') || isSuperAdmin());
+       allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().get('storeId', '') || isSuperAdmin());
     }
     // Product Collections
     match /collections/{collectionId} {
        allow read: if true;
-       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().storeId || isSuperAdmin());
-       allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().storeId || isSuperAdmin());
+       allow create: if request.auth != null && (isStoreOwner(request.resource.data.storeId) || request.resource.data.storeId == getUserData().get('storeId', '') || isSuperAdmin());
+       allow update, delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || resource.data.storeId == getUserData().get('storeId', '') || isSuperAdmin());
     }
 
     // System Announcements
@@ -412,7 +423,7 @@ service cloud.firestore {
         allow create: if request.auth != null && (
             isSuperAdmin() ||
             isStoreOwner(request.resource.data.storeId) ||
-            request.resource.data.storeId == getUserData().storeId
+            request.resource.data.storeId == getUserData().get('storeId', '')
         );
         allow update, delete: if request.auth != null && (
             isSuperAdmin() ||
@@ -424,7 +435,7 @@ service cloud.firestore {
             allow read, write: if request.auth != null && (
                 isSuperAdmin() ||
                 isStoreOwner(get(/databases/$(database)/documents/employees/$(employeeId)).data.storeId) ||
-                get(/databases/$(database)/documents/employees/$(employeeId)).data.storeId == getUserData().storeId
+                get(/databases/$(database)/documents/employees/$(employeeId)).data.storeId == getUserData().get('storeId', '')
             );
         }
 
@@ -432,7 +443,7 @@ service cloud.firestore {
             allow read, write: if request.auth != null && (
                 isSuperAdmin() ||
                 isStoreOwner(get(/databases/$(database)/documents/employees/$(employeeId)).data.storeId) ||
-                get(/databases/$(database)/documents/employees/$(employeeId)).data.storeId == getUserData().storeId
+                get(/databases/$(database)/documents/employees/$(employeeId)).data.storeId == getUserData().get('storeId', '')
             );
         }
     }
@@ -448,7 +459,7 @@ service cloud.firestore {
         allow create: if request.auth != null && (
             isSuperAdmin() ||
             isStoreOwner(request.resource.data.storeId) ||
-            request.resource.data.storeId == getUserData().storeId
+            request.resource.data.storeId == getUserData().get('storeId', '')
         );
         allow update, delete: if request.auth != null && (
             isSuperAdmin() ||
@@ -460,7 +471,7 @@ service cloud.firestore {
             allow read, write: if request.auth != null && (
                 isSuperAdmin() ||
                 isStoreOwner(get(/databases/$(database)/documents/purchase_orders/$(orderId)).data.storeId) ||
-                get(/databases/$(database)/documents/purchase_orders/$(orderId)).data.storeId == getUserData().storeId
+                get(/databases/$(database)/documents/purchase_orders/$(orderId)).data.storeId == getUserData().get('storeId', '')
             );
         }
     }
@@ -476,7 +487,7 @@ service cloud.firestore {
         allow create: if request.auth != null && (
             isSuperAdmin() ||
             isStoreOwner(request.resource.data.storeId) ||
-            request.resource.data.storeId == getUserData().storeId
+            request.resource.data.storeId == getUserData().get('storeId', '')
         );
         allow update, delete: if request.auth != null && (
             isSuperAdmin() ||
@@ -495,7 +506,7 @@ service cloud.firestore {
         allow create: if request.auth != null && (
             isSuperAdmin() ||
             isStoreOwner(request.resource.data.storeId) ||
-            request.resource.data.storeId == getUserData().storeId
+            request.resource.data.storeId == getUserData().get('storeId', '')
         );
         allow update, delete: if request.auth != null && (
             isSuperAdmin() ||

@@ -1,6 +1,13 @@
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { authenticateSendit, createSenditPackage } from '../lib/sendit';
+import { isValidTransition } from './orderStateMachine';
+
+// Total réel de la commande : `total` si présent, sinon prix × quantité (les commandes
+// n'ont pas de champ `total` → l'ancien `payload.total` était toujours undefined).
+const orderTotal = (o) => (o?.total != null && o.total !== ''
+    ? parseFloat(o.total)
+    : (parseFloat(o?.price) || 0) * (parseInt(o?.quantity) || 1)) || 0;
 
 // Helper to evaluate conditions
 const evaluateCondition = (conditionNode, payload) => {
@@ -9,10 +16,10 @@ const evaluateCondition = (conditionNode, payload) => {
     // Check specific conditions based on ID
     switch (conditionNode.id) {
         case 'status_equals':
-            if (!conditionNode.config?.status) return true; 
+            if (!conditionNode.config?.status) return true;
             return payload.status === conditionNode.config.status;
         case 'total_greater':
-            return payload.total > (conditionNode.config?.amount || 0);
+            return orderTotal(payload) > (conditionNode.config?.amount || 0);
         default:
             return true;
     }
@@ -46,6 +53,12 @@ const executeAction = async (actionNode, payload, store, delayMs = 0) => {
                     console.warn("Automation skipped: Sendit keys missing");
                     return;
                 }
+                // Éviter le colis fantôme : ne pas expédier depuis un état qui n'autorise
+                // pas → 'livraison' (l'update Firestore serait rejeté après création du colis).
+                if (payload.status && !isValidTransition(payload.status, 'livraison')) {
+                    console.warn(`Automation create_delivery ignoré : transition ${payload.status}→livraison invalide`);
+                    return;
+                }
                 const token = await authenticateSendit(store.senditPublicKey, store.senditSecretKey);
                 const result = await createSenditPackage(token, payload, store);
                 
@@ -69,7 +82,7 @@ const executeAction = async (actionNode, payload, store, delayMs = 0) => {
                     message = message.replace(/{name}/g, payload.clientName || 'Client');
                     message = message.replace(/{product}/g, payload.articleName || 'votre commande');
                     message = message.replace(/{city}/g, payload.clientCity || 'votre ville');
-                    message = message.replace(/{total}/g, payload.total ? `${payload.total} DH` : 'le montant convenu');
+                    message = message.replace(/{total}/g, orderTotal(payload) > 0 ? `${orderTotal(payload)} DH` : 'le montant convenu');
                     message = message.replace(/{payment_method}/g, payload.paymentMethod || 'Paiement à la livraison');
                     message = message.replace(/{store_name}/g, store?.name || 'Notre Boutique');
                     message = message.replace(/{delivery_address}/g, payload.clientAddress || 'votre adresse');

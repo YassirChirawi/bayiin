@@ -13,7 +13,7 @@ import { orderBy, limit } from "firebase/firestore";
 import { useLanguage } from "../context/LanguageContext"; // NEW
 import { vibrate } from "../utils/haptics";
 import { motion, AnimatePresence } from "framer-motion";
-import { getCustomerSegment } from "../utils/aiSegmentation"; // NEW
+import { getSegmentFromSummary } from "../utils/aiSegmentation"; // NEW
 import { getWhatsAppLink } from "../utils/whatsappTemplates"; // NEW
 import { MessageCircle } from "lucide-react"; // NEW icon
 import PageTransition from "../components/PageTransition";
@@ -58,32 +58,10 @@ export default function Customers() {
     const [segmentFilter, setSegmentFilter] = useState('ALL'); // NEW Filter
     const [loyaltyCustomer, setLoyaltyCustomer] = useState(null); // Nqat Modal
 
-    // --- Compute Segments for All Customers ---
-    // Note: detailed order history per customer might not be fully loaded here in a real large app.
-    // For this demo, we assume 'customers' has aggregated stats or we rely on 'totalSpent'/'orderCount'
-    // 'aiSegmentation' strictly expects an array of orders to calc recency. 
-    // IF we don't have orders loaded here, we can fallback to 'lastOrderDate' string if available.
-    // Let's verify 'aiSegmentation.js' - it uses 'orders'.
-    // ADAPTATION: We will construct a "mock" order list from customer summary data if real orders aren't passed,
-    // OR we modify getCustomerSegment to accept summary props. 
-    // BETTER: Let's assume 'customers' collection has 'lastOrderDate', 'totalSpent', 'orderCount'. 
-    // We will wrap `getCustomerSegment` logic slightly or pass a fake single order with "lastOrderDate" to trick it.
-
-    // Helper to adapt customer summary to segmentation logic
-    const getSegment = (c) => {
-        // Construct mock orders to satisfy the util signature
-        const mockOrders = [];
-        if (c.lastOrderDate) {
-            mockOrders.push({
-                createdAt: c.lastOrderDate, // Util handles string or Date
-                price: c.totalSpent,
-                quantity: 1
-            });
-            // If orderCount > 1, push more dummies? Use util logic carefully.
-            for (let i = 1; i < c.orderCount; i++) mockOrders.push({});
-        }
-        return getCustomerSegment(c, mockOrders);
-    };
+    // Segmentation à partir du résumé agrégé du client (totalSpent/orderCount/lastOrderDate),
+    // maintenu par le serveur. On n'a pas l'historique complet par client dans la liste, on
+    // utilise donc getSegmentFromSummary (plus de "mock orders" qui cassaient la segmentation).
+    const getSegment = (c) => getSegmentFromSummary(c);
 
 
     const kpiStats = useMemo(() => {
