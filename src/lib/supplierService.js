@@ -211,9 +211,6 @@ export async function validateReception(orderId, receivedLines, storeId) {
     const batch = writeBatch(db);
 
     // 1. Read phase
-    const poSnap = await getDoc(doc(db, 'purchase_orders', orderId));
-    const supplierName = poSnap.exists() ? poSnap.data().supplierName : 'Fournisseur';
-
     const productDocs = {};
     for (const line of receivedLines) {
         if (!line.productId) continue;
@@ -266,23 +263,10 @@ export async function validateReception(orderId, receivedLines, storeId) {
         lines: receivedLines,
     });
 
-    // Auto-create Finance Expense (COGS)
-    const totalReceivedValue = receivedLines.reduce((sum, l) => sum + ((parseFloat(l.qty) || 0) * (parseFloat(l.unit_price) || 0)), 0);
-    
-    // We categorize it exactly as "COGS" so the dashboard recognizes it.
-    const expenseRef = doc(collection(db, 'expenses'));
-    batch.set(expenseRef, {
-        storeId,
-        date: new Date().toISOString().split('T')[0],
-        category: 'COGS',
-        amount: totalReceivedValue,
-        description: `Réception Commande Fournisseur - ${supplierName}`,
-        collectionId: '',
-        recurrent: false,
-        source: 'purchase_order',
-        purchaseOrderId: orderId,
-        createdAt: serverTimestamp()
-    });
+    // Modèle comptable A (COGS à la VENTE) : la réception ne crée PAS de dépense COGS.
+    // Le coût des produits est compté à la vente via realizedCOGS (financials.js / onOrderWrite).
+    // Le stock reçu est un actif, pas une charge tant qu'il n'est pas vendu → plus de double
+    // comptage. La réception reste tracée (sous-document receptions + statut PO 'received').
 
     await batch.commit();
 }
