@@ -65,14 +65,20 @@ service cloud.firestore {
     }
 
     // Validate Order Transitions
+    // DOIT rester synchronisée avec src/utils/orderStateMachine.js (VALID_TRANSITIONS).
     function isValidTransition(from, to) {
-      return (from == 'reçu' && to in ['confirmation', 'packing', 'annulé']) ||
+      return (from == to) ||
+             (from == 'reçu' && to in ['confirmation', 'packing', 'annulé']) ||
              (from == 'confirmation' && to in ['packing', 'livraison', 'annulé']) ||
-             (from == 'packing' && to in ['livraison', 'annulé']) ||
-             (from == 'livraison' && to in ['livré', 'retour', 'annulé', 'pas de réponse']) ||
+             (from == 'packing' && to in ['ramassage', 'livraison', 'annulé']) ||
+             (from == 'ramassage' && to in ['livraison', 'annulé']) ||
+             (from == 'livraison' && to in ['livré', 'retour', 'retour en cours', 'annulé', 'pas de réponse', 'reporté']) ||
              (from == 'livré' && to == 'retour') ||
-             (from == 'pas de réponse' && to in ['confirmation', 'annulé']) ||
-             (from == to);
+             (from == 'annulé' && to == 'reçu') ||
+             (from == 'retour en cours' && to in ['retour', 'annulé']) ||
+             (from == 'pas de réponse' && to in ['confirmation', 'livraison', 'annulé', 'reporté']) ||
+             (from == 'reporté' && to in ['confirmation', 'livraison', 'annulé', 'pas de réponse']) ||
+             (from == 'pending_catalog' && to in ['reçu', 'annulé']);
     }
 
     // Check if store exists and has public catalog enabled
@@ -254,7 +260,7 @@ service cloud.firestore {
          (resource.data.storeId == getUserData().storeId && !isDriver(resource.data.storeId)) ||
          isSuperAdmin() ||
          (isFranchiseAdmin() && inSameFranchise(resource.data.storeId)) ||
-         resource.data.livreurToken == request.auth.token.uid ||
+         resource.data.livreurToken == request.auth.uid ||
          (isDriver(resource.data.storeId) && resource.data.assignedDriver == request.auth.uid) ||
          (exists(/databases/$(database)/documents/driver_sessions/$(request.auth.uid)) && resource.data.livreurToken == get(/databases/$(database)/documents/driver_sessions/$(request.auth.uid)).data.token)
        );
@@ -268,12 +274,14 @@ service cloud.firestore {
                          isValidTransition(resource.data.status, request.resource.data.status) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['storeId']);
        
        allow update: if request.auth != null && (
-                            (exists(/databases/$(database)/documents/driver_sessions/$(request.auth.uid)) && resource.data.livreurToken == get(/databases/$(database)/documents/driver_sessions/$(request.auth.uid)).data.token) || 
-                            (isDriver(resource.data.storeId) && resource.data.assignedDriver == request.auth.uid) || 
-                            resource.data.livreurToken == request.auth.token.uid
+                            // Chemin sûr d'abord (pas de getUserData(), qui plante si le livreur n'a pas de doc users)
+                            resource.data.livreurToken == request.auth.uid ||
+                            (exists(/databases/$(database)/documents/driver_sessions/$(request.auth.uid)) && resource.data.livreurToken == get(/databases/$(database)/documents/driver_sessions/$(request.auth.uid)).data.token) ||
+                            (isDriver(resource.data.storeId) && resource.data.assignedDriver == request.auth.uid)
                          ) &&
-                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'statusHistory', 'isPaid', 'driverNote', 'deliveryNote', 'deliveredAt']) &&
-                         request.resource.data.status in ['livraison', 'livré', 'retour', 'pas de réponse'];
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'statusHistory', 'isPaid', 'codCollected', 'codCollectedAt', 'driverNote', 'deliveryNote', 'deliveredAt', 'remarksHistory']) &&
+                         isValidTransition(resource.data.status, request.resource.data.status) &&
+                         request.resource.data.status in ['livraison', 'livré', 'retour', 'retour en cours', 'pas de réponse', 'reporté'];
                          
        allow delete: if request.auth != null && (isStoreOwner(resource.data.storeId) || (resource.data.storeId == getUserData().storeId && !isDriver(resource.data.storeId)) || isSuperAdmin());
     }
