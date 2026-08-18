@@ -8,7 +8,7 @@
 import Papa from 'papaparse';
 import {
     collection, query, where, getDocs, doc, getDoc,
-    addDoc, updateDoc, serverTimestamp, writeBatch
+    addDoc, updateDoc, serverTimestamp, writeBatch, increment, arrayUnion
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { extractSKUFromRow, validateSKU } from './skuService';
@@ -230,8 +230,6 @@ export async function validateReception(orderId, receivedLines, storeId) {
 
         const productRef = doc(db, 'products', line.productId);
         const current = productSnap.data();
-        const currentStock = parseFloat(current.stock) || 0;
-        const newStock = currentStock + (parseFloat(line.qty) || 0);
 
         // Build new batch entry
         const newBatch = {
@@ -242,11 +240,13 @@ export async function validateReception(orderId, receivedLines, storeId) {
             costPrice: parseFloat(line.unit_price) || 0,
         };
 
-        const existingBatches = current.inventoryBatches || [];
+        // increment + arrayUnion : atomiques côté serveur → pas de lost-update si une
+        // commande déduit le stock (ou une autre réception) en parallèle. Un writeBatch
+        // ne relit pas les documents ; recalculer stock = current + qty écrasait la concurrence.
         batch.update(productRef, {
-            stock: newStock,
+            stock: increment(parseFloat(line.qty) || 0),
             costPrice: parseFloat(line.unit_price) || current.costPrice || 0,
-            inventoryBatches: [...existingBatches, newBatch],
+            inventoryBatches: arrayUnion(newBatch),
             updatedAt: serverTimestamp(),
         });
     }
