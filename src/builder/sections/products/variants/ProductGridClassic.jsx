@@ -6,7 +6,7 @@ import EditableText from '../../../components/EditableText';
 import BlockText from '../../../components/BlockText';
 import BlockButton from '../../../components/BlockButton';
 import SectionWrapper from '../../../components/SectionWrapper';
-import { useCart } from '../../../../contexts/CartContext';
+import { useCart } from '../../../../context/CartContext';
 
 const getAnimationProps = (animationType, index = 0) => {
     switch (animationType) {

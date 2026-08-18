@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import * as LucideIcons from 'lucide-react';
-import { useCart } from '../../contexts/CartContext';
+import { useCart } from '../../context/CartContext';
 
 const DynamicIcon = ({ name, size = 20, className }) => {
     if (!name) return null;

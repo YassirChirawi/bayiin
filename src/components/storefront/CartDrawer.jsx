@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ShoppingBag, Plus, Minus, Trash2, ArrowRight, Zap, ChevronLeft } from 'lucide-react';
 
-import { useCart } from '../../contexts/CartContext';
+import { useCart } from '../../context/CartContext';
 
 export default function CartDrawer({ 
     theme,
