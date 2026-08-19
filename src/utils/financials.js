@@ -1,17 +1,19 @@
 /**
  * Financial Calculation Utilities
  * Centralizes logic for calculating Revenue, Expenses, Margins, KPIs, and Moroccan TVA.
+ *
+ * BAY-104 : les primitives « argent » (valeur commande, cash encaissé, COGS, livraison, TVA,
+ * résultat net) proviennent de la SOURCE DE VÉRITÉ UNIQUE (src/utils/money.js →
+ * functions/shared/money.js), partagée avec le serveur. Ne pas ré-implémenter ici.
  */
+import {
+    orderValue, orderCOGS, isOrderPaid, collectedValue,
+    orderDeliveryCost, tvaFromTTC, netProfit,
+} from './money.js';
 
 // Helper: Safely parse a float
 const safeFloat = (val) => {
     const num = parseFloat(val);
-    return isNaN(num) ? 0 : num;
-};
-
-// Helper: Safely parse an int
-const safeInt = (val) => {
-    const num = parseInt(val);
     return isNaN(num) ? 0 : num;
 };
 
@@ -52,17 +54,10 @@ export const calculateFinancialStats = (orders, expenses, refunds = [], dateRang
     const start = dateRange ? new Date(dateRange.start) : null;
     const end = dateRange ? new Date(dateRange.end + "T23:59:59") : null;
 
-    // 1. Process Orders
+    // 1. Process Orders — primitives issues de la source de vérité unique (money.js)
     orders.forEach(o => {
-        const qty = safeInt(o.quantity) || 1;
-        const price = safeFloat(o.price);
-        const cost = safeFloat(o.costPrice);
-        const delivery = safeFloat(o.realDeliveryCost);
-
-        const revenue = price * qty;
-        const cogs = cost * qty;
-
-        const isPaid = o.isPaid === true || o.isPaid === "true" || o.paymentStatus === 'remitted';
+        const revenue = orderValue(o);
+        const isPaid = isOrderPaid(o);
 
         // Delivered Potential
         if (o.status === 'livré') {
@@ -75,31 +70,20 @@ export const calculateFinancialStats = (orders, expenses, refunds = [], dateRang
             res.activeCount++;
         }
 
-        // Realized Cash (The Gold Standard)
-        const amountCollected = (o.amountPaid !== undefined && o.amountPaid !== null && o.amountPaid !== "") 
-            ? safeFloat(o.amountPaid) 
-            : (isPaid ? revenue : 0);
-
+        // Realized Cash (The Gold Standard) — cash réellement encaissé (amountPaid ou plein si payée)
+        const amountCollected = collectedValue(o);
         if (amountCollected > 0 || isPaid) {
             res.realizedRevenue += amountCollected;
-            
-            // COGS logic: If the order is paid or partially paid, we count the proportional COGS 
-            // Or full COGS if we want to be conservative. The current implementation uses full COGS.
-            // Let's stick to full COGS liability if ANY payment is received, as per business requirement.
-            res.totalCOGS += cogs;
+            // COGS plein dès qu'un paiement est reçu (règle métier partagée client/serveur).
+            res.totalCOGS += orderCOGS(o);
         }
 
-        // Delivery Costs: Incurred if shipped (delivered, returned, or manually recorded)
-        if (['livré', 'retour', 'retour en cours', 'livraison', 'ramassage'].includes(o.status)) {
-            res.totalRealDelivery += delivery;
-        }
+        // Delivery Costs: engagés si expédiée (livré/retour/livraison/ramassage) — 0 sinon.
+        res.totalRealDelivery += orderDeliveryCost(o);
     });
 
-    // TVA 20% sur le Chiffre d'Affaires Livré (hors TVA = TTC / 1.2, TVA = TTC - HT)
-    // Formule: TVA = CA_livré - (CA_livré / 1.20)
-    res.tvaCollectee = res.deliveredRevenue > 0
-        ? res.deliveredRevenue - (res.deliveredRevenue / 1.2)
-        : 0;
+    // TVA 20% extraite du CA livré (TTC) — formule unique tvaFromTTC.
+    res.tvaCollectee = tvaFromTTC(res.deliveredRevenue);
 
     // 2. Process Expenses
     const filteredExpenses = expenses.filter(e => {
@@ -140,9 +124,15 @@ export const calculateFinancialStats = (orders, expenses, refunds = [], dateRang
 
     res.totalRefunds = filteredRefunds.reduce((sum, r) => sum + safeFloat(r.amount), 0);
 
-    // 4. Net Result (incluant frais d'approche et Avoirs)
-    const importFeesAmount = safeFloat(importFees);
-    res.netResult = res.realizedRevenue - res.totalCOGS - res.totalRealDelivery - res.totalExpenses - res.totalRefunds - importFeesAmount;
+    // 4. Net Result (incluant frais d'approche et Avoirs) — formule unique netProfit.
+    res.netResult = netProfit({
+        realizedRevenue: res.realizedRevenue,
+        cogs: res.totalCOGS,
+        delivery: res.totalRealDelivery,
+        expenses: res.totalExpenses,
+        refunds: res.totalRefunds,
+        importFees: safeFloat(importFees),
+    });
 
     // 5. Derived Metrics
     // Net Revenue = Gross Realized - Refunds
