@@ -1,4 +1,6 @@
 const { getFirestore } = require('firebase-admin/firestore');
+// BAY-104 : primitives argent depuis la source de vérité unique (partagée client/serveur).
+const { collectedValue, isRealized: isOrderRealized, orderCOGS, orderDeliveryCost, netProfit: computeNetProfit } = require('../shared/money');
 
 /**
  * Moteur Financier Déterministe pour Beya3
@@ -152,33 +154,22 @@ async function calculateNetProfit(storeId, startDate, endDate, breakdown = 'tota
         }
 
         if (orderDate >= startObj && orderDate <= endObj) {
-            const price = parseFloat(order.price) || 0;
-            const qty = parseInt(order.quantity) || 1;
-            const cost = parseFloat(order.costPrice) || 0;
-            const realDeliveryCost = parseFloat(order.realDeliveryCost) || 0;
-            
             const dateKey = orderDate.toISOString().split('T')[0];
             const cityKey = order.clientCity || 'Inconnu';
 
-            // Base TRÉSORERIE, cohérente avec src/utils/financials.js (le "vrai cash") : on
-            // compte le montant réellement encaissé (amountPaid, sinon isPaid → total), pas le
-            // simple statut "livré". Sinon Beya3 annonce un profit ≠ de la page Finances.
-            const collected = (order.amountPaid !== undefined && order.amountPaid !== null && order.amountPaid !== "")
-                ? (parseFloat(order.amountPaid) || 0)
-                : (order.isPaid ? price * qty : 0);
-            const isRealized = collected > 0 || order.isPaid === true;
-
-            if (isRealized) {
+            // Base TRÉSORERIE (le "vrai cash") via la source de vérité unique money.js : montant
+            // réellement encaissé (amountPaid, sinon isPaid/remitted → total). Beya3, la page
+            // Finances et les stats serveur partagent désormais EXACTEMENT la même définition.
+            const collected = collectedValue(order);
+            if (isOrderRealized(order)) {
                 grossRevenue += collected;
-                cogs += (cost * qty); // COGS plein dès qu'un paiement est reçu (comme financials.js)
+                cogs += orderCOGS(order); // COGS plein dès qu'un paiement est reçu
                 ordersCount++;
                 if (breakdown === 'by_city') byCity[cityKey] = (byCity[cityKey] || 0) + collected;
                 if (breakdown === 'by_day') byDay[dateKey] = (byDay[dateKey] || 0) + collected;
             }
-            // Coûts de livraison : encourus dès l'expédition (livré/retour/en cours/livraison/ramassage).
-            if (['livré', 'retour', 'retour en cours', 'livraison', 'ramassage'].includes(order.status)) {
-                deliveryCosts += realDeliveryCost;
-            }
+            // Coûts de livraison : encourus dès l'expédition (0 sinon) — même définition partagée.
+            deliveryCosts += orderDeliveryCost(order);
         }
     });
 
@@ -195,7 +186,7 @@ async function calculateNetProfit(storeId, startDate, endDate, breakdown = 'tota
         }
     });
 
-    const netProfit = grossRevenue - cogs - deliveryCosts - expenses - returnImpact;
+    const netProfit = computeNetProfit({ realizedRevenue: grossRevenue, cogs, delivery: deliveryCosts, expenses, refunds: returnImpact });
     const margin = grossRevenue > 0 ? (netProfit / grossRevenue) * 100 : 0;
 
     const result = {
