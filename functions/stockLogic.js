@@ -74,13 +74,18 @@ const applyStockUpdates = async (db, before, after) => {
         const qty = item.quantity * sign;
         
         if (!deltas[item.id]) {
-            deltas[item.id] = { baseDelta: 0, variants: {}, warehouses: {} };
+            deltas[item.id] = { baseDelta: 0, variants: {}, warehouses: {}, variantWarehouse: {} };
         }
-        
+
         deltas[item.id].baseDelta += qty;
-        
+
         if (item.variantId) {
             deltas[item.id].variants[item.variantId] = (deltas[item.id].variants[item.variantId] || 0) + qty;
+            // BAY-106 : corréler variante × entrepôt pour appliquer le delta au BON entrepôt
+            // (et pas systématiquement au premier) sur les commandes multi-articles.
+            const wId = item.warehouseId || '__default__';
+            (deltas[item.id].variantWarehouse[item.variantId] ||= {});
+            deltas[item.id].variantWarehouse[item.variantId][wId] = (deltas[item.id].variantWarehouse[item.variantId][wId] || 0) + qty;
         }
         if (item.warehouseId) {
             deltas[item.id].warehouses[item.warehouseId] = (deltas[item.id].warehouses[item.warehouseId] || 0) + qty;
@@ -138,12 +143,16 @@ const applyStockUpdates = async (db, before, after) => {
             if (pData.isVariable && Object.keys(adj.variants).length > 0) {
                 let newVariants = [...(pData.variants || [])];
                 for (const [vid, vDelta] of Object.entries(adj.variants)) {
+                    const vWarehouses = adj.variantWarehouse[vid] || {};
                     newVariants = newVariants.map(v => {
                         if (v.id === vid) {
                             const vWStocks = { ...(v.warehouseStocks || {}) };
-                            const wId = Object.keys(adj.warehouses)[0];
-                            if (wId) {
-                                vWStocks[wId] = Math.max(0, (vWStocks[wId] || 0) + vDelta); // stock négatif impossible
+                            // BAY-106 : appliquer le delta au(x) BON(s) entrepôt(s) de CETTE variante
+                            // (avant : toujours le premier entrepôt du produit → dérive multi-articles).
+                            for (const [wId, wDelta] of Object.entries(vWarehouses)) {
+                                if (wId !== '__default__') {
+                                    vWStocks[wId] = Math.max(0, (vWStocks[wId] || 0) + wDelta); // stock négatif impossible
+                                }
                             }
                             return { ...v, stock: Math.max(0, (parseInt(v.stock) || 0) + vDelta), warehouseStocks: vWStocks };
                         }
