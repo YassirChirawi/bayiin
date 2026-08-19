@@ -9,6 +9,8 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-hot-toast';
 import { useAutomations } from '../hooks/useAutomations';
+import { useAutomationTasks } from '../hooks/useAutomationTasks';
+import TasksInbox from '../components/automations/TasksInbox';
 import { useTenant } from '../context/TenantContext'; // NEW
 import { useLanguage } from '../context/LanguageContext';
 import { DEFAULT_TEMPLATES, DARIJA_TEMPLATES } from '../utils/whatsappTemplates'; // NEW
@@ -491,6 +493,7 @@ export default function Automations() {
 
     // Use our new hook
     const { automations, loading, addAutomation, updateAutomation, toggleAutomationStatus, deleteAutomation } = useAutomations();
+    const tasks = useAutomationTasks(); // BAY-105 : boîte de réception des tâches serveur
     const { store } = useTenant(); // NEW
     const { t } = useLanguage();
 
@@ -600,7 +603,7 @@ export default function Automations() {
                         </p>
                     </div>
 
-                    {view === 'list' ? (
+                    {view !== 'editor' ? (
                         <button
                             onClick={handleCreateNew}
                             disabled={!store?.testerMode}
@@ -619,8 +622,53 @@ export default function Automations() {
                     )}
                 </div>
 
+                {/* Onglets Scénarios / Tâches (BAY-105) — masqués pendant l'édition */}
+                {view !== 'editor' && (
+                    <div className="flex items-center gap-1 border-b border-gray-200 mb-6 -mt-2">
+                        {[
+                            { key: 'list', label: 'Scénarios' },
+                            { key: 'tasks', label: 'Tâches à faire' },
+                        ].map((tab) => (
+                            <button
+                                key={tab.key}
+                                onClick={() => setView(tab.key)}
+                                className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${view === tab.key ? 'text-indigo-600' : 'text-gray-500 hover:text-gray-800'}`}
+                            >
+                                <span className="flex items-center gap-2">
+                                    {tab.label}
+                                    {tab.key === 'tasks' && tasks.pendingCount > 0 && (
+                                        <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[11px] font-bold text-white bg-red-500 rounded-full">
+                                            {tasks.pendingCount}
+                                        </span>
+                                    )}
+                                </span>
+                                {view === tab.key && (
+                                    <motion.div layoutId="autoTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600" />
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
                 <AnimatePresence mode="wait">
                     {/* ... rest of the content ... */}
+                {view === 'tasks' && (
+                    <motion.div
+                        key="tasks"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                    >
+                        <TasksInbox
+                            whatsappTasks={tasks.whatsappTasks}
+                            shipmentTasks={tasks.shipmentTasks}
+                            loading={tasks.loading}
+                            markWhatsappDone={tasks.markWhatsappDone}
+                            markShipmentDone={tasks.markShipmentDone}
+                        />
+                    </motion.div>
+                )}
+
                 {view === 'list' && (
                     <motion.div
                         key="list"
