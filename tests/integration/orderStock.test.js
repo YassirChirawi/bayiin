@@ -160,3 +160,26 @@ describe('applyStockUpdates — lots FEFO (BAY-79)', () => {
     expect(b.find((x) => x.batchNumber === 'FAR').quantity).toBe(10);
   });
 });
+
+describe('applyStockUpdates — variante × entrepôt (BAY-106)', () => {
+  it('déduit le BON entrepôt de la variante commandée (pas le premier)', async () => {
+    await seedProduct('pvar', {
+      storeId: 's1', name: 'PVAR', price: 10, stock: 9, isVariable: true,
+      variants: [
+        { id: 'v1', stock: 5, warehouseStocks: { wh1: 2, wh2: 3 } },
+        { id: 'v2', stock: 4, warehouseStocks: { wh1: 4 } },
+      ],
+    });
+    // Commande de la variante v1 depuis l'entrepôt wh2.
+    await applyStockUpdates(db, null, { status: 'reçu', articleId: 'pvar', variantId: 'v1', quantity: 2, warehouseId: 'wh2' });
+
+    const p = await stockOf('pvar');
+    const v1 = p.variants.find((v) => v.id === 'v1');
+    const v2 = p.variants.find((v) => v.id === 'v2');
+    expect(p.stock).toBe(7);                     // 9 - 2
+    expect(v1.stock).toBe(3);                    // 5 - 2
+    expect(v1.warehouseStocks.wh2).toBe(1);      // 3 - 2 (le bon entrepôt)
+    expect(v1.warehouseStocks.wh1).toBe(2);      // intact
+    expect(v2.stock).toBe(4);                    // variante non commandée intacte
+  });
+});
