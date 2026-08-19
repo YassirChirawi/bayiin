@@ -17,6 +17,9 @@ initializeApp();
 // Connect to the named database used by the frontend
 const db = getFirestore('comsaas');
 
+// BAY-104 : source de vérité unique des définitions financières (partagée client/serveur).
+const { orderValue: mOrderValue, orderCOGS: mOrderCOGS, collectedValue: mCollected, isRealized: mIsRealized, netProfit: mNetProfit } = require('./shared/money');
+
 // Copilot AI Function (Groq Proxy)
 const { copilotChatV1 } = require('./copilot');
 exports.copilotChatV1 = copilotChatV1;
@@ -528,18 +531,9 @@ exports.onOrderWrite = onDocumentWritten({
     // 6. [NEW] Realized Revenue (totals.realizedRevenue) - Only 'livré'
     // 7. [NEW] Realized COGS (totals.realizedCOGS) - Only 'livré'
 
-    // Helpers
-    // Realized Revenue = cash actually collected. Honor partial `amountPaid` (COD), matching
-    // financials.js and manualReconciliation, not just the boolean isPaid flag.
-    const getCollectedValue = (order) => {
-        if (!order) return 0;
-        if (order.amountPaid !== undefined && order.amountPaid !== null && order.amountPaid !== "") {
-            return parseFloat(order.amountPaid) || 0;
-        }
-        return order.isPaid ? getOrderValue(order) : 0;
-    };
-    const isRealized = (order) => order && (getCollectedValue(order) > 0 || order.isPaid === true);
-    const getCostValue = (order) => (parseFloat(order.costPrice) || 0) * (parseInt(order.quantity) || 1);
+    // Helpers — primitives issues de la SOURCE DE VÉRITÉ UNIQUE (BAY-104, ./shared/money).
+    // getCollectedValue = cash réellement encaissé (amountPaid partiel COD, sinon plein si payée).
+    const { collectedValue: getCollectedValue, isRealized, orderCOGS: getCostValue } = require('./shared/money');
     const getDeliveryCost = (order) => parseFloat(order.realDeliveryCost) || 0;
     // const getDateKey = (dateString) => dateString || new Date().toISOString().split('T')[0]; // Already defined above
 
@@ -759,6 +753,21 @@ exports.onOrderWrite = onDocumentWritten({
         kgPromise = Promise.all(kgTasks).catch(e => console.warn('[KnowledgeGraph] Extraction failed:', e.message));
     }
 
+    // 8. AUTOMATIONS (BAY-105) — serveur, couvre TOUTES les commandes (client / webhook / bot).
+    // Immédiat : exécuté ici ; à délai : planifié dans automation_tasks (cf. automationScheduler).
+    let automationPromise = Promise.resolve();
+    if (storeId && after && ((!before) || (oldStatus !== newStatus))) {
+        const triggerType = !before ? 'order_created' : 'order_updated';
+        const autoPayload = { id: event.params.orderId, ...after };
+        automationPromise = (async () => {
+            try {
+                const storeSnap = await db.collection('stores').doc(storeId).get();
+                const { runAutomations } = require('./automation/engine');
+                await runAutomations(db, storeId, triggerType, autoPayload, storeSnap.exists ? storeSnap.data() : {});
+            } catch (e) { console.warn('[Automation] runAutomations failed:', e.message); }
+        })();
+    }
+
     // 7. AUDIT LOGGING
     // Log status changes in the store's audit trail
     if (oldStatus !== newStatus && storeId) {
@@ -774,10 +783,64 @@ exports.onOrderWrite = onDocumentWritten({
             source: after?._updatedBy === 'carrier' ? 'Webhook' : 'Cloud Function'
         }).catch(e => console.warn('Audit logging failed:', e.message));
         
-        return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, auditPromise, kgPromise]);
+        return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, auditPromise, kgPromise, automationPromise]);
     }
 
-    return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, kgPromise]);
+    return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, kgPromise, automationPromise]);
+});
+
+/**
+ * Automation Scheduler (BAY-105)
+ * Exécute les actions d'automatisation à délai arrivées à échéance.
+ * Le moteur serveur (functions/automation/engine.js) planifie ces tâches dans
+ * stores/{id}/automation_tasks avec un champ runAt ; ici on exécute les tâches dues.
+ * Tourne toutes les 15 min. On filtre runAt en mémoire pour éviter un index composite
+ * collectionGroup (status+runAt) — le déploiement d'index sur base nommée est bloqué (CLI bug).
+ */
+exports.automationScheduler = onSchedule("*/15 * * * *", async () => {
+    const { executeAction } = require('./automation/engine');
+    const now = Date.now();
+    let snap;
+    try {
+        snap = await db.collectionGroup('automation_tasks')
+            .where('status', '==', 'scheduled')
+            .limit(300)
+            .get();
+    } catch (e) {
+        console.error('[AutomationScheduler] query failed:', e.message);
+        return;
+    }
+
+    const storeCache = {};
+    const getStore = async (storeId) => {
+        if (storeCache[storeId] === undefined) {
+            const s = await db.collection('stores').doc(storeId).get();
+            storeCache[storeId] = s.exists ? s.data() : {};
+        }
+        return storeCache[storeId];
+    };
+
+    let executed = 0;
+    for (const taskDoc of snap.docs) {
+        const task = taskDoc.data();
+        const runAtMs = task.runAt && task.runAt.toMillis ? task.runAt.toMillis() : 0;
+        if (runAtMs > now) continue; // pas encore due
+
+        // storeId = grand-parent : stores/{storeId}/automation_tasks/{taskId}
+        const storeId = taskDoc.ref.parent.parent && taskDoc.ref.parent.parent.id;
+        if (!storeId) { await taskDoc.ref.update({ status: 'error', error: 'no storeId' }).catch(() => {}); continue; }
+
+        try {
+            const store = await getStore(storeId);
+            await executeAction(db, task.node, task.payload, store, storeId);
+            await taskDoc.ref.update({ status: 'done', executedAt: FieldValue.serverTimestamp() });
+            executed++;
+        } catch (e) {
+            console.error(`[AutomationScheduler] task ${taskDoc.id} failed:`, e.message);
+            await taskDoc.ref.update({ status: 'error', error: e.message }).catch(() => {});
+        }
+    }
+    if (executed > 0) console.log(`[AutomationScheduler] executed ${executed} due task(s).`);
 });
 
 /**
@@ -1188,16 +1251,18 @@ exports.scheduledReconciliation = functions.pubsub.schedule('0 2 * * *')
             // Aggregate Orders
             ordersSnap.forEach(oDoc => {
                 const order = oDoc.data();
-                const orderVal = (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
-                const orderCost = (parseFloat(order.costPrice) || 0) * (parseInt(order.quantity) || 1);
+                const orderVal = mOrderValue(order);
+                const orderCost = mOrderCOGS(order);
                 const deliveryCost = parseFloat(order.realDeliveryCost) || 0;
                 const dateKey = order.date ? order.date.split('T')[0] : 'unknown';
 
                 stats.totals.revenue += orderVal;
                 stats.totals.count += 1;
 
-                if (order.isPaid) {
-                    stats.totals.realizedRevenue += orderVal;
+                // Réalisé = cash réellement encaissé (amountPaid partiel COD ou plein si payée),
+                // aligné sur manualReconciliation et financials.js (BAY-104), plus isPaid seul.
+                if (mIsRealized(order)) {
+                    stats.totals.realizedRevenue += mCollected(order);
                     stats.totals.realizedCOGS += orderCost;
                     stats.totals.realizedDeliveryCost += deliveryCost;
                 }
@@ -1349,8 +1414,8 @@ exports.manualReconciliation = functions.runWith({ timeoutSeconds: 300, memory: 
 
         ordersSnap.forEach(doc => {
             const order = doc.data();
-            const orderVal = (parseFloat(order.price) || 0) * (parseInt(order.quantity) || 1);
-            const orderCost = (parseFloat(order.costPrice) || 0) * (parseInt(order.quantity) || 1);
+            const orderVal = mOrderValue(order);
+            const orderCost = mOrderCOGS(order);
             const deliveryCost = parseFloat(order.realDeliveryCost) || 0;
             const dateKey = order.date ? order.date.split('T')[0] : 'unknown';
 
@@ -1358,11 +1423,9 @@ exports.manualReconciliation = functions.runWith({ timeoutSeconds: 300, memory: 
             stats.totals.revenue += orderVal;
             stats.totals.count += 1;
 
-            const amountCollected = (order.amountPaid !== undefined && order.amountPaid !== null && order.amountPaid !== "")
-                ? parseFloat(order.amountPaid) || 0
-                : (order.isPaid ? orderVal : 0);
-
-            if (amountCollected > 0 || order.isPaid) {
+            // Réalisé = cash encaissé (source de vérité unique money.js — BAY-104).
+            const amountCollected = mCollected(order);
+            if (mIsRealized(order)) {
                 stats.totals.realizedRevenue += amountCollected;
                 stats.totals.realizedCOGS += orderCost;
                 stats.totals.realizedDeliveryCost += deliveryCost;
@@ -1396,7 +1459,10 @@ exports.manualReconciliation = functions.runWith({ timeoutSeconds: 300, memory: 
         expSnap.forEach(doc => { stats.totals.expenses += (parseFloat(doc.data().amount) || 0); });
         refSnap.forEach(doc => { stats.totals.refunds += (parseFloat(doc.data().amount) || 0); });
 
-        stats.totals.netProfit = stats.totals.realizedRevenue - stats.totals.realizedCOGS - stats.totals.realizedDeliveryCost - stats.totals.expenses - stats.totals.refunds;
+        stats.totals.netProfit = mNetProfit({
+            realizedRevenue: stats.totals.realizedRevenue, cogs: stats.totals.realizedCOGS,
+            delivery: stats.totals.realizedDeliveryCost, expenses: stats.totals.expenses, refunds: stats.totals.refunds,
+        });
 
         // Commit all updates using batch
         const batch = db.batch();
