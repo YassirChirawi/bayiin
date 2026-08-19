@@ -8,7 +8,6 @@ import { authenticateSendit, createSenditPackage } from '../lib/sendit';
 import { authenticateCathedis, createCathedisDelivery } from '../lib/cathedis';
 import { logActivity } from '../utils/logger'; // NEW
 import { useAuth } from '../context/AuthContext'; // NEW
-import { runAutomations } from '../utils/automationEngine'; // NEW
 import { useAudit } from './useAudit'; // NEW
 import { shouldRestock, shouldDeductStock, calculateStockDeltas } from '../utils/orderLogic'; // PURE LOGIC
 import { logAudit } from '../lib/audit';
@@ -178,8 +177,10 @@ export const useOrderActions = () => {
                 status: ORDER_STATUS.RECEIVED
             });
 
-            runAutomations('order_created', { ...orderData, status: ORDER_STATUS.RECEIVED }, store).catch(console.error);
-            
+            // Automatisations : désormais déclenchées CÔTÉ SERVEUR par onOrderWrite (BAY-105),
+            // ce qui couvre AUSSI les commandes créées par webhook/bot et exécute les actions à
+            // délai. Ne plus déclencher ici pour éviter un double envoi.
+
             // --- STOCK AUDIT LOG ---
             itemsToProcess.forEach(item => {
                 logStockMovement(store.id, {
@@ -322,7 +323,7 @@ export const useOrderActions = () => {
                     userId: user?.uid || 'system'
                 });
 
-                runAutomations('order_updated', { ...newData, id: orderId }, store).catch(console.error);
+                // Automatisations : déclenchées côté serveur par onOrderWrite (BAY-105). Voir createOrder.
 
                 // --- STOCK AUDIT LOG ---
                 for (const [productId, productAdjs] of Object.entries(groupedByProduct)) {

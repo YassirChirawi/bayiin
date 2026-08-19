@@ -759,6 +759,21 @@ exports.onOrderWrite = onDocumentWritten({
         kgPromise = Promise.all(kgTasks).catch(e => console.warn('[KnowledgeGraph] Extraction failed:', e.message));
     }
 
+    // 8. AUTOMATIONS (BAY-105) — serveur, couvre TOUTES les commandes (client / webhook / bot).
+    // Immédiat : exécuté ici ; à délai : planifié dans automation_tasks (cf. automationScheduler).
+    let automationPromise = Promise.resolve();
+    if (storeId && after && ((!before) || (oldStatus !== newStatus))) {
+        const triggerType = !before ? 'order_created' : 'order_updated';
+        const autoPayload = { id: event.params.orderId, ...after };
+        automationPromise = (async () => {
+            try {
+                const storeSnap = await db.collection('stores').doc(storeId).get();
+                const { runAutomations } = require('./automation/engine');
+                await runAutomations(db, storeId, triggerType, autoPayload, storeSnap.exists ? storeSnap.data() : {});
+            } catch (e) { console.warn('[Automation] runAutomations failed:', e.message); }
+        })();
+    }
+
     // 7. AUDIT LOGGING
     // Log status changes in the store's audit trail
     if (oldStatus !== newStatus && storeId) {
@@ -774,10 +789,64 @@ exports.onOrderWrite = onDocumentWritten({
             source: after?._updatedBy === 'carrier' ? 'Webhook' : 'Cloud Function'
         }).catch(e => console.warn('Audit logging failed:', e.message));
         
-        return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, auditPromise, kgPromise]);
+        return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, auditPromise, kgPromise, automationPromise]);
     }
 
-    return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, kgPromise]);
+    return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, kgPromise, automationPromise]);
+});
+
+/**
+ * Automation Scheduler (BAY-105)
+ * Exécute les actions d'automatisation à délai arrivées à échéance.
+ * Le moteur serveur (functions/automation/engine.js) planifie ces tâches dans
+ * stores/{id}/automation_tasks avec un champ runAt ; ici on exécute les tâches dues.
+ * Tourne toutes les 15 min. On filtre runAt en mémoire pour éviter un index composite
+ * collectionGroup (status+runAt) — le déploiement d'index sur base nommée est bloqué (CLI bug).
+ */
+exports.automationScheduler = onSchedule("*/15 * * * *", async () => {
+    const { executeAction } = require('./automation/engine');
+    const now = Date.now();
+    let snap;
+    try {
+        snap = await db.collectionGroup('automation_tasks')
+            .where('status', '==', 'scheduled')
+            .limit(300)
+            .get();
+    } catch (e) {
+        console.error('[AutomationScheduler] query failed:', e.message);
+        return;
+    }
+
+    const storeCache = {};
+    const getStore = async (storeId) => {
+        if (storeCache[storeId] === undefined) {
+            const s = await db.collection('stores').doc(storeId).get();
+            storeCache[storeId] = s.exists ? s.data() : {};
+        }
+        return storeCache[storeId];
+    };
+
+    let executed = 0;
+    for (const taskDoc of snap.docs) {
+        const task = taskDoc.data();
+        const runAtMs = task.runAt && task.runAt.toMillis ? task.runAt.toMillis() : 0;
+        if (runAtMs > now) continue; // pas encore due
+
+        // storeId = grand-parent : stores/{storeId}/automation_tasks/{taskId}
+        const storeId = taskDoc.ref.parent.parent && taskDoc.ref.parent.parent.id;
+        if (!storeId) { await taskDoc.ref.update({ status: 'error', error: 'no storeId' }).catch(() => {}); continue; }
+
+        try {
+            const store = await getStore(storeId);
+            await executeAction(db, task.node, task.payload, store, storeId);
+            await taskDoc.ref.update({ status: 'done', executedAt: FieldValue.serverTimestamp() });
+            executed++;
+        } catch (e) {
+            console.error(`[AutomationScheduler] task ${taskDoc.id} failed:`, e.message);
+            await taskDoc.ref.update({ status: 'error', error: e.message }).catch(() => {});
+        }
+    }
+    if (executed > 0) console.log(`[AutomationScheduler] executed ${executed} due task(s).`);
 });
 
 /**

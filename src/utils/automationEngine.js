@@ -1,3 +1,8 @@
+// ⚠️ DÉPRÉCIÉ (BAY-105) — Le moteur d'automatisation autoritaire est désormais CÔTÉ SERVEUR
+// (functions/automation/engine.js), déclenché par onOrderWrite : il couvre les commandes
+// webhook/bot et exécute réellement les actions à délai (via automationScheduler). Ce moteur
+// client n'est plus appelé (useOrderActions n'importe plus runAutomations). Conservé pour
+// référence ; à supprimer une fois la migration validée en prod.
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { authenticateSendit, createSenditPackage } from '../lib/sendit';
