@@ -48,14 +48,14 @@ export const getOrderItems = (data) => {
 };
 
 /**
+ * @deprecated BAY-109 — Remplacé pour le journal d'audit par computeNetDeltas (src/utils/orderStock.js),
+ * qui partage la MÊME base que la mutation de stock serveur (items actifs before/after) et garantit
+ * que l'audit reflète la réalité. Cette fonction (logique de transition distincte) n'est plus utilisée
+ * par l'application ; conservée uniquement pour ses tests unitaires historiques.
+ *
  * Calculates the net stock changes needed when an order is updated.
- * Positive netChange means ADD to stock (restock).
- * Negative netChange means REMOVE from stock (deduct).
- * 
- * @param {Object} oldData - The previous order data.
- * @param {Object} newData - The new order data.
- * @returns {Object} A map grouped by product ID containing the net changes.
- *                   Format: { [productId]: [ { id, variantId, netChange } ] }
+ * Positive netChange means ADD to stock (restock). Negative means REMOVE (deduct).
+ * @returns {Object} { [productId]: [ { id, variantId, netChange, warehouseId } ] }
  */
 export const calculateStockDeltas = (oldData, newData) => {
     const restock = shouldRestock(oldData.status, newData.status);
