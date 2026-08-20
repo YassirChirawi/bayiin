@@ -46,6 +46,17 @@ beforeEach(async () => {
   });
 });
 
+describe('BAY-107 — counters/sequences (numéros séquentiels)', () => {
+  it('le propriétaire lit/écrit le compteur de sa boutique', async () => {
+    await assertSucceeds(setDoc(doc(alice(), 'stores', 'storeA', 'counters', 'sequences'), { lastOrderNumber: 1042 }));
+    await assertSucceeds(getDoc(doc(alice(), 'stores', 'storeA', 'counters', 'sequences')));
+  });
+  it('un tiers ne peut ni lire ni écrire le compteur d\'une autre boutique', async () => {
+    await assertFails(setDoc(doc(mallory(), 'stores', 'storeA', 'counters', 'sequences'), { lastOrderNumber: 9999 }));
+    await assertFails(getDoc(doc(mallory(), 'stores', 'storeA', 'counters', 'sequences')));
+  });
+});
+
 describe('P0-4 — users/{uid} : pas d\'auto-provisionnement vers une autre boutique', () => {
   it('refuse un storeId dont on n\'est pas propriétaire', async () => {
     await assertFails(setDoc(doc(mallory(), 'users', 'mallory2'), { email: 'm@x.com', storeId: 'storeA' }));

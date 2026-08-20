@@ -196,6 +196,11 @@ service cloud.firestore {
          allow update: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
          allow delete: if false;
       }
+      // BAY-107 : compteurs séquentiels (numéros de commande/client) — doc dédié séparé de
+      // stats/sales pour éviter la contention et la corruption par le recalcul des stats.
+      match /counters/{counterId} {
+         allow read, write: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
+      }
       match /qa_runs/{docId} {
          allow read, write: if request.auth != null && (isStoreOwner(storeId) || belongsToStore(storeId) || isSuperAdmin());
       }

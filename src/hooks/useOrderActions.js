@@ -83,11 +83,26 @@ export const useOrderActions = () => {
 
             await runTransaction(db, async (transaction) => {
                 // === 1. READ PHASE ===
-                const statsRef = doc(db, "stores", store.id, "stats", "sales");
-                const statsSnap = await transaction.get(statsRef);
-                const currentStats = statsSnap.exists() ? statsSnap.data() : {};
-                const nextOrderNumber = (parseInt(currentStats.lastOrderNumber) || 1000) + 1;
-                const nextCustomerNumber = (parseInt(currentStats.lastCustomerNumber) || 5000) + 1;
+                // BAY-107 : les compteurs séquentiels vivent dans un doc DÉDIÉ (counters/sequences),
+                // séparé de stats/sales. Bénéfices : (1) plus de contention croisée avec onOrderWrite
+                // qui incrémente stats/sales à chaque écriture de commande ; (2) le recalcul de stats
+                // (.set overwrite dans manualReconciliation/scheduled) n'efface plus lastOrderNumber /
+                // lastCustomerNumber — sinon la commande suivante repartait de 1001 → collision.
+                const seqRef = doc(db, "stores", store.id, "counters", "sequences");
+                const seqSnap = await transaction.get(seqRef);
+                let baseOrder, baseCustomer;
+                if (seqSnap.exists()) {
+                    baseOrder = parseInt(seqSnap.data().lastOrderNumber) || 1000;
+                    baseCustomer = parseInt(seqSnap.data().lastCustomerNumber) || 5000;
+                } else {
+                    // Migration ponctuelle : amorcer depuis l'ancien emplacement (stats/sales).
+                    const legacySnap = await transaction.get(doc(db, "stores", store.id, "stats", "sales"));
+                    const legacy = legacySnap.exists() ? legacySnap.data() : {};
+                    baseOrder = parseInt(legacy.lastOrderNumber) || 1000;
+                    baseCustomer = parseInt(legacy.lastCustomerNumber) || 5000;
+                }
+                const nextOrderNumber = baseOrder + 1;
+                const nextCustomerNumber = baseCustomer + 1;
 
                 // Contrôle de disponibilité — stock négatif impossible (pas de backorder).
                 // Lectures AVANT toute écriture (contrainte des transactions Firestore).
@@ -142,7 +157,7 @@ export const useOrderActions = () => {
                         createdAt: serverTimestamp(),
                         updatedAt: serverTimestamp()
                     });
-                    transaction.set(statsRef, { lastCustomerNumber: nextCustomerNumber }, { merge: true });
+                    transaction.set(seqRef, { lastCustomerNumber: nextCustomerNumber }, { merge: true });
                 }
 
                 // Financials
@@ -163,10 +178,9 @@ export const useOrderActions = () => {
                     paymentMethod: 'cod'
                 });
 
-                // Update Store Stats
-                // (Note: onOrderWrite will NOT increment statusCounts.reçu for newly created orders if they already have a status,
-                // wait, actually onOrderWrite DOES increment it for creates. So we must NOT double-increment here!)
-                transaction.set(statsRef, {
+                // Persist le compteur séquentiel (doc dédié counters/sequences — BAY-107).
+                // Les agrégats de stats/sales (totaux, statusCounts…) restent gérés par onOrderWrite.
+                transaction.set(seqRef, {
                     lastOrderNumber: nextOrderNumber
                 }, { merge: true });
             });
@@ -248,11 +262,24 @@ export const useOrderActions = () => {
                     customerDoc = await transaction.get(customerRef);
                 }
 
-                // Read stats doc for sequential numbers (only needed for new customer creation)
-                const statsRef = doc(db, "stores", store.id, "stats", "sales");
-                const statsSnap = await transaction.get(statsRef);
-                const currentStats = statsSnap.exists() ? statsSnap.data() : {};
-                const nextCustomerNumber = (parseInt(currentStats.lastCustomerNumber) || 5000) + 1;
+                // BAY-107 : compteur client dans counters/sequences (séparé de stats/sales). Lu
+                // UNIQUEMENT si une nouvelle fiche client va être créée (cas rare) → les mises à jour
+                // courantes ne touchent plus le doc de stats et ne contendent plus avec onOrderWrite.
+                const willCreateCustomer = !newData.customerId && !existingCustomerId && !!newData.clientName;
+                let seqRef = null;
+                let nextCustomerNumber = 5001;
+                if (willCreateCustomer) {
+                    seqRef = doc(db, "stores", store.id, "counters", "sequences");
+                    const seqSnap = await transaction.get(seqRef);
+                    let baseCustomer;
+                    if (seqSnap.exists()) {
+                        baseCustomer = parseInt(seqSnap.data().lastCustomerNumber) || 5000;
+                    } else {
+                        const legacySnap = await transaction.get(doc(db, "stores", store.id, "stats", "sales"));
+                        baseCustomer = parseInt((legacySnap.exists() ? legacySnap.data() : {}).lastCustomerNumber) || 5000;
+                    }
+                    nextCustomerNumber = baseCustomer + 1;
+                }
 
                 // --- 2. WRITE PHASE ---
                 // Update Customer Profile OR CREATE — with lifecycle-aware totalSpent
@@ -293,7 +320,7 @@ export const useOrderActions = () => {
                         createdAt: serverTimestamp(),
                         updatedAt: serverTimestamp()
                     });
-                    transaction.set(statsRef, { lastCustomerNumber: nextCustomerNumber }, { merge: true });
+                    transaction.set(seqRef, { lastCustomerNumber: nextCustomerNumber }, { merge: true });
                 }
 
                 // Update Order (No _stockManagedByClient flag anymore)
