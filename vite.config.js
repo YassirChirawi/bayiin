@@ -79,12 +79,6 @@ export default defineConfig({
   },
   build: {
     target: 'es2020',
-    // BAY-104 : la source de vérité financière (functions/shared/money.js) est un module CommonJS
-    // partagé avec le serveur. On l'inclut dans la transformation CommonJS de Rollup pour pouvoir
-    // l'importer côté client (sans dupliquer la logique). node_modules conservé (défaut).
-    commonjsOptions: {
-      include: [/functions[\\/]shared/, /node_modules/],
-    },
     rollupOptions: {
       output: {
         manualChunks: {

@@ -9,11 +9,14 @@
  * Divergences constatées : (a) le client comptait `paymentStatus==='remitted'` comme payé,
  * pas le serveur ; (b) le serveur sommait `products[]` (multi-produits), pas le client.
  *
- * Ce module CommonJS est la seule définition. Il est requis par les 3 consommateurs serveur
- * (functions/) et réexporté côté client via src/utils/money.js (ESM). Un test de cohérence
- * croisé (tests/unit/money.consistency.test.js) verrouille l'alignement.
+ * Ce module CommonJS est requis par les 3 consommateurs SERVEUR (functions/). Le client a un
+ * MIROIR ESM strictement identique dans src/utils/money.js (on ne peut pas partager un seul
+ * fichier : ESM Vite vs CommonJS Functions, et l'import cross-pipeline casse en dev Vite). Un
+ * test de cohérence croisé (tests/unit/money.consistency.test.js) exécute les mêmes fixtures
+ * dans les deux modules et échoue à la moindre divergence.
  *
- * ⚠️ Module PUR : aucune dépendance Firestore/Node — importable partout (client + serveur).
+ * ⚠️ Toute modification ici doit être répliquée à l'identique dans src/utils/money.js.
+ * Module PUR : aucune dépendance Firestore/Node.
  */
 
 const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
