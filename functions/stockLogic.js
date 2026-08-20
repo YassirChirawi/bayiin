@@ -1,33 +1,9 @@
 // FieldValue.increment n'est plus utilisé : les mises à jour de stock sont calculées et
 // bornées à 0 dans la transaction (stock négatif impossible).
 
-/**
- * Extrait les items actifs d'une commande (qui consomment du stock).
- */
-const getActiveItems = (o) => {
-    if (!o) return [];
-    // Statuts inactifs qui ne consomment pas de stock
-    if (o.deleted === true || ['retour', 'annulé', 'pending_catalog', 'pas de réponse'].includes(o.status)) return [];
-    
-    let items = [];
-    if (o.articleId) {
-        items.push({ 
-            id: o.articleId, 
-            variantId: o.variantId, 
-            quantity: parseInt(o.quantity) || 1, 
-            warehouseId: o.warehouseId 
-        });
-    }
-    if (o.products && Array.isArray(o.products)) {
-        items.push(...o.products.map(p => ({
-            id: p.id,
-            variantId: p.variantId,
-            quantity: parseInt(p.quantity) || 1,
-            warehouseId: o.warehouseId || p.warehouseId
-        })));
-    }
-    return items;
-};
+// BAY-109 : la détermination des items actifs vit dans le module partagé orderStock (mirroir
+// client/serveur), pour que le journal d'audit stock reflète EXACTEMENT ce que le serveur applique.
+const { getActiveItems } = require('./shared/orderStock');
 
 /**
  * Applique la logique de lots (FEFO - First Expire First Out)
