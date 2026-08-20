@@ -1,10 +1,10 @@
 /**
  * money.consistency.test.js (BAY-104)
  *
- * Verrou anti-divergence de la source de vérité financière unique.
- * - Importe le module VIA LE PONT CLIENT (src/utils/money.js), ce qui prouve que Vite/ESM
- *   consomme bien le module CommonJS canonique (functions/shared/money.js).
- * - Vérifie que le pont expose EXACTEMENT les mêmes fonctions que la source CJS directe.
+ * Verrou anti-divergence des DEUX modules miroirs (client ESM src/utils/money.js ↔ serveur CJS
+ * functions/shared/money.js). Ils ne peuvent pas être un seul fichier (ESM Vite vs CommonJS
+ * Functions), donc ce test exécute les mêmes fixtures dans les deux et échoue si un résultat diffère.
+ * - Vérifie que les deux exposent les mêmes fonctions.
  * - Verrouille les valeurs des primitives, y compris les cas qui divergeaient avant :
  *   (a) paymentStatus 'remitted' = payé, (b) somme products[] pour le multi-produits.
  */
@@ -30,9 +30,8 @@ describe('pont client ↔ source serveur (équivalence)', () => {
     }
   });
 
-  // Note : Vite (client) et require (Node) chargent DEUX instances du même fichier source
-  // → pas d'identité de référence, mais un seul fichier sur disque (single source). On verrouille
-  // l'équivalence de comportement sur un échantillon représentatif : toute divergence casserait ici.
+  // Deux fichiers miroirs (client ESM ↔ serveur CJS) : pas d'identité de référence. On verrouille
+  // l'équivalence de COMPORTEMENT sur un échantillon représentatif : toute divergence casse ici.
   it('produit des sorties identiques sur des commandes représentatives', () => {
     const orders = [
       { price: 100, quantity: 2, isPaid: true, costPrice: 40, status: 'livré', realDeliveryCost: 25 },
