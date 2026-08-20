@@ -768,6 +768,19 @@ exports.onOrderWrite = onDocumentWritten({
         })();
     }
 
+    // 9. LIAISON CRM (BAY-112) — les commandes sans customerId (catalogue public, webhook, bot)
+    // ne créaient/liaient aucune fiche client → CRM incomplet. On rattache côté serveur, à la
+    // création, avec dédup par téléphone (déjà normalisé à l'écriture) et numéro client séquentiel
+    // issu du compteur dédié (counters/sequences, BAY-107). Les commandes manuelles ont déjà un
+    // customerId → ignorées. Le set de customerId re-déclenche onOrderWrite mais en UPDATE sans
+    // changement de statut → pas de boucle ni de double-comptage.
+    let customerLinkPromise = Promise.resolve();
+    if (!before && after && storeId && !after.customerId && after.clientPhone) {
+        const { linkOrderCustomer } = require('./customerLink');
+        customerLinkPromise = linkOrderCustomer(db, event.params.orderId)
+            .catch(e => console.warn('[CRM link] failed:', e.message));
+    }
+
     // 7. AUDIT LOGGING
     // Log status changes in the store's audit trail
     if (oldStatus !== newStatus && storeId) {
@@ -783,10 +796,10 @@ exports.onOrderWrite = onDocumentWritten({
             source: after?._updatedBy === 'carrier' ? 'Webhook' : 'Cloud Function'
         }).catch(e => console.warn('Audit logging failed:', e.message));
         
-        return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, auditPromise, kgPromise, automationPromise]);
+        return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, auditPromise, kgPromise, automationPromise, customerLinkPromise]);
     }
 
-    return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, kgPromise, automationPromise]);
+    return Promise.all([statsPromise, batchPromise, customerSpentPromise, driverStatsPromise, kgPromise, automationPromise, customerLinkPromise]);
 });
 
 /**
