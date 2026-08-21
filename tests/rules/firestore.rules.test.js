@@ -46,6 +46,28 @@ beforeEach(async () => {
   });
 });
 
+describe('BAY-108 — error_logs (reporting)', () => {
+  const superadmin = () => testEnv.authenticatedContext('sa', { role: 'super_admin' }).firestore();
+  it('tout utilisateur authentifié peut consigner une erreur', async () => {
+    await assertSucceeds(setDoc(doc(alice(), 'error_logs', 'e1'), { fingerprint: 'abc', message: 'boom' }));
+  });
+  it('un non super-admin ne peut pas lire les erreurs', async () => {
+    await assertFails(getDoc(doc(alice(), 'error_logs', 'e1')));
+  });
+  it('le super-admin peut lire les erreurs', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'error_logs', 'e2'), { fingerprint: 'x', message: 'y' });
+    });
+    await assertSucceeds(getDoc(doc(superadmin(), 'error_logs', 'e2')));
+  });
+  it('les erreurs ne sont ni modifiables ni supprimables', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'error_logs', 'e3'), { fingerprint: 'x', message: 'y' });
+    });
+    await assertFails(updateDoc(doc(superadmin(), 'error_logs', 'e3'), { message: 'z' }));
+  });
+});
+
 describe('BAY-107 — counters/sequences (numéros séquentiels)', () => {
   it('le propriétaire lit/écrit le compteur de sa boutique', async () => {
     await assertSucceeds(setDoc(doc(alice(), 'stores', 'storeA', 'counters', 'sequences'), { lastOrderNumber: 1042 }));
