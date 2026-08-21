@@ -136,6 +136,14 @@ service cloud.firestore {
       allow write: if false; // Only backend (admin SDK) writes benchmarks
     }
 
+    // BAY-108 : reporting d'erreurs client (option B). Tout utilisateur authentifié peut consigner
+    // une erreur ; seule la maintenance (super_admin) les lit. Jamais modifiable/supprimable.
+    match /error_logs/{logId} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null && isSuperAdmin();
+      allow update, delete: if false;
+    }
+
     // Stores collection
     match /stores/{storeId} {
       // SEC (P0-5): prevent self-granting a paid plan at creation. Owners create their own

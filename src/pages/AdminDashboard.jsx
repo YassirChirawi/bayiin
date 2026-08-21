@@ -229,6 +229,7 @@ export default function AdminDashboard() {
                             <p className="text-xs font-medium text-gray-400">Logged in as</p>
                             <p className="text-sm font-bold text-gray-900">{user?.email}</p>
                         </div>
+                        <Button variant="secondary" onClick={() => navigate('/admin/errors')}>Journal d'erreurs</Button>
                         <Button variant="secondary" onClick={() => navigate('/')}>Exit Admin</Button>
                     </div>
                 </header>

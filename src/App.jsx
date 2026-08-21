@@ -61,6 +61,7 @@ const Drivers = lazy(() => import("./pages/Drivers"));
 const Purchases = lazy(() => import("./pages/Purchases"));
 const Returns = lazy(() => import("./pages/Returns"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const ErrorLogs = lazy(() => import("./pages/ErrorLogs"));
 const FranchiseDashboard = lazy(() => import("./pages/FranchiseDashboard"));
 const QA = lazy(() => import("./pages/QA"));
 
@@ -163,6 +164,13 @@ function App() {
                               <BiometricLock>
                                 <AdminDashboard />
                               </BiometricLock>
+                            </RoleProtectedRoute>
+                          } />
+
+                          {/* BAY-108 : journal d'erreurs (super_admin) */}
+                          <Route path="/admin/errors" element={
+                            <RoleProtectedRoute allowedRoles={['super_admin']}>
+                              <ErrorLogs />
                             </RoleProtectedRoute>
                           } />
 
