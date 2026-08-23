@@ -3,9 +3,7 @@ import { db } from '../lib/firebase';
 import { doc, writeBatch, query, collection, where, getDocs, limit, increment } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { PAYMENT_STATUS } from '../utils/constants';
-import { isValidTransition } from '../utils/orderStateMachine';
-
-const INACTIVE_STATUSES = ['retour', 'annulé'];
+import { isValidTransition, canMarkPaid, PAYMENT_BLOCKED_STATUSES } from '../utils/orderStateMachine';
 
 export function useOrderBulkActions(orders, storeId, user, {
     deleteStoreItem,
@@ -75,7 +73,8 @@ export function useOrderBulkActions(orders, storeId, user, {
                     const batch = writeBatch(db);
                     selectedOrders.forEach(id => {
                         const order = orders.find(o => o.id === id);
-                        if (!order || order.isPaid) return;
+                        // Intégrité paiement : ignorer déjà payées ET commandes non encaissables.
+                        if (!order || order.isPaid || !canMarkPaid(order)) return;
                         const orderRef = doc(db, "orders", id);
                         batch.update(orderRef, { isPaid: true });
                     });
@@ -101,8 +100,9 @@ export function useOrderBulkActions(orders, storeId, user, {
                     const batch = writeBatch(db);
                     selectedOrders.forEach(id => {
                         const order = orders.find(o => o.id === id);
-                        // Don't remit cancelled/returned orders — that would inflate realized/remitted revenue.
-                        if (!order || INACTIVE_STATUSES.includes(order.status)) return;
+                        // Ne pas encaisser les commandes non encaissables (annulé/retour/sans réponse/
+                        // panier) — sinon revenu réalisé & remis gonflés.
+                        if (!order || !canMarkPaid(order)) return;
                         const orderRef = doc(db, "orders", id);
                         batch.update(orderRef, {
                             paymentStatus: PAYMENT_STATUS.REMITTED,
@@ -143,8 +143,9 @@ export function useOrderBulkActions(orders, storeId, user, {
                         const orderRef = doc(db, "orders", id);
                         const updates = { status };
 
-                        // Financial Logic matching Orders.jsx refactor
-                        if (INACTIVE_STATUSES.includes(status) && order.isPaid) {
+                        // Intégrité paiement : passer à un statut non encaissable (annulé/retour/
+                        // retour en cours/sans réponse/panier) réinitialise isPaid.
+                        if (PAYMENT_BLOCKED_STATUSES.includes(status) && order.isPaid) {
                             updates.isPaid = false;
                         }
                         if (status === 'livré' && !order.isPaid) {
