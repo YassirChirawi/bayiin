@@ -578,10 +578,12 @@ export default function Returns() {
                     });
                 }
 
-                // E. Mettre à jour les stats du store
+                // E. Mettre à jour les stats du store — champ canonique `totals.refunds` (lu par le
+                // Dashboard et recalculé par manualReconciliation). Avant : `totals.totalRefunded`,
+                // un champ mort (jamais lu) → les avoirs SAV n'apparaissaient qu'après recalcul.
                 const statsRef = doc(db, 'stores', store.id, 'stats', 'sales');
                 transaction.update(statsRef, {
-                    'totals.totalRefunded': increment(returnAmount),
+                    'totals.refunds': increment(returnAmount),
                 });
 
                 // F. Valider le retour lui-même
