@@ -20,6 +20,8 @@ let testEnv;
 const alice = () => testEnv.authenticatedContext('alice', { storeId: 'storeA', role: 'owner' }).firestore();
 const mallory = () => testEnv.authenticatedContext('mallory', { storeId: 'storeB', role: 'owner' }).firestore();
 const newbie = () => testEnv.authenticatedContext('newbie').firestore();
+// staffA : membre staff de storeA (attaquant potentiel d'escalade via allowed_users).
+const staffA = () => testEnv.authenticatedContext('staffA', { storeId: 'storeA', role: 'staff' }).firestore();
 
 beforeAll(async () => {
   testEnv = await initializeTestEnvironment({
@@ -43,6 +45,25 @@ beforeEach(async () => {
     await setDoc(doc(db, 'users', 'alice'), { email: 'a@x.com', storeId: 'storeA', role: 'owner' });
     await setDoc(doc(db, 'users', 'mallory'), { email: 'm@x.com', storeId: 'storeB', role: 'owner' });
     await setDoc(doc(db, 'products', 'pA'), { storeId: 'storeA', name: 'Produit A', price: 10, stock: 5 });
+  });
+});
+
+describe('allowed_users — anti-escalade RBAC (Team)', () => {
+  it('un staff ne peut PAS créer un accès owner (escalade bloquée)', async () => {
+    await assertFails(setDoc(doc(staffA(), 'allowed_users', 'x1'), { storeId: 'storeA', email: 'x@x.com', role: 'owner' }));
+  });
+  it('un staff ne peut même pas créer un accès staff (pas owner/manager)', async () => {
+    await assertFails(setDoc(doc(staffA(), 'allowed_users', 'x2'), { storeId: 'storeA', email: 'x@x.com', role: 'staff' }));
+  });
+  it('le propriétaire peut inviter un staff', async () => {
+    await assertSucceeds(setDoc(doc(alice(), 'allowed_users', 'x3'), { storeId: 'storeA', email: 'x@x.com', role: 'staff' }));
+  });
+  it('le propriétaire ne peut PAS créer un rôle owner/super_admin via allowed_users', async () => {
+    await assertFails(setDoc(doc(alice(), 'allowed_users', 'x4'), { storeId: 'storeA', email: 'x@x.com', role: 'owner' }));
+    await assertFails(setDoc(doc(alice(), 'allowed_users', 'x5'), { storeId: 'storeA', email: 'x@x.com', role: 'super_admin' }));
+  });
+  it('un propriétaire ne peut pas inviter sur la boutique d\'un autre', async () => {
+    await assertFails(setDoc(doc(mallory(), 'allowed_users', 'x6'), { storeId: 'storeA', email: 'x@x.com', role: 'staff' }));
   });
 });
 
