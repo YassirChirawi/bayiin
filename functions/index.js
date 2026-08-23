@@ -874,6 +874,70 @@ exports.automationScheduler = onSchedule("*/15 * * * *", async () => {
 });
 
 /**
+ * createCarrierDelivery — crée un colis transporteur CÔTÉ SERVEUR (Sendit/Olivraison/Cathedis).
+ * Corrige les problèmes de l'ancien flux navigateur : CORS, secrets exposés, session Cathedis cassée.
+ * Le client appelle cette fonction ; les secrets restent côté serveur (stores/{id}/private/config).
+ */
+const CARRIER_SHIPPABLE_FROM = ['confirmation', 'packing', 'ramassage', 'pas de réponse', 'reporté'];
+exports.createCarrierDelivery = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Connexion requise.');
+    const { orderId, carrier } = data || {};
+    if (!orderId || !carrier) throw new functions.https.HttpsError('invalid-argument', 'orderId et carrier requis.');
+
+    const orderRef = db.collection('orders').doc(orderId);
+    const orderSnap = await orderRef.get();
+    if (!orderSnap.exists) throw new functions.https.HttpsError('not-found', 'Commande introuvable.');
+    const order = { id: orderSnap.id, ...orderSnap.data() };
+    const storeId = order.storeId;
+    if (!storeId) throw new functions.https.HttpsError('failed-precondition', 'Commande sans storeId.');
+
+    // Ownership : le caller doit appartenir au store de la commande (claim), sinon vérif ownerId.
+    const isSuper = context.auth.token.role === 'super_admin';
+    if (!isSuper && context.auth.token.storeId !== storeId) {
+        const sDoc = await db.collection('stores').doc(storeId).get();
+        if (!sDoc.exists || sDoc.data().ownerId !== context.auth.uid) {
+            throw new functions.https.HttpsError('permission-denied', 'Accès refusé à cette commande.');
+        }
+    }
+
+    // Anti double-expédition + machine d'états.
+    if (order.trackingId || order.status === 'livraison' || order.status === 'livré') {
+        throw new functions.https.HttpsError('failed-precondition', 'Commande déjà expédiée.');
+    }
+    if (!CARRIER_SHIPPABLE_FROM.includes(order.status)) {
+        throw new functions.https.HttpsError('failed-precondition', `Impossible d'expédier depuis le statut « ${order.status} ».`);
+    }
+
+    const [storeSnap, cfgSnap] = await Promise.all([
+        db.collection('stores').doc(storeId).get(),
+        db.collection('stores').doc(storeId).collection('private').doc('config').get(),
+    ]);
+    const store = storeSnap.exists ? storeSnap.data() : {};
+    const secrets = cfgSnap.exists ? cfgSnap.data() : {};
+
+    let result;
+    try {
+        const { createDelivery } = require('./carriers');
+        result = await createDelivery(carrier, order, store, secrets);
+    } catch (e) {
+        console.error(`[Carrier ${carrier}] create failed:`, e.message);
+        throw new functions.https.HttpsError('internal', e.message || 'Échec de la création du colis.');
+    }
+
+    await orderRef.update({
+        carrier,
+        trackingId: result.trackingId || 'PENDING',
+        carrierStatus: result.carrierStatus || 'CREATED',
+        labelUrl: result.labelUrl || '',
+        status: 'livraison', // passage automatique en livraison (machine d'états respectée ci-dessus)
+        _updatedBy: context.auth.uid,
+        updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    return result;
+});
+
+/**
  * Sendit Webhook Handler
  * Updates order status based on Sendit events.
  * 
