@@ -216,7 +216,13 @@ function PayrollPanel({ driver }) {
     const [loadingHistory, setLoadingHistory] = useState(true);
     const [generating, setGenerating] = useState(false);
 
-    const delivered = driver.stats?.totalDelivered ?? 0;
+    // Commission sur les livraisons de la PÉRIODE (depuis la dernière paie), PAS le cumul à vie.
+    // driver.stats.totalDelivered est cumulatif (jamais remis à zéro) → l'utiliser directement
+    // faisait repayer chaque mois la commission de toutes les livraisons passées (surpaiement
+    // croissant). On paie le delta depuis le plus haut cumul déjà réglé.
+    const totalDeliveredNow = driver.stats?.totalDelivered ?? 0;
+    const lastCumulative = history.reduce((m, h) => Math.max(m, h.cumulativeDelivered ?? 0), 0);
+    const delivered = Math.max(0, totalDeliveredNow - lastCumulative);
 
     const base = parseFloat(baseSalary) || 0;
     const rate = parseFloat(commissionRate) || 0;
@@ -268,12 +274,13 @@ function PayrollPanel({ driver }) {
                 commissions,
                 commissionRate: rate,
                 deliveries: delivered,
+                cumulativeDelivered: totalDeliveredNow, // repère pour la commission de période suivante
                 deductions,
                 total,
                 performanceScore,
                 generatedAt: serverTimestamp()
             });
-            setHistory(prev => [{ id: ref.id, month: currentMonth, baseSalary: base, commissions, deductions, total }, ...prev]);
+            setHistory(prev => [{ id: ref.id, month: currentMonth, baseSalary: base, commissions, cumulativeDelivered: totalDeliveredNow, deductions, total }, ...prev]);
             toast.success(`Paie de ${currentMonth} générée : ${total.toFixed(2)} MAD`);
         } catch (e) {
             toast.error('Erreur lors de la génération');
