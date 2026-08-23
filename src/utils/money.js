@@ -33,6 +33,17 @@ export function orderCOGS(order) {
 }
 
 /**
+ * Statuts qui ne rapportent AUCUN cash net (annulé, retour(s), sans réponse, panier non confirmé).
+ * ⚠️ Doit rester identique à orderStateMachine.PAYMENT_BLOCKED_STATUSES (verrouillé par test).
+ */
+export const PAYMENT_BLOCKED_STATUSES = ['annulé', 'retour', 'retour en cours', 'pas de réponse', 'pending_catalog'];
+
+/** La commande est-elle dans un état où du cash peut être encaissé ? (false pour les statuts bloqués) */
+export function isCollectable(order) {
+    return !!order && !PAYMENT_BLOCKED_STATUSES.includes(order.status);
+}
+
+/**
  * La commande est-elle marquée payée ? (drapeau, hors montant partiel)
  * Union canonique : isPaid booléen/chaîne OU paymentStatus 'remitted' (cash remis par le transporteur).
  */
@@ -43,19 +54,21 @@ export function isOrderPaid(order) {
 
 /**
  * Cash RÉELLEMENT encaissé pour une commande (base de la comptabilité réalisée COD).
- * Priorité au montant partiel amountPaid s'il est renseigné ; sinon plein montant si payée, 0 sinon.
+ * 0 pour les statuts non encaissables (annulé/retour/…) même si isPaid/amountPaid traînent —
+ * défense calcul : d'anciennes données ne peuvent plus gonfler le revenu réalisé.
+ * Sinon : montant partiel amountPaid s'il est renseigné, sinon plein montant si payée, 0 sinon.
  */
 export function collectedValue(order) {
-    if (!order) return 0;
+    if (!isCollectable(order)) return 0;
     if (order.amountPaid !== undefined && order.amountPaid !== null && order.amountPaid !== '') {
         return num(order.amountPaid);
     }
     return isOrderPaid(order) ? orderValue(order) : 0;
 }
 
-/** La commande contribue-t-elle au revenu réalisé ? (encaissement > 0 ou marquée payée) */
+/** La commande contribue-t-elle au revenu réalisé ? (encaissable ET (encaissement > 0 ou payée)) */
 export function isRealized(order) {
-    return collectedValue(order) > 0 || isOrderPaid(order);
+    return isCollectable(order) && (collectedValue(order) > 0 || isOrderPaid(order));
 }
 
 /** Statuts pour lesquels un coût de livraison réel est engagé (expédiée / retour / en cours). */
@@ -86,6 +99,7 @@ export function netProfit({ realizedRevenue = 0, cogs = 0, delivery = 0, expense
 }
 
 export default {
-    orderValue, orderCOGS, isOrderPaid, collectedValue, isRealized,
-    deliveryCostIncurred, orderDeliveryCost, tvaFromTTC, netProfit, DELIVERY_COST_STATUSES,
+    orderValue, orderCOGS, isOrderPaid, isCollectable, collectedValue, isRealized,
+    deliveryCostIncurred, orderDeliveryCost, tvaFromTTC, netProfit,
+    DELIVERY_COST_STATUSES, PAYMENT_BLOCKED_STATUSES,
 };

@@ -7,7 +7,7 @@
  * functions/shared/money.js), partagée avec le serveur. Ne pas ré-implémenter ici.
  */
 import {
-    orderValue, orderCOGS, isOrderPaid, collectedValue,
+    orderValue, orderCOGS, isRealized, collectedValue,
     orderDeliveryCost, tvaFromTTC, netProfit,
 } from './money.js';
 
@@ -57,7 +57,6 @@ export const calculateFinancialStats = (orders, expenses, refunds = [], dateRang
     // 1. Process Orders — primitives issues de la source de vérité unique (money.js)
     orders.forEach(o => {
         const revenue = orderValue(o);
-        const isPaid = isOrderPaid(o);
 
         // Delivered Potential
         if (o.status === 'livré') {
@@ -70,10 +69,10 @@ export const calculateFinancialStats = (orders, expenses, refunds = [], dateRang
             res.activeCount++;
         }
 
-        // Realized Cash (The Gold Standard) — cash réellement encaissé (amountPaid ou plein si payée)
-        const amountCollected = collectedValue(o);
-        if (amountCollected > 0 || isPaid) {
-            res.realizedRevenue += amountCollected;
+        // Realized Cash (The Gold Standard) — via isRealized (conscient du statut : les commandes
+        // non encaissables annulé/retour/… ne comptent NI en revenu NI en COGS).
+        if (isRealized(o)) {
+            res.realizedRevenue += collectedValue(o);
             // COGS plein dès qu'un paiement est reçu (règle métier partagée client/serveur).
             res.totalCOGS += orderCOGS(o);
         }
