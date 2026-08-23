@@ -232,6 +232,16 @@ export const useOrderActions = () => {
                 setLoading(false);
                 return false;
             }
+            // Anti double-comptage retours : un retour SAV traite déjà stock + LTV + avoir.
+            // Repasser la commande en 'retour' referait tout côté serveur → on bloque, le retour
+            // se gère via le module Retours (SAV).
+            if (oldData.status !== newData.status
+                && ['retour', 'retour en cours'].includes(newData.status)
+                && oldData.hasReturn) {
+                toast.error('Un retour SAV existe déjà pour cette commande — gérez-le via le module Retours.');
+                setLoading(false);
+                return false;
+            }
             // Non-transactional reads FIRST
             let existingCustomerId = null;
             if (!newData.customerId && newData.clientPhone) {
