@@ -4,6 +4,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useTenant } from '../context/TenantContext';
+import { useStoreData } from '../hooks/useStoreData';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -581,7 +582,9 @@ function ReceptionTab({ storeId }) {
     const [loading, setLoading] = useState(true);
     const [expanded, setExpanded] = useState(null);
     const [receptionForms, setReceptionForms] = useState({}); // orderId → [lines]
+    const [receptionWarehouse, setReceptionWarehouse] = useState({}); // orderId → warehouseId
     const [validating, setValidating] = useState(null);
+    const { data: warehouses } = useStoreData('warehouses'); // option B : choix de l'entrepôt de réception
 
     useEffect(() => { loadPendingOrders(); }, [storeId]);
 
@@ -635,7 +638,15 @@ function ReceptionTab({ storeId }) {
                 return;
             }
 
-            await validateReception(order.id, receivedLines, storeId);
+            // Option B : entrepôt de réception choisi (obligatoire si le store en a configuré) →
+            // garde stock total et warehouseStocks cohérents.
+            const whId = receptionWarehouse[order.id] || null;
+            if ((warehouses || []).length > 0 && !whId) {
+                toast.error('Choisissez l\'entrepôt de réception.');
+                return;
+            }
+
+            await validateReception(order.id, receivedLines, storeId, whId);
             toast.success(`Réception validée ! ${receivedLines.length} produit(s) mis à jour.`);
             setPendingOrders(prev => prev.filter(o => o.id !== order.id));
         } catch (e) {
@@ -703,6 +714,20 @@ function ReceptionTab({ storeId }) {
                                                 </div>
                                             ))}
                                         </div>
+
+                                        {(warehouses || []).length > 0 && (
+                                            <div className="mb-3">
+                                                <label className="block text-xs font-semibold text-gray-500 mb-1">Entrepôt de réception</label>
+                                                <select
+                                                    value={receptionWarehouse[order.id] || ''}
+                                                    onChange={e => setReceptionWarehouse(prev => ({ ...prev, [order.id]: e.target.value }))}
+                                                    className="w-full border border-gray-200 rounded-lg p-2 text-sm focus:border-indigo-400 outline-none"
+                                                >
+                                                    <option value="">— Choisir l'entrepôt —</option>
+                                                    {warehouses.map(w => <option key={w.id} value={w.id}>{w.name || w.id}</option>)}
+                                                </select>
+                                            </div>
+                                        )}
 
                                         <button onClick={() => handleValidate(order)} disabled={validating === order.id}
                                             className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2">

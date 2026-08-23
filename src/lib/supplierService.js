@@ -207,7 +207,7 @@ export function exportOrderForOdoo(order) {
 
 // ─── 4. Reception & Stock Update ─────────────────────────────────────────────
 
-export async function validateReception(orderId, receivedLines, storeId) {
+export async function validateReception(orderId, receivedLines, storeId, warehouseId = null) {
     const batch = writeBatch(db);
 
     // 1. Read phase
@@ -240,8 +240,12 @@ export async function validateReception(orderId, receivedLines, storeId) {
         // increment + arrayUnion : atomiques côté serveur → pas de lost-update si une
         // commande déduit le stock (ou une autre réception) en parallèle. Un writeBatch
         // ne relit pas les documents ; recalculer stock = current + qty écrasait la concurrence.
+        const qtyIn = parseFloat(line.qty) || 0;
         batch.update(productRef, {
-            stock: increment(parseFloat(line.qty) || 0),
+            stock: increment(qtyIn),
+            // Cohérence multi-entrepôt : la réception alimente l'entrepôt choisi (option B) →
+            // stock total ET warehouseStocks[wh] restent synchronisés (sinon le total dérive).
+            ...(warehouseId ? { [`warehouseStocks.${warehouseId}`]: increment(qtyIn) } : {}),
             costPrice: parseFloat(line.unit_price) || current.costPrice || 0,
             inventoryBatches: arrayUnion(newBatch),
             updatedAt: serverTimestamp(),
