@@ -551,13 +551,24 @@ export default function Returns() {
                 // A. Réintégrer le stock (si Non ouvert et produit trouvé, et pas déjà fait serveur)
                 let stockReintegrated = false;
                 if (productSnap?.exists() && !orderAlreadyReturned) {
-                    transaction.update(doc(db, 'products', productDocId), {
+                    const stockUpdate = {
                         stock: increment(qty),
                         // Cohérence multi-entrepôt : réintègre dans l'entrepôt choisi (option B) →
                         // stock total et warehouseStocks restent synchronisés.
                         ...(ret.warehouseId ? { [`warehouseStocks.${ret.warehouseId}`]: increment(qty) } : {}),
                         updatedAt: serverTimestamp()
-                    });
+                    };
+                    // Cohérence lots FEFO : réintègre la quantité dans le lot à péremption la plus
+                    // PROCHE (même règle que le moteur serveur applyBatchLogic) → somme des lots ==
+                    // stock. Sinon les lots dérivaient du total après un retour.
+                    const batches = productSnap.data().inventoryBatches;
+                    if (Array.isArray(batches) && batches.length > 0) {
+                        const updated = batches.map(b => ({ ...b }))
+                            .sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
+                        updated[0].quantity = (parseInt(updated[0].quantity) || 0) + qty;
+                        stockUpdate.inventoryBatches = updated;
+                    }
+                    transaction.update(doc(db, 'products', productDocId), stockUpdate);
                     stockReintegrated = true;
                 }
 
