@@ -130,7 +130,7 @@ export default function BillingSettings({ store, setStore, t }) {
                             <div className="mt-4 mb-6">
                                 <span className="text-4xl font-extrabold text-gray-900">79 DH</span>
                                 <span className="text-base font-medium text-gray-500">/mo</span>
-                                <p className="text-xs text-green-600 font-semibold mt-1">14 Days Free Trial</p>
+                                <p className="text-xs text-green-600 font-semibold mt-1">1 Mois Gratuit</p>
                             </div>
                             <ul className="space-y-3 mb-6 text-sm text-gray-600">
                                 <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> {t('plan_feature_50_orders') || "50 Commandes / mois"}</li>
@@ -162,7 +162,7 @@ export default function BillingSettings({ store, setStore, t }) {
                             <div className="mt-4 mb-6">
                                 <span className="text-4xl font-extrabold text-gray-900">179 DH</span>
                                 <span className="text-base font-medium text-gray-500">/mo</span>
-                                <p className="text-xs text-green-600 font-semibold mt-1">14 Days Free Trial</p>
+                                <p className="text-xs text-green-600 font-semibold mt-1">1 Mois Gratuit</p>
                             </div>
                             <ul className="space-y-3 mb-6 text-sm text-gray-600">
                                 <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> {t('plan_feature_unlimited_orders') || "Commandes illimitées"}</li>

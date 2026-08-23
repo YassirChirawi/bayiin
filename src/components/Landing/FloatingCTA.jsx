@@ -38,7 +38,7 @@ export default function FloatingCTA() {
                                 <Sparkles className="w-4 h-4 text-amber-400" /> 
                                 {t('hero_cta_start') || "Prêt à scaler votre business ?"}
                             </div>
-                            <div className="text-xs text-slate-400">14 jours d'essai gratuit • Sans CB</div>
+                            <div className="text-xs text-slate-400">1 mois d'essai gratuit • Sans CB</div>
                         </div>
                         <div className="flex-1 sm:flex-none flex gap-2 w-full">
                             <Link 
