@@ -44,3 +44,26 @@ export function isValidTransition(from, to) {
 export function getAvailableTransitions(currentStatus) {
   return VALID_TRANSITIONS[currentStatus] ?? [];
 }
+
+/**
+ * Statuts pour lesquels marquer une commande « payée / encaissée » n'a AUCUN sens : elle ne
+ * rapportera pas de cash au marchand (annulée, retournée, sans réponse, panier non confirmé).
+ * Marquer isPaid sur ces commandes gonfle artificiellement le revenu réalisé.
+ */
+export const PAYMENT_BLOCKED_STATUSES = [
+  ORDER_STATUS.CANCELLED,
+  ORDER_STATUS.RETURNED,
+  ORDER_STATUS.RETURN_IN_PROGRESS,
+  ORDER_STATUS.NO_ANSWER,
+  ORDER_STATUS.PENDING_CATALOG,
+];
+
+/**
+ * Une commande peut-elle légitimement être marquée encaissée (isPaid) ?
+ * Garde-fou d'intégrité de paiement, à appliquer sur TOUS les chemins qui posent isPaid.
+ * @param {{status?: string}} order
+ * @returns {boolean}
+ */
+export function canMarkPaid(order) {
+  return !!order && !PAYMENT_BLOCKED_STATUSES.includes(order.status);
+}
