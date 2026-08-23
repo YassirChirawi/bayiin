@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useTenant } from '../context/TenantContext';
+import { useStoreData } from '../hooks/useStoreData';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -58,8 +59,10 @@ function NewReturnModal({ storeId, onClose, onCreated }) {
         amount: '',
         reason: RETURN_REASONS[0],
         condition: 'Non ouvert',
+        warehouseId: '',
         notes: '',
     });
+    const { data: warehouses } = useStoreData('warehouses'); // option B : entrepôt de réintégration
     const [orders, setOrders] = useState([]);
     const [orderFilter, setOrderFilter] = useState('');
     const [foundOrder, setFoundOrder] = useState(null);
@@ -118,6 +121,7 @@ function NewReturnModal({ storeId, onClose, onCreated }) {
             sku,
             quantity: qty,
             amount: parseFloat(order.price) || '',
+            warehouseId: order.warehouseId || f.warehouseId || '', // défaut : entrepôt d'origine
         }));
     }
 
@@ -138,6 +142,7 @@ function NewReturnModal({ storeId, onClose, onCreated }) {
                 amount: parseFloat(form.amount) || 0,
                 reason: form.reason,
                 condition: form.condition,
+                warehouseId: form.warehouseId || null, // entrepôt de réintégration (option B)
                 notes: form.notes,
                 status: 'pending',
                 stockReintegrated: false,
@@ -267,6 +272,18 @@ function NewReturnModal({ storeId, onClose, onCreated }) {
                             ))}
                         </div>
                     </div>
+
+                    {/* Entrepôt de réintégration (option B) — affiché seulement si le store en a. */}
+                    {(warehouses || []).length > 0 && form.condition === 'Non ouvert' && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Entrepôt de réintégration</label>
+                            <select value={form.warehouseId} onChange={e => setForm(f => ({ ...f, warehouseId: e.target.value }))}
+                                className="block w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                                <option value="">— Choisir l'entrepôt —</option>
+                                {warehouses.map(w => <option key={w.id} value={w.id}>{w.name || w.id}</option>)}
+                            </select>
+                        </div>
+                    )}
 
                     <div>
                         <label className="block text-xs text-gray-500 mb-1">Notes</label>
@@ -536,6 +553,9 @@ export default function Returns() {
                 if (productSnap?.exists() && !orderAlreadyReturned) {
                     transaction.update(doc(db, 'products', productDocId), {
                         stock: increment(qty),
+                        // Cohérence multi-entrepôt : réintègre dans l'entrepôt choisi (option B) →
+                        // stock total et warehouseStocks restent synchronisés.
+                        ...(ret.warehouseId ? { [`warehouseStocks.${ret.warehouseId}`]: increment(qty) } : {}),
                         updatedAt: serverTimestamp()
                     });
                     stockReintegrated = true;
