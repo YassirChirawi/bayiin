@@ -70,6 +70,15 @@ exports.shopifyWebhook = onRequest({ concurrency: 50 }, async (req, res) => {
         const orderData = req.body;
         console.log(`Shopify Order Received: ${orderData.id} for Store: ${storeId}`);
 
+        // Entrepôt par défaut → cohérence warehouseStocks (Shopify déduit le stock en inline via
+        // _stockManagedByClient ; sans ça, warehouseStocks dérivait du stock total en multi-entrepôt).
+        let defaultWh = null;
+        try {
+            const whSnap = await db.collection('warehouses').where('storeId', '==', storeId).get();
+            const def = whSnap.docs.find(d => d.data().isDefault) || whSnap.docs[0];
+            if (def) defaultWh = def.id;
+        } catch (e) { /* mono-entrepôt → stock total seul */ }
+
         await db.runTransaction(async (transaction) => {
             const mappedProducts = [];
             const items = orderData.line_items || [];
@@ -90,8 +99,9 @@ exports.shopifyWebhook = onRequest({ concurrency: 50 }, async (req, res) => {
                         const productDoc = productsSnap.docs[0];
                         const product = productDoc.data();
 
-                        // FEFO Stock Deduction
+                        // FEFO Stock Deduction (+ warehouseStocks entrepôt par défaut pour la cohérence)
                         let stockUpdates = { stock: FieldValue.increment(-qty) };
+                        if (defaultWh) stockUpdates[`warehouseStocks.${defaultWh}`] = FieldValue.increment(-qty);
                         if (product.inventoryBatches && product.inventoryBatches.length > 0) {
                             let updatedBatches = [...product.inventoryBatches].sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0));
                             let remainingQty = qty;

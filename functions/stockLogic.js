@@ -41,14 +41,29 @@ const applyStockUpdates = async (db, before, after) => {
     const oldItems = getActiveItems(before);
     const newItems = getActiveItems(after);
 
+    // Entrepôt par défaut du store : les commandes SANS entrepôt explicite (intégrations
+    // Woo/YouCan/bot, commandes manuelles sans choix) attribuent leur mouvement à cet entrepôt →
+    // stock total et warehouseStocks restent cohérents (sinon warehouseStocks dérivait du total).
+    // Store mono-entrepôt (aucun warehouse) → defaultWh null → seul le stock total est ajusté.
+    const storeId = (after && after.storeId) || (before && before.storeId) || null;
+    let defaultWh = null;
+    if (storeId) {
+        try {
+            const whSnap = await db.collection('warehouses').where('storeId', '==', storeId).get();
+            const def = whSnap.docs.find(d => d.data().isDefault) || whSnap.docs[0];
+            if (def) defaultWh = def.id;
+        } catch (e) { /* pas d'entrepôts configurés → stock total seul */ }
+    }
+
     // Calcul des deltas nets par produit
-    const deltas = {}; 
+    const deltas = {};
     // Format: productId -> { baseDelta: 0, variants: { variantId: delta }, warehouses: { warehouseId: delta } }
-    
+
     const addItemDelta = (item, isOld) => {
         const sign = isOld ? 1 : -1; // old = restock (+), new = deduct (-)
         const qty = item.quantity * sign;
-        
+        const effWh = item.warehouseId || defaultWh; // entrepôt effectif (choisi ou défaut)
+
         if (!deltas[item.id]) {
             deltas[item.id] = { baseDelta: 0, variants: {}, warehouses: {}, variantWarehouse: {} };
         }
@@ -59,12 +74,12 @@ const applyStockUpdates = async (db, before, after) => {
             deltas[item.id].variants[item.variantId] = (deltas[item.id].variants[item.variantId] || 0) + qty;
             // BAY-106 : corréler variante × entrepôt pour appliquer le delta au BON entrepôt
             // (et pas systématiquement au premier) sur les commandes multi-articles.
-            const wId = item.warehouseId || '__default__';
+            const wId = effWh || '__default__';
             (deltas[item.id].variantWarehouse[item.variantId] ||= {});
             deltas[item.id].variantWarehouse[item.variantId][wId] = (deltas[item.id].variantWarehouse[item.variantId][wId] || 0) + qty;
         }
-        if (item.warehouseId) {
-            deltas[item.id].warehouses[item.warehouseId] = (deltas[item.id].warehouses[item.warehouseId] || 0) + qty;
+        if (effWh) {
+            deltas[item.id].warehouses[effWh] = (deltas[item.id].warehouses[effWh] || 0) + qty;
         }
     };
 

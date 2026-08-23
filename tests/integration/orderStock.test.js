@@ -183,3 +183,25 @@ describe('applyStockUpdates — variante × entrepôt (BAY-106)', () => {
     expect(v2.stock).toBe(4);                    // variante non commandée intacte
   });
 });
+
+describe('applyStockUpdates — fallback entrepôt par défaut (cohérence intégrations)', () => {
+  it('une commande SANS entrepôt déduit de l\'entrepôt par défaut du store', async () => {
+    await db.collection('warehouses').doc('whDef').set({ storeId: 'sDef', name: 'Principal', isDefault: true });
+    await db.collection('warehouses').doc('whOther').set({ storeId: 'sDef', name: 'Secondaire', isDefault: false });
+    await seedProduct('pdef', { storeId: 'sDef', name: 'PDEF', price: 10, stock: 10, warehouseStocks: { whDef: 6, whOther: 4 } });
+
+    // Commande d'intégration : storeId présent, PAS de warehouseId.
+    await applyStockUpdates(db, null, { status: 'reçu', articleId: 'pdef', quantity: 3, storeId: 'sDef' });
+
+    const p = await stockOf('pdef');
+    expect(p.stock).toBe(7);                     // 10 - 3
+    expect(p.warehouseStocks.whDef).toBe(3);     // 6 - 3 (entrepôt par défaut)
+    expect(p.warehouseStocks.whOther).toBe(4);   // intact
+  });
+
+  it('store mono-entrepôt (aucun warehouse) : seul le stock total bouge', async () => {
+    await seedProduct('pmono', { storeId: 'sMono', name: 'PMONO', price: 10, stock: 10 });
+    await applyStockUpdates(db, null, { status: 'reçu', articleId: 'pmono', quantity: 2, storeId: 'sMono' });
+    expect((await stockOf('pmono')).stock).toBe(8);
+  });
+});
