@@ -524,9 +524,16 @@ export default function Returns() {
                 const qty = parseInt(ret.quantity) || 1;
                 const returnAmount = parseFloat(ret.amount) || 0;
 
-                // A. Réintégrer le stock (si Non ouvert et produit trouvé)
+                // Exclusion mutuelle (double comptage) : si la commande est DÉJÀ en retour/annulé,
+                // le trigger serveur (onOrderWrite) a déjà restocké + ajusté totalSpent/réalisé.
+                // Le SAV ne refait donc PAS stock+LTV — il ne trace que l'avoir. Sinon (commande
+                // encore active), le SAV gère lui-même le restock conditionnel/partiel + la LTV.
+                const orderAlreadyReturned = orderSnap?.exists()
+                    && ['retour', 'retour en cours', 'annulé'].includes(orderSnap.data().status);
+
+                // A. Réintégrer le stock (si Non ouvert et produit trouvé, et pas déjà fait serveur)
                 let stockReintegrated = false;
-                if (productSnap?.exists()) {
+                if (productSnap?.exists() && !orderAlreadyReturned) {
                     transaction.update(doc(db, 'products', productDocId), {
                         stock: increment(qty),
                         updatedAt: serverTimestamp()
@@ -563,8 +570,8 @@ export default function Returns() {
                     });
                 }
 
-                // D. Ajuster totalSpent du client
-                if (customerSnap?.exists() && returnAmount > 0) {
+                // D. Ajuster totalSpent du client (sauf si le serveur l'a déjà fait via le statut retour)
+                if (customerSnap?.exists() && returnAmount > 0 && !orderAlreadyReturned) {
                     transaction.update(doc(db, 'customers', customerId), {
                         totalSpent: increment(-returnAmount),
                         updatedAt: serverTimestamp()
