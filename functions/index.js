@@ -1487,7 +1487,15 @@ exports.manualReconciliation = functions.runWith({ timeoutSeconds: 300, memory: 
         });
 
         expSnap.forEach(doc => { stats.totals.expenses += (parseFloat(doc.data().amount) || 0); });
-        refSnap.forEach(doc => { stats.totals.refunds += (parseFloat(doc.data().amount) || 0); });
+        // Avoirs : total + agrégat par client, pour aligner la LTV recalculée sur l'incrémental
+        // (Returns décrémente totalSpent du montant de l'avoir) — sinon un "Sync" regonfle la LTV.
+        const refundsByCustomer = {};
+        refSnap.forEach(doc => {
+            const r = doc.data();
+            const amt = parseFloat(r.amount) || 0;
+            stats.totals.refunds += amt;
+            if (r.customerId) refundsByCustomer[r.customerId] = (refundsByCustomer[r.customerId] || 0) + amt;
+        });
 
         stats.totals.netProfit = mNetProfit({
             realizedRevenue: stats.totals.realizedRevenue, cogs: stats.totals.realizedCOGS,
@@ -1502,7 +1510,7 @@ exports.manualReconciliation = functions.runWith({ timeoutSeconds: 300, memory: 
             const lastOrderDate = cStats.dates.sort().pop() || new Date().toISOString().split('T')[0];
             batch.update(db.collection('customers').doc(custId), {
                 orderCount: cStats.count,
-                totalSpent: cStats.spent,
+                totalSpent: Math.max(0, cStats.spent - (refundsByCustomer[custId] || 0)),
                 lastOrderDate: lastOrderDate
             });
         });
