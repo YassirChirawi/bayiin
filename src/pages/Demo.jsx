@@ -105,7 +105,7 @@ export default function Demo() {
                             Join thousands of merchants growing their business with Commerce SaaS.
                         </p>
                         <Link to="/signup" className="inline-flex items-center gap-2 px-8 py-4 bg-white text-indigo-600 rounded-full font-bold text-lg hover:bg-indigo-50 transition-colors shadow-xl">
-                            Start 14-Day Free Trial <ArrowRight className="w-5 h-5" />
+                            Start 1-Month Free Trial <ArrowRight className="w-5 h-5" />
                         </Link>
                     </div>
                 </div>

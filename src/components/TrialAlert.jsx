@@ -17,7 +17,7 @@ export default function TrialAlert({ createdAt, plan }) {
     const startDate = toDate(createdAt);
     const today = new Date();
     const daysUsed = differenceInDays(today, startDate);
-    const trialLength = 14;
+    const trialLength = 30; // 1 mois offert — aligné sur trial_days:30 côté billing serveur
     const daysLeft = trialLength - daysUsed;
     const endDate = addDays(startDate, trialLength);
 
