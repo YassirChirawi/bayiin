@@ -619,6 +619,23 @@ exports.onOrderWrite = onDocumentWritten({
     if (realizedCostDelta !== 0) updates['totals.realizedCOGS'] = FieldValue.increment(realizedCostDelta);
     if (realizedDeliveryCostDelta !== 0) updates['totals.realizedDeliveryCost'] = FieldValue.increment(realizedDeliveryCostDelta);
 
+    // [COHÉRENCE] Champs dérivés du STATUT (livré/expédié/remis) — maintenus en incrémental pour
+    // que le Dashboard (stats stockées) == le recalcul (manualReconciliation). Avant, ils n'étaient
+    // mis à jour qu'au recalcul (2h ou "Sync") → KPIs "remis/non remis/livré" périmés en intraday.
+    // contrib(after) - contrib(before) couvre create/update/delete ET changement de paymentStatus.
+    const deliveredContrib = (o) => (o && o.status === 'livré') ? getOrderValue(o) : 0;
+    const expectedContrib = (o) => (o && (o.status === 'livraison' || o.status === 'ramassage')) ? getOrderValue(o) : 0;
+    const remittedContrib = (o) => (o && o.status === 'livré' && o.paymentStatus === 'remitted') ? getOrderValue(o) : 0;
+    const unremittedContrib = (o) => (o && o.status === 'livré' && o.paymentStatus !== 'remitted') ? getOrderValue(o) : 0;
+    const deliveredRevDelta = deliveredContrib(after) - deliveredContrib(before);
+    const expectedRevDelta = expectedContrib(after) - expectedContrib(before);
+    const remittedRevDelta = remittedContrib(after) - remittedContrib(before);
+    const unremittedRevDelta = unremittedContrib(after) - unremittedContrib(before);
+    if (deliveredRevDelta !== 0) updates['totals.deliveredRevenue'] = FieldValue.increment(deliveredRevDelta);
+    if (expectedRevDelta !== 0) updates['totals.expectedRevenue'] = FieldValue.increment(expectedRevDelta);
+    if (remittedRevDelta !== 0) updates['totals.remittedRevenue'] = FieldValue.increment(remittedRevDelta);
+    if (unremittedRevDelta !== 0) updates['totals.unremittedRevenue'] = FieldValue.increment(unremittedRevDelta);
+
     // 2. Daily Stats
     if (before && after && oldDate !== newDate) {
         // Date changed!
