@@ -14,6 +14,7 @@ import { fileURLToPath } from 'url';
 import { describe, it, expect } from 'vitest';
 
 import * as client from '../../src/utils/money.js';
+import { PAYMENT_BLOCKED_STATUSES as SM_BLOCKED } from '../../src/utils/orderStateMachine.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const requireFromFunctions = createRequire(resolve(ROOT, 'functions/package.json'));
@@ -97,6 +98,31 @@ describe('isRealized', () => {
   it('encaissement partiel → réalisé', () => expect(client.isRealized({ amountPaid: 10 })).toBe(true));
   it('payée sans montant → réalisé', () => expect(client.isRealized({ isPaid: true, price: 50 })).toBe(true));
   it('non payée → non réalisé', () => expect(client.isRealized({ price: 50 })).toBe(false));
+});
+
+describe('statuts non encaissables — défense calcul (revenu réalisé)', () => {
+  for (const status of ['annulé', 'retour', 'retour en cours', 'pas de réponse', 'pending_catalog']) {
+    it(`${status} + isPaid → collectedValue 0 et isRealized false (client & serveur)`, () => {
+      const o = { status, isPaid: true, price: 200, quantity: 2, amountPaid: 150 };
+      expect(client.collectedValue(o)).toBe(0);
+      expect(client.isRealized(o)).toBe(false);
+      // et le miroir serveur donne exactement la même chose
+      expect(server.collectedValue(o)).toBe(0);
+      expect(server.isRealized(o)).toBe(false);
+    });
+  }
+  it('un statut encaissable + payée reste compté', () => {
+    const o = { status: 'livré', isPaid: true, price: 200, quantity: 2 };
+    expect(client.collectedValue(o)).toBe(400);
+    expect(client.isRealized(o)).toBe(true);
+  });
+});
+
+describe('anti-drift : PAYMENT_BLOCKED_STATUSES aligné (money ↔ state machine)', () => {
+  it('les trois listes sont identiques', () => {
+    expect([...client.PAYMENT_BLOCKED_STATUSES].sort()).toEqual([...SM_BLOCKED].sort());
+    expect([...server.PAYMENT_BLOCKED_STATUSES].sort()).toEqual([...SM_BLOCKED].sort());
+  });
 });
 
 describe('coûts de livraison', () => {
