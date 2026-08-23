@@ -45,7 +45,7 @@ export default function InteractiveSignupPreview() {
                     </h2>
                     
                     <p className="text-xl text-slate-400 mb-12 max-w-2xl mx-auto">
-                        Testez gratuitement pendant 14 jours. Aucune carte bancaire requise. Annulez à tout moment.
+                        Testez gratuitement pendant 1 mois. Aucune carte bancaire requise. Annulez à tout moment.
                     </p>
 
                     <form 
