@@ -87,6 +87,10 @@ test.describe('Global PWA Test Scenario', () => {
         await page.addInitScript(() => {
             window.localStorage.clear();
             window.localStorage.setItem('language', 'fr');
+            // Consentement cookies pré-accepté → la bannière (fixed bottom, z-50) ne se monte PAS.
+            // Sinon, sur mobile-safari elle chevauche le formulaire et intercepte les clics (CSS
+            // de masquage seul = fragile sur WebKit).
+            window.localStorage.setItem('cookie_consent', 'true');
             // Mock biometrics to be unavailable
             if (window.PublicKeyCredential) {
                 window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable = () => Promise.resolve(false);
