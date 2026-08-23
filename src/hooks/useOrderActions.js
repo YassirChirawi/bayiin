@@ -1,11 +1,9 @@
 import { useState } from 'react';
-import { db } from '../lib/firebase';
+import { db, functions } from '../lib/firebase';
 import { runTransaction, doc, getDoc, serverTimestamp, increment, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { ORDER_STATUS } from '../utils/constants';
 import { useTenant } from '../context/TenantContext';
-import { authenticateOlivraison, createOlivraisonPackage } from '../lib/olivraison';
-import { authenticateSendit, createSenditPackage } from '../lib/sendit';
-import { authenticateCathedis, createCathedisDelivery } from '../lib/cathedis';
+import { httpsCallable } from 'firebase/functions';
 import { logActivity } from '../utils/logger'; // NEW
 import { useAuth } from '../context/AuthContext'; // NEW
 import { useAudit } from './useAudit'; // NEW
@@ -395,124 +393,30 @@ export const useOrderActions = () => {
     };
 
 
-    const sendToOlivraison = async (order) => {
+    // Expédition transporteur : la création de colis se fait CÔTÉ SERVEUR (createCarrierDelivery)
+    // → plus de CORS, secrets protégés (jamais lus par le navigateur), session Cathedis réparée.
+    // Le serveur crée le colis ET met à jour la commande (trackingId, carrierStatus, statut → livraison).
+    const shipWithCarrier = async (order, carrier, label) => {
         setLoading(true);
         setError(null);
         try {
-            assertCanShip(order);
-            // Load secrets
-            const configDoc = await getDoc(doc(db, "stores", store.id, "private", "config"));
-            const secrets = configDoc.exists() ? configDoc.data() : {};
-
-            if (!secrets.olivraisonApiKey || !secrets.olivraisonSecretKey) {
-                throw new Error("O-Livraison API keys not configured in Settings.");
-            }
-
-            // 1. Authenticate
-            const token = await authenticateOlivraison(secrets.olivraisonApiKey, secrets.olivraisonSecretKey);
-
-            // 2. Create Package
-            const result = await createOlivraisonPackage(token, order, store);
-
-            // 3. Update Order with Tracking Info
-            await runTransaction(db, async (transaction) => {
-                const orderRef = doc(db, "orders", order.id);
-                transaction.update(orderRef, {
-                    carrier: 'olivraison',
-                    trackingId: result.trackingID || 'PENDING',
-                    carrierStatus: result.status || 'CREATED',
-                    status: 'livraison', // Auto-move to Shipping status
-                    updatedAt: serverTimestamp()
-                });
-            });
-
+            assertCanShip(order); // garde-fou immédiat côté client (le serveur revalide)
+            const fn = httpsCallable(functions, 'createCarrierDelivery');
+            const { data: result } = await fn({ orderId: order.id, carrier });
             setLoading(false);
             return result;
         } catch (err) {
-            console.error("O-Livraison Error:", err);
+            // Les HttpsError du callable exposent le message métier dans err.message.
+            console.error(`${label} Error:`, err);
             setError(err.message);
             setLoading(false);
             throw err;
         }
     };
 
-    const sendToSendit = async (order) => {
-        setLoading(true);
-        setError(null);
-        try {
-            assertCanShip(order);
-            // Load secrets
-            const configDoc = await getDoc(doc(db, "stores", store.id, "private", "config"));
-            const secrets = configDoc.exists() ? configDoc.data() : {};
-
-            if (!secrets.senditPublicKey || !secrets.senditSecretKey) {
-                throw new Error("Sendit API keys not configured in Settings.");
-            }
-
-            // 1. Authenticate (Benefit from caching inside senditService)
-            const token = await authenticateSendit(secrets.senditPublicKey, secrets.senditSecretKey);
-
-            // 2. Create Package
-            const result = await createSenditPackage(token, order, store);
-
-            // 3. Update Order with Tracking Info
-            await runTransaction(db, async (transaction) => {
-                const orderRef = doc(db, "orders", order.id);
-                transaction.update(orderRef, {
-                    carrier: 'sendit',
-                    trackingId: result.code || 'PENDING',
-                    carrierStatus: result.status || 'PENDING',
-                    labelUrl: result.label_url || "",
-                    status: 'livraison', // Auto-move to Shipping status
-                    updatedAt: serverTimestamp()
-                });
-            });
-
-            setLoading(false);
-            return result;
-        } catch (err) {
-            console.error("Sendit Error:", err);
-            setError(err.message);
-            setLoading(false);
-            throw err;
-        }
-    };
-
-    const sendToCathedis = async (order) => {
-        setLoading(true);
-        setError(null);
-        try {
-            assertCanShip(order);
-            const configDoc = await getDoc(doc(db, "stores", store.id, "private", "config"));
-            const secrets = configDoc.exists() ? configDoc.data() : {};
-
-            if (!secrets.cathedisUsername || !secrets.cathedisPassword) {
-                throw new Error("Cathedis API credentials not configured in Settings.");
-            }
-
-            const jsessionid = await authenticateCathedis(secrets.cathedisUsername, secrets.cathedisPassword);
-            const result = await createCathedisDelivery(jsessionid, order, store);
-
-            await runTransaction(db, async (transaction) => {
-                const orderRef = doc(db, "orders", order.id);
-                transaction.update(orderRef, {
-                    carrier: 'cathedis',
-                    trackingId: String(result.id) || 'PENDING',
-                    carrierStatus: result.deliveryStatus || 'CREATED',
-                    status: 'livraison',
-                    updatedAt: serverTimestamp()
-                });
-            });
-
-            setLoading(false);
-            return result;
-        } catch (err) {
-            console.error("Cathedis Error:", err);
-            setError(err.message);
-            setLoading(false);
-            throw err;
-        }
-    };
+    const sendToOlivraison = (order) => shipWithCarrier(order, 'olivraison', 'O-Livraison');
+    const sendToSendit = (order) => shipWithCarrier(order, 'sendit', 'Sendit');
+    const sendToCathedis = (order) => shipWithCarrier(order, 'cathedis', 'Cathedis');
 
     const updateOrderStatus = async (orderId, newStatus) => {
         setLoading(true);
