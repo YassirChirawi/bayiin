@@ -6,6 +6,7 @@ import {
     enableIndexedDbPersistence
 } from "firebase/firestore";
 import { getStorage, connectStorageEmulator } from "firebase/storage";
+import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { getMessaging, isSupported } from "firebase/messaging";
 
 const firebaseConfig = {
@@ -27,6 +28,10 @@ export const db = getFirestore(app, 'comsaas');
 
 export const storage = getStorage(app);
 
+// Cloud Functions (région par défaut us-central1) — utilisé pour les appels serveur
+// (createCarrierDelivery, etc.).
+export const functions = getFunctions(app);
+
 // Emulator Support (BAY-102)
 // IMPORTANT : connectFirestoreEmulator DOIT être appelé avant toute opération sur
 // `db` (dont enableIndexedDbPersistence, qui démarre Firestore). Sinon il lève
@@ -45,6 +50,9 @@ if (useEmulator) {
     try {
         connectStorageEmulator(storage, "localhost", 9199);
     } catch (e) { console.warn("Storage emulator connect skipped:", e.message); }
+    try {
+        connectFunctionsEmulator(functions, "localhost", 5001);
+    } catch (e) { console.warn("Functions emulator connect skipped:", e.message); }
 }
 
 // Persistance hors-ligne : jamais en mode test, ni en mode émulateur (inutile, et
