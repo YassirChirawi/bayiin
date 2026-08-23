@@ -13,7 +13,7 @@ import { shouldRestock, shouldDeductStock } from '../utils/orderLogic'; // PURE 
 import { computeNetDeltas } from '../utils/orderStock'; // BAY-109 : même base que la mutation serveur
 import { logAudit } from '../lib/audit';
 import { logStockMovement } from '../lib/stockAudit';
-import { isValidTransition } from '../utils/orderStateMachine';
+import { isValidTransition, canMarkPaid } from '../utils/orderStateMachine';
 import { normalizePhoneMA } from '../utils/phone';
 import { toast } from 'react-hot-toast';
 export const useOrderActions = () => {
@@ -326,8 +326,12 @@ export const useOrderActions = () => {
                 }
 
                 // Update Order (No _stockManagedByClient flag anymore)
+                // Intégrité paiement : un statut non encaissable (annulé/retour/sans réponse/panier)
+                // ne peut pas rester marqué payé → réinitialise isPaid (défense en profondeur).
+                const paymentOverride = (!canMarkPaid(newData) && newData.isPaid) ? { isPaid: false } : {};
                 transaction.update(orderRef, {
                     ...newData,
+                    ...paymentOverride,
                     customerId: finalCustomerId || null,
                     updatedAt: serverTimestamp()
                 });

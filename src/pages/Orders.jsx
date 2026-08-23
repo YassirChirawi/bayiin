@@ -13,7 +13,7 @@ import QRCode from "react-qr-code";
 import { exportToCSV } from "../utils/csvHelper";
 import { PAYMENT_STATUS, ORDER_STATUS } from "../utils/constants";
 import { getOrderStatusConfig } from "../utils/statusConfig";
-import { isValidTransition } from "../utils/orderStateMachine";
+import { isValidTransition, canMarkPaid } from "../utils/orderStateMachine";
 
 import { useTenant } from "../context/TenantContext";
 import { useLanguage } from "../context/LanguageContext";
@@ -110,9 +110,15 @@ export default function Orders() {
     // Fast Single Actions
     const togglePaid = async (order) => {
         if (!store?.id) return;
+        const newIsPaid = !order.isPaid;
+        // Intégrité de paiement : interdire de marquer encaissée une commande qui ne rapporte
+        // aucun cash (annulée, retour, sans réponse, panier) → sinon revenu réalisé gonflé.
+        if (newIsPaid && !canMarkPaid(order)) {
+            toast.error(t('err_cannot_mark_paid') || "Impossible de marquer payée une commande annulée / retournée / sans réponse.");
+            return;
+        }
         try {
             const batch = writeBatch(db);
-            const newIsPaid = !order.isPaid;
             batch.update(doc(db, "orders", order.id), { isPaid: newIsPaid });
             await batch.commit();
             logActivity(db, store.id, user, 'PAYMENT_UPDATE', `Order ${order.orderNumber} ${newIsPaid ? 'PAID' : 'UNPAID'}`, { orderId: order.id, newIsPaid });
