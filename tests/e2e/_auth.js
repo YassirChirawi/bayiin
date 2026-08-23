@@ -24,6 +24,9 @@ export async function signupAndOnboard(page) {
     const uniqueEmail = `test_${Date.now()}_${Math.floor(Math.random() * 1000)}@bayiin.com`;
     const testPassword = 'Password123!';
 
+    // Pré-accepte le consentement cookies → la bannière (fixed bottom, z-50) ne se monte pas.
+    // Sinon, sur mobile-safari, elle chevauche le formulaire et intercepte les clics.
+    await page.addInitScript(() => { try { localStorage.setItem('cookie_consent', 'true'); } catch (e) { /* ignore */ } });
     await page.goto('/signup');
     await page.waitForLoadState('load');
     await handleOverlays(page);
