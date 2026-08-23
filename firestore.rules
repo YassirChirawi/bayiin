@@ -340,8 +340,17 @@ service cloud.firestore {
     // Team Management
     match /allowed_users/{userId} {
        allow read: if request.auth != null && (resource.data.email == request.auth.token.email || belongsToStore(resource.data.storeId) || isStoreOwner(resource.data.storeId) || isSuperAdmin());
-       allow create: if request.auth != null && (belongsToStore(request.resource.data.storeId) || isStoreOwner(request.resource.data.storeId) || isSuperAdmin());
-       allow update, delete: if request.auth != null && (belongsToStore(resource.data.storeId) || isStoreOwner(resource.data.storeId) || isSuperAdmin());
+       // SEC : seuls owner/manager gèrent l'équipe, et le rôle est contraint à staff/manager.
+       // onUserWrite dérive le claim de rôle depuis allowed_users.role → sans ces gardes, tout
+       // membre (staff/driver) pourrait s'auto-écrire role:'owner' et escalader ses privilèges.
+       allow create: if request.auth != null
+                     && (isOwnerOrManager(request.resource.data.storeId) || isSuperAdmin())
+                     && request.resource.data.role in ['staff', 'manager'];
+       allow update: if request.auth != null
+                     && (isOwnerOrManager(resource.data.storeId) || isSuperAdmin())
+                     && request.resource.data.role in ['staff', 'manager']
+                     && request.resource.data.storeId == resource.data.storeId;
+       allow delete: if request.auth != null && (isOwnerOrManager(resource.data.storeId) || isSuperAdmin());
     }
 
     // Public Leads — validated, no auth required but fields are enforced
