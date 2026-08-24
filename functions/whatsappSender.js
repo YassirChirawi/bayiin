@@ -14,6 +14,7 @@ const {
     sendTemplateMessage,
     normalizePhone
 } = require("./whatsappUtils");
+const { logServerError } = require("./logError");
 
 // Use named database 'comsaas'
 const db = getFirestore("comsaas");
@@ -146,6 +147,7 @@ const sendOrderConfirmationRequest = onDocumentCreated(
 
         } catch (error) {
             console.error(`[WhatsApp] Failed to send confirmation for order ${orderId}:`, error);
+            logServerError('whatsappConfirmation', error, { storeId, context: orderId });
         }
     }
 );
