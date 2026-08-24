@@ -167,8 +167,16 @@ service cloud.firestore {
                   || resource.data.publicCatalogEnabled == true;
       allow list: if (request.auth != null && (resource.data.ownerId == request.auth.uid || isSuperAdmin() || isFranchiseAdmin())) 
                   || resource.data.publicCatalogEnabled == true;
-      allow update: if (isStoreOwner(storeId) || isSuperAdmin()) &&
-                    !request.resource.data.diff(resource.data).affectedKeys().hasAny(['plan', 'subscriptionStatus', 'currentPeriodEnd', 'stripeCustomerId', 'subscriptionSource', 'youcanChargeId']);
+      // Le super_admin (opérateur plateforme / support) peut tout modifier — y compris plan,
+      // abonnement, testerMode, suspended, trialEndsAt. Le propriétaire, lui, ne peut jamais
+      // s'auto-attribuer ces champs (sinon contournement du paywall : testerMode/trialEndsAt/promo).
+      allow update: if isSuperAdmin() ||
+                    (isStoreOwner(storeId) &&
+                     !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                       'plan', 'subscriptionStatus', 'currentPeriodEnd', 'stripeCustomerId',
+                       'subscriptionSource', 'youcanChargeId',
+                       'testerMode', 'suspended', 'trialEndsAt'
+                     ]));
       allow delete: if isStoreOwner(storeId) || isSuperAdmin();
 
       match /private/{document=**} {
