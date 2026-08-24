@@ -1,17 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Building2, ExternalLink, ShieldAlert, Megaphone, AlertTriangle, TrendingUp, Activity, Zap, X, Star,
     Wallet, ShieldCheck, Globe, Users, Search, CheckCircle, Phone, Mail, MessageCircle, Truck, Package,
-    Clock, Ban, Sparkles, Store as StoreIcon, XCircle } from "lucide-react";
+    Clock, Ban, Sparkles, Store as StoreIcon, XCircle, History, Coins, Percent } from "lucide-react";
 import { motion } from "framer-motion";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import toast from "react-hot-toast";
 import { useAdminData } from "../hooks/useAdminData";
-import { doc, updateDoc, deleteDoc, setDoc, addDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, updateDoc, deleteDoc, setDoc, addDoc, collection, query, where, getDocs, serverTimestamp, orderBy, limit } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { getStoreAccess } from "../utils/storeAccess";
+import { computeSubscriptionFinance } from "../utils/subscriptionFinance";
+import { planPrice, CURRENCY } from "../config/pricing";
 import { RevenueChart, PlanDistributionChart } from "../components/admin/AdminCharts";
 import { MetricCard, PerformanceTrend, StoreActivityTable } from "../components/admin/AdminMetrics";
 
@@ -50,6 +52,22 @@ function HealthRow({ icon: Icon, label, ok, okText = 'Actif', koText = 'Non conf
     );
 }
 
+/** Carte KPI financière. */
+function FinKpi({ label, value, sub, icon: Icon, tone = 'indigo' }) {
+    const tones = {
+        indigo: 'bg-indigo-50 text-indigo-600', emerald: 'bg-emerald-50 text-emerald-600',
+        amber: 'bg-amber-50 text-amber-600', purple: 'bg-purple-50 text-purple-600',
+    };
+    return (
+        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${tones[tone]}`}><Icon className="w-4 h-4" /></div>
+            <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">{label}</p>
+            <p className="text-2xl font-black text-gray-900 mt-1">{value}</p>
+            {sub && <p className="text-[11px] text-gray-400 mt-0.5">{sub}</p>}
+        </div>
+    );
+}
+
 export default function AdminDashboard() {
     const { user } = useAuth();
     const navigate = useNavigate();
@@ -62,9 +80,15 @@ export default function AdminDashboard() {
     const [promoLoading, setPromoLoading] = useState(false);
     const [selectedQaStore, setSelectedQaStore] = useState(null);
     const [auditStore, setAuditStore] = useState(null);
+    const [conversionRate, setConversionRate] = useState(0.3); // hypothèse de conversion des essais (prévision)
+    const [supportHistory, setSupportHistory] = useState([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
 
     // Custom Hook
     const { stats, stores, usersList, franchises, broadcastData, loading, refreshData, setStores, setUsersList } = useAdminData(user);
+
+    // Finance abonnements + prévision (recalculé sur les stores réels + l'hypothèse de conversion).
+    const finance = useMemo(() => computeSubscriptionFinance(stores, { conversionRate }), [stores, conversionRate]);
 
     // Franchise Modal State
     const [isFranchiseModalOpen, setIsFranchiseModalOpen] = useState(false);
@@ -153,11 +177,30 @@ export default function AdminDashboard() {
     // Propriétaire d'un store (contact support) : par ownerId, sinon par storeId associé.
     const ownerOf = (store) => usersList.find(u => u.id === store.ownerId) || usersList.find(u => u.storeId === store.id);
 
-    // Action support : patch le doc store + mise à jour locale optimiste.
-    const patchStore = async (id, fields, msg) => {
+    // Journalise une action support (append-only, collection support_actions).
+    const logSupportAction = async (store, action, detail) => {
         try {
+            await addDoc(collection(db, 'support_actions'), {
+                storeId: store.id,
+                storeName: store.name || '',
+                action,
+                detail: detail || '',
+                adminId: user.uid,
+                adminEmail: user.email || '',
+                at: serverTimestamp(),
+            });
+        } catch (e) {
+            console.error('logSupportAction', e);
+        }
+    };
+
+    // Action support : patch le doc store + màj locale optimiste + journalisation.
+    const patchStore = async (id, fields, msg, action) => {
+        try {
+            const store = stores.find(s => s.id === id) || { id };
             await updateDoc(doc(db, "stores", id), fields);
             setStores(prev => prev.map(s => s.id === id ? { ...s, ...fields } : s));
+            if (action) logSupportAction(store, action, msg);
             if (msg) toast.success(msg);
         } catch (e) {
             console.error(e);
@@ -260,6 +303,13 @@ export default function AdminDashboard() {
                 })
                 .catch(console.error)
                 .finally(() => setPromoLoading(false));
+        }
+        if (activeTab === 'history') {
+            setHistoryLoading(true);
+            getDocs(query(collection(db, 'support_actions'), orderBy('at', 'desc'), limit(100)))
+                .then(snap => setSupportHistory(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+                .catch(console.error)
+                .finally(() => setHistoryLoading(false));
         }
     }, [activeTab, stores]);
 
@@ -406,7 +456,7 @@ export default function AdminDashboard() {
                 <div className="bg-white rounded-3xl shadow-sm border border-gray-100 min-h-[500px] overflow-hidden">
                     <div className="border-b border-gray-100 px-6 pt-6 bg-white sticky top-0 z-10">
                         <nav className="-mb-px flex space-x-6 overflow-x-auto no-scrollbar">
-                            {['stores', 'users', 'franchises', 'insights', 'qa', 'contacts', 'promo', 'broadcast'].map((tab) => (
+                            {['stores', 'finances', 'history', 'users', 'franchises', 'insights', 'qa', 'contacts', 'promo', 'broadcast'].map((tab) => (
                                 <button
                                     key={tab}
                                     onClick={() => setActiveTab(tab)}
@@ -417,7 +467,7 @@ export default function AdminDashboard() {
                                             : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'}
                                     `}
                                 >
-                                    {tab === 'insights' ? '📊 Insights' : tab === 'qa' ? '🛡️ QA Recette' : tab === 'contacts' ? '📬 Contacts' : tab === 'promo' ? '🎁 Codes Beta' : tab}
+                                    {tab === 'finances' ? '💰 Finances' : tab === 'history' ? '📋 Historique' : tab === 'insights' ? '📊 Insights' : tab === 'qa' ? '🛡️ QA Recette' : tab === 'contacts' ? '📬 Contacts' : tab === 'promo' ? '🎁 Codes Beta' : tab}
                                 </button>
                             ))}
                         </nav>
@@ -425,7 +475,7 @@ export default function AdminDashboard() {
 
                     <div className="p-6">
                         {/* Control Bar for Lists */}
-                        {activeTab !== 'broadcast' && activeTab !== 'contacts' && activeTab !== 'promo' && activeTab !== 'insights' && (
+                        {activeTab !== 'broadcast' && activeTab !== 'contacts' && activeTab !== 'promo' && activeTab !== 'insights' && activeTab !== 'finances' && activeTab !== 'history' && (
                             <div className="mb-6 flex flex-col sm:flex-row justify-between gap-4">
                                 <div className="w-full sm:w-72">
                                     <Input
@@ -515,11 +565,9 @@ export default function AdminDashboard() {
                                                         <Button size="sm" variant="ghost">More</Button>
                                                         <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 hidden group-hover:block z-20 overflow-hidden">
                                                             <button
-                                                                onClick={async () => {
+                                                                onClick={() => {
                                                                     const newPlan = store.plan === 'pro' ? 'free' : 'pro';
-                                                                    await updateDoc(doc(db, "stores", store.id), { plan: newPlan });
-                                                                    setStores(prev => prev.map(s => s.id === store.id ? { ...s, plan: newPlan } : s));
-                                                                    toast.success(`Store plan updated to ${newPlan}`);
+                                                                    patchStore(store.id, { plan: newPlan }, `Plan → ${newPlan}`, 'Changement de plan');
                                                                 }}
                                                                 className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                                                             >
@@ -528,6 +576,7 @@ export default function AdminDashboard() {
                                                             <button
                                                                 onClick={async () => {
                                                                     if (!confirm("PERMANENTLY DELETE STORE? This cannot be undone.")) return;
+                                                                    await logSupportAction(store, 'Suppression boutique');
                                                                     await deleteDoc(doc(db, "stores", store.id));
                                                                     setStores(prev => prev.filter(s => s.id !== store.id));
                                                                     toast.success("Store deleted");
@@ -545,6 +594,147 @@ export default function AdminDashboard() {
                                 </table>
                                 {filteredStores.length === 0 && (
                                     <div className="p-12 text-center text-gray-500">No stores found matching your search.</div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* FINANCES TAB — abonnements réels + prévision */}
+                        {activeTab === 'finances' && (
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <FinKpi label="MRR" value={`${finance.mrr.toLocaleString('fr-FR')} ${CURRENCY}`} sub={`${finance.activePaying} abonné${finance.activePaying > 1 ? 's' : ''} payant${finance.activePaying > 1 ? 's' : ''}`} icon={Wallet} tone="indigo" />
+                                    <FinKpi label="ARR (annualisé)" value={`${finance.arr.toLocaleString('fr-FR')} ${CURRENCY}`} sub="MRR × 12" icon={TrendingUp} tone="emerald" />
+                                    <FinKpi label="Revenu / abonné" value={`${finance.arpu.toLocaleString('fr-FR')} ${CURRENCY}`} sub="ARPU mensuel" icon={Coins} tone="amber" />
+                                    <FinKpi label="Prévision MRR" value={`${finance.forecastMrr.toLocaleString('fr-FR')} ${CURRENCY}`} sub={`+${(finance.forecastMrr - finance.mrr).toLocaleString('fr-FR')} ${CURRENCY} potentiels`} icon={Sparkles} tone="purple" />
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    {/* Répartition par plan */}
+                                    <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                                        <h4 className="font-black text-xs uppercase tracking-widest mb-4 text-gray-400">Répartition du MRR par plan</h4>
+                                        {Object.keys(finance.byPlan).length === 0 ? (
+                                            <p className="text-sm text-gray-400 italic py-6 text-center">Aucun abonnement payant pour le moment.</p>
+                                        ) : (
+                                            <table className="min-w-full text-sm">
+                                                <thead>
+                                                    <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                                        <th className="text-left pb-2">Plan</th>
+                                                        <th className="text-right pb-2">Abonnés</th>
+                                                        <th className="text-right pb-2">Prix</th>
+                                                        <th className="text-right pb-2">MRR</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-50">
+                                                    {Object.entries(finance.byPlan).sort((a, b) => b[1].mrr - a[1].mrr).map(([plan, d]) => (
+                                                        <tr key={plan}>
+                                                            <td className="py-2 font-bold text-gray-900 uppercase">{plan}</td>
+                                                            <td className="py-2 text-right text-gray-600">{d.count}</td>
+                                                            <td className="py-2 text-right text-gray-400">{planPrice(plan)} {CURRENCY}</td>
+                                                            <td className="py-2 text-right font-black text-gray-900">{d.mrr.toLocaleString('fr-FR')} {CURRENCY}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                                <tfoot>
+                                                    <tr className="border-t-2 border-gray-100">
+                                                        <td className="pt-2 font-black text-indigo-600 uppercase text-xs">Total</td>
+                                                        <td className="pt-2 text-right font-bold text-gray-900">{finance.activePaying}</td>
+                                                        <td></td>
+                                                        <td className="pt-2 text-right font-black text-indigo-600">{finance.mrr.toLocaleString('fr-FR')} {CURRENCY}</td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        )}
+                                    </div>
+
+                                    {/* Pipeline & manque à gagner */}
+                                    <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                                        <h4 className="font-black text-xs uppercase tracking-widest mb-4 text-gray-400">Pipeline & accès offerts</h4>
+                                        <div className="space-y-3 text-sm">
+                                            <div className="flex items-center justify-between"><span className="text-gray-500">Essais en cours</span><span className="font-bold text-gray-900">{finance.trials}</span></div>
+                                            <div className="flex items-center justify-between"><span className="text-gray-500">↳ dont expirant ≤ 7 j</span><span className={`font-bold ${finance.trialsExpiring7d > 0 ? 'text-amber-600' : 'text-gray-900'}`}>{finance.trialsExpiring7d}</span></div>
+                                            <div className="flex items-center justify-between"><span className="text-gray-500">Valeur du pipeline d'essais</span><span className="font-bold text-gray-900">{finance.trialPipelineValue.toLocaleString('fr-FR')} {CURRENCY}/mois</span></div>
+                                            <div className="pt-3 mt-1 border-t border-gray-50 flex items-center justify-between"><span className="text-gray-500">Promo (offert)</span><span className="font-bold text-indigo-600">{finance.promoCount}</span></div>
+                                            <div className="flex items-center justify-between"><span className="text-gray-500">Testeurs (offert)</span><span className="font-bold text-purple-600">{finance.testers}</span></div>
+                                            <div className="flex items-center justify-between"><span className="text-gray-500">Expirés</span><span className="font-bold text-red-500">{finance.expired}</span></div>
+                                            <div className="flex items-center justify-between"><span className="text-gray-500">Suspendus</span><span className="font-bold text-red-500">{finance.suspended}</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Prévision ajustable */}
+                                <div className="bg-gradient-to-br from-indigo-50 to-white p-6 rounded-3xl border border-indigo-100">
+                                    <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
+                                        <div>
+                                            <h4 className="font-black text-sm text-gray-900 flex items-center gap-2"><Percent className="w-4 h-4 text-indigo-600" /> Prévision de MRR</h4>
+                                            <p className="text-xs text-gray-500 mt-0.5">Hypothèse : part des {finance.trials} essais en cours qui convertissent.</p>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            {[0.1, 0.2, 0.3, 0.5].map(r => (
+                                                <button key={r} onClick={() => setConversionRate(r)}
+                                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${conversionRate === r ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
+                                                    {Math.round(r * 100)}%
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                        <div className="bg-white p-4 rounded-2xl border border-gray-100">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">MRR actuel</p>
+                                            <p className="text-xl font-black text-gray-900 mt-1">{finance.mrr.toLocaleString('fr-FR')} {CURRENCY}</p>
+                                        </div>
+                                        <div className="bg-white p-4 rounded-2xl border border-gray-100">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">MRR prévu (mois +1)</p>
+                                            <p className="text-xl font-black text-indigo-600 mt-1">{finance.forecastMrr.toLocaleString('fr-FR')} {CURRENCY}</p>
+                                        </div>
+                                        <div className="bg-white p-4 rounded-2xl border border-gray-100">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">ARR prévu</p>
+                                            <p className="text-xl font-black text-emerald-600 mt-1">{finance.forecastArr.toLocaleString('fr-FR')} {CURRENCY}</p>
+                                        </div>
+                                    </div>
+                                    <p className="text-[11px] text-gray-400 mt-4">Prix de référence : {planPrice('pro')} {CURRENCY}/mois (Pro). Ajuste les tarifs dans <code className="bg-white px-1 rounded">config/pricing.js</code>.</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* HISTORIQUE TAB — journal des actions support */}
+                        {activeTab === 'history' && (
+                            <div className="space-y-4">
+                                <div className="bg-indigo-50 border border-indigo-100 p-5 rounded-2xl flex items-center gap-3">
+                                    <History className="w-5 h-5 text-indigo-600" />
+                                    <div>
+                                        <h3 className="font-bold text-indigo-900">Historique des actions support</h3>
+                                        <p className="text-sm text-indigo-700 mt-0.5">100 dernières actions (suspension, promo, prolongation, plan…) — traçabilité par agent.</p>
+                                    </div>
+                                </div>
+                                {historyLoading ? (
+                                    <div className="flex justify-center py-12"><div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full" /></div>
+                                ) : supportHistory.length === 0 ? (
+                                    <div className="text-center py-16 text-gray-400">Aucune action enregistrée pour le moment.</div>
+                                ) : (
+                                    <div className="overflow-x-auto rounded-2xl border border-gray-100">
+                                        <table className="min-w-full divide-y divide-gray-100 text-sm">
+                                            <thead className="bg-gray-50/50">
+                                                <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                                    <th className="px-4 py-3 text-left">Date</th>
+                                                    <th className="px-4 py-3 text-left">Action</th>
+                                                    <th className="px-4 py-3 text-left">Boutique</th>
+                                                    <th className="px-4 py-3 text-left">Détail</th>
+                                                    <th className="px-4 py-3 text-left">Agent</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-50">
+                                                {supportHistory.map(h => (
+                                                    <tr key={h.id} className="hover:bg-gray-50/50">
+                                                        <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{h.at?.toDate ? h.at.toDate().toLocaleString('fr-FR') : '—'}</td>
+                                                        <td className="px-4 py-3"><span className="font-bold text-gray-900 text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">{h.action}</span></td>
+                                                        <td className="px-4 py-3 text-gray-700 text-xs">{h.storeName || <span className="font-mono text-gray-400">{h.storeId?.slice(0, 8)}…</span>}</td>
+                                                        <td className="px-4 py-3 text-gray-500 text-xs">{h.detail || '—'}</td>
+                                                        <td className="px-4 py-3 text-gray-500 text-xs truncate max-w-[160px]" title={h.adminEmail}>{h.adminEmail || '—'}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 )}
                             </div>
                         )}
@@ -919,7 +1109,7 @@ export default function AdminDashboard() {
                                 const curEnd = s.trialEndsAt ? new Date(s.trialEndsAt.toDate ? s.trialEndsAt.toDate() : s.trialEndsAt) : new Date(created.getTime() + 30 * 86400000);
                                 const base = curEnd > new Date() ? curEnd : new Date();
                                 const newEnd = new Date(base.getTime() + 30 * 86400000).toISOString();
-                                patchStore(s.id, { trialEndsAt: newEnd }, 'Essai prolongé de 30 jours');
+                                patchStore(s.id, { trialEndsAt: newEnd }, 'Essai prolongé de 30 jours', 'Prolongation essai');
                             };
 
                             return (
@@ -1011,30 +1201,31 @@ export default function AdminDashboard() {
                                             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                                                 <Button size="sm" variant="secondary" icon={ExternalLink} className="w-full justify-center" onClick={async () => {
                                                     if (!confirm("Accéder à cette boutique ?")) return;
+                                                    await logSupportAction(s, 'Accès store');
                                                     await updateDoc(doc(db, "users", user.uid), { storeId: s.id });
                                                     window.location.href = '/dashboard';
                                                 }}>Accéder</Button>
 
-                                                <Button size="sm" variant="secondary" icon={Sparkles} className="w-full justify-center" onClick={() => patchStore(s.id, { testerMode: !s.testerMode }, s.testerMode ? 'Mode testeur retiré' : 'Mode testeur activé')}>
+                                                <Button size="sm" variant="secondary" icon={Sparkles} className="w-full justify-center" onClick={() => patchStore(s.id, { testerMode: !s.testerMode }, s.testerMode ? 'Mode testeur retiré' : 'Mode testeur activé', 'Mode testeur')}>
                                                     {s.testerMode ? 'Retirer testeur' : 'Mode testeur'}
                                                 </Button>
 
                                                 {access.status === 'promo' ? (
-                                                    <Button size="sm" variant="secondary" className="w-full justify-center" onClick={() => patchStore(s.id, { subscriptionStatus: 'none' }, 'Activation promo retirée')}>Retirer promo</Button>
+                                                    <Button size="sm" variant="secondary" className="w-full justify-center" onClick={() => patchStore(s.id, { subscriptionStatus: 'none' }, 'Activation promo retirée', 'Promo retirée')}>Retirer promo</Button>
                                                 ) : (
-                                                    <Button size="sm" variant="secondary" icon={CheckCircle} className="w-full justify-center" onClick={() => patchStore(s.id, { subscriptionStatus: 'active_promo', suspended: false }, 'Boutique activée (promo)')}>Activer (promo)</Button>
+                                                    <Button size="sm" variant="secondary" icon={CheckCircle} className="w-full justify-center" onClick={() => patchStore(s.id, { subscriptionStatus: 'active_promo', suspended: false }, 'Boutique activée (promo)', 'Activation promo')}>Activer (promo)</Button>
                                                 )}
 
                                                 <Button size="sm" variant="secondary" icon={Clock} className="w-full justify-center" onClick={extendTrial}>Prolonger 30j</Button>
 
-                                                <Button size="sm" variant="secondary" icon={StoreIcon} className="w-full justify-center" onClick={() => patchStore(s.id, { plan: isPaid ? 'free' : 'pro' }, `Plan → ${isPaid ? 'free' : 'pro'}`)}>
+                                                <Button size="sm" variant="secondary" icon={StoreIcon} className="w-full justify-center" onClick={() => patchStore(s.id, { plan: isPaid ? 'free' : 'pro' }, `Plan → ${isPaid ? 'free' : 'pro'}`, 'Changement de plan')}>
                                                     {isPaid ? 'Passer en Free' : 'Passer en Pro'}
                                                 </Button>
 
                                                 {s.suspended ? (
-                                                    <Button size="sm" variant="secondary" icon={CheckCircle} className="w-full justify-center text-emerald-600" onClick={() => patchStore(s.id, { suspended: false }, 'Boutique réactivée')}>Réactiver</Button>
+                                                    <Button size="sm" variant="secondary" icon={CheckCircle} className="w-full justify-center text-emerald-600" onClick={() => patchStore(s.id, { suspended: false }, 'Boutique réactivée', 'Réactivation')}>Réactiver</Button>
                                                 ) : (
-                                                    <Button size="sm" variant="secondary" icon={Ban} className="w-full justify-center text-red-600" onClick={() => { if (confirm("Suspendre cette boutique ? L'accès sera bloqué immédiatement.")) patchStore(s.id, { suspended: true }, 'Boutique suspendue'); }}>Suspendre</Button>
+                                                    <Button size="sm" variant="secondary" icon={Ban} className="w-full justify-center text-red-600" onClick={() => { if (confirm("Suspendre cette boutique ? L'accès sera bloqué immédiatement.")) patchStore(s.id, { suspended: true }, 'Boutique suspendue', 'Suspension'); }}>Suspendre</Button>
                                                 )}
                                             </div>
                                             <p className="text-[11px] text-gray-400 mt-4 flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" /> Les modifications s'appliquent immédiatement (paywall marchand inclus).</p>

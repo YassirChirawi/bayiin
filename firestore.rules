@@ -151,6 +151,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Journal des actions support (suspension, promo, prolongation, changement de plan…).
+    // Créé et lu uniquement par le super_admin ; append-only (jamais modifiable/supprimable).
+    match /support_actions/{actionId} {
+      allow create: if isSuperAdmin() && request.resource.data.adminId == request.auth.uid;
+      allow read: if isSuperAdmin();
+      allow update, delete: if false;
+    }
+
     // Stores collection
     match /stores/{storeId} {
       // SEC (P0-5): prevent self-granting a paid plan at creation. Owners create their own

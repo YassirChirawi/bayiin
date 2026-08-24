@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { collection, getDocs, getDoc, doc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import toast from "react-hot-toast";
+import { computeSubscriptionFinance } from "../utils/subscriptionFinance";
 
 export function useAdminData(user) {
     const [stats, setStats] = useState({ 
@@ -61,9 +62,9 @@ export function useAdminData(user) {
                 console.warn("Failed to fetch broadcast", e);
             }
 
-            // Advanced Stats Calculation
-            const proStoresCount = storesData.filter(s => s.plan === 'pro').length;
-            const mrr = proStoresCount * 179;
+            // Advanced Stats Calculation — MRR depuis les boutiques réellement payantes (pricing centralisé).
+            const proStoresCount = storesData.filter(s => s.plan === 'pro' || s.plan === 'unlimited' || s.plan === 'starter').length;
+            const mrr = computeSubscriptionFinance(storesData).mrr;
             
             // Growth: Stores created in the last 30 days
             const thirtyDaysAgo = new Date();
