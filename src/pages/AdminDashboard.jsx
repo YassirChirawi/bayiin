@@ -83,12 +83,47 @@ export default function AdminDashboard() {
     const [conversionRate, setConversionRate] = useState(0.3); // hypothèse de conversion des essais (prévision)
     const [supportHistory, setSupportHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyQuery, setHistoryQuery] = useState("");
+    const [mrrSnapshots, setMrrSnapshots] = useState([]);
 
     // Custom Hook
     const { stats, stores, usersList, franchises, broadcastData, loading, refreshData, setStores, setUsersList } = useAdminData(user);
 
     // Finance abonnements + prévision (recalculé sur les stores réels + l'hypothèse de conversion).
     const finance = useMemo(() => computeSubscriptionFinance(stores, { conversionRate }), [stores, conversionRate]);
+
+    // Historique filtré (boutique / action / agent).
+    const filteredHistory = supportHistory.filter(h => {
+        if (!historyQuery) return true;
+        const s = historyQuery.toLowerCase();
+        return (h.storeName?.toLowerCase().includes(s) || h.action?.toLowerCase().includes(s)
+            || h.adminEmail?.toLowerCase().includes(s) || h.storeId?.toLowerCase().includes(s));
+    });
+
+    // Export CSV des finances (téléchargement navigateur).
+    const exportFinanceCsv = () => {
+        const rows = [
+            ['Métrique', 'Valeur'],
+            ['MRR', finance.mrr], ['ARR', finance.arr], ['ARPU', finance.arpu],
+            ['Abonnés payants', finance.activePaying],
+            ['Essais en cours', finance.trials], ['Essais expirant <=7j', finance.trialsExpiring7d],
+            ['Promo (offert)', finance.promoCount], ['Testeurs (offert)', finance.testers],
+            ['Expirés', finance.expired], ['Suspendus', finance.suspended],
+            ['Prévision MRR', finance.forecastMrr], ['Prévision ARR', finance.forecastArr],
+            ['Hypothèse conversion', `${Math.round(finance.conversionRate * 100)}%`],
+            [],
+            ['Plan', 'Abonnés', 'Prix (MAD)', 'MRR (MAD)'],
+            ...Object.entries(finance.byPlan).map(([p, d]) => [p, d.count, planPrice(p), d.mrr]),
+        ];
+        const csv = rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bayiin-finances-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
 
     // Franchise Modal State
     const [isFranchiseModalOpen, setIsFranchiseModalOpen] = useState(false);
@@ -159,14 +194,16 @@ export default function AdminDashboard() {
         }
     };
 
-    // Derived Data for Charts
+    // Derived Data for Charts — historique RÉEL du MRR (snapshots mensuels) + point "Maintenant".
+    const monthLabel = (m) => {
+        const [y, mo] = (m || '').split('-');
+        const d = new Date(Number(y), Number(mo) - 1, 1);
+        return isNaN(d.getTime()) ? m : d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+    };
+    const hasSnapshots = mrrSnapshots.length > 0;
     const chartData = [
-        { name: 'Jan', mrr: stats.mrr * 0.6 },
-        { name: 'Feb', mrr: stats.mrr * 0.7 },
-        { name: 'Mar', mrr: stats.mrr * 0.8 },
-        { name: 'Apr', mrr: stats.mrr * 0.85 },
-        { name: 'May', mrr: stats.mrr * 0.9 },
-        { name: 'Jun', mrr: stats.mrr },
+        ...mrrSnapshots.map(s => ({ name: monthLabel(s.month), mrr: s.mrr })),
+        { name: 'Maintenant', mrr: finance.mrr },
     ];
 
     const pieData = [
@@ -326,6 +363,13 @@ export default function AdminDashboard() {
             .catch(() => setProdErrors24h(null));
     }, []);
 
+    // Historique réel du MRR (12 derniers snapshots mensuels), trié croissant.
+    useEffect(() => {
+        getDocs(query(collection(db, 'mrr_snapshots'), orderBy('month', 'desc'), limit(12)))
+            .then(snap => setMrrSnapshots(snap.docs.map(d => d.data()).reverse()))
+            .catch(() => setMrrSnapshots([]));
+    }, []);
+
 
     if (loading) return (
         <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -448,7 +492,7 @@ export default function AdminDashboard() {
 
                 {/* Revenue Trend - Full Width */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h4 className="font-bold text-gray-900 mb-6">Croissance du revenu <span className="text-xs font-normal text-gray-400">(estimation sur MRR actuel)</span></h4>
+                    <h4 className="font-bold text-gray-900 mb-6">Évolution du MRR <span className="text-xs font-normal text-gray-400">{hasSnapshots ? '(historique réel, snapshot mensuel)' : "(l'historique se remplira chaque mois)"}</span></h4>
                     <RevenueChart data={chartData} />
                 </div>
 
@@ -601,6 +645,10 @@ export default function AdminDashboard() {
                         {/* FINANCES TAB — abonnements réels + prévision */}
                         {activeTab === 'finances' && (
                             <div className="space-y-6">
+                                <div className="flex items-center justify-between flex-wrap gap-3">
+                                    <h3 className="font-black text-gray-900 flex items-center gap-2"><Coins className="w-5 h-5 text-indigo-600" /> Finances des abonnements</h3>
+                                    <Button size="sm" variant="secondary" icon={ExternalLink} onClick={exportFinanceCsv}>Export CSV</Button>
+                                </div>
                                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                                     <FinKpi label="MRR" value={`${finance.mrr.toLocaleString('fr-FR')} ${CURRENCY}`} sub={`${finance.activePaying} abonné${finance.activePaying > 1 ? 's' : ''} payant${finance.activePaying > 1 ? 's' : ''}`} icon={Wallet} tone="indigo" />
                                     <FinKpi label="ARR (annualisé)" value={`${finance.arr.toLocaleString('fr-FR')} ${CURRENCY}`} sub="MRR × 12" icon={TrendingUp} tone="emerald" />
@@ -706,10 +754,13 @@ export default function AdminDashboard() {
                                         <p className="text-sm text-indigo-700 mt-0.5">100 dernières actions (suspension, promo, prolongation, plan…) — traçabilité par agent.</p>
                                     </div>
                                 </div>
+                                <div className="w-full sm:w-80">
+                                    <Input icon={Search} placeholder="Filtrer par boutique, action ou agent…" value={historyQuery} onChange={e => setHistoryQuery(e.target.value)} className="bg-gray-50 border-transparent focus:bg-white transition-all" />
+                                </div>
                                 {historyLoading ? (
                                     <div className="flex justify-center py-12"><div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full" /></div>
-                                ) : supportHistory.length === 0 ? (
-                                    <div className="text-center py-16 text-gray-400">Aucune action enregistrée pour le moment.</div>
+                                ) : filteredHistory.length === 0 ? (
+                                    <div className="text-center py-16 text-gray-400">{supportHistory.length === 0 ? 'Aucune action enregistrée pour le moment.' : 'Aucune action ne correspond au filtre.'}</div>
                                 ) : (
                                     <div className="overflow-x-auto rounded-2xl border border-gray-100">
                                         <table className="min-w-full divide-y divide-gray-100 text-sm">
@@ -723,7 +774,7 @@ export default function AdminDashboard() {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-50">
-                                                {supportHistory.map(h => (
+                                                {filteredHistory.map(h => (
                                                     <tr key={h.id} className="hover:bg-gray-50/50">
                                                         <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{h.at?.toDate ? h.at.toDate().toLocaleString('fr-FR') : '—'}</td>
                                                         <td className="px-4 py-3"><span className="font-bold text-gray-900 text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">{h.action}</span></td>
@@ -1245,16 +1296,9 @@ export default function AdminDashboard() {
                             <div className="space-y-8 animate-in fade-in duration-500">
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                     <div className="lg:col-span-2">
-                                        <PerformanceTrend 
-                                            title="Revenu plateforme (projection sur MRR)"
-                                            data={[
-                                                { name: 'Jan', value: stats.mrr * 0.4 },
-                                                { name: 'Fev', value: stats.mrr * 0.55 },
-                                                { name: 'Mar', value: stats.mrr * 0.6 },
-                                                { name: 'Avr', value: stats.mrr * 0.8 },
-                                                { name: 'Mai', value: stats.mrr * 0.95 },
-                                                { name: 'Juin', value: stats.mrr },
-                                            ]} 
+                                        <PerformanceTrend
+                                            title={hasSnapshots ? "Évolution du MRR (réel)" : "MRR actuel"}
+                                            data={chartData.map(d => ({ name: d.name, value: d.mrr }))}
                                         />
                                     </div>
                                     <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-between">

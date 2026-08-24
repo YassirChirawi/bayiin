@@ -911,6 +911,41 @@ exports.dailyErrorDigest = onSchedule("0 8 * * *", async () => {
 });
 
 /**
+ * monthlyMrrSnapshot — le 1er de chaque mois à 6h, fige le MRR réel (boutiques payantes × prix)
+ * dans mrr_snapshots/{YYYY-MM}. Alimente le graphique d'évolution du MRR de l'AdminDashboard avec
+ * de VRAIES données historiques (au lieu d'une extrapolation).
+ */
+exports.monthlyMrrSnapshot = onSchedule("0 6 1 * *", async () => {
+    const { planPrice, isPaying } = require('./pricing');
+    let snap;
+    try {
+        snap = await db.collection('stores').get();
+    } catch (e) {
+        console.error('[monthlyMrrSnapshot] query failed:', e.message);
+        return;
+    }
+    let mrr = 0;
+    let activePaying = 0;
+    const byPlan = {};
+    snap.forEach((d) => {
+        const s = d.data();
+        if (!isPaying(s)) return;
+        const p = planPrice(s.plan);
+        mrr += p;
+        activePaying++;
+        if (!byPlan[s.plan]) byPlan[s.plan] = { count: 0, mrr: 0 };
+        byPlan[s.plan].count++;
+        byPlan[s.plan].mrr += p;
+    });
+    const month = new Date().toISOString().slice(0, 7); // YYYY-MM
+    await db.collection('mrr_snapshots').doc(month).set({
+        month, mrr, activePaying, byPlan,
+        at: FieldValue.serverTimestamp(),
+    });
+    console.log(`[monthlyMrrSnapshot] ${month}: MRR=${mrr} (${activePaying} payants).`);
+});
+
+/**
  * createCarrierDelivery — crée un colis transporteur CÔTÉ SERVEUR (Sendit/Olivraison/Cathedis).
  * Corrige les problèmes de l'ancien flux navigateur : CORS, secrets exposés, session Cathedis cassée.
  * Le client appelle cette fonction ; les secrets restent côté serveur (stores/{id}/private/config).
