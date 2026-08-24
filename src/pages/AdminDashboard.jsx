@@ -10,7 +10,8 @@ import Input from "../components/Input";
 import toast from "react-hot-toast";
 import { useAdminData } from "../hooks/useAdminData";
 import { doc, updateDoc, deleteDoc, setDoc, addDoc, collection, query, where, getDocs, serverTimestamp, orderBy, limit } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../lib/firebase";
 import { getStoreAccess } from "../utils/storeAccess";
 import { computeSubscriptionFinance } from "../utils/subscriptionFinance";
 import { planPrice, CURRENCY } from "../config/pricing";
@@ -85,6 +86,7 @@ export default function AdminDashboard() {
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyQuery, setHistoryQuery] = useState("");
     const [mrrSnapshots, setMrrSnapshots] = useState([]);
+    const [snapshotting, setSnapshotting] = useState(false);
 
     // Custom Hook
     const { stats, stores, usersList, franchises, broadcastData, loading, refreshData, setStores, setUsersList } = useAdminData(user);
@@ -99,6 +101,22 @@ export default function AdminDashboard() {
         return (h.storeName?.toLowerCase().includes(s) || h.action?.toLowerCase().includes(s)
             || h.adminEmail?.toLowerCase().includes(s) || h.storeId?.toLowerCase().includes(s));
     });
+
+    // Fige le MRR du mois courant à la demande (callable super_admin), puis recharge les snapshots.
+    const runSnapshotNow = async () => {
+        setSnapshotting(true);
+        try {
+            await httpsCallable(functions, 'runMrrSnapshotNow')();
+            const snap = await getDocs(query(collection(db, 'mrr_snapshots'), orderBy('month', 'desc'), limit(12)));
+            setMrrSnapshots(snap.docs.map(d => d.data()).reverse());
+            toast.success('Snapshot MRR enregistré');
+        } catch (e) {
+            console.error(e);
+            toast.error("Échec du snapshot");
+        } finally {
+            setSnapshotting(false);
+        }
+    };
 
     // Export CSV des finances (téléchargement navigateur).
     const exportFinanceCsv = () => {
@@ -647,7 +665,10 @@ export default function AdminDashboard() {
                             <div className="space-y-6">
                                 <div className="flex items-center justify-between flex-wrap gap-3">
                                     <h3 className="font-black text-gray-900 flex items-center gap-2"><Coins className="w-5 h-5 text-indigo-600" /> Finances des abonnements</h3>
-                                    <Button size="sm" variant="secondary" icon={ExternalLink} onClick={exportFinanceCsv}>Export CSV</Button>
+                                    <div className="flex gap-2">
+                                        <Button size="sm" variant="secondary" icon={TrendingUp} onClick={runSnapshotNow} disabled={snapshotting}>{snapshotting ? 'Snapshot…' : 'Snapshot maintenant'}</Button>
+                                        <Button size="sm" variant="secondary" icon={ExternalLink} onClick={exportFinanceCsv}>Export CSV</Button>
+                                    </div>
                                 </div>
                                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                                     <FinKpi label="MRR" value={`${finance.mrr.toLocaleString('fr-FR')} ${CURRENCY}`} sub={`${finance.activePaying} abonné${finance.activePaying > 1 ? 's' : ''} payant${finance.activePaying > 1 ? 's' : ''}`} icon={Wallet} tone="indigo" />

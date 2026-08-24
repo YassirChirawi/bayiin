@@ -915,15 +915,9 @@ exports.dailyErrorDigest = onSchedule("0 8 * * *", async () => {
  * dans mrr_snapshots/{YYYY-MM}. Alimente le graphique d'évolution du MRR de l'AdminDashboard avec
  * de VRAIES données historiques (au lieu d'une extrapolation).
  */
-exports.monthlyMrrSnapshot = onSchedule("0 6 1 * *", async () => {
+async function computeAndWriteMrrSnapshot() {
     const { planPrice, isPaying } = require('./pricing');
-    let snap;
-    try {
-        snap = await db.collection('stores').get();
-    } catch (e) {
-        console.error('[monthlyMrrSnapshot] query failed:', e.message);
-        return;
-    }
+    const snap = await db.collection('stores').get();
     let mrr = 0;
     let activePaying = 0;
     const byPlan = {};
@@ -942,7 +936,28 @@ exports.monthlyMrrSnapshot = onSchedule("0 6 1 * *", async () => {
         month, mrr, activePaying, byPlan,
         at: FieldValue.serverTimestamp(),
     });
-    console.log(`[monthlyMrrSnapshot] ${month}: MRR=${mrr} (${activePaying} payants).`);
+    console.log(`[mrrSnapshot] ${month}: MRR=${mrr} (${activePaying} payants).`);
+    return { month, mrr, activePaying };
+}
+
+exports.monthlyMrrSnapshot = onSchedule("0 6 1 * *", async () => {
+    try {
+        await computeAndWriteMrrSnapshot();
+    } catch (e) {
+        console.error('[monthlyMrrSnapshot] failed:', e.message);
+    }
+});
+
+/** runMrrSnapshotNow — fige le MRR du mois courant à la demande (super_admin), depuis l'admin. */
+exports.runMrrSnapshotNow = functions.https.onCall(async (data, context) => {
+    if (!context.auth || context.auth.token.role !== 'super_admin') {
+        throw new functions.https.HttpsError('permission-denied', 'Super admin uniquement.');
+    }
+    try {
+        return await computeAndWriteMrrSnapshot();
+    } catch (e) {
+        throw new functions.https.HttpsError('internal', e.message);
+    }
 });
 
 /**
