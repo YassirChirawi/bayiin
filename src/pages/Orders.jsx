@@ -17,12 +17,13 @@ import { isValidTransition, canMarkPaid } from "../utils/orderStateMachine";
 
 import { useTenant } from "../context/TenantContext";
 import { useLanguage } from "../context/LanguageContext";
-import { db } from "../lib/firebase";
+import { db, functions } from "../lib/firebase";
+import { httpsCallable } from "firebase/functions";
 import { doc, writeBatch } from "firebase/firestore";
 import { logActivity } from "../utils/logger";
 import { useAuth } from "../context/AuthContext";
 import TrackingTimelineModal from "../components/TrackingTimelineModal";
-import { getPackageStatus, authenticateSendit, requestSenditPickup } from "../lib/sendit";
+import { authenticateSendit, requestSenditPickup } from "../lib/sendit";
 import { authenticateOlivraison } from "../lib/olivraison";
 
 // Custom Hooks
@@ -139,9 +140,10 @@ export default function Orders() {
         if (provider === 'internal') { setTrackingData(order); return; }
         try {
             if (provider === 'sendit') {
-                const token = await authenticateSendit(store.senditPublicKey, store.senditSecretKey);
-                const data = await getPackageStatus(token, order.trackingId);
-                setTrackingData(data);
+                // Suivi via Cloud Function (clés côté serveur, pas de CORS).
+                const fn = httpsCallable(functions, 'carrierAction');
+                const res = await fn({ action: 'tracking', orderId: order.id });
+                setTrackingData(res.data);
             } else if (provider === 'olivraison') {
                 setTrackingData({ code: order.trackingId, status: order.carrierStatus || 'UNKNOWN', audits: [] });
             } else if (provider === 'cathedis') {
