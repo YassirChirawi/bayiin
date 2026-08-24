@@ -7,6 +7,7 @@ import { useTenant } from "../context/TenantContext";
 import { Loader2, Menu, ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import PageTransition from "./PageTransition";
+import Paywall from "./Paywall";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Copilot from "./Copilot";
@@ -193,11 +194,11 @@ export default function Layout() {
                     </div>
                 )}
 
-                {isSubscriptionExpired && (
-                    <div className="w-full bg-red-600 px-4 py-4 text-white text-center shadow-lg border-b border-red-700 animate-pulse">
+                {isSubscriptionExpired && location.pathname.startsWith('/settings') && (
+                    <div className="w-full bg-red-600 px-4 py-4 text-white text-center shadow-lg border-b border-red-700">
                         <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-center gap-4">
                             <p className="font-bold text-sm md:text-lg">
-                                ⚠️ Votre abonnement BayIIn a expiré. Votre compte est en mode lecture seule.
+                                ⚠️ Accès suspendu — abonnez-vous ci-dessous pour réactiver votre compte.
                             </p>
                             <button 
                                 onClick={() => navigate('/settings?tab=subscription')}
@@ -226,7 +227,11 @@ export default function Layout() {
                     <AnimatePresence>
                         <PageTransition key={location.pathname}>
                             <Suspense fallback={<InlinePageLoader />}>
-                                <Outlet />
+                                {/* Paywall effectif : essai/abonnement expiré → on bloque l'app,
+                                    sauf /settings (pour s'abonner). testerMode/promo/abonnés = OK. */}
+                                {isSubscriptionExpired && !location.pathname.startsWith('/settings')
+                                    ? <Paywall />
+                                    : <Outlet />}
                             </Suspense>
                         </PageTransition>
                     </AnimatePresence>
