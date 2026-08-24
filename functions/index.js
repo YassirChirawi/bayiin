@@ -20,6 +20,9 @@ const db = getFirestore('comsaas');
 // BAY-104 : source de vérité unique des définitions financières (partagée client/serveur).
 const { orderValue: mOrderValue, orderCOGS: mOrderCOGS, collectedValue: mCollected, isRealized: mIsRealized, netProfit: mNetProfit } = require('./shared/money');
 
+// Monitoring : capture des erreurs serveur dans error_logs (visibles dans /admin/errors).
+const { logServerError } = require('./logError');
+
 // Copilot AI Function (Groq Proxy)
 const { copilotChatV1 } = require('./copilot');
 exports.copilotChatV1 = copilotChatV1;
@@ -334,6 +337,7 @@ exports.stripeWebhook = functions
 
     } catch (error) {
         console.error(`[Stripe] Error processing event ${event.type}:`, error);
+        logServerError('stripeWebhook', error, { context: event.type });
         // Return 500 so Stripe RETRIES (backoff, capped ~72h). A 200 here would silently drop
         // a legitimate activation on a transient error → a paying customer left inactive.
         return res.status(500).json({ received: false, error: error.message });
@@ -921,6 +925,7 @@ exports.createCarrierDelivery = functions.https.onCall(async (data, context) => 
         result = await createDelivery(carrier, order, store, secrets);
     } catch (e) {
         console.error(`[Carrier ${carrier}] create failed:`, e.message);
+        logServerError('createCarrierDelivery', e, { storeId, context: carrier });
         throw new functions.https.HttpsError('internal', e.message || 'Échec de la création du colis.');
     }
 
@@ -994,6 +999,7 @@ exports.carrierAction = functions.https.onCall(async (data, context) => {
     } catch (e) {
         if (e instanceof functions.https.HttpsError) throw e;
         console.error('[carrierAction] error:', e.message);
+        logServerError('carrierAction', e, { storeId, context: action });
         throw new functions.https.HttpsError('internal', e.message || 'Erreur transporteur.');
     }
 });
@@ -1132,6 +1138,7 @@ exports.senditWebhook = functions.https.onRequest(async (req, res) => {
 
     } catch (error) {
         console.error("Error processing Sendit webhook:", error);
+        logServerError('senditWebhook', error);
         // Return 500 only for server errors on our side
         res.status(500).send("Internal Server Error");
     }
