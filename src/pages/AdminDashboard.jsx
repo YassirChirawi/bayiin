@@ -204,6 +204,19 @@ export default function AdminDashboard() {
         }
     }, [activeTab, stores]);
 
+    // Alerte proactive : erreurs PROD des dernières 24h (monitoring — complète /admin/errors).
+    const [prodErrors24h, setProdErrors24h] = useState(null);
+    useEffect(() => {
+        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        getDocs(query(collection(db, 'error_logs'), where('at', '>=', cutoff)))
+            .then(snap => {
+                let n = 0;
+                snap.forEach(d => { if (d.data().mode === 'prod') n++; });
+                setProdErrors24h(n);
+            })
+            .catch(() => setProdErrors24h(null));
+    }, []);
+
 
     if (loading) return (
         <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -233,6 +246,22 @@ export default function AdminDashboard() {
                         <Button variant="secondary" onClick={() => navigate('/')}>Exit Admin</Button>
                     </div>
                 </header>
+
+                {/* Alerte monitoring : erreurs prod des dernières 24h */}
+                {prodErrors24h > 0 && (
+                    <motion.button
+                        initial={{ opacity: 0, y: -6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        onClick={() => navigate('/admin/errors')}
+                        className="w-full flex items-center gap-3 bg-red-50 border border-red-200 text-red-800 px-5 py-4 rounded-2xl hover:bg-red-100 transition-colors text-left"
+                    >
+                        <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600" />
+                        <span className="flex-1 text-sm font-semibold">
+                            {prodErrors24h} erreur{prodErrors24h > 1 ? 's' : ''} de production dans les dernières 24h
+                        </span>
+                        <span className="text-xs font-bold underline">Voir le journal →</span>
+                    </motion.button>
+                )}
 
                 {/* Analytics Pulse Section */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
