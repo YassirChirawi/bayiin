@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Building2, ExternalLink, ShieldAlert, Megaphone, AlertTriangle, TrendingUp, Activity, Zap, X, Star } from "lucide-react";
+import { Building2, ExternalLink, ShieldAlert, Megaphone, AlertTriangle, TrendingUp, Activity, Zap, X, Star,
+    Wallet, ShieldCheck, Globe, Users, Search, CheckCircle, Phone, Mail, MessageCircle, Truck, Package,
+    Clock, Ban, Sparkles, Store as StoreIcon, XCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import Button from "../components/Button";
 import Input from "../components/Input";
@@ -9,8 +11,44 @@ import toast from "react-hot-toast";
 import { useAdminData } from "../hooks/useAdminData";
 import { doc, updateDoc, deleteDoc, setDoc, addDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import { getStoreAccess } from "../utils/storeAccess";
 import { RevenueChart, PlanDistributionChart } from "../components/admin/AdminCharts";
 import { MetricCard, PerformanceTrend, StoreActivityTable } from "../components/admin/AdminMetrics";
+
+// Styles de la pastille de statut d'abonnement (aligné sur getStoreAccess).
+const STATUS_STYLES = {
+    paid:      'bg-emerald-100 text-emerald-700',
+    tester:    'bg-purple-100 text-purple-700',
+    promo:     'bg-indigo-100 text-indigo-700',
+    grace:     'bg-amber-100 text-amber-700',
+    trial:     'bg-amber-100 text-amber-700',
+    expired:   'bg-red-100 text-red-700',
+    suspended: 'bg-red-100 text-red-700',
+    unknown:   'bg-gray-100 text-gray-500',
+};
+
+/** Pastille de statut d'abonnement d'un store — même règle que le paywall. */
+function StatusPill({ store }) {
+    const a = getStoreAccess(store);
+    return (
+        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap ${STATUS_STYLES[a.status] || STATUS_STYLES.unknown}`}>
+            {a.active ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+            {a.label}
+        </span>
+    );
+}
+
+/** Ligne d'un point de santé (intégration configurée ou non). */
+function HealthRow({ icon: Icon, label, ok, okText = 'Actif', koText = 'Non configuré' }) {
+    return (
+        <div className="flex items-center justify-between text-sm">
+            <span className="flex items-center gap-2 text-gray-600"><Icon className="w-4 h-4 text-gray-400" /> {label}</span>
+            <span className={`font-bold text-xs px-2 py-0.5 rounded-full ${ok ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
+                {ok ? okText : koText}
+            </span>
+        </div>
+    );
+}
 
 export default function AdminDashboard() {
     const { user } = useAuth();
@@ -112,10 +150,31 @@ export default function AdminDashboard() {
         { name: 'Free', value: stats.stores - stats.proStores },
     ];
 
-    const filteredStores = stores.filter(store =>
-        store.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        store.id?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Propriétaire d'un store (contact support) : par ownerId, sinon par storeId associé.
+    const ownerOf = (store) => usersList.find(u => u.id === store.ownerId) || usersList.find(u => u.storeId === store.id);
+
+    // Action support : patch le doc store + mise à jour locale optimiste.
+    const patchStore = async (id, fields, msg) => {
+        try {
+            await updateDoc(doc(db, "stores", id), fields);
+            setStores(prev => prev.map(s => s.id === id ? { ...s, ...fields } : s));
+            if (msg) toast.success(msg);
+        } catch (e) {
+            console.error(e);
+            toast.error("Échec de l'action");
+        }
+    };
+
+    const q = searchTerm.toLowerCase();
+    const filteredStores = stores.filter(store => {
+        const owner = ownerOf(store);
+        return (
+            store.name?.toLowerCase().includes(q) ||
+            store.id?.toLowerCase().includes(q) ||
+            owner?.email?.toLowerCase().includes(q) ||
+            owner?.phone?.toLowerCase?.().includes(q)
+        );
+    });
 
     const filteredUsers = usersList.filter(u =>
         u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -265,33 +324,33 @@ export default function AdminDashboard() {
 
                 {/* Analytics Pulse Section */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <MetricCard 
-                        title="Monthly Recurring Revenue" 
-                        value={`${stats.mrr.toLocaleString()} MAD`} 
-                        trend={8.4} 
-                        icon={Wallet} 
-                        color="indigo" 
+                    <MetricCard
+                        title="Revenu récurrent (MRR)"
+                        value={`${stats.mrr.toLocaleString()} MAD`}
+                        subtitle={`${stats.proStores} abonnés`}
+                        icon={Wallet}
+                        color="indigo"
                     />
-                    <MetricCard 
-                        title="Active Merchants" 
-                        value={stats.stores} 
-                        trend={stats.growth} 
-                        icon={TrendingUp} 
-                        color="emerald" 
+                    <MetricCard
+                        title="Boutiques actives"
+                        value={stats.stores}
+                        trend={stats.growth}
+                        icon={TrendingUp}
+                        color="emerald"
                     />
-                    <MetricCard 
-                        title="Platform Engagement" 
-                        value={`${stats.platformActivity.toFixed(1)}%`} 
-                        trend={2.1} 
-                        icon={Activity} 
-                        color="amber" 
+                    <MetricCard
+                        title="Engagement plateforme"
+                        value={`${stats.platformActivity.toFixed(1)}%`}
+                        subtitle="stores avec activité"
+                        icon={Activity}
+                        color="amber"
                     />
-                    <MetricCard 
-                        title="Store Retention" 
-                        value={`${(100 - stats.churnRate).toFixed(1)}%`} 
-                        trend={-0.5} 
-                        icon={ShieldCheck} 
-                        color="rose" 
+                    <MetricCard
+                        title="Rétention"
+                        value={`${(100 - stats.churnRate).toFixed(1)}%`}
+                        subtitle="stores avec produits"
+                        icon={ShieldCheck}
+                        color="rose"
                     />
                 </div>
 
@@ -339,7 +398,7 @@ export default function AdminDashboard() {
 
                 {/* Revenue Trend - Full Width */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h4 className="font-bold text-gray-900 mb-6">Revenue Growth (6 Months)</h4>
+                    <h4 className="font-bold text-gray-900 mb-6">Croissance du revenu <span className="text-xs font-normal text-gray-400">(estimation sur MRR actuel)</span></h4>
                     <RevenueChart data={chartData} />
                 </div>
 
@@ -371,7 +430,7 @@ export default function AdminDashboard() {
                                 <div className="w-full sm:w-72">
                                     <Input
                                         icon={Search}
-                                        placeholder="Search..."
+                                        placeholder="Nom, ID, email ou téléphone…"
                                         value={searchTerm}
                                         onChange={e => setSearchTerm(e.target.value)}
                                         className="bg-gray-50 border-transparent focus:bg-white transition-all"
@@ -393,9 +452,10 @@ export default function AdminDashboard() {
                                 <table className="min-w-full divide-y divide-gray-100">
                                     <thead>
                                         <tr className="bg-gray-50/50">
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider rounded-l-lg">Store Info</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Plan Details</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Metrics</th>
+                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider rounded-l-lg">Boutique</th>
+                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Statut</th>
+                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
+                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Activité</th>
                                             <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider rounded-r-lg">Actions</th>
                                         </tr>
                                     </thead>
@@ -416,18 +476,29 @@ export default function AdminDashboard() {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${store.plan === 'pro'
-                                                        ? 'bg-indigo-100 text-indigo-800'
-                                                        : 'bg-gray-100 text-gray-800'
-                                                        }`}>
-                                                        {store.plan === 'pro' && <CheckCircle className="w-3 h-3 mr-1" />}
-                                                        {store.plan?.toUpperCase() || 'FREE'}
-                                                    </span>
+                                                    <div className="flex flex-col gap-1.5 items-start">
+                                                        <StatusPill store={store} />
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold ${store.plan === 'pro' || store.plan === 'unlimited' ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                            {store.plan?.toUpperCase() || 'FREE'}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm">
+                                                    {(() => {
+                                                        const owner = ownerOf(store);
+                                                        if (!owner) return <span className="text-gray-300 italic text-xs">Propriétaire inconnu</span>;
+                                                        return (
+                                                            <div className="flex flex-col gap-0.5 min-w-0">
+                                                                <span className="text-gray-700 text-xs truncate max-w-[180px]" title={owner.email}>{owner.email || '—'}</span>
+                                                                {owner.phone && <span className="text-gray-400 text-[11px]">{owner.phone}</span>}
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-gray-500">
                                                     <div className="flex flex-col gap-1">
-                                                        <span>{usersList.filter(u => u.storeId === store.id).length} Users</span>
-                                                        <span className="text-xs text-gray-400">Created: {store.createdAt?.toDate ? new Date(store.createdAt.toDate()).toLocaleDateString() : 'N/A'}</span>
+                                                        <span className="text-xs">{store.products || 0} produits</span>
+                                                        <span className="text-[11px] text-gray-400">Créé {store.createdAt?.toDate ? new Date(store.createdAt.toDate()).toLocaleDateString('fr-FR') : 'N/A'}</span>
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-right flex justify-end gap-2">
@@ -830,95 +901,153 @@ export default function AdminDashboard() {
                             </div>
                         )}
 
-                        {/* Audit Modal */}
-                        {auditStore && (
+                        {/* Fiche Support — données réelles + actions câblées */}
+                        {auditStore && (() => {
+                            // Store "live" (reflète les actions optimistes) + propriétaire pour le contact.
+                            const s = stores.find(x => x.id === auditStore.id) || auditStore;
+                            const owner = ownerOf(s);
+                            const access = getStoreAccess(s);
+                            const whatsappOk = !!(s.whatsappEnabled && s.whatsappAccessToken);
+                            const carrierOk = !!(s.senditPublicKey || s.olivraisonApiKey || (s.senditCities && s.senditCities.length));
+                            const catalogOk = !!s.publicCatalogEnabled;
+                            const isPaid = s.plan === 'pro' || s.plan === 'unlimited';
+                            const createdStr = s.createdAt?.toDate ? s.createdAt.toDate().toLocaleDateString('fr-FR') : (s.createdAt ? new Date(s.createdAt).toLocaleDateString('fr-FR') : '—');
+                            const lastOrderStr = s.lastOrderDate ? new Date(s.lastOrderDate?.toDate ? s.lastOrderDate.toDate() : s.lastOrderDate).toLocaleDateString('fr-FR') : 'Aucune';
+
+                            const extendTrial = () => {
+                                const created = s.createdAt?.toDate ? s.createdAt.toDate() : (s.createdAt ? new Date(s.createdAt) : new Date());
+                                const curEnd = s.trialEndsAt ? new Date(s.trialEndsAt.toDate ? s.trialEndsAt.toDate() : s.trialEndsAt) : new Date(created.getTime() + 30 * 86400000);
+                                const base = curEnd > new Date() ? curEnd : new Date();
+                                const newEnd = new Date(base.getTime() + 30 * 86400000).toISOString();
+                                patchStore(s.id, { trialEndsAt: newEnd }, 'Essai prolongé de 30 jours');
+                            };
+
+                            return (
                             <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-                                <motion.div 
+                                <motion.div
                                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    className="bg-white rounded-[32px] shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col"
+                                    className="bg-white rounded-[32px] shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col"
                                 >
-                                    <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gradient-to-r from-gray-50 to-white">
-                                        <div className="flex items-center gap-4">
-                                            <div className="h-14 w-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-xl font-black shadow-lg shadow-indigo-100">
-                                                {auditStore.name?.[0]}
+                                    <div className="p-6 md:p-8 border-b border-gray-50 flex justify-between items-center bg-gradient-to-r from-gray-50 to-white">
+                                        <div className="flex items-center gap-4 min-w-0">
+                                            <div className="h-14 w-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-xl font-black shadow-lg shadow-indigo-100 shrink-0">
+                                                {s.name?.[0]?.toUpperCase()}
                                             </div>
-                                            <div>
-                                                <h2 className="text-xl font-black text-gray-900 tracking-tight">{auditStore.name}</h2>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${auditStore.plan === 'pro' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
-                                                        {auditStore.plan || 'Free'}
-                                                    </span>
-                                                    <span className="text-[10px] text-gray-400 font-mono">ID: {auditStore.id}</span>
+                                            <div className="min-w-0">
+                                                <h2 className="text-xl font-black text-gray-900 tracking-tight truncate">{s.name}</h2>
+                                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                    <StatusPill store={s} />
+                                                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${isPaid ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'}`}>{s.plan || 'Free'}</span>
+                                                    {s.testerMode && <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-purple-100 text-purple-700">Testeur</span>}
+                                                    <span className="text-[10px] text-gray-400 font-mono">ID: {s.id.slice(0, 10)}…</span>
                                                 </div>
                                             </div>
                                         </div>
-                                        <button onClick={() => setAuditStore(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                                        <button onClick={() => setAuditStore(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors shrink-0">
                                             <X className="w-6 h-6 text-gray-400" />
                                         </button>
                                     </div>
 
-                                    <div className="flex-1 overflow-auto p-8 bg-gray-50/30">
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                                    <div className="flex-1 overflow-auto p-6 md:p-8 bg-gray-50/30 space-y-6">
+                                        {/* Contact + Abonnement */}
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                             <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Articles</p>
-                                                <p className="text-2xl font-black text-gray-900">{auditStore.products || 0}</p>
-                                                <div className="mt-4 flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 w-fit px-2 py-0.5 rounded-lg">
-                                                    <TrendingUp className="w-3 h-3" /> Healthy Stock
-                                                </div>
+                                                <h4 className="font-black text-xs uppercase tracking-widest mb-4 text-gray-400">Contact propriétaire</h4>
+                                                {owner ? (
+                                                    <div className="space-y-3">
+                                                        <p className="font-bold text-gray-900">{owner.name || 'Sans nom'}</p>
+                                                        {owner.email && (
+                                                            <a href={`mailto:${owner.email}`} className="flex items-center gap-2 text-sm text-indigo-600 hover:underline break-all">
+                                                                <Mail className="w-4 h-4 shrink-0" /> {owner.email}
+                                                            </a>
+                                                        )}
+                                                        {owner.phone && (
+                                                            <a href={`https://wa.me/${owner.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm font-bold text-[#25D366] hover:underline">
+                                                                <MessageCircle className="w-4 h-4 shrink-0" /> {owner.phone}
+                                                            </a>
+                                                        )}
+                                                        {s.phone && !owner.phone && (
+                                                            <p className="flex items-center gap-2 text-sm text-gray-600"><Phone className="w-4 h-4" /> {s.phone}</p>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-sm text-gray-400 italic">Propriétaire introuvable dans la liste des utilisateurs.</p>
+                                                )}
                                             </div>
+
                                             <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Engagement</p>
-                                                <p className="text-2xl font-black text-gray-900">High</p>
-                                                <p className="text-[10px] text-gray-400 mt-1">Last seen: Just now</p>
-                                            </div>
-                                            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Performance Score</p>
-                                                <p className="text-2xl font-black text-indigo-600">82/100</p>
-                                                <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-indigo-500 rounded-full" style={{ width: '82%' }} />
+                                                <h4 className="font-black text-xs uppercase tracking-widest mb-4 text-gray-400">Abonnement</h4>
+                                                <div className="space-y-3 text-sm">
+                                                    <div className="flex items-center justify-between"><span className="text-gray-500">Statut</span><StatusPill store={s} /></div>
+                                                    <div className="flex items-center justify-between"><span className="text-gray-500">Plan</span><span className="font-bold text-gray-900">{(s.plan || 'free').toUpperCase()}</span></div>
+                                                    {access.daysLeft !== null && (
+                                                        <div className="flex items-center justify-between"><span className="text-gray-500">Jours restants</span><span className={`font-bold ${access.daysLeft <= 3 ? 'text-red-600' : 'text-gray-900'}`}>{access.daysLeft > 0 ? `${access.daysLeft} j` : 'Expiré'}</span></div>
+                                                    )}
+                                                    <div className="flex items-center justify-between"><span className="text-gray-500">Créé le</span><span className="font-medium text-gray-700">{createdStr}</span></div>
+                                                    {s.subscriptionStatus && <div className="flex items-center justify-between"><span className="text-gray-500">subscriptionStatus</span><span className="font-mono text-xs text-gray-500">{s.subscriptionStatus}</span></div>}
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-                                                <h4 className="font-black text-sm uppercase tracking-widest mb-4">Merchant Health Audit</h4>
-                                                <div className="space-y-4">
-                                                    <div className="flex items-center justify-between text-sm">
-                                                        <span className="text-gray-500">Business Context Set</span>
-                                                        <span className="font-bold text-green-500">YES</span>
-                                                    </div>
-                                                    <div className="flex items-center justify-between text-sm">
-                                                        <span className="text-gray-500">WhatsApp Integration</span>
-                                                        <span className="font-bold text-green-500">ACTIVE</span>
-                                                    </div>
-                                                    <div className="flex items-center justify-between text-sm">
-                                                        <span className="text-gray-500">Domain Connected</span>
-                                                        <span className="font-bold text-gray-400">SUBDOMAIN</span>
-                                                    </div>
+                                        {/* Santé intégrations (réelle) */}
+                                        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                                            <h4 className="font-black text-xs uppercase tracking-widest mb-4 text-gray-400">Configuration & activité</h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
+                                                <HealthRow icon={MessageCircle} label="WhatsApp" ok={whatsappOk} okText="Connecté" />
+                                                <HealthRow icon={Truck} label="Transporteur" ok={carrierOk} okText="Configuré" />
+                                                <HealthRow icon={Globe} label="Boutique publique" ok={catalogOk} okText="Publiée" koText="Non publiée" />
+                                                <HealthRow icon={Package} label={`Produits`} ok={(s.products || 0) > 0} okText={`${s.products || 0} produits`} koText="0 produit" />
+                                                <div className="flex items-center justify-between text-sm">
+                                                    <span className="flex items-center gap-2 text-gray-600"><Clock className="w-4 h-4 text-gray-400" /> Dernière commande</span>
+                                                    <span className="text-xs font-bold text-gray-500">{lastOrderStr}</span>
                                                 </div>
                                             </div>
-                                            
-                                            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-                                                <h4 className="font-black text-sm uppercase tracking-widest mb-4">Quick Actions</h4>
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <Button size="sm" variant="secondary" className="w-full text-[10px]">Reset Password</Button>
-                                                    <Button size="sm" variant="secondary" className="w-full text-[10px]">Extend Trial</Button>
-                                                    <Button size="sm" variant="secondary" className="w-full text-[10px]">Flag Store</Button>
-                                                    <Button size="sm" variant="secondary" className="w-full text-[10px] text-red-600">Suspend</Button>
-                                                </div>
+                                        </div>
+
+                                        {/* Actions support (câblées) */}
+                                        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                                            <h4 className="font-black text-xs uppercase tracking-widest mb-4 text-gray-400">Actions support</h4>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                                <Button size="sm" variant="secondary" icon={ExternalLink} className="w-full justify-center" onClick={async () => {
+                                                    if (!confirm("Accéder à cette boutique ?")) return;
+                                                    await updateDoc(doc(db, "users", user.uid), { storeId: s.id });
+                                                    window.location.href = '/dashboard';
+                                                }}>Accéder</Button>
+
+                                                <Button size="sm" variant="secondary" icon={Sparkles} className="w-full justify-center" onClick={() => patchStore(s.id, { testerMode: !s.testerMode }, s.testerMode ? 'Mode testeur retiré' : 'Mode testeur activé')}>
+                                                    {s.testerMode ? 'Retirer testeur' : 'Mode testeur'}
+                                                </Button>
+
+                                                {access.status === 'promo' ? (
+                                                    <Button size="sm" variant="secondary" className="w-full justify-center" onClick={() => patchStore(s.id, { subscriptionStatus: 'none' }, 'Activation promo retirée')}>Retirer promo</Button>
+                                                ) : (
+                                                    <Button size="sm" variant="secondary" icon={CheckCircle} className="w-full justify-center" onClick={() => patchStore(s.id, { subscriptionStatus: 'active_promo', suspended: false }, 'Boutique activée (promo)')}>Activer (promo)</Button>
+                                                )}
+
+                                                <Button size="sm" variant="secondary" icon={Clock} className="w-full justify-center" onClick={extendTrial}>Prolonger 30j</Button>
+
+                                                <Button size="sm" variant="secondary" icon={StoreIcon} className="w-full justify-center" onClick={() => patchStore(s.id, { plan: isPaid ? 'free' : 'pro' }, `Plan → ${isPaid ? 'free' : 'pro'}`)}>
+                                                    {isPaid ? 'Passer en Free' : 'Passer en Pro'}
+                                                </Button>
+
+                                                {s.suspended ? (
+                                                    <Button size="sm" variant="secondary" icon={CheckCircle} className="w-full justify-center text-emerald-600" onClick={() => patchStore(s.id, { suspended: false }, 'Boutique réactivée')}>Réactiver</Button>
+                                                ) : (
+                                                    <Button size="sm" variant="secondary" icon={Ban} className="w-full justify-center text-red-600" onClick={() => { if (confirm("Suspendre cette boutique ? L'accès sera bloqué immédiatement.")) patchStore(s.id, { suspended: true }, 'Boutique suspendue'); }}>Suspendre</Button>
+                                                )}
                                             </div>
+                                            <p className="text-[11px] text-gray-400 mt-4 flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" /> Les modifications s'appliquent immédiatement (paywall marchand inclus).</p>
                                         </div>
                                     </div>
 
-                                    <div className="p-6 border-t border-gray-100 bg-white flex justify-between items-center">
-                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">Audit generated on {new Date().toLocaleDateString()}</p>
-                                        <Button onClick={() => setAuditStore(null)}>Close Audit</Button>
+                                    <div className="p-4 md:p-6 border-t border-gray-100 bg-white flex justify-end items-center">
+                                        <Button onClick={() => setAuditStore(null)}>Fermer</Button>
                                     </div>
                                 </motion.div>
                             </div>
-                        )}
+                            );
+                        })()}
 
                         {/* INSIGHTS TAB */}
                         {activeTab === 'insights' && (
@@ -926,7 +1055,7 @@ export default function AdminDashboard() {
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                     <div className="lg:col-span-2">
                                         <PerformanceTrend 
-                                            title="Platform Revenue Growth (6m)" 
+                                            title="Revenu plateforme (projection sur MRR)"
                                             data={[
                                                 { name: 'Jan', value: stats.mrr * 0.4 },
                                                 { name: 'Fev', value: stats.mrr * 0.55 },
@@ -967,42 +1096,38 @@ export default function AdminDashboard() {
                                     <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
                                         <h4 className="font-black text-gray-900 text-sm uppercase tracking-widest mb-6 flex items-center gap-2">
                                             <ShieldAlert className="w-4 h-4 text-amber-500" />
-                                            System Health
+                                            État plateforme
                                         </h4>
-                                        <div className="space-y-6">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 rounded-xl bg-green-50 text-green-600">
-                                                        <Activity className="w-4 h-4" />
-                                                    </div>
-                                                    <span className="text-xs font-bold text-gray-700">Firestore API</span>
-                                                </div>
-                                                <span className="text-[10px] font-black text-green-500">99.9% Uptime</span>
+                                        <div className="space-y-4">
+                                            <button onClick={() => navigate('/admin/errors')} className={`w-full flex items-center justify-between p-3 rounded-2xl border transition-colors ${prodErrors24h > 0 ? 'bg-red-50 border-red-100 hover:bg-red-100' : 'bg-emerald-50 border-emerald-100'}`}>
+                                                <span className="flex items-center gap-3 text-xs font-bold text-gray-700">
+                                                    <span className={`p-2 rounded-xl ${prodErrors24h > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}><AlertTriangle className="w-4 h-4" /></span>
+                                                    Erreurs prod (24h)
+                                                </span>
+                                                <span className={`text-sm font-black ${prodErrors24h > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{prodErrors24h ?? '…'}</span>
+                                            </button>
+                                            <div className="flex items-center justify-between p-3">
+                                                <span className="flex items-center gap-3 text-xs font-bold text-gray-700">
+                                                    <span className="p-2 rounded-xl bg-indigo-50 text-indigo-600"><Activity className="w-4 h-4" /></span>
+                                                    Boutiques avec accès actif
+                                                </span>
+                                                <span className="text-sm font-black text-gray-900">{stores.filter(st => getStoreAccess(st).active).length} / {stores.length}</span>
                                             </div>
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
-                                                        <Zap className="w-4 h-4" />
-                                                    </div>
-                                                    <span className="text-xs font-bold text-gray-700">Cloud Functions</span>
-                                                </div>
-                                                <span className="text-[10px] font-black text-indigo-500">12ms Latency</span>
+                                            <div className="flex items-center justify-between p-3">
+                                                <span className="flex items-center gap-3 text-xs font-bold text-gray-700">
+                                                    <span className="p-2 rounded-xl bg-amber-50 text-amber-600"><Clock className="w-4 h-4" /></span>
+                                                    En essai / expiré
+                                                </span>
+                                                <span className="text-sm font-black text-gray-900">
+                                                    {stores.filter(st => getStoreAccess(st).status === 'trial').length} / {stores.filter(st => getStoreAccess(st).status === 'expired').length}
+                                                </span>
                                             </div>
-                                            <div className="pt-4 border-t border-gray-50">
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Derniers Événements</p>
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center gap-2 text-[10px]">
-                                                        <span className="w-1 h-1 rounded-full bg-indigo-400"></span>
-                                                        <span className="text-gray-500 font-mono">12:45</span>
-                                                        <span className="text-gray-700 font-bold">New Pro Subscription:</span>
-                                                        <span className="text-gray-400 italic">Store #823...</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-[10px]">
-                                                        <span className="w-1 h-1 rounded-full bg-amber-400"></span>
-                                                        <span className="text-gray-500 font-mono">11:32</span>
-                                                        <span className="text-gray-700 font-bold">Broadcast update by admin</span>
-                                                    </div>
-                                                </div>
+                                            <div className="flex items-center justify-between p-3">
+                                                <span className="flex items-center gap-3 text-xs font-bold text-gray-700">
+                                                    <span className="p-2 rounded-xl bg-purple-50 text-purple-600"><Sparkles className="w-4 h-4" /></span>
+                                                    Comptes testeur
+                                                </span>
+                                                <span className="text-sm font-black text-gray-900">{stores.filter(st => st.testerMode).length}</span>
                                             </div>
                                         </div>
                                     </div>
