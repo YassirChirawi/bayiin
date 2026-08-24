@@ -878,6 +878,39 @@ exports.automationScheduler = onSchedule("*/15 * * * *", async () => {
 });
 
 /**
+ * dailyErrorDigest — alerte proactive : chaque matin, agrège les erreurs PROD des 24 dernières
+ * heures (collection error_logs) et écrit un résumé dans system_alerts. Le super_admin le voit
+ * sur son AdminDashboard (sans email). Complète le monitoring passif de /admin/errors.
+ */
+exports.dailyErrorDigest = onSchedule("0 8 * * *", async () => {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    let snap;
+    try {
+        snap = await db.collection('error_logs').where('at', '>=', cutoff).limit(1000).get();
+    } catch (e) {
+        console.error('[dailyErrorDigest] query failed:', e.message);
+        return;
+    }
+    const groups = {};
+    let total = 0;
+    snap.forEach((d) => {
+        const e = d.data();
+        if (e.mode !== 'prod') return; // uniquement les erreurs de production
+        total++;
+        const fp = e.fingerprint || 'unknown';
+        if (!groups[fp]) groups[fp] = { fingerprint: fp, message: e.message || '', source: e.source || '', count: 0 };
+        groups[fp].count++;
+    });
+    const top = Object.values(groups).sort((a, b) => b.count - a.count).slice(0, 10);
+    const date = new Date().toISOString().split('T')[0];
+    await db.collection('system_alerts').doc(date).set({
+        date, total, distinct: top.length, top,
+        createdAt: FieldValue.serverTimestamp(),
+    });
+    if (total > 0) console.log(`[dailyErrorDigest] ${total} erreur(s) prod / 24h, ${top.length} distinctes.`);
+});
+
+/**
  * createCarrierDelivery — crée un colis transporteur CÔTÉ SERVEUR (Sendit/Olivraison/Cathedis).
  * Corrige les problèmes de l'ancien flux navigateur : CORS, secrets exposés, session Cathedis cassée.
  * Le client appelle cette fonction ; les secrets restent côté serveur (stores/{id}/private/config).

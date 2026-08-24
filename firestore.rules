@@ -144,6 +144,13 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Digest quotidien des erreurs prod (dailyErrorDigest, Admin SDK). Lecture super_admin
+    // uniquement ; écriture réservée au backend (jamais depuis le client).
+    match /system_alerts/{date} {
+      allow read: if request.auth != null && isSuperAdmin();
+      allow write: if false;
+    }
+
     // Stores collection
     match /stores/{storeId} {
       // SEC (P0-5): prevent self-granting a paid plan at creation. Owners create their own
