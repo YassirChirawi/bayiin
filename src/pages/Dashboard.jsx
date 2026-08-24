@@ -15,6 +15,7 @@ import { useReconciliation } from "../hooks/useReconciliation";
 import { useNotifications } from "../context/NotificationContext";
 
 import TrialAlert from "../components/TrialAlert";
+import SetupChecklist from "../components/SetupChecklist";
 import HelpTooltip from "../components/HelpTooltip";
 import { useOrderActions } from "../hooks/useOrderActions"; // NEW
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -219,6 +220,10 @@ export default function Dashboard() {
         <PageTransition>
         <div className="space-y-8">
             <TrialAlert createdAt={store?.createdAt} plan={store?.plan} />
+            <SetupChecklist
+                hasProduct={(allProducts || []).some(p => !p.deleted)}
+                hasOrder={(aggregatedStats?.totals?.count || 0) > 0}
+            />
             {/* Header */}
             <div className="flex justify-between items-start">
                 <div>
