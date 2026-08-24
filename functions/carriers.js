@@ -193,6 +193,30 @@ async function cathedisCreate(order, store, secrets) {
     return { trackingId: (delivery && (delivery.trackingId || delivery.code || delivery.id)) || 'PENDING', carrierStatus: 'CREATED', labelUrl: '' };
 }
 
+/** Statut de suivi d'un colis Sendit (lecture serveur — évite CORS + secrets exposés). */
+async function senditTracking(secrets, trackingId) {
+    const token = await senditToken(secrets.senditPublicKey, secrets.senditSecretKey);
+    const r = await fetch(`${SENDIT_API}/deliveries/${trackingId}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+    const res = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(res.message || `Statut indisponible (${r.status}).`);
+    return res.data || res;
+}
+
+/** Factures / remises Sendit (base de la réconciliation cash COD). options: {page,startDate,endDate,querystring}. */
+async function senditInvoices(secrets, options = {}) {
+    const token = await senditToken(secrets.senditPublicKey, secrets.senditSecretKey);
+    const p = new URLSearchParams();
+    if (options.page) p.append('page', options.page);
+    if (options.startDate) p.append('startDate', options.startDate);
+    if (options.endDate) p.append('endDate', options.endDate);
+    if (options.querystring) p.append('querystring', options.querystring);
+    const qs = p.toString();
+    const r = await fetch(`${SENDIT_API}/invoices${qs ? `?${qs}` : ''}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+    const res = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(res.message || `Factures indisponibles (${r.status}).`);
+    return res.data || res;
+}
+
 /** Dispatcher : crée le colis chez le bon transporteur, renvoie { trackingId, carrierStatus, labelUrl }. */
 async function createDelivery(carrier, order, store, secrets) {
     switch (carrier) {
@@ -203,4 +227,4 @@ async function createDelivery(carrier, order, store, secrets) {
     }
 }
 
-module.exports = { createDelivery, computeCodAmount };
+module.exports = { createDelivery, senditTracking, senditInvoices, computeCodAmount };

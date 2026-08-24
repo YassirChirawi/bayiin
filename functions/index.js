@@ -938,6 +938,60 @@ exports.createCarrierDelivery = functions.https.onCall(async (data, context) => 
 });
 
 /**
+ * carrierAction — lectures transporteur CÔTÉ SERVEUR (suivi de colis, remises/factures).
+ * Évite CORS + secrets exposés. La réconciliation cash consomme les remises Sendit.
+ */
+exports.carrierAction = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Connexion requise.');
+    const { action } = data || {};
+
+    let storeId, order = null;
+    if (action === 'tracking') {
+        if (!data.orderId) throw new functions.https.HttpsError('invalid-argument', 'orderId requis.');
+        const oSnap = await db.collection('orders').doc(data.orderId).get();
+        if (!oSnap.exists) throw new functions.https.HttpsError('not-found', 'Commande introuvable.');
+        order = oSnap.data();
+        storeId = order.storeId;
+    } else {
+        storeId = context.auth.token.storeId;
+    }
+    if (!storeId) throw new functions.https.HttpsError('failed-precondition', 'Store introuvable.');
+
+    const isSuper = context.auth.token.role === 'super_admin';
+    if (!isSuper && context.auth.token.storeId !== storeId) {
+        const sDoc = await db.collection('stores').doc(storeId).get();
+        if (!sDoc.exists || sDoc.data().ownerId !== context.auth.uid) {
+            throw new functions.https.HttpsError('permission-denied', 'Accès refusé.');
+        }
+    }
+
+    // Secrets : doc store (clés legacy) + private/config (prioritaire).
+    const [sSnap, cSnap] = await Promise.all([
+        db.collection('stores').doc(storeId).get(),
+        db.collection('stores').doc(storeId).collection('private').doc('config').get(),
+    ]);
+    const secrets = { ...(sSnap.exists ? sSnap.data() : {}), ...(cSnap.exists ? cSnap.data() : {}) };
+
+    const carriers = require('./carriers');
+    try {
+        if (action === 'tracking') {
+            const carrier = order.carrier || 'sendit';
+            if (carrier !== 'sendit') throw new functions.https.HttpsError('unimplemented', 'Suivi serveur disponible pour Sendit.');
+            if (!order.trackingId) throw new functions.https.HttpsError('failed-precondition', 'Commande sans numéro de suivi.');
+            return await carriers.senditTracking(secrets, order.trackingId);
+        }
+        if (action === 'remittances') {
+            return { data: await carriers.senditInvoices(secrets, data.options || {}) };
+        }
+        throw new functions.https.HttpsError('invalid-argument', `Action inconnue : ${action}`);
+    } catch (e) {
+        if (e instanceof functions.https.HttpsError) throw e;
+        console.error('[carrierAction] error:', e.message);
+        throw new functions.https.HttpsError('internal', e.message || 'Erreur transporteur.');
+    }
+});
+
+/**
  * Sendit Webhook Handler
  * Updates order status based on Sendit events.
  * 

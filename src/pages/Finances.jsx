@@ -17,10 +17,10 @@ import CityRevenueChart from "../components/charts/CityRevenueChart";
 import { motion } from "framer-motion";
 import { getTopProducts, getCityStats, getHighReturnCities, getRetentionStats } from "../utils/analytics";
 import { calculateFinancialStats } from "../utils/financials";
-import { getSenditInvoices } from "../lib/sendit";
+import { httpsCallable } from "firebase/functions";
 import CFOSimulator from "../components/CFOSimulator";
 import { reconcileStoreStats } from "../utils/reconcileStats";
-import { db } from "../lib/firebase";
+import { db, functions } from "../lib/firebase";
 import { RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import { generateFinancialInsight, analyzeFinancialScenario, detectFinancialLeaks } from "../services/aiService";
@@ -190,14 +190,11 @@ export default function Finances() {
         if (!store?.senditPublicKey || !store?.senditSecretKey) return;
         setLoadingInvoices(true);
         try {
-            // NOTE: In a real app, never expose keys here. This is for the demo/existing pattern.
-            // Ideally call a backend endpoint.
-            const token = await import("../lib/sendit").then(m => m.authenticateSendit(store.senditPublicKey, store.senditSecretKey));
-
-            const data = await getSenditInvoices(token, {
-                startDate: dateRange.start,
-                endDate: dateRange.end
-            });
+            // Remises via Cloud Function : les clés Sendit restent CÔTÉ SERVEUR (plus d'exposition
+            // ni de CORS). Base de la réconciliation cash COD.
+            const fn = httpsCallable(functions, 'carrierAction');
+            const res = await fn({ action: 'remittances', options: { startDate: dateRange.start, endDate: dateRange.end } });
+            const data = res.data?.data;
             setInvoices(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error("Failed to fetch invoices", error);
