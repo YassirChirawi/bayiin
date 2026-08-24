@@ -49,8 +49,41 @@ async function senditDistricts(token) {
         const list = Array.isArray(res) ? res : (res.data || res.districts || []);
         if (!list.length) { more = false; } else { all = all.concat(list); page++; }
     }
-    _senditDistricts = all.map((x) => ({ id: x.id, name: x.name || x.ville || '' }));
+    _senditDistricts = all.map((x) => ({
+        id: x.id,
+        name: x.name || x.ville || '',
+        price: parseFloat(x.price || x.tarif || 0),
+        delais: x.delais || x.delivery_time || '24h-48h',
+        ref: x.ref || x.code || null,
+        region: x.region || null,
+    }));
     return _senditDistricts;
+}
+
+/** Liste des villes/districts Sendit (à partir des secrets) — pour la config d'expédition. */
+async function senditDistrictsFull(secrets) {
+    const token = await senditToken(secrets.senditPublicKey, secrets.senditSecretKey);
+    return senditDistricts(token);
+}
+
+/** Demande de ramassage Sendit (pickup) pour une liste de colis. */
+async function senditPickup(secrets, store, trackingIds, note) {
+    const token = await senditToken(secrets.senditPublicKey, secrets.senditSecretKey);
+    const payload = {
+        district_id: parseInt(store.senditPickupCityId || 1),
+        name: store.senditSenderName || store.name || 'Vendeur',
+        phone: store.senditSenderPhone || store.phone || '',
+        address: store.senditSenderAddress || store.address || '',
+        note: note || 'Demande depuis le dashboard',
+        deliveries: Array.isArray(trackingIds) ? trackingIds.join(',') : (trackingIds || ''),
+    };
+    const r = await fetch(`${SENDIT_API}/pickups`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    const res = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(res.message || `Demande de ramassage échouée (${r.status}).`);
+    return res;
 }
 
 async function senditCreate(order, store, secrets) {
@@ -227,4 +260,4 @@ async function createDelivery(carrier, order, store, secrets) {
     }
 }
 
-module.exports = { createDelivery, senditTracking, senditInvoices, computeCodAmount };
+module.exports = { createDelivery, senditTracking, senditInvoices, senditDistrictsFull, senditPickup, computeCodAmount };

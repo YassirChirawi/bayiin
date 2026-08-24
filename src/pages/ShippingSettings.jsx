@@ -2,10 +2,10 @@ import { useState, useEffect } from "react";
 import { useTenant } from "../context/TenantContext";
 import { useLanguage } from "../context/LanguageContext";
 import { doc, updateDoc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { db, functions } from "../lib/firebase";
+import { httpsCallable } from "firebase/functions";
 import { toast } from "react-hot-toast";
 import { Save, Truck, Info, Globe, RefreshCw, ShieldCheck, Key, Copy } from "lucide-react";
-import { authenticateSendit, getSenditDistricts } from "../lib/sendit";
 import Button from "../components/Button";
 
 export default function ShippingSettings() {
@@ -105,8 +105,10 @@ export default function ShippingSettings() {
         }
         setLoadingCities(true);
         try {
-            const token = await authenticateSendit(senditKeys.publicKey, senditKeys.secretKey);
-            const districts = await getSenditDistricts(token);
+            // Districts via Cloud Function : les clés Sendit restent côté serveur.
+            const fn = httpsCallable(functions, 'carrierAction');
+            const res = await fn({ action: 'districts' });
+            const districts = res.data?.data || [];
             setSenditCities(districts);
             await updateDoc(doc(db, "stores", store.id), { senditCities: districts });
             toast.success(`${districts.length} villes synchronisées.`);
