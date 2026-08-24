@@ -23,8 +23,6 @@ import { doc, writeBatch } from "firebase/firestore";
 import { logActivity } from "../utils/logger";
 import { useAuth } from "../context/AuthContext";
 import TrackingTimelineModal from "../components/TrackingTimelineModal";
-import { authenticateSendit, requestSenditPickup } from "../lib/sendit";
-import { authenticateOlivraison } from "../lib/olivraison";
 
 // Custom Hooks
 import { useOrderFilters } from "../hooks/useOrderFilters";
@@ -224,8 +222,9 @@ export default function Orders() {
             onConfirm: async () => {
                 setIsPickupLoading(true);
                 try {
-                    const token = await authenticateSendit(store.senditPublicKey, store.senditSecretKey);
-                    await requestSenditPickup(token, store, senditOrders.map(o => o.trackingId));
+                    // Ramassage via Cloud Function (clés côté serveur).
+                    const fn = httpsCallable(functions, 'carrierAction');
+                    await fn({ action: 'pickup', trackingIds: senditOrders.map(o => o.trackingId), note: 'Demande depuis le dashboard' });
                     toast.success(t('msg_pickup_requested'));
                     bulkActions.setSelectedOrders([]);
                 } catch (error) { toast.error(error.message); } finally { setIsPickupLoading(false); }
