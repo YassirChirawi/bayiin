@@ -158,21 +158,40 @@ export const TenantProvider = ({ children }) => {
         }
     };
 
+    // Essai gratuit : 1 mois (30 jours) à compter de la création du store. Doit rester aligné
+    // avec TrialAlert et le billing serveur (trial_days: 30).
+    const TRIAL_DAYS = 30;
+    const toDate = (val) => {
+        if (!val) return null;
+        if (typeof val?.toDate === 'function') return val.toDate(); // Firestore Timestamp
+        if (val instanceof Date) return val;
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? null : d;
+    };
+
     const isStoreActive = (s) => {
         if (!s) return false;
-        // Pro, Starter and Unlimited plans are always active unless explicitly cancelled/expired
+        // Testeurs / bêta : accès total (jamais bloqués par le paywall).
+        if (s.testerMode) return true;
+
+        // Abonnement payant : actif sauf annulé/expiré ; past_due tolère 7 j de grâce.
         if (s.plan === 'pro' || s.plan === 'starter' || s.plan === 'unlimited') {
             if (s.subscriptionStatus === 'canceled' || s.subscriptionStatus === 'expired') return false;
-            // Grace period : 7 jours après expiration Stripe
             if (s.subscriptionStatus === 'past_due' && s.currentPeriodEnd) {
-                const expiredAt = new Date(s.currentPeriodEnd * 1000);
-                const gracePeriodEnd = new Date(expiredAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+                const gracePeriodEnd = new Date(s.currentPeriodEnd * 1000 + 7 * 24 * 60 * 60 * 1000);
                 return new Date() < gracePeriodEnd;
             }
-            return true; // active, or no subscriptionStatus (promo code, manual activation)
+            return true;
         }
-        
-        return s.plan === 'free' || !s.plan; 
+
+        // Activation promo / manuelle → accès total.
+        if (s.subscriptionStatus === 'active_promo') return true;
+
+        // Sinon (plan free / essai) : accès UNIQUEMENT pendant la fenêtre d'essai de 30 jours.
+        const created = toDate(s.createdAt);
+        if (!created) return true; // pas de date de création → ne pas bloquer (sécurité)
+        const trialEnd = new Date(created.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+        return new Date() < trialEnd;
     };
 
     const active = isStoreActive(store);
