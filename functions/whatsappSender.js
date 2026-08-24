@@ -74,6 +74,15 @@ const sendOrderConfirmationRequest = onDocumentCreated(
             return;
         }
 
+        // Langue de confirmation selon le réglage boutique (marché marocain : fr / ar / darija).
+        // Le template correspondant doit être approuvé dans Meta Business Manager.
+        const LANGS = {
+            fr: { tpl: 'order_confirmation_fr', code: 'fr' },
+            ar: { tpl: 'order_confirmation_ar', code: 'ar' },
+            darija: { tpl: 'order_confirmation_ar', code: 'ar' },
+        };
+        const lang = LANGS[store.whatsappLanguage] || LANGS.fr;
+
         // Delay 2 minutes before sending (avoid immediate spam after order creation)
         await new Promise(resolve => setTimeout(resolve, 120000));
 
@@ -97,7 +106,7 @@ const sendOrderConfirmationRequest = onDocumentCreated(
                 orderNumber: order.orderNumber || "",
                 state: "awaiting_confirmation",
                 attempts: 1,
-                language: "fr",
+                language: store.whatsappLanguage || "fr",
                 handoffRequested: false,
                 messages: [],
                 lastMessageAt: null,
@@ -108,15 +117,15 @@ const sendOrderConfirmationRequest = onDocumentCreated(
             // Send the confirmation template
             // The template must be pre-approved in Meta Business Manager
             const messageId = await sendTemplateMessage(
-                phone, 
-                "order_confirmation_fr", 
+                phone,
+                lang.tpl,
                 [
                     order.clientName || "Client",
                     String(order.orderNumber || orderId.slice(-6)),
                     order.articleName || "Votre produit",
                     String(order.price || 0)
                 ],
-                "fr",
+                lang.code,
                 store.whatsappAccessToken,
                 store.whatsappPhoneNumberId
             );
@@ -127,7 +136,7 @@ const sendOrderConfirmationRequest = onDocumentCreated(
                 direction: "outbound",
                 phone,
                 messageId: messageId || "",
-                content: `[Template: order_confirmation_fr]`,
+                content: `[Template: ${lang.tpl}]`,
                 status: "sent",
                 orderId,
                 timestamp: FieldValue.serverTimestamp()
