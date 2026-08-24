@@ -983,6 +983,13 @@ exports.carrierAction = functions.https.onCall(async (data, context) => {
         if (action === 'remittances') {
             return { data: await carriers.senditInvoices(secrets, data.options || {}) };
         }
+        if (action === 'districts') {
+            return { data: await carriers.senditDistrictsFull(secrets) };
+        }
+        if (action === 'pickup') {
+            // secrets contient déjà les champs du doc store (nom/tél/adresse/senditPickupCityId).
+            return { data: await carriers.senditPickup(secrets, secrets, data.trackingIds || [], data.note) };
+        }
         throw new functions.https.HttpsError('invalid-argument', `Action inconnue : ${action}`);
     } catch (e) {
         if (e instanceof functions.https.HttpsError) throw e;
