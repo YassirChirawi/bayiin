@@ -159,6 +159,12 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Snapshots mensuels du MRR (monthlyMrrSnapshot, Admin SDK). Lecture super_admin ; backend only.
+    match /mrr_snapshots/{month} {
+      allow read: if request.auth != null && isSuperAdmin();
+      allow write: if false;
+    }
+
     // Stores collection
     match /stores/{storeId} {
       // SEC (P0-5): prevent self-granting a paid plan at creation. Owners create their own
