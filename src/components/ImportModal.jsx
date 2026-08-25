@@ -115,7 +115,7 @@ export default function ImportModal({ isOpen, onClose, onImport, title = "Import
                             )}
 
                             {!error && previewData.length > 0 && (
-                                <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg text-sm">
+                                <div className="max-h-60 overflow-auto border border-gray-200 rounded-lg text-sm">
                                     <table className="min-w-full divide-y divide-gray-200">
                                         <thead className="bg-gray-50 sticky top-0">
                                             <tr>

@@ -61,7 +61,7 @@ export const PerformanceTrend = ({ data, title }) => (
 );
 
 export const StoreActivityTable = ({ stores }) => (
-  <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
+  <div className="overflow-x-auto rounded-2xl border border-gray-100 bg-white">
     <table className="min-w-full divide-y divide-gray-100">
       <thead className="bg-gray-50/50">
         <tr>
