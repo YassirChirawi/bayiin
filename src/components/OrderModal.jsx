@@ -565,7 +565,7 @@ export default function OrderModal({ isOpen, onClose, onSave, order = null }) {
         <div className="fixed inset-0 z-[10000] overflow-y-auto bg-black/50 backdrop-blur-sm p-4 flex items-center justify-center">
             <div 
                 data-testid="order-modal"
-                className="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden relative z-10 flex flex-col"
+                className="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl w-full max-w-4xl max-h-[95dvh] overflow-hidden relative z-10 flex flex-col"
             >
                 <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 sticky top-0 z-20">
                     <div className="flex items-center gap-3">

@@ -129,7 +129,7 @@ export default function Copilot() {
                     animate={{ scale: 1 }}
                     whileHover={{ scale: 1.1 }}
                     onClick={togglePanel}
-                    className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-gradient-to-r from-rose-500 to-pink-500 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition-all"
+                    className="fixed bottom-fab-safe md:!bottom-6 right-6 z-50 flex items-center gap-2 bg-gradient-to-r from-rose-500 to-pink-500 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition-all"
                 >
                     <div className="relative">
                         <img src="https://api.dicebear.com/9.x/avataaars/svg?seed=Beya3&style=circle&eyebrows=defaultNatural&eyes=default&mouth=smile" alt="Beya3" className="w-8 h-8 rounded-full bg-white" />
