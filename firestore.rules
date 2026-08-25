@@ -165,6 +165,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Notes internes support par boutique — INVISIBLES du marchand (collection séparée du doc store).
+    // Lecture ET écriture réservées au super_admin.
+    match /support_notes/{storeId} {
+      allow read, write: if isSuperAdmin();
+    }
+
     // Stores collection
     match /stores/{storeId} {
       // SEC (P0-5): prevent self-granting a paid plan at creation. Owners create their own
