@@ -48,3 +48,11 @@ fix_tests.js
 # Java crash logs
 hs_err_pid*.log
 replay_pid*.log
+
+# Secrets natifs (mobile) — ne jamais committer
+*.keystore
+*.jks
+android/keystore.properties
+android/app/google-services.json
+ios/App/App/GoogleService-Info.plist
+*.aab
