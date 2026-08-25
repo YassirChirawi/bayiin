@@ -769,7 +769,9 @@ export default function Finances() {
                         {t('msg_no_invoices') || "Aucune facture trouvée pour cette période."}
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
+                    <>
+                    {/* Desktop : tableau */}
+                    <div className="hidden md:block overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead>
                                 <tr>
@@ -787,7 +789,7 @@ export default function Finances() {
                                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">{inv.created_at?.substring(0, 10)}</td>
                                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 font-bold">{parseFloat(inv.total_amount || inv.amount).toFixed(2)} DH</td>
                                         <td className="px-3 py-2 whitespace-nowrap">
-                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
                                                 ${inv.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
                                                 {inv.status}
                                             </span>
@@ -800,6 +802,23 @@ export default function Finances() {
                             </tbody>
                         </table>
                     </div>
+                    {/* Mobile : cartes */}
+                    <div className="md:hidden space-y-3">
+                        {invoices.map((inv) => (
+                            <div key={inv.id || inv.code} className="border border-gray-100 rounded-xl p-4 flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                    <p className="font-bold text-gray-900 text-sm truncate">{inv.code || inv.reference}</p>
+                                    <p className="text-xs text-gray-400 mt-0.5">{inv.created_at?.substring(0, 10)}</p>
+                                    <span className={`mt-1.5 inline-flex px-2 py-0.5 text-[10px] font-semibold rounded-full ${inv.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{inv.status}</span>
+                                </div>
+                                <div className="text-right shrink-0">
+                                    <p className="font-black text-gray-900">{parseFloat(inv.total_amount || inv.amount).toFixed(2)} DH</p>
+                                    <button className="text-indigo-600 text-xs font-bold mt-1">{t('label_view_details') || 'Détails'}</button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    </>
                 )}
             </div>
 
