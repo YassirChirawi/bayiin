@@ -5,10 +5,13 @@ import {
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     signInWithPopup,
+    signInWithRedirect,
+    getRedirectResult,
     signOut,
     sendEmailVerification,
     sendPasswordResetEmail
 } from "firebase/auth";
+import { Capacitor } from "@capacitor/core";
 import { auth, googleProvider } from "../lib/firebase";
 
 const AuthContext = createContext({});
@@ -20,6 +23,9 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        // Sur natif, la connexion Google se fait par redirection : on récupère le résultat au retour.
+        getRedirectResult(auth).catch((err) => console.warn("getRedirectResult:", err?.message));
+
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             setUser(user);
             setLoading(false);
@@ -32,7 +38,12 @@ export const AuthProvider = ({ children }) => {
         return signInWithEmailAndPassword(auth, email, password);
     };
 
+    // Les popups OAuth ne fonctionnent pas dans une WebView Capacitor → redirection en natif.
+    // NB : pour une connexion Google 100% fiable en natif, installer @capacitor-firebase/authentication.
     const loginWithGoogle = () => {
+        if (Capacitor.isNativePlatform()) {
+            return signInWithRedirect(auth, googleProvider);
+        }
         return signInWithPopup(auth, googleProvider);
     };
 
