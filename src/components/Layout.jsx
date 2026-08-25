@@ -107,7 +107,7 @@ export default function Layout() {
         <div className="flex min-h-screen bg-gray-50 flex-col md:flex-row">
             {/* Mobile Header */}
             {!isEmbedded && (
-                <div className="md:hidden bg-white border-b border-gray-200 p-4 flex items-center justify-between sticky top-0 z-20">
+                <div className="md:hidden bg-white border-b border-gray-200 p-4 flex items-center justify-between sticky top-0 z-20 safe-area-inset-top">
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => setIsMobileMenuOpen(true)}
@@ -160,7 +160,7 @@ export default function Layout() {
                 />
             )}
 
-            <main className="flex-1 overflow-auto h-[calc(100vh-65px)] md:h-screen w-full relative">
+            <main className="flex-1 overflow-auto h-[calc(100dvh-65px)] md:h-screen w-full relative">
                 {/* Desktop Header for Notifications & Search (Hidden on Mobile) */}
                 <div className={`${isEmbedded ? 'flex' : 'hidden md:flex'} justify-between md:justify-end items-center p-4 bg-white border-b border-gray-200 sticky top-0 z-20`}>
                     <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
@@ -222,8 +222,8 @@ export default function Layout() {
                         <p className="text-xs font-medium">Mode hors-ligne · Les commandes seront synchronisées dès le retour d'internet</p>
                     </div>
                 )}
-                {/* Extra bottom padding on mobile for bottom nav */}
-                <div className="p-4 pb-24 md:pb-8 md:p-8">
+                {/* Réserve sous le contenu pour le BottomNav + safe area (mobile). */}
+                <div className="p-4 pb-safe-nav md:pb-8 md:p-8">
                     <AnimatePresence>
                         <PageTransition key={location.pathname}>
                             <Suspense fallback={<InlinePageLoader />}>

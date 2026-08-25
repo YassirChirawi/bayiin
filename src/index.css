@@ -101,6 +101,16 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* ─── Safe areas (notch / barre gestuelle iOS & Android) ───────────────────────
+   Nécessite viewport-fit=cover (voir index.html). env(...) vaut 0 si non supporté,
+   donc sans danger sur desktop. Utilisé par le BottomNav, le header mobile, etc. */
+.safe-area-inset-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.safe-area-inset-top    { padding-top: env(safe-area-inset-top, 0px); }
+/* Réserve sous le contenu = hauteur BottomNav (4rem) + inset bas du device. */
+.pb-safe-nav { padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px)); }
+/* Position d'un FAB flottant au-dessus du BottomNav + safe area. */
+.bottom-fab-safe { bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); }
+
 @media screen and (max-width: 768px) {
 
   input,

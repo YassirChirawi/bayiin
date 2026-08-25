@@ -50,7 +50,7 @@ export default function CollectionsManager({ onClose, onSelect }) {
 
     return (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90dvh] overflow-hidden flex flex-col">
                 <div className="flex justify-between items-center p-6 border-b border-gray-100">
                     <h2 className="text-xl font-semibold text-gray-900">{t('modal_collections')}</h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
