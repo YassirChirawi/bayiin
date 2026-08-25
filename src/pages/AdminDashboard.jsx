@@ -87,6 +87,7 @@ export default function AdminDashboard() {
     const [historyQuery, setHistoryQuery] = useState("");
     const [mrrSnapshots, setMrrSnapshots] = useState([]);
     const [snapshotting, setSnapshotting] = useState(false);
+    const [storeHistory, setStoreHistory] = useState([]);
 
     // Custom Hook
     const { stats, stores, usersList, franchises, broadcastData, loading, refreshData, setStores, setUsersList } = useAdminData(user);
@@ -387,6 +388,18 @@ export default function AdminDashboard() {
             .then(snap => setMrrSnapshots(snap.docs.map(d => d.data()).reverse()))
             .catch(() => setMrrSnapshots([]));
     }, []);
+
+    // Historique des actions support de la boutique ouverte dans la fiche (tri client → pas d'index composite).
+    useEffect(() => {
+        if (!auditStore?.id) { setStoreHistory([]); return; }
+        getDocs(query(collection(db, 'support_actions'), where('storeId', '==', auditStore.id), limit(50)))
+            .then(snap => {
+                const rows = snap.docs.map(d => d.data());
+                rows.sort((a, b) => (b.at?.seconds || 0) - (a.at?.seconds || 0));
+                setStoreHistory(rows.slice(0, 10));
+            })
+            .catch(() => setStoreHistory([]));
+    }, [auditStore]);
 
 
     if (loading) return (
@@ -1301,6 +1314,25 @@ export default function AdminDashboard() {
                                                 )}
                                             </div>
                                             <p className="text-[11px] text-gray-400 mt-4 flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" /> Les modifications s'appliquent immédiatement (paywall marchand inclus).</p>
+                                        </div>
+
+                                        {/* Historique des actions sur cette boutique */}
+                                        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                                            <h4 className="font-black text-xs uppercase tracking-widest mb-4 text-gray-400 flex items-center gap-2"><History className="w-4 h-4" /> Historique de cette boutique</h4>
+                                            {storeHistory.length === 0 ? (
+                                                <p className="text-sm text-gray-400 italic">Aucune action support enregistrée sur cette boutique.</p>
+                                            ) : (
+                                                <ul className="space-y-2">
+                                                    {storeHistory.map((h, i) => (
+                                                        <li key={i} className="flex items-center gap-3 text-sm">
+                                                            <span className="text-[10px] text-gray-400 font-mono whitespace-nowrap w-28 shrink-0">{h.at?.toDate ? h.at.toDate().toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}</span>
+                                                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 whitespace-nowrap">{h.action}</span>
+                                                            <span className="text-gray-400 text-xs truncate">{h.detail || ''}</span>
+                                                            <span className="text-gray-300 text-[10px] ml-auto truncate max-w-[120px] hidden sm:block" title={h.adminEmail}>{h.adminEmail}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
                                         </div>
                                     </div>
 
