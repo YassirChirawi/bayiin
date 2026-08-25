@@ -9,7 +9,7 @@ import Button from "../components/Button";
 import Input from "../components/Input";
 import toast from "react-hot-toast";
 import { useAdminData } from "../hooks/useAdminData";
-import { doc, updateDoc, deleteDoc, setDoc, addDoc, collection, query, where, getDocs, serverTimestamp, orderBy, limit } from "firebase/firestore";
+import { doc, getDoc, updateDoc, deleteDoc, setDoc, addDoc, collection, query, where, getDocs, serverTimestamp, orderBy, limit } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../lib/firebase";
 import { getStoreAccess } from "../utils/storeAccess";
@@ -88,6 +88,9 @@ export default function AdminDashboard() {
     const [mrrSnapshots, setMrrSnapshots] = useState([]);
     const [snapshotting, setSnapshotting] = useState(false);
     const [storeHistory, setStoreHistory] = useState([]);
+    const [storeNote, setStoreNote] = useState("");
+    const [storeNoteMeta, setStoreNoteMeta] = useState(null);
+    const [savingNote, setSavingNote] = useState(false);
 
     // Custom Hook
     const { stats, stores, usersList, franchises, broadcastData, loading, refreshData, setStores, setUsersList } = useAdminData(user);
@@ -389,9 +392,10 @@ export default function AdminDashboard() {
             .catch(() => setMrrSnapshots([]));
     }, []);
 
-    // Historique des actions support de la boutique ouverte dans la fiche (tri client → pas d'index composite).
+    // Historique + note interne de la boutique ouverte dans la fiche.
     useEffect(() => {
-        if (!auditStore?.id) { setStoreHistory([]); return; }
+        if (!auditStore?.id) { setStoreHistory([]); setStoreNote(""); setStoreNoteMeta(null); return; }
+        // Historique (tri client → pas d'index composite).
         getDocs(query(collection(db, 'support_actions'), where('storeId', '==', auditStore.id), limit(50)))
             .then(snap => {
                 const rows = snap.docs.map(d => d.data());
@@ -399,7 +403,31 @@ export default function AdminDashboard() {
                 setStoreHistory(rows.slice(0, 10));
             })
             .catch(() => setStoreHistory([]));
+        // Note interne (collection séparée, invisible du marchand).
+        getDoc(doc(db, 'support_notes', auditStore.id))
+            .then(d => { setStoreNote(d.exists() ? (d.data().note || "") : ""); setStoreNoteMeta(d.exists() ? d.data() : null); })
+            .catch(() => { setStoreNote(""); setStoreNoteMeta(null); });
     }, [auditStore]);
+
+    // Enregistre la note interne d'une boutique + journalise l'action.
+    const saveStoreNote = async (store) => {
+        if (!store?.id) return;
+        setSavingNote(true);
+        try {
+            await setDoc(doc(db, 'support_notes', store.id), {
+                note: storeNote, storeId: store.id,
+                updatedByEmail: user.email || '', updatedById: user.uid, updatedAt: serverTimestamp(),
+            });
+            setStoreNoteMeta({ updatedByEmail: user.email, updatedAt: { toDate: () => new Date() } });
+            logSupportAction(store, 'Note interne');
+            toast.success('Note enregistrée');
+        } catch (e) {
+            console.error(e);
+            toast.error("Échec de l'enregistrement de la note");
+        } finally {
+            setSavingNote(false);
+        }
+    };
 
 
     if (loading) return (
@@ -1314,6 +1342,26 @@ export default function AdminDashboard() {
                                                 )}
                                             </div>
                                             <p className="text-[11px] text-gray-400 mt-4 flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" /> Les modifications s'appliquent immédiatement (paywall marchand inclus).</p>
+                                        </div>
+
+                                        {/* Note interne support (invisible du marchand) */}
+                                        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h4 className="font-black text-xs uppercase tracking-widest text-gray-400 flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> Note interne <span className="normal-case font-normal text-gray-300">(support only)</span></h4>
+                                                {storeNoteMeta?.updatedAt && (
+                                                    <span className="text-[10px] text-gray-400">Modifiée le {storeNoteMeta.updatedAt.toDate ? storeNoteMeta.updatedAt.toDate().toLocaleDateString('fr-FR') : '—'}{storeNoteMeta.updatedByEmail ? ` · ${storeNoteMeta.updatedByEmail}` : ''}</span>
+                                                )}
+                                            </div>
+                                            <textarea
+                                                value={storeNote}
+                                                onChange={e => setStoreNote(e.target.value)}
+                                                rows={3}
+                                                placeholder="Contexte, incident en cours, geste commercial accordé, à rappeler…"
+                                                className="w-full rounded-xl border-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-3 text-sm resize-none"
+                                            />
+                                            <div className="flex justify-end mt-3">
+                                                <Button size="sm" onClick={() => saveStoreNote(s)} disabled={savingNote}>{savingNote ? 'Enregistrement…' : 'Enregistrer la note'}</Button>
+                                            </div>
                                         </div>
 
                                         {/* Historique des actions sur cette boutique */}
