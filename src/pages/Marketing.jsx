@@ -188,7 +188,7 @@ export default function Marketing() {
                     </div>
 
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-xl overflow-hidden">
-                        <div className="overflow-x-auto">
+                        <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-gray-50/50 text-gray-500 uppercase text-[10px] font-bold tracking-widest border-b border-gray-100">
                                     <tr>
@@ -235,6 +235,31 @@ export default function Marketing() {
                                     })}
                                 </tbody>
                             </table>
+                        </div>
+                        {/* Mobile : cartes */}
+                        <div className="md:hidden divide-y divide-gray-50">
+                            {filteredCustomers.map(customer => {
+                                const customerOrders = orders.filter(o => o.clientPhone === customer.phone);
+                                const lastOrder = [...customerOrders].sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+                                return (
+                                    <div key={customer.id} className="p-4 flex items-center justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="font-bold text-gray-900 uppercase tracking-tight text-xs truncate">{customer.name}</p>
+                                            <p className="text-[11px] text-gray-500 font-mono">{customer.phone}</p>
+                                            <p className="text-[11px] text-gray-400 mt-1 truncate">
+                                                {lastOrder ? `${lastOrder.date || '—'} · ${lastOrder.articleName || ''}` : '—'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleSendReorder(customer)}
+                                            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-500 text-white rounded-xl text-[10px] font-bold hover:bg-emerald-600 transition-colors shadow-sm"
+                                        >
+                                            <MessageCircle className="w-3.5 h-3.5 fill-white" />
+                                            Re-order
+                                        </button>
+                                    </div>
+                                );
+                            })}
                         </div>
                         {filteredCustomers.length === 0 && (
                             <div className="py-20 text-center text-gray-400 flex flex-col items-center">
