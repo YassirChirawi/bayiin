@@ -22,6 +22,7 @@ export const translations = {
         // Common
         btn_next: "Next",
         btn_back: "Back",
+        step_of: "Step {step} of 3",
         btn_finish_setup: "Finish Setup",
         btn_create: "Create",
         label_qty: "Quantity",

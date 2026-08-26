@@ -140,7 +140,11 @@ export default function Onboarding() {
                             <div key={s} className={`h-2 flex-1 mx-1 rounded-full ${s <= step ? 'bg-indigo-600' : 'bg-gray-100'}`} />
                         ))}
                     </div>
-                    <p className="text-center text-sm text-gray-500">{t('step_of') || `Étape ${step} sur 3`}</p>
+                    {/* t() interpole via son 2e argument. Sans lui, la chaîne
+                        « Étape {step} sur 3 » était affichée telle quelle à chaque
+                        nouveau marchand : le repli `||` ne s'appliquait pas, t()
+                        renvoyant une valeur non vide. */}
+                    <p className="text-center text-sm text-gray-500">{t('step_of', { step })}</p>
                 </div>
 
                 <AnimatePresence mode="wait">

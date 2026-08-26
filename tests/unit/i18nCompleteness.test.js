@@ -75,3 +75,40 @@ describe("i18n — complétude", () => {
         expect(ratio).toBeGreaterThan(0.5); // À SUPPRIMER une fois l'arabe traduit.
     });
 });
+
+describe("i18n — interpolation", () => {
+    // t(key, params) remplace les {placeholder}. Un appel t(key) sur une chaine
+    // qui en contient un affiche l'accolade telle quelle a l'utilisateur.
+    // C'est arrive dans l'onboarding : « Etape {step} sur 3 » etait montre a
+    // chaque nouveau marchand, le repli `|| ...` ne s'appliquant jamais puisque
+    // t() renvoyait bien une valeur non vide.
+    const SRC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../src");
+
+    const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) return walk(p);
+        return /[.]jsx?$/.test(e.name) && !/[.]test[.]/.test(e.name) ? [p] : [];
+    });
+
+    it("aucun texte a placeholder n'est affiche sans interpolation", () => {
+        // {3} ou {2,4} sont des quantificateurs regex, pas des placeholders.
+        const withPlaceholder = new Set();
+        for (const [, key, value] of SRC.matchAll(/^ {8}(\w+): "([^"]*)",$/gm)) {
+            const names = [...value.matchAll(/[{](\w+)[}]/g)].map((m) => m[1]);
+            if (names.some((n) => !/^\d+$/.test(n))) withPlaceholder.add(key);
+        }
+
+        const offenders = [];
+        for (const file of walk(SRC_DIR)) {
+            fs.readFileSync(file, "utf8").split("\n").forEach((line, i) => {
+                for (const m of line.matchAll(/\bt[(]\s*['"](\w+)['"]\s*[)]/g)) {
+                    if (!withPlaceholder.has(m[1])) continue;
+                    // L'interpolation peut aussi se faire par .replace() chaine.
+                    if (line.slice(m.index + m[0].length).trimStart().startsWith(".replace")) continue;
+                    offenders.push(`${path.relative(SRC_DIR, file).split(path.sep).join("/")}:${i + 1} t('${m[1]}')`);
+                }
+            });
+        }
+        expect(offenders).toEqual([]);
+    });
+});
