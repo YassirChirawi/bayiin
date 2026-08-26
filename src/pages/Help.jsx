@@ -8,7 +8,7 @@ import { Link, useLocation } from "react-router-dom";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { toast } from "react-hot-toast";
-import { SUPPORT_EMAIL, SUPPORT_HOURS, SUPPORT_SLA, supportWhatsappLink, supportPhoneDisplay } from "../config/brand";
+import { SUPPORT_EMAIL, SUPPORT_HOURS, SUPPORT_SLA, supportWhatsappLink, supportPhoneDisplay, supportMailtoLink } from "../config/brand";
 
 export default function Help() {
     const { t } = useLanguage();
@@ -196,9 +196,9 @@ export default function Help() {
                             </div>
                             <ExternalLink className="ml-auto w-4 h-4 opacity-70 group-hover:opacity-100" />
                         </a>
-                    ) : (
+                    ) : supportMailtoLink() ? (
                         <a
-                            href={`mailto:${SUPPORT_EMAIL}`}
+                            href={supportMailtoLink()}
                             className="flex items-center gap-4 bg-indigo-600 hover:bg-indigo-700 text-white p-5 rounded-2xl transition-all shadow-lg shadow-indigo-200 hover:-translate-y-0.5 group"
                         >
                             <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -210,6 +210,18 @@ export default function Help() {
                             </div>
                             <ExternalLink className="ml-auto w-4 h-4 opacity-70 group-hover:opacity-100" />
                         </a>
+                    ) : (
+                        /* Aucun canal externe ouvert : le formulaire ci-contre est le vrai
+                           canal — il arrive directement dans le panel admin. */
+                        <div className="flex items-center gap-4 bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm">
+                            <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <Send className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="font-bold text-gray-900">Le formulaire, c'est ici →</p>
+                                <p className="text-gray-500 text-sm">Votre message arrive directement chez nous. Réponse {SUPPORT_SLA}, {SUPPORT_HOURS}.</p>
+                            </div>
+                        </div>
                     )}
 
                     {/* Mini Contact Form */}

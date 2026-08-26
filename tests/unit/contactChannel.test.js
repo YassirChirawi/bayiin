@@ -7,7 +7,9 @@ import {
     SUPPORT_EMAIL,
     SUPPORT_WHATSAPP,
     hasWhatsappSupport,
+    hasEmailSupport,
     supportWhatsappLink,
+    supportMailtoLink,
     supportPhoneDisplay,
 } from "../../src/config/brand";
 import { FEATURES, isEnabled } from "../../src/config/features";
@@ -26,8 +28,26 @@ const SOURCES = walk(SRC);
 const rel = (p) => path.relative(SRC, p).split(path.sep).join("/");
 
 describe("brand — identité de contact", () => {
-    it("expose une boîte de contact BayIIn", () => {
-        expect(SUPPORT_EMAIL).toMatch(/^[^@\s]+@bayiin\.shop$/);
+    it("n'expose une adresse de contact que si une boîte est réellement relevée", () => {
+        // contact@bayiin.shop n'existe pas encore. Afficher une adresse non relevée
+        // reproduit exactement le défaut du numéro WhatsApp fictif.
+        expect(hasEmailSupport()).toBe(Boolean(SUPPORT_EMAIL));
+        if (SUPPORT_EMAIL === null) {
+            expect(supportMailtoLink("sujet")).toBeNull();
+        } else {
+            expect(SUPPORT_EMAIL).toMatch(/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i);
+            expect(supportMailtoLink("sujet")).toBe(`mailto:${SUPPORT_EMAIL}?subject=sujet`);
+        }
+    });
+
+    it("garde au moins un canal joignable quoi qu'il arrive", () => {
+        // WhatsApp et email peuvent être éteints ; le formulaire, lui, écrit dans
+        // contact_requests et remonte dans le panel admin. C'est le canal de repli.
+        const hasExternal = hasWhatsappSupport() || hasEmailSupport();
+        const formIsWired = fs
+            .readFileSync(path.join(SRC, "components/ContactSection.jsx"), "utf8")
+            .includes('collection(db, "contact_requests")');
+        expect(hasExternal || formIsWired).toBe(true);
     });
 
     it("ne prétend pas avoir un WhatsApp support tant qu'aucun numéro n'est configuré", () => {
@@ -74,6 +94,16 @@ describe("non-régression — aucun contact fictif dans l'UI", () => {
             .filter((f) => rel(f) !== "config/brand.js")
             .filter((f) => /https:\/\/wa\.me\/\d/.test(fs.readFileSync(f, "utf8")))
             .map(rel);
+        expect(offenders).toEqual([]);
+    });
+    it("aucune adresse @bayiin.shop codée en dur hors config et pages légales", () => {
+        // Les pages légales (Terms, Privacy) citent des adresses imposées par la loi :
+        // elles ont leur propre exigence, traitée à part.
+        const LEGAL = ["pages/Terms.jsx", "pages/Privacy.jsx"];
+        const offenders = SOURCES
+            .map(rel)
+            .filter((f) => f !== "config/brand.js" && !LEGAL.includes(f))
+            .filter((f) => /@bayiin\.shop/.test(fs.readFileSync(path.join(SRC, f), "utf8")));
         expect(offenders).toEqual([]);
     });
 });

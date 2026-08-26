@@ -55,10 +55,17 @@ export default function Footer() {
                     <div>
                         <h3 className="text-white font-semibold mb-6">{t('footer_contact_title')}</h3>
                         <ul className="space-y-4">
-                            <li className="flex items-start gap-3">
-                                <Mail className="h-5 w-5 text-indigo-500 mt-0.5" />
-                                <a href={`mailto:${SUPPORT_EMAIL}`} className="text-sm hover:text-indigo-400 transition-colors">{SUPPORT_EMAIL}</a>
-                            </li>
+                            {SUPPORT_EMAIL ? (
+                                <li className="flex items-start gap-3">
+                                    <Mail className="h-5 w-5 text-indigo-500 mt-0.5" />
+                                    <a href={`mailto:${SUPPORT_EMAIL}`} className="text-sm hover:text-indigo-400 transition-colors">{SUPPORT_EMAIL}</a>
+                                </li>
+                            ) : (
+                                <li className="flex items-start gap-3">
+                                    <Mail className="h-5 w-5 text-indigo-500 mt-0.5" />
+                                    <Link to="/help" className="text-sm hover:text-indigo-400 transition-colors">Nous contacter</Link>
+                                </li>
+                            )}
                             {supportPhoneDisplay() && (
                                 <li className="flex items-start gap-3">
                                     <Phone className="h-5 w-5 text-indigo-500 mt-0.5" />

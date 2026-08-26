@@ -139,7 +139,9 @@ async function sendInvoiceEmail(clientEmail, order, store) {
 
 /**
  * Alerte l'équipe BayIIn qu'une nouvelle demande de contact est arrivée.
- * Destinataire : SUPPORT_INBOX_EMAIL (secret), sinon contact@bayiin.shop.
+ * Destinataire : SUPPORT_INBOX_EMAIL. Aucun repli : une adresse par défaut qui
+ * n'est pas relevée ferait disparaître l'alerte en silence, la demande étant
+ * marquée comme notifiée alors que personne ne l'a reçue.
  * @param {string} requestId
  * @param {object} req  Document contact_requests
  */
@@ -153,7 +155,15 @@ const CONTACT_TYPE_LABELS = {
 async function sendContactRequestAlert(requestId, req) {
     if (!req) return false;
 
-    const inbox = process.env.SUPPORT_INBOX_EMAIL || 'contact@bayiin.shop';
+    const inbox = (process.env.SUPPORT_INBOX_EMAIL || '').trim();
+    if (!inbox) {
+        // Retour false délibéré : le doc sera estampillé notifyError et la demande
+        // remontera avec un marqueur rouge dans l'AdminDashboard. Mieux vaut un
+        // échec visible qu'un envoi vers une boîte inexistante.
+        console.error('[Resend] SUPPORT_INBOX_EMAIL non configuré — alerte de contact NON envoyée '
+            + `(demande ${requestId}). La demande reste visible dans Admin → Contacts.`);
+        return false;
+    }
     const label = CONTACT_TYPE_LABELS[req.type] || 'Contact';
     const name = req.name || 'Sans nom';
     const phone = req.phone || '';

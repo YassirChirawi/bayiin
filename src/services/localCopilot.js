@@ -227,7 +227,7 @@ ${getRandomAdvice('logistics')}`;
 
     for (const item of helpIntents) {
         if (item.keys.some(k => input.includes(k))) {
-            return `📚 ${item.answer}\n\n_Besoin d'aide supplémentaire ? Écris à **${SUPPORT_EMAIL}** ou utilise **Aide → Nous contacter**._`;
+            return `📚 ${item.answer}\n\n_Besoin d'aide supplémentaire ? Utilise **Aide → Nous contacter** : ton message arrive directement chez nous._`;
         }
     }
 
@@ -240,13 +240,13 @@ ${getRandomAdvice('logistics')}`;
             "",
             "Pour toute assistance, contactez notre équipe :",
             "",
-            `${waLine}**Email** : ${SUPPORT_EMAIL}`,
+            SUPPORT_EMAIL ? `${waLine}**Email** : ${SUPPORT_EMAIL}` : waLine.trim(),
             "",
             `Horaires : **${SUPPORT_HOURS}**`,
             `Réponse ${SUPPORT_SLA} ⚡`,
             "",
             "Le plus rapide : le formulaire dans **Aide → Nous contacter** — il arrive directement dans notre boîte.",
-        ].join("\n");
+        ].filter(Boolean).join("\n");
     }
 
     // DEFAULT

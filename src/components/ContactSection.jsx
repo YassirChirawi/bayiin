@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { toast } from "react-hot-toast";
-import { SUPPORT_EMAIL, SUPPORT_SLA, supportWhatsappLink } from "../config/brand";
+import { SUPPORT_EMAIL, SUPPORT_SLA, supportWhatsappLink, supportMailtoLink } from "../config/brand";
 import {
     MessageSquare, Send, Phone, Mail, Building2,
     Layers, ShieldCheck, CheckCircle, ArrowRight,
@@ -183,9 +183,9 @@ export default function ContactSection() {
                                 </div>
                                 <ArrowRight className="w-5 h-5 ml-auto group-hover:translate-x-1 transition-transform" />
                             </a>
-                        ) : (
+                        ) : supportMailtoLink() ? (
                             <a
-                                href={`mailto:${SUPPORT_EMAIL}`}
+                                href={supportMailtoLink()}
                                 className="flex items-center gap-4 bg-slate-900 hover:bg-slate-800 text-white p-5 rounded-2xl transition-all shadow-lg shadow-slate-200 hover:shadow-xl hover:-translate-y-0.5 group"
                             >
                                 <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -197,7 +197,7 @@ export default function ContactSection() {
                                 </div>
                                 <ArrowRight className="w-5 h-5 ml-auto group-hover:translate-x-1 transition-transform" />
                             </a>
-                        )}
+                        ) : null /* Aucun canal externe : le formulaire ci-contre suffit. */}
                     </div>
 
                     {/* Right — Form */}
