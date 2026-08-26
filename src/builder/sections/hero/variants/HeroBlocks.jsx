@@ -113,6 +113,44 @@ export default function HeroBlocks({ section, theme }) {
                                     </motion.div>
                                 );
 
+                            // Comme pour 'HTML' ci-dessous, l'éditeur proposait
+                            // addBlock('FeatureCard') sans qu'aucun rendu n'existe : le bloc
+                            // était ajoutable puis invisible sur la vitrine. Les réglages
+                            // fournis par getDefaultSettingsForType sont { title, text, icon }.
+                            case 'FeatureCard':
+                                return (
+                                    <motion.div
+                                        key={block.id}
+                                        {...animProps}
+                                        className="w-full flex items-start gap-4 rounded-2xl border p-5 backdrop-blur-sm"
+                                        style={{
+                                            borderColor: `${theme.primaryColor}33`,
+                                            backgroundColor: `${theme.primaryColor}0d`,
+                                        }}
+                                    >
+                                        {block.settings.icon && (
+                                            <div
+                                                className="flex-shrink-0 flex h-11 w-11 items-center justify-center rounded-xl"
+                                                style={{ backgroundColor: `${theme.primaryColor}1f`, color: theme.primaryColor }}
+                                            >
+                                                <DynamicIcon name={block.settings.icon} size={22} />
+                                            </div>
+                                        )}
+                                        <div className="min-w-0 text-left">
+                                            {block.settings.title && (
+                                                <h3 className="font-bold text-lg leading-snug" style={blockStyle}>
+                                                    {block.settings.title}
+                                                </h3>
+                                            )}
+                                            {block.settings.text && (
+                                                <p className="mt-1 text-sm opacity-80" style={blockStyle}>
+                                                    {block.settings.text}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                );
+
                             // L'étiquette manquait : l'éditeur propose un bloc HTML
                             // (addBlock('HTML') dans SectionBlocksManager) mais le rendu
                             // tombait sur `default: return null` — le bloc était invisible.

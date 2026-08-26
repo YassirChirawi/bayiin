@@ -67,12 +67,34 @@ describe("i18n — complétude", () => {
     }
 
     it("l'arabe reste très largement non traduit — garde explicite", () => {
-        // 639 des ~900 clés arabes sont de l'anglais suffixé « (AR) », alors que
-        // l'arabe est proposé dans l'app et que le RTL est appliqué. Ce test
-        // existe pour que ce fait reste visible plutôt que d'être oublié.
+        // 639 des ~900 clés arabes sont de l'anglais suffixé « (AR) ».
+        // L'arabe n'est PAS proposé dans l'interface : il n'existe que deux
+        // appels à setLanguage dans src/, tous deux limités à fr/en. C'est donc
+        // du travail dormant, pas un défaut servi aux marchands — mais il ne
+        // faut pas ouvrir l'arabe sans avoir fait tomber ce compteur.
         const placeholders = [...B.ar.body.matchAll(/^ {8}\w+: "[^"]*\(AR\)",$/gm)].length;
         const ratio = placeholders / B.ar.keys.size;
         expect(ratio).toBeGreaterThan(0.5); // À SUPPRIMER une fois l'arabe traduit.
+    });
+
+    it("l'arabe n'est pas proposé tant qu'il n'est pas traduit", () => {
+        // Garde de cohérence : si quelqu'un ajoute 'ar' à un sélecteur de langue
+        // alors que le compteur ci-dessus est encore élevé, ce test échoue.
+        const SRC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../src");
+        const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+            const p = path.join(dir, e.name);
+            if (e.isDirectory()) return walk(p);
+            return /[.]jsx?$/.test(e.name) && !/[.]test[.]/.test(e.name) ? [p] : [];
+        });
+        const offenders = [];
+        for (const file of walk(SRC_DIR)) {
+            fs.readFileSync(file, "utf8").split("\n").forEach((line, i) => {
+                if (/setLanguage\(\s*['"]ar['"]\s*\)/.test(line) || /\[[^\]]*['"]ar['"][^\]]*\]\.map/.test(line)) {
+                    offenders.push(`${path.relative(SRC_DIR, file).split(path.sep).join("/")}:${i + 1}`);
+                }
+            });
+        }
+        expect(offenders).toEqual([]);
     });
 });
 

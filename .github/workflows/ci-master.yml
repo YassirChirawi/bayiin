@@ -70,8 +70,14 @@ jobs:
       # Le script passe par l'API Rules et contourne ce bug. La verification qui
       # suit est BLOQUANTE : une release ne doit pas etre annoncee livree si les
       # regles n'ont pas suivi.
+      # Les DEUX bases declarees dans firebase.json. '(default)' est une base
+      # legacy qui contient encore stores/ et users/ : ses regles etaient figees
+      # au 2026-05-28 avant cette correction. Elle doit suivre le meme ruleset
+      # tant qu'elle detient des donnees.
       - name: Deploy Firestore rules (API Rules, contourne le bug CLI)
-        run: node scripts/deploy-firestore-rules.mjs --apply
+        run: |
+          node scripts/deploy-firestore-rules.mjs --release cloud.firestore/comsaas --apply
+          node scripts/deploy-firestore-rules.mjs --release cloud.firestore --apply
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 

@@ -17,9 +17,13 @@
 
 ---
 
-## 🚨 Les règles Firestore ne sont PAS déployées en production
+## ✅ Règles Firestore — déployées et vérifiées (2026-08-26)
 
 **Découvert le 2026-08-26, en tentant le déploiement.**
+
+> **Résolu le 2026-08-26.** Les deux bases portent désormais le ruleset du dépôt,
+> et `ci-master` les publie puis les vérifie à chaque release. Le reste de cette
+> section documente la panne pour qu'elle ne se reproduise pas.
 
 `firebase deploy --only firestore:rules` affiche **« Deploy complete! »**
 et ne publie **rien**. C'est le même bug de `firebase-tools` en configuration
@@ -368,41 +372,43 @@ Les plus structurants sont dans `CartContext`, `PWAContext`, `useStoreStats` et
 
 ---
 
-## 🌐 L'interface arabe est majoritairement en anglais
+## 🌐 Traductions — arabe inachevé, mais DORMANT
 
-**639 des ~900 valeurs arabes** sont de l'anglais suffixe « (AR) » —
+**639 des ~900 valeurs arabes** sont de l'anglais suffixé « (AR) » —
 `btn_upgrade: "Upgrade (AR)"`, `btn_next: "Next (AR)"`… Le fichier l'annonce
-lui-meme : `// Generated Fallbacks`.
+lui-même : `// Generated Fallbacks`.
 
-L'arabe est pourtant propose dans l'application, le RTL est applique
-(`LanguageContext.jsx`), et la landing bascule en arabe. Un marchand marocain
-qui choisit l'arabe obtient donc une interface a 70 % en anglais.
+**Correction d'une affirmation antérieure de ce document :** l'arabe n'est PAS
+proposé aux utilisateurs. Il n'existe que deux appels à `setLanguage` dans tout
+`src/` — `['fr', 'en']` dans la Sidebar et, depuis cette passe, `['fr', 'en']`
+sur la landing. `ar` est inatteignable autrement qu'en écrivant à la main dans
+le `localStorage`.
 
-Il manque aussi **35 cles en anglais** et 10 en arabe par rapport au francais,
-qui sert de reference.
+Le RTL et les vérifications `language === 'ar'` existent bien dans le code, mais
+aucun chemin d'interface n'y mène. C'est du travail préparatoire, pas un défaut
+servi aux marchands.
 
-**Decision a prendre** — c'est la seule entree de ce document qui soit un choix
-produit et non une valeur a renseigner :
+**Conséquence : ce n'est pas un blocage de lancement.** Priorité basse, à
+traiter le jour où l'arabe sera réellement ouvert. Le faire traduire par un
+locuteur natif (darija commerciale) reste la seule voie — les 639 chaînes ne
+peuvent pas être inventées sans relecture native.
 
-1. Faire traduire les 639 chaines par un locuteur natif (darija commerciale), ou
-2. Retirer l'arabe du selecteur de langue jusqu'a ce qu'il soit pret, comme on
-   l'a fait pour les modules non livres.
+Il manque aussi **34 clés en anglais** et 10 en arabe par rapport au français,
+qui sert de référence. L'anglais retombe sur le français, donc l'interface EN
+affiche du français par endroits.
 
-Laisser en l'etat est la seule option qui ne se defende pas : c'est exactement
-le defaut que le reste de cet audit a corrige partout ailleurs.
-
-`tests/unit/i18nCompleteness.test.js` verrouille l'etat actuel — les seuils sont
-des garde-fous de non-regression, a faire baisser au fil des traductions.
+`tests/unit/i18nCompleteness.test.js` verrouille l'état actuel — les seuils sont
+des garde-fous de non-régression, à faire baisser au fil des traductions.
 
 ### Sept arbitrages de traduction en attente
 
-La deduplication des cles a revele des chaines qui en ecrasaient d'autres. Deux
-etaient des regressions et ont ete corrigees (`ar.actions` affichait « Actions »
-au lieu de « العمليات » ; `fr.btn_generate_variants` affichait « Gerer Variantes »
-alors que le bouton genere). Les sept autres sont defendables dans les deux sens,
-la valeur active est conservee :
+La déduplication des clés a révélé des chaînes qui en écrasaient d'autres. Deux
+étaient des régressions et ont été corrigées (`ar.actions` affichait « Actions »
+au lieu de « العمليات » ; `fr.btn_generate_variants` affichait « Gérer Variantes »
+alors que le bouton génère). Les sept autres sont défendables dans les deux sens,
+la valeur active est conservée :
 
-| Cle | Valeur inactive supprimee | Valeur active conservee |
+| Clé | Valeur inactive supprimée | Valeur active conservée |
 |---|---|---|
 | `btn_finish_setup` | Terminer | Terminer la Configuration |
 | `title_inventory` | Gestion du Stock | Inventaire |

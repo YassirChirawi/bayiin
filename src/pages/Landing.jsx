@@ -80,14 +80,22 @@ export default function Landing() {
                         </div>
 
                         <div className="flex items-center gap-2 md:gap-4">
-                            {/* Language Switcher - Compact on mobile */}
+                            {/* Sélecteur de langue. Il ne proposait que FR : un bouton
+                                unique qui ne changeait rien, comme les liens href="#"
+                                du pied de page. Aligné sur la Sidebar, qui propose
+                                déjà fr/en. L'arabe n'est volontairement pas proposé :
+                                sa traduction est encore majoritairement en anglais
+                                (voir docs/LAUNCH_AUDIT.md). */}
                             <div className="flex items-center bg-slate-100 rounded-lg p-1">
-                                <button
-                                    onClick={() => setLanguage('fr')}
-                                    className={`px-2 md:px-3 py-1 text-[10px] md:text-xs font-bold rounded-md transition-all ${language === 'fr' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    FR
-                                </button>
+                                {['fr', 'en'].map((lng) => (
+                                    <button
+                                        key={lng}
+                                        onClick={() => setLanguage(lng)}
+                                        className={`px-2 md:px-3 py-1 text-[10px] md:text-xs font-bold rounded-md transition-all ${language === lng ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        {lng.toUpperCase()}
+                                    </button>
+                                ))}
                             </div>
 
                             <Link to="/login" className="hidden sm:block text-sm font-medium text-slate-700 hover:text-indigo-600 transition-colors">
