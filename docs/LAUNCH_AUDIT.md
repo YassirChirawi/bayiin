@@ -17,6 +17,70 @@
 
 ---
 
+## 🚨 Les règles Firestore ne sont PAS déployées en production
+
+**Découvert le 2026-08-26, en tentant le déploiement.**
+
+`firebase deploy --only firestore:rules` affiche **« Deploy complete! »**
+et ne publie **rien**. C'est le même bug de `firebase-tools` en configuration
+multi-base que celui documenté dans `scripts/create-firestore-indexes.mjs` pour
+les index — il touche aussi les règles, mais sans message d'erreur.
+
+Vérifié via l'API Rules après un déploiement annoncé réussi : le ruleset actif
+de la base `comsaas` datait toujours du **2026-08-20**.
+
+### Conséquence : la production a ~85 lignes de retard sur `main`
+
+**6 collections n'ont aucune règle** — tout accès est refusé par défaut :
+
+| Collection | Impact |
+|---|---|
+| `contact_requests` | Le formulaire de contact est rejeté |
+| `error_logs` | Le reporting d'erreurs client n'écrit rien |
+| `system_alerts` | Le digest quotidien d'erreurs est illisible |
+| `support_actions` | Le journal des actions support n'écrit rien |
+| `mrr_snapshots` | L'historique MRR de l'admin est vide |
+| `support_notes` | Les notes internes par boutique sont inaccessibles |
+
+**Deux correctifs de sécurité mergés n'ont jamais atteint la production :**
+
+1. **Contournement de paywall.** Les champs `testerMode`, `suspended` et
+   `trialEndsAt` ne sont pas protégés sur `stores/{storeId}`. Un propriétaire de
+   boutique peut se les auto-attribuer — donc s'octroyer le mode testeur ou
+   prolonger son essai. Le correctif est dans `firestore.rules` depuis
+   longtemps, il n'est simplement jamais parti.
+
+2. **Escalade de privilèges.** La garde qui contraint les rôles de
+   `allowed_users` à `staff` / `manager` est absente en production.
+
+### Correction
+
+Deux scripts contournent le bug, sur le modèle de celui des index :
+
+```bash
+node scripts/verify-firestore-rules.mjs           # état réel de chaque base
+node scripts/deploy-firestore-rules.mjs           # simulation
+node scripts/deploy-firestore-rules.mjs --apply   # publie sur comsaas
+node scripts/verify-firestore-rules.mjs           # re-vérifie
+```
+
+`verify` sort en code 1 tant qu'une base ne porte pas la règle — utilisable en
+CI pour que ce silence ne se reproduise pas.
+
+### La base `(default)`
+
+Son ruleset date du **2026-05-28** et diffère nettement (22 907 caractères
+contre 30 503). L'application n'utilise que `comsaas`
+(`getFirestore(app, 'comsaas')` côté client, `getFirestore('comsaas')` côté
+Functions), donc ce n'est pas bloquant.
+
+Mais `firebase.json` déclare que les deux bases suivent `firestore.rules` :
+soit `(default)` est un reliquat à supprimer, soit elle doit être alignée. À
+trancher avant de la laisser dériver davantage — le script accepte
+`--release cloud.firestore` pour la cibler.
+
+---
+
 ## 🔴 Bloquant — avant tout lancement commercial
 
 ### 1. Identité légale de l'éditeur
