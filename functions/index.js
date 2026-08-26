@@ -1,5 +1,5 @@
 const functions = require('firebase-functions');
-const { onDocumentWritten } = require("firebase-functions/v2/firestore");
+const { onDocumentWritten, onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require('firebase-admin/app');
@@ -146,6 +146,47 @@ exports.onActionDraftUpdate = onDocumentWritten({
  *
  * Supported roles: 'super_admin', 'franchise_admin', 'owner', 'staff'
  */
+/**
+ * onContactRequestCreated — canal de contact BayIIn.
+ *
+ * Une demande écrite dans contact_requests (landing ou page Aide) déclenche
+ * immédiatement un email vers la boîte support. Sans ce trigger la demande
+ * dormait dans Firestore sans que personne ne soit prévenu.
+ *
+ * Le doc est ensuite estampillé (notifiedAt / notifyError) pour qu'on voie
+ * dans l'AdminDashboard si l'alerte est bien partie.
+ */
+exports.onContactRequestCreated = onDocumentCreated({
+    document: "contact_requests/{requestId}",
+    database: "comsaas",
+    // SUPPORT_INBOX_EMAIL n'est pas un secret (simple adresse) : variable
+    // d'environnement, avec repli sur contact@bayiin.shop dans emailService.
+    secrets: ["RESEND_API_KEY"],
+}, async (event) => {
+    const snap = event.data;
+    if (!snap?.exists) return;
+
+    const requestId = event.params.requestId;
+    const data = snap.data();
+
+    let sent = false;
+    try {
+        const { sendContactRequestAlert } = require('./emailService');
+        sent = await sendContactRequestAlert(requestId, data);
+    } catch (err) {
+        console.error('[onContactRequestCreated] alert failed:', err);
+        await logServerError('onContactRequestCreated', err, { requestId });
+    }
+
+    try {
+        await snap.ref.update(sent
+            ? { notifiedAt: FieldValue.serverTimestamp() }
+            : { notifyError: true });
+    } catch (err) {
+        console.error('[onContactRequestCreated] stamp failed:', err.message);
+    }
+});
+
 exports.onUserWrite = onDocumentWritten({
     document: "users/{userId}",
     database: "comsaas",

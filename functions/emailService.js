@@ -136,7 +136,93 @@ async function sendInvoiceEmail(clientEmail, order, store) {
     }
 }
 
+
+/**
+ * Alerte l'équipe BayIIn qu'une nouvelle demande de contact est arrivée.
+ * Destinataire : SUPPORT_INBOX_EMAIL (secret), sinon contact@bayiin.shop.
+ * @param {string} requestId
+ * @param {object} req  Document contact_requests
+ */
+const CONTACT_TYPE_LABELS = {
+    support: 'Support technique',
+    devis: 'Demande de devis',
+    integration: 'Intégration complète',
+    franchise: 'Franchise / Réseau',
+};
+
+async function sendContactRequestAlert(requestId, req) {
+    if (!req) return false;
+
+    const inbox = process.env.SUPPORT_INBOX_EMAIL || 'contact@bayiin.shop';
+    const label = CONTACT_TYPE_LABELS[req.type] || 'Contact';
+    const name = req.name || 'Sans nom';
+    const phone = req.phone || '';
+    const waLink = phone ? `https://wa.me/${String(phone).replace(/[^0-9]/g, '')}` : null;
+
+    const row = (k, v) => v
+        ? `<tr><td style="padding:6px 12px 6px 0;color:#64748b;white-space:nowrap">${escapeHtml(k)}</td>
+             <td style="padding:6px 0;color:#0f172a;font-weight:600">${escapeHtml(v)}</td></tr>`
+        : '';
+
+    const options = Array.isArray(req.integrationOptions) && req.integrationOptions.length
+        ? `<p style="margin:16px 0 4px;color:#64748b">Options demandées</p>
+           <ul style="margin:0;padding-left:18px;color:#0f172a">
+             ${req.integrationOptions.slice(0, 20).map(o => `<li>${escapeHtml(o)}</li>`).join('')}
+           </ul>`
+        : '';
+
+    const html = `
+        <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:560px">
+            <p style="display:inline-block;margin:0 0 16px;padding:4px 12px;border-radius:999px;
+                      background:#eef2ff;color:#4338ca;font-size:12px;font-weight:700;text-transform:uppercase">
+                ${escapeHtml(label)}
+            </p>
+            <h2 style="margin:0 0 4px;color:#0f172a">Nouvelle demande de contact</h2>
+            <p style="margin:0 0 20px;color:#64748b">Source : ${escapeHtml(req.source || 'landing')}</p>
+            <table style="border-collapse:collapse;font-size:14px">
+                ${row('Nom', name)}
+                ${row('Téléphone', phone)}
+                ${row('Email', req.email)}
+                ${row('Société', req.company)}
+                ${row('Nb boutiques', req.storeCount)}
+                ${row('Budget', req.budget)}
+            </table>
+            ${req.message ? `<p style="margin:16px 0 4px;color:#64748b">Message</p>
+                <p style="margin:0;padding:12px 14px;background:#f8fafc;border-left:3px solid #6366f1;
+                          border-radius:6px;color:#0f172a;white-space:pre-wrap">${escapeHtml(req.message)}</p>` : ''}
+            ${options}
+            ${waLink ? `<p style="margin:24px 0 0">
+                <a href="${escapeHtml(waLink)}" style="display:inline-block;padding:10px 18px;background:#25D366;
+                   color:#fff;text-decoration:none;border-radius:10px;font-weight:700">Répondre sur WhatsApp</a></p>` : ''}
+            <p style="margin:24px 0 0;color:#94a3b8;font-size:12px">
+                Réf. ${escapeHtml(requestId)} · Traiter dans Admin → 📬 Contacts
+            </p>
+        </div>
+    `;
+
+    try {
+        const { error } = await resend.emails.send({
+            from: 'BayIIn Contact <contact@bayiin.shop>',
+            to: [inbox],
+            replyTo: req.email || undefined,
+            subject: `[${label}] ${name}${phone ? ' — ' + phone : ''}`,
+            html,
+        });
+
+        if (error) {
+            console.error('[Resend] Failed to send contact alert:', error);
+            return false;
+        }
+        console.log(`[Resend] Contact alert sent to ${inbox} (request ${requestId})`);
+        return true;
+    } catch (err) {
+        console.error('[Resend] sendContactRequestAlert Error:', err);
+        return false;
+    }
+}
+
 module.exports = {
     sendStockAlert,
-    sendInvoiceEmail
+    sendInvoiceEmail,
+    sendContactRequestAlert
 };
