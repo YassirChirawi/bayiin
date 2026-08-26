@@ -326,7 +326,9 @@ export default function Orders() {
                 </div>
             )}
             {/* Floating Action Button for Mobile */}
-            <div className="md:hidden fixed bottom-fab-safe right-6 z-30">
+            {/* Empilé au-dessus du FAB du copilote, qui occupe bottom-fab-safe en
+                z-50 : sinon ce bouton est invisible et intercepté sur mobile. */}
+            <div className="md:hidden fixed bottom-fab-stacked right-6 z-30">
                 <button
                     id="new-order-fab"
                     onClick={() => setIsModalOpen(true)}
