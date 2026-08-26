@@ -61,6 +61,9 @@ function findJdk21Bin() {
 
 function main() {
     const suiteName = process.argv[2];
+    // Arguments supplementaires transmis au lanceur interne, pour pouvoir cibler
+    // un projet ou une spec : npm run test:e2e -- --project=mobile-safari
+    const extraArgs = process.argv.slice(3);
     const suite = SUITES[suiteName];
     if (!suite) {
         console.error(`Suite inconnue: ${suiteName}. Attendu: ${Object.keys(SUITES).join(' | ')}`);
@@ -78,7 +81,8 @@ function main() {
         process.exit(1);
     }
 
-    const cmd = `firebase emulators:exec --only ${suite.only} "${suite.inner}"`;
+    const inner = [suite.inner, ...extraArgs].join(' ');
+    const cmd = `firebase emulators:exec --only ${suite.only} "${inner}"`;
     const r = spawnSync(cmd, { shell: true, stdio: 'inherit', env });
     process.exit(r.status ?? 1);
 }

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { preAcceptCookies } from './_auth.js';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
@@ -8,6 +9,7 @@ async function login(page) {
     const uniqueEmail = `test_${Date.now()}_${Math.floor(Math.random() * 1000)}@bayiin.com`;
     const testPassword = "Password123!";
     
+    await preAcceptCookies(page);
     await page.goto('/signup');
     await page.waitForLoadState('load');
 

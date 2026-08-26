@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { preAcceptCookies } from './_auth.js';
 
 /**
  * Chaque test démarre sur un compte NEUF créé via /signup.
@@ -10,6 +11,7 @@ async function signupAndOnboard(page) {
     const uniqueEmail = `test_${Date.now()}_${Math.floor(Math.random() * 1000)}@bayiin.com`;
     const testPassword = 'Password123!';
 
+    await preAcceptCookies(page);
     await page.goto('/signup');
     await page.waitForLoadState('load');
 
@@ -57,7 +59,12 @@ async function signupAndOnboard(page) {
 
 async function openNewOrderModal(page) {
     await page.goto('/orders');
-    const newOrderBtn = page.locator('#new-order-button, #new-order-fab');
+    // Le bouton « Nouvelle commande » existe en DEUX exemplaires, un par point de
+    // rupture : #new-order-button (barre de filtres, `hidden sm:block`) et
+    // #new-order-fab (bouton flottant, `md:hidden`). C'est voulu.
+    // `.first()` sur le selecteur combine retenait toujours le bouton desktop, donc
+    // invisible en viewport mobile. `:visible` selectionne celui reellement rendu.
+    const newOrderBtn = page.locator('#new-order-button:visible, #new-order-fab:visible');
     await expect(newOrderBtn.first()).toBeVisible({ timeout: 15000 });
     await newOrderBtn.first().click({ force: true });
     await page.waitForSelector('[data-testid="order-modal"]', { state: 'visible', timeout: 15000 });
@@ -72,7 +79,8 @@ test.describe('Orders Module E2E', () => {
 
     test('La page Commandes se charge et propose la création', async ({ page }) => {
         await page.goto('/orders');
-        await expect(page.locator('#new-order-button, #new-order-fab').first()).toBeVisible({ timeout: 15000 });
+        // Voir la note plus haut : un seul des deux boutons est rendu par viewport.
+        await expect(page.locator('#new-order-button:visible, #new-order-fab:visible').first()).toBeVisible({ timeout: 15000 });
     });
 
     test('Créer une commande et la voir apparaître dans la liste', async ({ page }) => {
@@ -93,6 +101,14 @@ test.describe('Orders Module E2E', () => {
         await modal.locator('#order-submit-button').click({ force: true });
 
         // La commande doit apparaître dans la liste.
-        await expect(page.locator(`text=${clientName}`).first()).toBeVisible({ timeout: 20000 });
+        //
+        // La liste est rendue DEUX fois : un tableau (desktop) et des cartes
+        // (mobile, BAY-114), l'un des deux étant masqué selon le point de rupture.
+        // `.first()` retenait le nœud du tableau, présent dans le DOM mais caché en
+        // viewport mobile — d'où un « resolved to <span> ... unexpected value
+        // hidden ». `:visible` cible le rendu réellement affiché.
+        await expect(
+            page.locator(`:visible:text-is("${clientName}")`).first()
+        ).toBeVisible({ timeout: 20000 });
     });
 });
