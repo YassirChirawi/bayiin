@@ -9,7 +9,7 @@ import Button from "../components/Button";
 import Input from "../components/Input";
 import toast from "react-hot-toast";
 import { useAdminData } from "../hooks/useAdminData";
-import { doc, getDoc, updateDoc, deleteDoc, setDoc, addDoc, collection, query, where, getDocs, serverTimestamp, orderBy, limit } from "firebase/firestore";
+import { doc, getDoc, updateDoc, deleteDoc, setDoc, addDoc, collection, query, where, getDocs, onSnapshot, serverTimestamp, orderBy, limit } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../lib/firebase";
 import { getStoreAccess } from "../utils/storeAccess";
@@ -338,12 +338,22 @@ export default function AdminDashboard() {
         setQaProgress(progress);
     };
 
-    // Badge de l'onglet Contacts : on compte les demandes non traitées au montage
-    // pour que la notification soit visible sans avoir à ouvrir l'onglet.
+    // Badge de l'onglet Contacts.
+    //
+    // Les alertes email étant désactivées, ce badge est le SEUL signal d'arrivée
+    // d'une demande : il doit donc être temps réel. Un simple getDocs au montage
+    // resterait figé sur un dashboard laissé ouvert, et une demande arrivée entre
+    // temps passerait inaperçue jusqu'au prochain rechargement.
     useEffect(() => {
-        getDocs(query(collection(db, 'contact_requests'), where('status', '==', 'new')))
-            .then(snap => setNewContactsCount(snap.size))
-            .catch(() => setNewContactsCount(0));
+        const unsub = onSnapshot(
+            query(collection(db, 'contact_requests'), where('status', '==', 'new')),
+            (snap) => setNewContactsCount(snap.size),
+            (err) => {
+                console.error('[contacts] badge listener:', err);
+                setNewContactsCount(0);
+            }
+        );
+        return unsub;
     }, []);
 
     useEffect(() => {
@@ -967,6 +977,11 @@ export default function AdminDashboard() {
                                 <div className="bg-indigo-50 border border-indigo-100 p-5 rounded-2xl">
                                     <h3 className="font-bold text-indigo-900">📬 Demandes de contact & devis</h3>
                                     <p className="text-sm text-indigo-700 mt-1">Toutes les demandes soumises depuis la landing page ou le centre d'aide.</p>
+                                    <p className="text-xs text-indigo-600/80 mt-2">
+                                        Les alertes email sont désactivées : cette page est le seul point de réception.
+                                        Le compteur de l'onglet est en temps réel. Pour recevoir aussi une alerte par mail,
+                                        définir <code className="bg-white/70 px-1 rounded">SUPPORT_INBOX_EMAIL</code> côté Cloud Functions.
+                                    </p>
                                 </div>
                                 {contactsLoading ? (
                                     <div className="flex justify-center py-12"><div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full" /></div>
@@ -1016,7 +1031,7 @@ export default function AdminDashboard() {
                                                                         handledBy: user?.email || 'admin',
                                                                     });
                                                                     setContacts(prev => prev.map(x => x.id === c.id ? { ...x, status: next } : x));
-                                                                    setNewContactsCount(n => Math.max(0, next === 'done' ? n - 1 : n + 1));
+                                                                    // Le badge est mis à jour par le listener temps réel, pas ici.
                                                                 } catch (err) {
                                                                     console.error('[contacts] update failed:', err);
                                                                     toast.error("Impossible de mettre à jour cette demande.");

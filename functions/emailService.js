@@ -139,11 +139,19 @@ async function sendInvoiceEmail(clientEmail, order, store) {
 
 /**
  * Alerte l'équipe BayIIn qu'une nouvelle demande de contact est arrivée.
- * Destinataire : SUPPORT_INBOX_EMAIL. Aucun repli : une adresse par défaut qui
- * n'est pas relevée ferait disparaître l'alerte en silence, la demande étant
+ *
+ * Destinataire : SUPPORT_INBOX_EMAIL. Aucun repli sur une adresse par défaut :
+ * une boîte non relevée ferait disparaître l'alerte en silence, la demande étant
  * marquée comme notifiée alors que personne ne l'a reçue.
+ *
+ * Variable absente = notification volontairement désactivée (les demandes sont
+ * alors suivies uniquement depuis Admin → Contacts). On distingue ce cas d'un
+ * échec d'envoi : sans quoi chaque demande porterait un marqueur d'erreur rouge
+ * alors que rien n'est cassé. Renseigner la variable rallume les alertes.
+ *
  * @param {string} requestId
  * @param {object} req  Document contact_requests
+ * @returns {Promise<'disabled'|'sent'|'failed'>}
  */
 const CONTACT_TYPE_LABELS = {
     support: 'Support technique',
@@ -153,16 +161,13 @@ const CONTACT_TYPE_LABELS = {
 };
 
 async function sendContactRequestAlert(requestId, req) {
-    if (!req) return false;
+    if (!req) return 'failed';
 
     const inbox = (process.env.SUPPORT_INBOX_EMAIL || '').trim();
     if (!inbox) {
-        // Retour false délibéré : le doc sera estampillé notifyError et la demande
-        // remontera avec un marqueur rouge dans l'AdminDashboard. Mieux vaut un
-        // échec visible qu'un envoi vers une boîte inexistante.
-        console.error('[Resend] SUPPORT_INBOX_EMAIL non configuré — alerte de contact NON envoyée '
-            + `(demande ${requestId}). La demande reste visible dans Admin → Contacts.`);
-        return false;
+        console.log(`[Resend] Alertes de contact désactivées (SUPPORT_INBOX_EMAIL non défini). `
+            + `Demande ${requestId} à traiter depuis Admin → Contacts.`);
+        return 'disabled';
     }
     const label = CONTACT_TYPE_LABELS[req.type] || 'Contact';
     const name = req.name || 'Sans nom';
@@ -221,13 +226,13 @@ async function sendContactRequestAlert(requestId, req) {
 
         if (error) {
             console.error('[Resend] Failed to send contact alert:', error);
-            return false;
+            return 'failed';
         }
         console.log(`[Resend] Contact alert sent to ${inbox} (request ${requestId})`);
-        return true;
+        return 'sent';
     } catch (err) {
         console.error('[Resend] sendContactRequestAlert Error:', err);
-        return false;
+        return 'failed';
     }
 }
 
