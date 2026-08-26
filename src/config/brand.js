@@ -28,6 +28,27 @@ export const SUPPORT_WHATSAPP = null;
  */
 export const SUPPORT_EMAIL = null;
 
+/**
+ * Point de contact accessible SANS authentification.
+ * /help est derrière ProtectedRoute : y renvoyer un visiteur non connecté
+ * depuis une page légale publique l'enverrait sur l'écran de connexion.
+ */
+export const PUBLIC_CONTACT_PATH = '/#contact';
+
+/**
+ * Réseaux sociaux officiels. `null` = l'icône n'est pas affichée.
+ * Un lien social en href="#" est un cul-de-sac : mieux vaut aucune icône.
+ */
+export const SOCIALS = {
+    facebook: null,
+    instagram: null,
+    linkedin: null,
+    twitter: null,
+};
+
+/** Handle Twitter/X pour les meta cards. `null` = balise omise. */
+export const TWITTER_HANDLE = null;
+
 /** Horaires réels du support, affichés partout où on annonce une disponibilité. */
 export const SUPPORT_HOURS = 'Lundi – Samedi, 9h – 20h';
 
@@ -67,3 +88,42 @@ export const supportPhoneDisplay = () => {
     const d = String(SUPPORT_WHATSAPP).replace(/[^0-9]/g, '');
     return d.startsWith('212') ? `+${d.slice(0, 3)} ${d.slice(3)}` : `+${d}`;
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Identité légale
+//
+// Tout est `null` tant que l'information n'est pas réelle et vérifiable. Les
+// pages Conditions et Confidentialité masquent alors la mention concernée au
+// lieu d'afficher un placeholder : « ICE : 00XXXXXXXXXXXXX » sur une page
+// légale publique est pire qu'une absence de mention.
+//
+// À renseigner avant lancement commercial — voir docs/LAUNCH_AUDIT.md.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Raison sociale exacte, une fois la société immatriculée. Ex. "BayIIn SARL". */
+export const LEGAL_ENTITY = null;
+
+/** Identifiant Commun de l'Entreprise (15 chiffres). */
+export const LEGAL_ICE = null;
+
+/** Numéro de Registre de Commerce. */
+export const LEGAL_RC = null;
+
+/** Identifiant Fiscal. */
+export const LEGAL_IF = null;
+
+/** Adresse du siège social. */
+export const LEGAL_ADDRESS = null;
+
+/** Adresse du DPO. Distincte du support : obligation de la loi 09-08. */
+export const DPO_EMAIL = null;
+
+/**
+ * Déclaration CNDP effectuée (loi 09-08 sur la protection des données).
+ * Ne passer à true qu'une fois le récépissé obtenu : l'affirmer sans dépôt est
+ * une fausse déclaration sur une page légale publique.
+ */
+export const CNDP_DECLARED = false;
+
+/** true si l'identité légale est complète et publiable. */
+export const hasLegalIdentity = () => Boolean(LEGAL_ENTITY && LEGAL_ICE && LEGAL_RC);
