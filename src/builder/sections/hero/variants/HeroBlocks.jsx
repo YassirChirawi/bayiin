@@ -112,7 +112,11 @@ export default function HeroBlocks({ section, theme }) {
                                         )}
                                     </motion.div>
                                 );
-                            
+
+                            // L'étiquette manquait : l'éditeur propose un bloc HTML
+                            // (addBlock('HTML') dans SectionBlocksManager) mais le rendu
+                            // tombait sur `default: return null` — le bloc était invisible.
+                            case 'HTML':
                                 return (
                                     <motion.div key={block.id} {...animProps} className="w-full" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(block.settings.code || '') }} />
                                 );

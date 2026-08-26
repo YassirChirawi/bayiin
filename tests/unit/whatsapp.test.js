@@ -62,7 +62,7 @@ function isHumanRequest(text) {
 
 function normalizePhone(phone) {
     if (!phone) return '';
-    let normalized = phone.replace(/[\s\-\(\)\+]/g, '');
+    let normalized = phone.replace(/[\s()+-]/g, '');
     if (normalized.startsWith('0')) {
         normalized = '212' + normalized.slice(1);
     }
