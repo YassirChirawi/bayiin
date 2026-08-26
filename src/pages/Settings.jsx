@@ -28,6 +28,7 @@ const Beya3Settings = lazy(() => import('../components/settings/Beya3Settings'))
 import WhatsAppConnector from '../components/settings/WhatsAppConnector';
 import YouCanIntegration from '../components/integrations/YouCanIntegration';
 import ShopifyIntegration from '../components/integrations/ShopifyIntegration';
+import { FEATURES } from '../config/features';
 import ConfirmDialog from "../components/ConfirmDialog";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 
@@ -502,11 +503,11 @@ export default function Settings() {
                             </div>
                         </div>
 
-                        {/* YouCan Integration Section */}
-                        <YouCanIntegration store={store} />
+                        {/* YouCan Integration Section — masqué tant que le module n'est pas livré */}
+                        {FEATURES.youcanIntegration && <YouCanIntegration store={store} />}
 
-                        {/* Shopify Integration Section */}
-                        <ShopifyIntegration store={store} />
+                        {/* Shopify Integration Section — masqué tant que le module n'est pas livré */}
+                        {FEATURES.shopifyIntegration && <ShopifyIntegration store={store} />}
 
                         <div className="glass-panel rounded-2xl p-6 sm:p-8">
                             <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
