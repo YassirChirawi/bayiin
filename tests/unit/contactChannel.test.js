@@ -94,3 +94,28 @@ describe("features — modules non livrés", () => {
         expect(FEATURES.postPurchaseUpsell).toBe(false);
     });
 });
+
+describe("non-régression — aucune credential dans le bundle client", () => {
+    // Les variables VITE_* sont compilées en clair dans le bundle servi à chaque
+    // visiteur. Un token d'API qui passe par là est public, quelle que soit
+    // l'intention. Les secrets restent côté Cloud Functions.
+    const CREDENTIAL_VARS = /import\.meta\.env\.VITE_\w*(SECRET|TOKEN|PASSWORD|PRIVATE)\w*/i;
+
+    it("aucune variable VITE_* de type secret n'est lue côté client", () => {
+        const offenders = [];
+        for (const file of SOURCES) {
+            fs.readFileSync(file, "utf8").split("\n").forEach((line, i) => {
+                if (line.trim().startsWith("//")) return;
+                if (CREDENTIAL_VARS.test(line)) offenders.push(`${rel(file)}:${i + 1}`);
+            });
+        }
+        expect(offenders).toEqual([]);
+    });
+
+    it("aucune credential Shopify codée en dur", () => {
+        const offenders = SOURCES
+            .filter((f) => /shp(ss|at|ca|pa)_|shopifyAccessToken\s*:/.test(fs.readFileSync(f, "utf8")))
+            .map(rel);
+        expect(offenders).toEqual([]);
+    });
+});
