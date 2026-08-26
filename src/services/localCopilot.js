@@ -1,5 +1,6 @@
 import { EXPERT_KNOWLEDGE, getRandomAdvice } from "./knowledge";
 import { getAtRiskProducts } from "../utils/stockPrediction";
+import { SUPPORT_EMAIL, SUPPORT_HOURS, SUPPORT_SLA, supportPhoneDisplay, supportWhatsappLink } from "../config/brand";
 
 /**
  * Local Heuristic Engine for Beya3
@@ -112,7 +113,7 @@ export const generateLocalResponse = (text, context) => {
 
     // 1. GREETINGS
     if (input.includes("salam") || input.includes("bonjour") || input.includes("hello") || input.includes("qui es-tu")) {
-        return "Salam ! Je suis **Beya3**, ton assistante IA locale 🚀. Je connais tes ventes, tes stocks et je peux te donner des conseils d'expert en marketing et finance.\n\n**Je peux aussi agir pour toi !** Dis-moi par exemple :\n- *'Crée une commande pour Produit X pour Client Y au 0600000000 à 200 DH'*\n- *'Change le statut de la commande #123 en Livré'*\n- *'Envoie un message à 0600000000 : Bonjour !'*";
+        return "Salam ! Je suis **Beya3**, ton assistante IA locale 🚀. Je connais tes ventes, tes stocks et je peux te donner des conseils d'expert en marketing et finance.\n\n**Je peux aussi agir pour toi !** Dis-moi par exemple :\n- *'Crée une commande pour Produit X pour Client Y au 06XXXXXXXX à 200 DH'*\n- *'Change le statut de la commande #123 en Livré'*\n- *'Envoie un message à 06XXXXXXXX : Bonjour !'*";
     }
 
     // 2. PLATFORM HELP (Prioritized "How-to")
@@ -226,13 +227,26 @@ ${getRandomAdvice('logistics')}`;
 
     for (const item of helpIntents) {
         if (item.keys.some(k => input.includes(k))) {
-            return `📚 ${item.answer}\n\n_Besoin d'aide supplémentaire ? Contactez le support WhatsApp : **+212 6 00 00 00 00**_`;
+            return `📚 ${item.answer}\n\n_Besoin d'aide supplémentaire ? Écris à **${SUPPORT_EMAIL}** ou utilise **Aide → Nous contacter**._`;
         }
     }
 
     // 9. SUPPORT / CONTACT
     if (input.includes("support") || input.includes("problème") || input.includes("bug") || input.includes("contact") || input.includes("aide") || input.includes("whatsapp support")) {
-        return "📞 **Support BayIIn**\n\nPour toute assistance, contactez notre équipe :\n\n**WhatsApp** : [+212 6 00 00 00 00](https://wa.me/212600000000)\n**Email** : support@bayiin.shop\n\nHoraires : **Lundi – Samedi, 9h – 20h**\nRéponse garantie en moins de **2 heures** ⚡\n\nOu utilisez le formulaire de contact dans **Aide → Nous contacter**.";
+        const waLink = supportWhatsappLink("Bonjour support BayIIn");
+        const waLine = waLink ? `**WhatsApp** : [${supportPhoneDisplay()}](${waLink})\n` : "";
+        return [
+            "📞 **Support BayIIn**",
+            "",
+            "Pour toute assistance, contactez notre équipe :",
+            "",
+            `${waLine}**Email** : ${SUPPORT_EMAIL}`,
+            "",
+            `Horaires : **${SUPPORT_HOURS}**`,
+            `Réponse ${SUPPORT_SLA} ⚡`,
+            "",
+            "Le plus rapide : le formulaire dans **Aide → Nous contacter** — il arrive directement dans notre boîte.",
+        ].join("\n");
     }
 
     // DEFAULT

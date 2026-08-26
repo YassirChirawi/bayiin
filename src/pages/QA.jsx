@@ -14,6 +14,7 @@ import Button from "../components/Button";
 import { vibrate } from "../utils/haptics";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
+import { SUPPORT_EMAIL, supportWhatsappLink } from "../config/brand";
 
 export default function QA() {
     const { store: currentStore, refreshStores } = useTenant();
@@ -419,13 +420,22 @@ export default function QA() {
                                 <Copy className="w-4 h-4" /> Copier le code
                             </button>
 
-                            <a
-                                href={`https://wa.me/212600000000?text=Bonjour%20BayIIn%2C%20voici%20mon%20code%20beta%20testeur%20%3A%20${rewardCode}`}
-                                target="_blank" rel="noopener noreferrer"
-                                className="block text-sm text-green-600 font-bold hover:underline mb-4"
-                            >
-                                📱 Envoyer par WhatsApp au support
-                            </a>
+                            {supportWhatsappLink() ? (
+                                <a
+                                    href={supportWhatsappLink(`Bonjour BayIIn, voici mon code beta testeur : ${rewardCode}`)}
+                                    target="_blank" rel="noopener noreferrer"
+                                    className="block text-sm text-green-600 font-bold hover:underline mb-4"
+                                >
+                                    📱 Envoyer par WhatsApp au support
+                                </a>
+                            ) : (
+                                <a
+                                    href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Code beta testeur')}&body=${encodeURIComponent(`Bonjour BayIIn, voici mon code beta testeur : ${rewardCode}`)}`}
+                                    className="block text-sm text-indigo-600 font-bold hover:underline mb-4"
+                                >
+                                    ✉️ Envoyer le code au support
+                                </a>
+                            )}
 
                             <button onClick={() => setShowRewardModal(false)} className="text-xs text-gray-400 hover:text-gray-600">
                                 Fermer

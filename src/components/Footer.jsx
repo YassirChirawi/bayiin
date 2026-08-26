@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Facebook, Instagram, Twitter, Linkedin, Github, Mail, Phone, MapPin, ArrowRight } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
+import { SUPPORT_EMAIL, SUPPORT_HOURS, supportPhoneDisplay } from "../config/brand";
 
 export default function Footer() {
     const { t, language } = useLanguage();
@@ -56,19 +57,21 @@ export default function Footer() {
                         <ul className="space-y-4">
                             <li className="flex items-start gap-3">
                                 <Mail className="h-5 w-5 text-indigo-500 mt-0.5" />
-                                <span className="text-sm">support@bayiin.shop</span>
+                                <a href={`mailto:${SUPPORT_EMAIL}`} className="text-sm hover:text-indigo-400 transition-colors">{SUPPORT_EMAIL}</a>
                             </li>
-                            <li className="flex items-start gap-3">
-                                <Phone className="h-5 w-5 text-indigo-500 mt-0.5" />
-                                <span className="text-sm" dir="ltr">+212 6 00 00 00 00</span>
-                            </li>
+                            {supportPhoneDisplay() && (
+                                <li className="flex items-start gap-3">
+                                    <Phone className="h-5 w-5 text-indigo-500 mt-0.5" />
+                                    <span className="text-sm" dir="ltr">{supportPhoneDisplay()}</span>
+                                </li>
+                            )}
                             <li className="flex items-center gap-3">
                                 <span className="flex items-center gap-2 text-indigo-400 text-sm font-medium">
                                     <span className="relative flex h-2 w-2">
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
                                         <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
                                     </span>
-                                    {t('footer_support_avail')}
+                                    {SUPPORT_HOURS}
                                 </span>
                             </li>
                         </ul>
