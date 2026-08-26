@@ -77,6 +77,7 @@ export default function AdminDashboard() {
     const [qaProgress, setQaProgress] = useState({});
     const [contacts, setContacts] = useState([]);
     const [contactsLoading, setContactsLoading] = useState(false);
+    const [newContactsCount, setNewContactsCount] = useState(0);
     const [promoCodes, setPromoCodes] = useState([]);
     const [promoLoading, setPromoLoading] = useState(false);
     const [selectedQaStore, setSelectedQaStore] = useState(null);
@@ -337,6 +338,14 @@ export default function AdminDashboard() {
         setQaProgress(progress);
     };
 
+    // Badge de l'onglet Contacts : on compte les demandes non traitées au montage
+    // pour que la notification soit visible sans avoir à ouvrir l'onglet.
+    useEffect(() => {
+        getDocs(query(collection(db, 'contact_requests'), where('status', '==', 'new')))
+            .then(snap => setNewContactsCount(snap.size))
+            .catch(() => setNewContactsCount(0));
+    }, []);
+
     useEffect(() => {
         if (activeTab === 'qa' && stores.length > 0) {
             fetchQaProgress();
@@ -571,6 +580,11 @@ export default function AdminDashboard() {
                                     `}
                                 >
                                     {tab === 'finances' ? '💰 Finances' : tab === 'history' ? '📋 Historique' : tab === 'insights' ? '📊 Insights' : tab === 'qa' ? '🛡️ QA Recette' : tab === 'contacts' ? '📬 Contacts' : tab === 'promo' ? '🎁 Codes Beta' : tab}
+                                    {tab === 'contacts' && newContactsCount > 0 && (
+                                        <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black align-middle">
+                                            {newContactsCount}
+                                        </span>
+                                    )}
                                 </button>
                             ))}
                         </nav>
@@ -968,6 +982,11 @@ export default function AdminDashboard() {
                                                             <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${c.type === 'support' ? 'bg-blue-100 text-blue-700' : c.type === 'devis' ? 'bg-indigo-100 text-indigo-700' : c.type === 'integration' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>{c.type || 'contact'}</span>
                                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${c.status === 'done' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{c.status === 'done' ? '✅ Traité' : '🆕 Nouveau'}</span>
                                                             <span className="text-xs text-gray-400">{c.createdAt?.toDate ? c.createdAt.toDate().toLocaleString('fr-FR') : '—'}</span>
+                                                            {c.notifyError && (
+                                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700" title="L'alerte email n'a pas pu être envoyée — traiter cette demande à la main.">
+                                                                    ⚠️ Alerte email KO
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         <p className="font-bold text-gray-900">{c.name || 'Anonyme'}</p>
                                                         <p className="text-sm text-gray-500">{c.company ? `${c.company} · ` : ''}{c.email}</p>
@@ -989,9 +1008,19 @@ export default function AdminDashboard() {
                                                         )}
                                                         <button
                                                             onClick={async () => {
-                                                                const { updateDoc: ud, doc: fd } = await import('firebase/firestore');
-                                                                await ud(fd(db, 'contact_requests', c.id), { status: c.status === 'done' ? 'new' : 'done' });
-                                                                setContacts(prev => prev.map(x => x.id === c.id ? { ...x, status: x.status === 'done' ? 'new' : 'done' } : x));
+                                                                const next = c.status === 'done' ? 'new' : 'done';
+                                                                try {
+                                                                    await updateDoc(doc(db, 'contact_requests', c.id), {
+                                                                        status: next,
+                                                                        handledAt: serverTimestamp(),
+                                                                        handledBy: user?.email || 'admin',
+                                                                    });
+                                                                    setContacts(prev => prev.map(x => x.id === c.id ? { ...x, status: next } : x));
+                                                                    setNewContactsCount(n => Math.max(0, next === 'done' ? n - 1 : n + 1));
+                                                                } catch (err) {
+                                                                    console.error('[contacts] update failed:', err);
+                                                                    toast.error("Impossible de mettre à jour cette demande.");
+                                                                }
                                                             }}
                                                             className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-colors ${c.status === 'done' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                                                         >
