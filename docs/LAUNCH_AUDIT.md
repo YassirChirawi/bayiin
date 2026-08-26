@@ -335,6 +335,98 @@ sont refusées par défaut. À traiter avec la livraison de l'intégration Shopi
 
 ---
 
+## 🔧 Dette technique identifiee — CI et qualite
+
+### La CI ne verifiait plus rien (corrige)
+
+`npm run lint` sortait en code 1 sur 219 erreurs, donc le job **CI Develop
+s'arretait a l'etape ESLint** : les E2E, Snyk, SonarCloud et le deploiement
+staging n'ont jamais tourne. C'est ce silence qui a laisse passer le fait que
+les regles Firestore n'etaient plus deployees.
+
+Deux defauts aggravants ont ete corriges au passage :
+
+- l'etape de tests portait `continue-on-error: true` : elle etait purement
+  decorative, les tests pouvaient echouer sans rien bloquer ;
+- `npm run test:rules` n'etait cable dans aucun workflow, alors que la suite
+  existait et couvre precisement les gardes de securite absentes de la
+  production (35 tests, tous verts).
+
+### Diagnostics du React Compiler a traiter
+
+23 diagnostics sont retrogrades en `warn` dans `eslint.config.js`. Ce ne sont
+pas des bugs averes : ils signalent des composants que le compilateur React ne
+pourra pas memoiser. Les laisser bloquants revenait a n'avoir aucune CI, ce qui
+est strictement pire — mais ils restent a traiter.
+
+Repartition : 13 `set-state-in-effect`, 5 `purity`, 2 `immutability`, plus
+`static-components`, `error-boundaries` et `preserve-manual-memoization`.
+Les plus structurants sont dans `CartContext`, `PWAContext`, `useStoreStats` et
+`Layout`.
+
+`npx eslint . 2>&1 | grep react-hooks` donne la liste a jour.
+
+---
+
+## 🌐 L'interface arabe est majoritairement en anglais
+
+**639 des ~900 valeurs arabes** sont de l'anglais suffixe « (AR) » —
+`btn_upgrade: "Upgrade (AR)"`, `btn_next: "Next (AR)"`… Le fichier l'annonce
+lui-meme : `// Generated Fallbacks`.
+
+L'arabe est pourtant propose dans l'application, le RTL est applique
+(`LanguageContext.jsx`), et la landing bascule en arabe. Un marchand marocain
+qui choisit l'arabe obtient donc une interface a 70 % en anglais.
+
+Il manque aussi **35 cles en anglais** et 10 en arabe par rapport au francais,
+qui sert de reference.
+
+**Decision a prendre** — c'est la seule entree de ce document qui soit un choix
+produit et non une valeur a renseigner :
+
+1. Faire traduire les 639 chaines par un locuteur natif (darija commerciale), ou
+2. Retirer l'arabe du selecteur de langue jusqu'a ce qu'il soit pret, comme on
+   l'a fait pour les modules non livres.
+
+Laisser en l'etat est la seule option qui ne se defende pas : c'est exactement
+le defaut que le reste de cet audit a corrige partout ailleurs.
+
+`tests/unit/i18nCompleteness.test.js` verrouille l'etat actuel — les seuils sont
+des garde-fous de non-regression, a faire baisser au fil des traductions.
+
+### Sept arbitrages de traduction en attente
+
+La deduplication des cles a revele des chaines qui en ecrasaient d'autres. Deux
+etaient des regressions et ont ete corrigees (`ar.actions` affichait « Actions »
+au lieu de « العمليات » ; `fr.btn_generate_variants` affichait « Gerer Variantes »
+alors que le bouton genere). Les sept autres sont defendables dans les deux sens,
+la valeur active est conservee :
+
+| Cle | Valeur inactive supprimee | Valeur active conservee |
+|---|---|---|
+| `btn_finish_setup` | Terminer | Terminer la Configuration |
+| `title_inventory` | Gestion du Stock | Inventaire |
+| `btn_simple_product` | Simple | Produit Simple |
+| `btn_variable_product` | Variable | Produit avec Variantes |
+| `btn_bundle_product` | Pack (Bundle) | Pack / Bundle |
+| `label_sizes_optional` | Tailles (Optionnel) | Tailles (Optionnel, Affichage seul) |
+| `placeholder_sizes` | S, M, L, XL | S, M, L... |
+
+---
+
+## 🧱 Bloc StoreBuilder non rendu
+
+`SectionBlocksManager` propose `addBlock('FeatureCard')`, mais `HeroBlocks.jsx`
+n'a pas de `case 'FeatureCard'` : le bloc est ajoutable dans l'editeur et
+n'apparait jamais sur la vitrine.
+
+Le meme defaut existait pour le bloc `HTML` — son code de rendu etait present
+mais l'etiquette `case` manquait, il a suffi de la restaurer. `FeatureCard` n'a
+en revanche aucun code de rendu : `getDefaultSettingsForType` lui donne
+`{ title, text, icon }`, il reste a ecrire le composant.
+
+---
+
 ## ✅ Garde-fous en place
 
 `tests/unit/contactChannel.test.js` balaie tout `src/` et **échoue en nommant
@@ -353,3 +445,10 @@ permanence, quels que soient les drapeaux.
 Les placeholders d'input (`placeholder="+212 6 00 00 00 00"`) et les repères
 visibles uniquement dans l'éditeur du StoreBuilder sont exclus : ce sont des
 aides à la saisie, pas des informations servies.
+
+`tests/unit/i18nCompleteness.test.js` verrouille de son côté l'absence de clés
+dupliquées et la complétude des traductions.
+
+`scripts/verify-firestore-rules.mjs` sort en code 1 si la production dérive du
+dépôt. Il est branché dans `ci-develop` (informatif) et `ci-master` (bloquant,
+après un déploiement automatique des règles qui n'existait pas auparavant).
