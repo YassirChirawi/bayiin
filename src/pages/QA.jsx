@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useTenant } from "../context/TenantContext";
 import { useSearchParams } from "react-router-dom";
 import { QA_MODULES } from "../data/qaTests";
-import { collection, addDoc, getDoc, setDoc, doc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, getDoc, setDoc, updateDoc, doc, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import {
     ShieldCheck, ChevronDown, ChevronUp, CheckCircle2, XCircle,
