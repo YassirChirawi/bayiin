@@ -10,9 +10,13 @@ export default function FooterGlobal({ section, theme, onUpdate }) {
     const storeName = title || 'Ma Boutique';
     const storeDescription = content || 'Votre boutique de confiance. Retrouvez nos meilleurs produits et offres exclusives.';
     
-    const address = settings.address || '123 Avenue Mohammed V, Casablanca';
-    const phone = settings.phone || '+212 6 00 00 00 00';
-    const email = settings.email || 'contact@maboutique.com';
+    // `onUpdate` n'est fourni que dans l'éditeur. Sur la vitrine publique on
+    // n'affiche que ce que le marchand a réellement renseigné : un placeholder
+    // ('123 Avenue Mohammed V', '+212 6 00 00 00 00') envoie ses clients dans le mur.
+    const isEditor = Boolean(onUpdate);
+    const address = settings.address || (isEditor ? '123 Avenue Mohammed V, Casablanca' : null);
+    const phone = settings.phone || (isEditor ? '+212 6 00 00 00 00' : null);
+    const email = settings.email || (isEditor ? 'contact@maboutique.com' : null);
     
     // Social Links from Settings
     const socials = [
@@ -83,18 +87,24 @@ export default function FooterGlobal({ section, theme, onUpdate }) {
                 <div className="space-y-4">
                     <h4 className="font-bold text-lg mb-4">Contactez-nous</h4>
                     <ul className="space-y-4 text-sm opacity-90">
-                        <li className="flex items-start gap-3">
-                            <MapPin size={18} className="mt-0.5 flex-shrink-0" style={{ color: theme.primaryColor }} />
-                            <span>{address}</span>
-                        </li>
-                        <li className="flex items-center gap-3">
-                            <Phone size={18} className="flex-shrink-0" style={{ color: theme.primaryColor }} />
-                            <span>{phone}</span>
-                        </li>
-                        <li className="flex items-center gap-3">
-                            <Mail size={18} className="flex-shrink-0" style={{ color: theme.primaryColor }} />
-                            <span>{email}</span>
-                        </li>
+                        {address && (
+                            <li className="flex items-start gap-3">
+                                <MapPin size={18} className="mt-0.5 flex-shrink-0" style={{ color: theme.primaryColor }} />
+                                <span>{address}</span>
+                            </li>
+                        )}
+                        {phone && (
+                            <li className="flex items-center gap-3">
+                                <Phone size={18} className="flex-shrink-0" style={{ color: theme.primaryColor }} />
+                                <span>{phone}</span>
+                            </li>
+                        )}
+                        {email && (
+                            <li className="flex items-center gap-3">
+                                <Mail size={18} className="flex-shrink-0" style={{ color: theme.primaryColor }} />
+                                <span>{email}</span>
+                            </li>
+                        )}
                     </ul>
                 </div>
             </div>

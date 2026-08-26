@@ -7,6 +7,7 @@ import { httpsCallable } from "firebase/functions";
 import { toast } from "react-hot-toast";
 import { Save, Truck, Info, Globe, RefreshCw, ShieldCheck, Key, Copy } from "lucide-react";
 import Button from "../components/Button";
+import { FEATURES } from "../config/features";
 
 export default function ShippingSettings() {
     const { store } = useTenant();
@@ -476,12 +477,9 @@ export default function ShippingSettings() {
             </div>
 
             {/* ── Cathedis Integration ── */}
+            {FEATURES.carrierCathedis && (
             <div className="bg-white shadow rounded-xl border border-gray-100 overflow-hidden relative">
-                {/* OVERLAY BIENTOT DISPONIBLE */}
-                <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-50 flex items-center justify-center">
-                    <span className="bg-orange-500 text-white font-black px-6 py-2 rounded-full shadow-xl transform -rotate-12 text-xl border-4 border-white shadow-orange-500/30">🚀 Bientôt Disponible</span>
-                </div>
-                <div className="px-6 py-5 opacity-40 pointer-events-none select-none">
+                <div className="px-6 py-5">
                     <div className="flex items-center gap-2 mb-1">
                         <Globe className="h-5 w-5 text-indigo-500" />
                         <h3 className="text-lg font-semibold text-gray-900">{t('cathedis_title') || 'Cathedis Integration'}</h3>
@@ -530,65 +528,8 @@ export default function ShippingSettings() {
                     </div>
                 </div>
             </div>
-
-            {/* Other Carriers (Coming Soon) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
-                {/* Amana */}
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-5 relative overflow-hidden">
-                    <div className="absolute top-2 right-2 bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded-full font-medium">{t('coming_soon')}</div>
-                    <h3 className="font-semibold text-gray-700 mb-4">Amana (Barid Al Maghrib)</h3>
-                    <div className="space-y-3 pointer-events-none select-none">
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500">{t('label_login')}</label>
-                            <input type="text" disabled className="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm sm:text-sm" placeholder="••••••••" />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500">{t('label_password')}</label>
-                            <input type="password" disabled className="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm sm:text-sm" placeholder="••••••••" />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Tawssil */}
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-5 relative overflow-hidden">
-                    <div className="absolute top-2 right-2 bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded-full font-medium">{t('coming_soon')}</div>
-                    <h3 className="font-semibold text-gray-700 mb-4">Tawssil</h3>
-                    <div className="space-y-3 pointer-events-none select-none">
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500">{t('label_token')}</label>
-                            <input type="text" disabled className="mt-1 block w-full bg-gray-100 border-gray-300 rounded-md shadow-sm sm:text-sm" placeholder="••••••••" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function ProviderCard({ title, enabled, onToggle, children }) {
-    return (
-        <div className={`bg-white border rounded-lg p-5 shadow-sm transition-all ${enabled ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-200'}`}>
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="font-semibold text-gray-900">{title}</h3>
-                <div className="flex items-center">
-                    <button
-                        type="button"
-                        onClick={onToggle}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${enabled ? 'bg-indigo-600' : 'bg-gray-200'}`}
-                    >
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </button>
-                </div>
-            </div>
-
-            {enabled && (
-                <div className="space-y-3 animate-fadeIn">
-                    {children}
-                </div>
             )}
-            {!enabled && (
-                <p className="text-sm text-gray-400 italic">{t('enable_to_configure')}</p>
-            )}
+
         </div>
     );
 }

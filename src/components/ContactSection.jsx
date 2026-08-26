@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { toast } from "react-hot-toast";
+import { SUPPORT_EMAIL, SUPPORT_SLA, supportWhatsappLink, supportMailtoLink } from "../config/brand";
 import {
     MessageSquare, Send, Phone, Mail, Building2,
     Layers, ShieldCheck, CheckCircle, ArrowRight,
@@ -131,8 +132,8 @@ export default function ContactSection() {
                             {
                                 icon: Zap,
                                 color: "bg-amber-50 text-amber-600",
-                                title: "Réponse en moins de 2h",
-                                desc: "Notre équipe traite chaque demande avec urgence et vous recontacte rapidement par WhatsApp ou email."
+                                title: `Réponse ${SUPPORT_SLA}`,
+                                desc: "Chaque demande arrive directement dans notre boîte de réception et reçoit une réponse nominative, par WhatsApp ou par email."
                             },
                             {
                                 icon: ShieldCheck,
@@ -165,22 +166,38 @@ export default function ContactSection() {
                             </motion.div>
                         ))}
 
-                        {/* WhatsApp Direct CTA */}
-                        <a
-                            href="https://wa.me/212600000000?text=Bonjour,%20je%20voudrais%20en%20savoir%20plus%20sur%20BayIIn"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-4 bg-[#25D366] hover:bg-[#1DAE57] text-white p-5 rounded-2xl transition-all shadow-lg shadow-green-100 hover:shadow-xl hover:-translate-y-0.5 group"
-                        >
-                            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                                <Phone className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <p className="font-bold text-lg">Contactez-nous sur WhatsApp</p>
-                                <p className="text-white/80 text-sm">Réponse immédiate — en Français ou Darija</p>
-                            </div>
-                            <ArrowRight className="w-5 h-5 ml-auto group-hover:translate-x-1 transition-transform" />
-                        </a>
+                        {/* Canal direct — WhatsApp si une ligne est ouverte, sinon email */}
+                        {supportWhatsappLink() ? (
+                            <a
+                                href={supportWhatsappLink("Bonjour, je voudrais en savoir plus sur BayIIn")}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-4 bg-[#25D366] hover:bg-[#1DAE57] text-white p-5 rounded-2xl transition-all shadow-lg shadow-green-100 hover:shadow-xl hover:-translate-y-0.5 group"
+                            >
+                                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                                    <Phone className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <p className="font-bold text-lg">Contactez-nous sur WhatsApp</p>
+                                    <p className="text-white/80 text-sm">Réponse immédiate — en Français ou Darija</p>
+                                </div>
+                                <ArrowRight className="w-5 h-5 ml-auto group-hover:translate-x-1 transition-transform" />
+                            </a>
+                        ) : supportMailtoLink() ? (
+                            <a
+                                href={supportMailtoLink()}
+                                className="flex items-center gap-4 bg-slate-900 hover:bg-slate-800 text-white p-5 rounded-2xl transition-all shadow-lg shadow-slate-200 hover:shadow-xl hover:-translate-y-0.5 group"
+                            >
+                                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                                    <Mail className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <p className="font-bold text-lg">Écrivez-nous directement</p>
+                                    <p className="text-white/80 text-sm">{SUPPORT_EMAIL}</p>
+                                </div>
+                                <ArrowRight className="w-5 h-5 ml-auto group-hover:translate-x-1 transition-transform" />
+                            </a>
+                        ) : null /* Aucun canal externe : le formulaire ci-contre suffit. */}
                     </div>
 
                     {/* Right — Form */}
@@ -203,7 +220,7 @@ export default function ContactSection() {
                                     </div>
                                     <h3 className="text-2xl font-extrabold text-slate-900">Demande envoyée !</h3>
                                     <p className="text-slate-500 max-w-sm">
-                                        Notre équipe vous recontacte dans les 2 heures via WhatsApp ou email. Merci de votre confiance.
+                                        Nous vous recontactons {SUPPORT_SLA} via WhatsApp ou email. Merci de votre confiance.
                                     </p>
                                     <button
                                         onClick={() => { setSubmitted(false); setForm({ name: "", email: "", phone: "", company: "", storeCount: "1", message: "", integrationOptions: [], budget: "" }); }}

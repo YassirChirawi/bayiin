@@ -8,6 +8,7 @@ import { Link, useLocation } from "react-router-dom";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { toast } from "react-hot-toast";
+import { SUPPORT_EMAIL, SUPPORT_HOURS, SUPPORT_SLA, supportWhatsappLink, supportPhoneDisplay, supportMailtoLink } from "../config/brand";
 
 export default function Help() {
     const { t } = useLanguage();
@@ -178,22 +179,50 @@ export default function Help() {
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-6">
-                    {/* WhatsApp Direct */}
-                    <a
-                        href="https://wa.me/212600000000?text=Bonjour%20support%20BayIIn%2C%20j%27ai%20besoin%20d%27aide"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-4 bg-[#25D366] hover:bg-[#1DAE57] text-white p-5 rounded-2xl transition-all shadow-lg shadow-green-200 hover:-translate-y-0.5 group"
-                    >
-                        <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                            <Phone className="w-6 h-6" />
+                    {/* Canal direct : WhatsApp si une ligne est ouverte, sinon email */}
+                    {supportWhatsappLink() ? (
+                        <a
+                            href={supportWhatsappLink("Bonjour support BayIIn, j'ai besoin d'aide")}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-4 bg-[#25D366] hover:bg-[#1DAE57] text-white p-5 rounded-2xl transition-all shadow-lg shadow-green-200 hover:-translate-y-0.5 group"
+                        >
+                            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <Phone className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="font-bold">WhatsApp Support</p>
+                                <p className="text-white/80 text-sm">{supportPhoneDisplay()} · {SUPPORT_HOURS}</p>
+                            </div>
+                            <ExternalLink className="ml-auto w-4 h-4 opacity-70 group-hover:opacity-100" />
+                        </a>
+                    ) : supportMailtoLink() ? (
+                        <a
+                            href={supportMailtoLink()}
+                            className="flex items-center gap-4 bg-indigo-600 hover:bg-indigo-700 text-white p-5 rounded-2xl transition-all shadow-lg shadow-indigo-200 hover:-translate-y-0.5 group"
+                        >
+                            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <Send className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="font-bold">Écrire au support</p>
+                                <p className="text-white/80 text-sm">{SUPPORT_EMAIL} · {SUPPORT_HOURS}</p>
+                            </div>
+                            <ExternalLink className="ml-auto w-4 h-4 opacity-70 group-hover:opacity-100" />
+                        </a>
+                    ) : (
+                        /* Aucun canal externe ouvert : le formulaire ci-contre est le vrai
+                           canal — il arrive directement dans le panel admin. */
+                        <div className="flex items-center gap-4 bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm">
+                            <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <Send className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="font-bold text-gray-900">Le formulaire, c'est ici →</p>
+                                <p className="text-gray-500 text-sm">Votre message arrive directement chez nous. Réponse {SUPPORT_SLA}, {SUPPORT_HOURS}.</p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="font-bold">WhatsApp Support</p>
-                            <p className="text-white/80 text-sm">+212 6 00 00 00 00 · Réponse rapide</p>
-                        </div>
-                        <ExternalLink className="ml-auto w-4 h-4 opacity-70 group-hover:opacity-100" />
-                    </a>
+                    )}
 
                     {/* Mini Contact Form */}
                     <div className="bg-white rounded-2xl p-5 border border-indigo-100 shadow-sm">
@@ -223,7 +252,7 @@ function InAppContactForm() {
                 createdAt: serverTimestamp(),
             });
             setSent(true);
-            toast.success("Message envoyé ! On vous répond très vite.");
+            toast.success(`Message envoyé ! Réponse ${SUPPORT_SLA}.`);
         } catch {
             toast.error("Erreur, réessayez.");
         } finally {
@@ -235,7 +264,7 @@ function InAppContactForm() {
         <div className="flex flex-col items-center justify-center h-full gap-2 py-4">
             <CheckCircle className="w-10 h-10 text-green-500" />
             <p className="font-bold text-gray-900">Message envoyé !</p>
-            <p className="text-sm text-gray-500">Notre équipe vous répond sous 2h.</p>
+            <p className="text-sm text-gray-500">Notre équipe vous répond {SUPPORT_SLA}.</p>
         </div>
     );
 

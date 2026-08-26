@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useTenant } from "../context/TenantContext";
 import { useSearchParams } from "react-router-dom";
 import { QA_MODULES } from "../data/qaTests";
-import { collection, addDoc, getDoc, setDoc, doc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, getDoc, setDoc, updateDoc, doc, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import {
     ShieldCheck, ChevronDown, ChevronUp, CheckCircle2, XCircle,
@@ -14,6 +14,7 @@ import Button from "../components/Button";
 import { vibrate } from "../utils/haptics";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
+import { supportWhatsappLink, supportMailtoLink } from "../config/brand";
 
 export default function QA() {
     const { store: currentStore, refreshStores } = useTenant();
@@ -201,13 +202,16 @@ export default function QA() {
                         cathedisPassword: 'mock_cathedis_password'
                     }, { merge: true });
 
-                    // Write Shopify integration config subdocument with actual credentials
+                    // Config d'intégration Shopify de test.
+                    // Aucune credential ici : ni clé ni token. Ces deux champs étaient
+                    // écrits sans qu'aucun code ne les relise jamais, et transitaient par
+                    // des variables VITE_* — donc compilées en clair dans le bundle servi
+                    // à chaque visiteur. La vérification des webhooks Shopify se fait
+                    // côté serveur avec SHOPIFY_WEBHOOK_SECRET (functions/shopify.js).
                     await setDoc(doc(db, "stores", targetStoreId, "shopify_integration", "config"), {
                         isActive: true,
                         shopifyStoreUrl: "dev-bayiin.myshopify.com",
                         shopifyStoreId: "shopify_" + targetStoreId,
-                        shopifyApiKey: import.meta.env.VITE_SHOPIFY_API_KEY || "cec6ed1c86e83b775767fcfba81cc341",
-                        shopifyAccessToken: import.meta.env.VITE_SHOPIFY_ACCESS_TOKEN || "shpss_mock_access_token_12345",
                         connectedAt: serverTimestamp()
                     }, { merge: true });
 
@@ -419,13 +423,26 @@ export default function QA() {
                                 <Copy className="w-4 h-4" /> Copier le code
                             </button>
 
-                            <a
-                                href={`https://wa.me/212600000000?text=Bonjour%20BayIIn%2C%20voici%20mon%20code%20beta%20testeur%20%3A%20${rewardCode}`}
-                                target="_blank" rel="noopener noreferrer"
-                                className="block text-sm text-green-600 font-bold hover:underline mb-4"
-                            >
-                                📱 Envoyer par WhatsApp au support
-                            </a>
+                            {supportWhatsappLink() ? (
+                                <a
+                                    href={supportWhatsappLink(`Bonjour BayIIn, voici mon code beta testeur : ${rewardCode}`)}
+                                    target="_blank" rel="noopener noreferrer"
+                                    className="block text-sm text-green-600 font-bold hover:underline mb-4"
+                                >
+                                    📱 Envoyer par WhatsApp au support
+                                </a>
+                            ) : supportMailtoLink() ? (
+                                <a
+                                    href={supportMailtoLink('Code beta testeur', `Bonjour BayIIn, voici mon code beta testeur : ${rewardCode}`)}
+                                    className="block text-sm text-indigo-600 font-bold hover:underline mb-4"
+                                >
+                                    ✉️ Envoyer le code au support
+                                </a>
+                            ) : (
+                                <p className="text-sm text-gray-500 mb-4">
+                                    Copiez le code et transmettez-le via <strong>Aide → Nous contacter</strong>.
+                                </p>
+                            )}
 
                             <button onClick={() => setShowRewardModal(false)} className="text-xs text-gray-400 hover:text-gray-600">
                                 Fermer

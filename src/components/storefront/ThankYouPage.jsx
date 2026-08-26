@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Truck, ExternalLink, Package, PlusCircle, CheckCircle2 } from 'lucide-react';
+import { FEATURES } from '../../config/features';
 
 export default function ThankYouPage({ order, theme, onBackToCatalog, onAcceptUpsell }) {
     const primaryColor = theme?.primaryColor || '#4f46e5';
     const [upsellStatus, setUpsellStatus] = useState('idle'); // idle, loading, success
     
-    // Mock Upsell Offer
+    // Offre d'upsell FACTICE (produit et image inventés). Tant qu'aucun moteur
+    // d'upsell réel n'existe, ce bloc ne doit jamais atteindre un client final.
     const upsellOffer = {
         name: "Sérum Anti-âge à l'Acide Hyaluronique",
         price: 99,
@@ -18,10 +20,14 @@ export default function ThankYouPage({ order, theme, onBackToCatalog, onAcceptUp
     // Fallback order info for preview
     const orderNumber = order?.orderNumber || 'CMD-1042';
     const amount = parseFloat(order?.price || 0).toFixed(0) || '0';
-    const whatsappNumber = order?.storeWhatsapp || '212600000000';
+    const whatsappNumber = order?.storeWhatsapp || null;
     
     const whatsappMessage = encodeURIComponent(`Bonjour, j'aimerais accélérer la préparation de ma commande ${orderNumber} au nom de ${order?.clientName || 'Client'}.`);
-    const waLink = `https://wa.me/${whatsappNumber.replace(/[^0-9]/g, '')}?text=${whatsappMessage}`;
+    // Pas de numéro configuré côté boutique → pas de bouton, plutôt qu'un lien mort
+    // envoyé au client final juste après son achat.
+    const waLink = whatsappNumber
+        ? `https://wa.me/${String(whatsappNumber).replace(/[^0-9]/g, '')}?text=${whatsappMessage}`
+        : null;
 
     const handleAcceptUpsell = () => {
         setUpsellStatus('loading');
@@ -97,6 +103,7 @@ export default function ThankYouPage({ order, theme, onBackToCatalog, onAcceptUp
                     {/* Actions */}
                     <div className="mt-8 space-y-3">
                         {/* WhatsApp Accelerator */}
+                        {waLink && (
                         <a 
                             href={waLink}
                             target="_blank"
@@ -106,6 +113,7 @@ export default function ThankYouPage({ order, theme, onBackToCatalog, onAcceptUp
                             <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" className="h-6 w-6 filter brightness-0 invert" alt="WhatsApp" />
                             Accélérer l'expédition via WhatsApp
                         </a>
+                        )}
 
                         <button 
                             onClick={onBackToCatalog}
@@ -118,7 +126,7 @@ export default function ThankYouPage({ order, theme, onBackToCatalog, onAcceptUp
                 </div>
 
                 {/* POST-PURCHASE UPSELL SECTION */}
-                {theme?.postPurchaseUpsell !== false && (
+                {FEATURES.postPurchaseUpsell && theme?.postPurchaseUpsell !== false && (
                     <motion.div 
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
