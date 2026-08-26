@@ -27,10 +27,14 @@ const CLIENT_SECRET = 'j9iVZfS8kkCEFUPaAeJV0sAi';
 const PROJECT = JSON.parse(readFileSync(resolve(ROOT, '.firebaserc'), 'utf8')).projects.default;
 
 async function getAccessToken() {
-  const credPath = resolve(homedir(), '.config', 'configstore', 'firebase-tools.json');
-  const cred = JSON.parse(readFileSync(credPath, 'utf8'));
-  const refresh = cred?.tokens?.refresh_token;
-  if (!refresh) throw new Error('Pas de refresh_token — lance: firebase login');
+  // En CI il n'y a pas de configstore : FIREBASE_TOKEN est un refresh token du
+  // CLI firebase, utilisable avec le même échange OAuth.
+  let refresh = process.env.FIREBASE_TOKEN;
+  if (!refresh) {
+    const credPath = resolve(homedir(), '.config', 'configstore', 'firebase-tools.json');
+    refresh = JSON.parse(readFileSync(credPath, 'utf8'))?.tokens?.refresh_token;
+    if (!refresh) throw new Error(`Pas de refresh_token dans ${credPath} — lance: firebase login`);
+  }
   const r = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

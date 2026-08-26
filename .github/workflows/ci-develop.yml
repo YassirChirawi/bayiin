@@ -27,9 +27,16 @@ jobs:
       - name: ESLint
         run: npm run lint
 
+      # `continue-on-error: true` rendait cette etape purement decorative :
+      # les tests pouvaient echouer sans rien bloquer. Retire.
       - name: Vitest unit + integration tests
         run: npm run test:unit && npm run test:integration
-        continue-on-error: true
+
+      # Les tests de regles couvrent les gardes de securite (P0-5 auto-attribution
+      # de plan, anti-escalade RBAC allowed_users). Ils existaient depuis
+      # longtemps sans etre executes nulle part.
+      - name: Firestore rules tests
+        run: npm run test:rules
 
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
@@ -52,6 +59,16 @@ jobs:
 
       - name: Deploy staging Firebase Hosting
         run: firebase hosting:channel:deploy staging --token ${{ secrets.FIREBASE_TOKEN }}
+
+      # Garde anti-derive : `firebase deploy --only firestore:rules` affiche
+      # "Deploy complete!" sans rien publier en configuration multi-base. Les
+      # regles de production ont ainsi pris 85 lignes de retard sans que rien
+      # ne le signale. Cette etape echoue si la production a derive.
+      - name: Verifier les regles Firestore deployees
+        run: node scripts/verify-firestore-rules.mjs
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        continue-on-error: true
 
       - name: Post PR Comment
         if: success() && github.event_name == 'pull_request'

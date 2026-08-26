@@ -60,3 +60,22 @@ jobs:
 
       - name: Deploy Firebase Hosting production
         run: firebase deploy --only hosting --token ${{ secrets.FIREBASE_TOKEN }}
+
+      # Les regles Firestore ne faisaient partie d'AUCUN deploiement automatise :
+      # elles devaient etre publiees a la main, et `firebase deploy --only
+      # firestore:rules` affiche "Deploy complete!" sans rien publier en
+      # configuration multi-base. Resultat : la production a accumule 85 lignes
+      # de retard, dont deux correctifs de securite, sans aucun signal.
+      #
+      # Le script passe par l'API Rules et contourne ce bug. La verification qui
+      # suit est BLOQUANTE : une release ne doit pas etre annoncee livree si les
+      # regles n'ont pas suivi.
+      - name: Deploy Firestore rules (API Rules, contourne le bug CLI)
+        run: node scripts/deploy-firestore-rules.mjs --apply
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: Verifier que les regles sont bien actives
+        run: node scripts/verify-firestore-rules.mjs
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
