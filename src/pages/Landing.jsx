@@ -13,6 +13,7 @@ import StoryTellingSection from "../components/Landing/StoryTellingSection";
 import FloatingCTA from "../components/Landing/FloatingCTA";
 import InteractiveSignupPreview from "../components/Landing/InteractiveSignupPreview";
 import { useLanguage } from "../context/LanguageContext";
+import { FEATURES } from '../config/features';
 
 export default function Landing() {
     const { t, language, setLanguage } = useLanguage();
@@ -222,19 +223,21 @@ export default function Landing() {
                 </motion.div>
             </section>
 
-            {/* STATS SECTION */}
-            <section className="py-10 bg-white border-y border-slate-100">
-                <div className="max-w-4xl mx-auto px-4 grid grid-cols-2 gap-8 text-center">
-                    <div>
-                        <div className="text-4xl font-extrabold text-indigo-600 mb-1">99%</div>
-                        <div className="text-sm font-medium text-slate-500">{t('stats_uptime')}</div>
+            {/* STATS SECTION — masquée : chiffres non adossés. Voir docs/LAUNCH_AUDIT.md */}
+            {FEATURES.landingStats && (
+                <section className="py-10 bg-white border-y border-slate-100">
+                    <div className="max-w-4xl mx-auto px-4 grid grid-cols-2 gap-8 text-center">
+                        <div>
+                            <div className="text-4xl font-extrabold text-indigo-600 mb-1">99%</div>
+                            <div className="text-sm font-medium text-slate-500">{t('stats_uptime')}</div>
+                        </div>
+                        <div>
+                            <div className="text-4xl font-extrabold text-indigo-600 mb-1">24/7</div>
+                            <div className="text-sm font-medium text-slate-500">{t('stats_support')}</div>
+                        </div>
                     </div>
-                    <div>
-                        <div className="text-4xl font-extrabold text-indigo-600 mb-1">24/7</div>
-                        <div className="text-sm font-medium text-slate-500">{t('stats_support')}</div>
-                    </div>
-                </div>
-            </section>
+                </section>
+            )}
 
             {/* STORYTELLING SECTION */}
             <StoryTellingSection />
@@ -429,7 +432,9 @@ export default function Landing() {
             </section>
 
 
-            <Testimonials />
+            {/* Témoignages inventés (avatars i.pravatar.cc) — masqués jusqu'à
+                obtention de vrais avis avec accord écrit. Voir docs/LAUNCH_AUDIT.md */}
+            {FEATURES.landingTestimonials && <Testimonials />}
             <FAQ />
             <ContactSection />
             <Beya3Demo />

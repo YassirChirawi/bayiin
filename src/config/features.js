@@ -30,6 +30,22 @@ export const FEATURES = {
      */
     postPurchaseUpsell: false,
 
+    /**
+     * Section Témoignages de la landing.
+     * Les trois témoignages actuels sont inventés, avec des avatars générés par
+     * i.pravatar.cc. Publier de faux avis clients est un risque juridique autant
+     * qu'un risque de crédibilité. À rallumer avec de vrais clients ayant donné
+     * leur accord écrit.
+     */
+    landingTestimonials: false,
+
+    /**
+     * Bandeau de chiffres de la landing (« 99 % uptime », « 24/7 »).
+     * Aucun des deux n'est adossé à quoi que ce soit : pas de status page, et
+     * le 24/7 contredit les horaires annoncés ailleurs dans le produit.
+     */
+    landingStats: false,
+
     /** Blocs StoreBuilder : preuve sociale, RTL vitrine, pixels Meta/TikTok. */
     builderConversionKit: false,
     builderLocalization: false,

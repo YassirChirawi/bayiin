@@ -1,4 +1,5 @@
 import { Helmet } from 'react-helmet-async';
+import { TWITTER_HANDLE } from '../config/brand';
 
 export default function SEO({ title, description, keywords, image, url, type = "website" }) {
     const siteTitle = "BayIIn";
@@ -31,7 +32,9 @@ export default function SEO({ title, description, keywords, image, url, type = "
 
             {/* Twitter */}
             <meta name="twitter:card" content="summary_large_image" />
-            <meta name="twitter:site" content="@bayiin" />
+            {/* Balise omise tant que le compte n'existe pas : une twitter:site
+                pointant vers un handle inexistant dégrade la card. */}
+            {TWITTER_HANDLE && <meta name="twitter:site" content={TWITTER_HANDLE} />}
             <meta name="twitter:title" content={fullTitle} />
             <meta name="twitter:description" content={siteDescription} />
             <meta name="twitter:image" content={siteImage} />
