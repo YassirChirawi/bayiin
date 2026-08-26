@@ -13,6 +13,11 @@ import {
     supportPhoneDisplay,
 } from "../../src/config/brand";
 import { FEATURES, isEnabled } from "../../src/config/features";
+import {
+    LEGAL_ENTITY, LEGAL_ICE, LEGAL_RC,
+    DPO_EMAIL, CNDP_DECLARED, SOCIALS, TWITTER_HANDLE,
+    hasLegalIdentity,
+} from "../../src/config/brand";
 
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../src");
 
@@ -108,6 +113,87 @@ describe("non-régression — aucun contact fictif dans l'UI", () => {
     });
 });
 
+describe("pages légales — aucun placeholder publié", () => {
+    const LEGAL_PAGES = ["pages/Terms.jsx", "pages/Privacy.jsx"];
+    const read = (f) => fs.readFileSync(path.join(SRC, f), "utf8");
+
+    it("aucun identifiant en XXXXX affiché", () => {
+        // « ICE : 00XXXXXXXXXXXXX » sur une page légale publique est pire qu'une
+        // absence de mention : c'est visiblement inachevé.
+        const offenders = [];
+        for (const f of LEGAL_PAGES) {
+            read(f).split("\n").forEach((line, i) => {
+                const t = line.trim();
+                if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*")) return;
+                if (/X{4,}/.test(line) && !/placeholder\s*=/.test(line)) {
+                    offenders.push(`${f}:${i + 1}`);
+                }
+            });
+        }
+        expect(offenders).toEqual([]);
+    });
+
+    it("le mot « Placeholders » n'est plus affiché aux visiteurs", () => {
+        expect(LEGAL_PAGES.filter((f) => /Placeholders/.test(read(f)))).toEqual([]);
+    });
+
+    it("l'identité légale reste cohérente : tout ou rien", () => {
+        expect(hasLegalIdentity()).toBe(Boolean(LEGAL_ENTITY && LEGAL_ICE && LEGAL_RC));
+    });
+
+    it("la déclaration CNDP n'est affirmée que si elle est déposée", () => {
+        // Affirmer un dépôt non effectué est une fausse déclaration publique.
+        if (!CNDP_DECLARED) {
+            expect(read("pages/Privacy.jsx")).toContain("CNDP_DECLARED &&");
+        }
+    });
+
+    it("les pages légales renvoient vers un contact accessible sans connexion", () => {
+        // /help est derrière ProtectedRoute : y envoyer un visiteur non connecté
+        // depuis une page publique l'enverrait sur l'écran de login.
+        for (const f of LEGAL_PAGES) {
+            const src = read(f);
+            if (!/formulaire de contact/.test(src)) continue;
+            expect(src, `${f} doit utiliser PUBLIC_CONTACT_PATH`).toContain("PUBLIC_CONTACT_PATH");
+            expect(src, `${f} ne doit pas pointer vers /help`).not.toContain('to="/help"');
+        }
+    });
+
+    it("aucune mention DPO tant qu'aucune adresse n'existe", () => {
+        if (DPO_EMAIL !== null) return;
+        expect(LEGAL_PAGES.filter((f) => /privacy@bayiin\.shop/.test(read(f)))).toEqual([]);
+    });
+});
+
+describe("landing — aucun lien mort ni contenu non sourcé", () => {
+    const FOOTER = "components/Landing/Footer.jsx";
+
+    it("aucun lien mort dans le footer de la landing", () => {
+        const offenders = fs.readFileSync(path.join(SRC, FOOTER), "utf8")
+            .split("\n")
+            .map((line, i) => ({ line, n: i + 1 }))
+            .filter(({ line }) => /href="#"/.test(line) && !line.trim().startsWith("href="))
+            .map(({ n }) => `${FOOTER}:${n}`);
+        expect(offenders).toEqual([]);
+    });
+
+    it("aucune icône sociale sans URL réelle", () => {
+        for (const [name, url] of Object.entries(SOCIALS)) {
+            expect(url === null || /^https?:\/\//.test(url), `SOCIALS.${name}`).toBe(true);
+        }
+    });
+
+    it("twitter:site n'est émis que si le handle est déclaré", () => {
+        const src = fs.readFileSync(path.join(SRC, "components/SEO.jsx"), "utf8");
+        expect(src).toContain("TWITTER_HANDLE &&");
+        expect(TWITTER_HANDLE === null || TWITTER_HANDLE.startsWith("@")).toBe(true);
+    });
+
+    it("témoignages inventés et chiffres non sourcés restent masqués", () => {
+        expect(FEATURES.landingTestimonials).toBe(false);
+        expect(FEATURES.landingStats).toBe(false);
+    });
+});
 describe("features — modules non livrés", () => {
     it("aucun module non livré n'est actif par défaut", () => {
         for (const [key, value] of Object.entries(FEATURES)) {
