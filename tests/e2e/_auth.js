@@ -51,8 +51,14 @@ export async function signupAndOnboard(page) {
     if (await confirmInput.isVisible({ timeout: 2000 }).catch(() => false)) {
         await confirmInput.fill(testPassword);
     }
-    const terms = page.locator('form button[type="button"]').last();
-    if (await terms.isVisible({ timeout: 2000 }).catch(() => false)) {
+    // Ancrage stable sur la case des conditions. La version precedente prenait
+    // `form button[type="button"]` .last(), ce qui dependait de l'ordre du DOM :
+    // l'oeil d'affichage du mot de passe est aussi un bouton de ce type. Sur
+    // mobile la case restait donc decochee, la validation bloquait le submit, et
+    // toute la suite echouait sur un waitForURL sans explication.
+    const terms = page.getByTestId('signup-terms');
+    await terms.waitFor({ state: 'visible', timeout: 10000 });
+    if ((await terms.getAttribute('aria-checked')) !== 'true') {
         await terms.click({ force: true });
     }
     await page.click('button[type="submit"]', { force: true });

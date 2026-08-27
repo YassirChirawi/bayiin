@@ -13,11 +13,11 @@ export default function BiometricLock({ children }) {
     const { logout } = useAuth();
     const [failed, setFailed] = useState(false);
     const { t } = useLanguage();
-    const [bioInfo, setBioInfo] = useState(() => verify ? getBiometricType() : { id: 'unknown', labelKey: 'bio_type_generic', icon: 'Shield' });
-
-    useEffect(() => {
-        // Bio type is already initialized, but we can refresh it if needed or remove the effect
-    }, []);
+    // getBiometricType() est une simple lecture du user-agent, sans effet de bord.
+    // La condition precedente testait la presence de la fonction `verify` elle-meme,
+    // ce qui n'avait pas de sens et referencait un symbole absent depuis le passage
+    // a verifyDetailed — l'app plantait au montage (attrape par l'ErrorBoundary).
+    const [bioInfo] = useState(getBiometricType);
 
     useEffect(() => {
         const checkLockStatus = async () => {
