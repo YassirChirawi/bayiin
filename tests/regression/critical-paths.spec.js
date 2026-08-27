@@ -164,16 +164,21 @@ test.describe('BayIIn Critical Paths Regression', () => {
         
         await page.selectOption('#order-status-select', 'livré');
         await page.click('#order-submit-button', { force: true });
-        await expect(page.getByTestId('order-modal')).not.toBeVisible({ timeout: 10000 });
+        // 30 s : la fermeture du modal suit une ECRITURE Firestore, pas une simple
+        // animation. En mode emulateur le long-polling est force (cf.
+        // src/lib/firebase.js), ce qui rend les aller-retours plus lents ; 10 s
+        // passaient la plupart du temps et faisaient echouer la porte de
+        // production au hasard. Une porte instable ne protege rien.
+        await expect(page.getByTestId('order-modal')).not.toBeVisible({ timeout: 30000 });
         console.log('Order created');
 
         // 4. Verify Stats
         await page.goto('/finances');
         await handleOverlays(page);
-        await expect(page.getByRole('heading', { name: /Finances/i })).toBeVisible({ timeout: 15000 });
+        await expect(page.getByRole('heading', { name: /Finances/i })).toBeVisible({ timeout: 30000 });
         
         const deliveredRevenue = page.getByTestId('kpi-delivered-revenue');
-        await expect(deliveredRevenue).toBeVisible();
+        await expect(deliveredRevenue).toBeVisible({ timeout: 20000 });
         
         console.log('Regression test completed successfully');
     });

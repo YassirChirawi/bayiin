@@ -63,10 +63,12 @@ export async function signupAndOnboard(page) {
     }
     await page.click('button[type="submit"]', { force: true });
 
-    // 30 s : la redirection post-inscription depend d'un aller-retour Firebase Auth
-    // puis du premier chargement Firestore. 20 s passaient la plupart du temps mais
-    // laissaient une suite entiere echouer sur un demarrage lent.
-    await page.waitForURL(/.*\/(onboarding|dashboard)/, { timeout: 30000 });
+    // 45 s : la redirection post-inscription enchaine un aller-retour Firebase
+    // Auth puis le premier chargement Firestore, ce dernier en long-polling force
+    // sous emulateur. Sur une machine chargee — la suite joue deux parcours
+    // complets a la file, un par navigateur — 30 s etaient encore depasses.
+    // Une porte de production qui echoue au hasard ne protege rien.
+    await page.waitForURL(/.*\/(onboarding|dashboard)/, { timeout: 45000 });
 
     if (page.url().includes('/onboarding')) {
         await handleOverlays(page);
