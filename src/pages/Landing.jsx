@@ -13,6 +13,7 @@ import StoryTellingSection from "../components/Landing/StoryTellingSection";
 import FloatingCTA from "../components/Landing/FloatingCTA";
 import InteractiveSignupPreview from "../components/Landing/InteractiveSignupPreview";
 import { useLanguage } from "../context/LanguageContext";
+import { FEATURES } from '../config/features';
 
 export default function Landing() {
     const { t, language, setLanguage } = useLanguage();
@@ -79,14 +80,22 @@ export default function Landing() {
                         </div>
 
                         <div className="flex items-center gap-2 md:gap-4">
-                            {/* Language Switcher - Compact on mobile */}
+                            {/* Sélecteur de langue. Il ne proposait que FR : un bouton
+                                unique qui ne changeait rien, comme les liens href="#"
+                                du pied de page. Aligné sur la Sidebar, qui propose
+                                déjà fr/en. L'arabe n'est volontairement pas proposé :
+                                sa traduction est encore majoritairement en anglais
+                                (voir docs/LAUNCH_AUDIT.md). */}
                             <div className="flex items-center bg-slate-100 rounded-lg p-1">
-                                <button
-                                    onClick={() => setLanguage('fr')}
-                                    className={`px-2 md:px-3 py-1 text-[10px] md:text-xs font-bold rounded-md transition-all ${language === 'fr' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    FR
-                                </button>
+                                {['fr', 'en'].map((lng) => (
+                                    <button
+                                        key={lng}
+                                        onClick={() => setLanguage(lng)}
+                                        className={`px-2 md:px-3 py-1 text-[10px] md:text-xs font-bold rounded-md transition-all ${language === lng ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        {lng.toUpperCase()}
+                                    </button>
+                                ))}
                             </div>
 
                             <Link to="/login" className="hidden sm:block text-sm font-medium text-slate-700 hover:text-indigo-600 transition-colors">
@@ -222,19 +231,21 @@ export default function Landing() {
                 </motion.div>
             </section>
 
-            {/* STATS SECTION */}
-            <section className="py-10 bg-white border-y border-slate-100">
-                <div className="max-w-4xl mx-auto px-4 grid grid-cols-2 gap-8 text-center">
-                    <div>
-                        <div className="text-4xl font-extrabold text-indigo-600 mb-1">99%</div>
-                        <div className="text-sm font-medium text-slate-500">{t('stats_uptime')}</div>
+            {/* STATS SECTION — masquée : chiffres non adossés. Voir docs/LAUNCH_AUDIT.md */}
+            {FEATURES.landingStats && (
+                <section className="py-10 bg-white border-y border-slate-100">
+                    <div className="max-w-4xl mx-auto px-4 grid grid-cols-2 gap-8 text-center">
+                        <div>
+                            <div className="text-4xl font-extrabold text-indigo-600 mb-1">99%</div>
+                            <div className="text-sm font-medium text-slate-500">{t('stats_uptime')}</div>
+                        </div>
+                        <div>
+                            <div className="text-4xl font-extrabold text-indigo-600 mb-1">24/7</div>
+                            <div className="text-sm font-medium text-slate-500">{t('stats_support')}</div>
+                        </div>
                     </div>
-                    <div>
-                        <div className="text-4xl font-extrabold text-indigo-600 mb-1">24/7</div>
-                        <div className="text-sm font-medium text-slate-500">{t('stats_support')}</div>
-                    </div>
-                </div>
-            </section>
+                </section>
+            )}
 
             {/* STORYTELLING SECTION */}
             <StoryTellingSection />
@@ -429,7 +440,9 @@ export default function Landing() {
             </section>
 
 
-            <Testimonials />
+            {/* Témoignages inventés (avatars i.pravatar.cc) — masqués jusqu'à
+                obtention de vrais avis avec accord écrit. Voir docs/LAUNCH_AUDIT.md */}
+            {FEATURES.landingTestimonials && <Testimonials />}
             <FAQ />
             <ContactSection />
             <Beya3Demo />

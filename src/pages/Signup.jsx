@@ -324,8 +324,17 @@ export default function Signup() {
 
                             {/* Terms */}
                             <div className="flex items-start gap-3 pt-1">
+                                {/* Rôle et état explicites : ce bouton se comporte comme une
+                                    case à cocher mais n'en annonçait rien. Un lecteur d'écran
+                                    ne pouvait pas savoir s'il était coché, et les tests
+                                    devaient le deviner par sa position dans le formulaire. */}
                                 <button
+                                    id="signup-terms"
+                                    data-testid="signup-terms"
                                     type="button"
+                                    role="checkbox"
+                                    aria-checked={termsAccepted}
+                                    aria-label={t('agree_terms_part1') || "J'accepte les Conditions Générales"}
                                     onClick={() => setTermsAccepted(!termsAccepted)}
                                     className={`mt-0.5 w-5 h-5 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                                         termsAccepted

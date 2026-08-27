@@ -1,6 +1,7 @@
 import React from 'react';
 import { PackageSearch, Facebook, Instagram, Twitter, Linkedin, Heart } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { SOCIALS, PUBLIC_CONTACT_PATH } from '../../config/brand';
 
 export default function Footer() {
   return (
@@ -19,17 +20,27 @@ export default function Footer() {
             <p className="text-gray-400 mb-6 leading-relaxed">
               La plateforme e-commerce tout-en-un conçue pour les marchands marocains. Automatisez vos ventes, optimisez votre logistique et prenez de meilleures décisions avec l'IA.
             </p>
-            <div className="flex gap-4">
-              <a href="#" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-primary-600 hover:text-white transition-colors">
-                <Facebook className="w-5 h-5" />
-              </a>
-              <a href="#" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-primary-600 hover:text-white transition-colors">
-                <Instagram className="w-5 h-5" />
-              </a>
-              <a href="#" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-primary-600 hover:text-white transition-colors">
-                <Linkedin className="w-5 h-5" />
-              </a>
-            </div>
+            {/* Seuls les réseaux réellement ouverts sont affichés : une icône en
+                href="#" est un cul-de-sac. Voir docs/LAUNCH_AUDIT.md. */}
+            {(SOCIALS.facebook || SOCIALS.instagram || SOCIALS.linkedin) && (
+              <div className="flex gap-4">
+                {SOCIALS.facebook && (
+                  <a href={SOCIALS.facebook} target="_blank" rel="noreferrer" aria-label="Facebook" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-primary-600 hover:text-white transition-colors">
+                    <Facebook className="w-5 h-5" />
+                  </a>
+                )}
+                {SOCIALS.instagram && (
+                  <a href={SOCIALS.instagram} target="_blank" rel="noreferrer" aria-label="Instagram" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-primary-600 hover:text-white transition-colors">
+                    <Instagram className="w-5 h-5" />
+                  </a>
+                )}
+                {SOCIALS.linkedin && (
+                  <a href={SOCIALS.linkedin} target="_blank" rel="noreferrer" aria-label="LinkedIn" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-primary-600 hover:text-white transition-colors">
+                    <Linkedin className="w-5 h-5" />
+                  </a>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
@@ -37,9 +48,6 @@ export default function Footer() {
             <ul className="space-y-4">
               <li><a href="#features" className="hover:text-primary-400 transition-colors">Fonctionnalités</a></li>
               <li><a href="#pricing" className="hover:text-primary-400 transition-colors">Tarifs</a></li>
-              <li><a href="#" className="hover:text-primary-400 transition-colors">App Livreurs</a></li>
-              <li><a href="#" className="hover:text-primary-400 transition-colors">Beya3 IA</a></li>
-              <li><a href="#" className="hover:text-primary-400 transition-colors">Nouveautés</a></li>
             </ul>
           </div>
 
@@ -47,19 +55,15 @@ export default function Footer() {
             <h4 className="text-white font-semibold mb-6">Ressources</h4>
             <ul className="space-y-4">
               <li><a href="#faq" className="hover:text-primary-400 transition-colors">Centre d'aide (FAQ)</a></li>
-              <li><a href="#" className="hover:text-primary-400 transition-colors">Blog E-commerce</a></li>
-              <li><a href="#" className="hover:text-primary-400 transition-colors">Tutoriels vidéo</a></li>
-              <li><a href="#" className="hover:text-primary-400 transition-colors">API & Intégrations</a></li>
             </ul>
           </div>
 
           <div>
             <h4 className="text-white font-semibold mb-6">Entreprise</h4>
             <ul className="space-y-4">
-              <li><a href="#" className="hover:text-primary-400 transition-colors">À propos</a></li>
-              <li><a href="#" className="hover:text-primary-400 transition-colors">Contactez-nous</a></li>
-              <li><a href="#" className="hover:text-primary-400 transition-colors">Politique de confidentialité</a></li>
-              <li><a href="#" className="hover:text-primary-400 transition-colors">Conditions générales</a></li>
+              <li><Link to={PUBLIC_CONTACT_PATH} className="hover:text-primary-400 transition-colors">Contactez-nous</Link></li>
+              <li><Link to="/privacy" className="hover:text-primary-400 transition-colors">Politique de confidentialité</Link></li>
+              <li><Link to="/terms" className="hover:text-primary-400 transition-colors">Conditions générales</Link></li>
             </ul>
           </div>
         </div>

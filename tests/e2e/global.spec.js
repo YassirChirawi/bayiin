@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { preAcceptCookies } from './_auth.js';
 
 // Global helper to handle overlays (Cookies, Biometrics, etc.)
 const handleOverlays = async (page) => {
@@ -38,6 +39,7 @@ async function login(page) {
     const uniqueEmail = `test_${Date.now()}_${Math.floor(Math.random() * 1000)}@bayiin.com`;
     const testPassword = 'Password123!';
 
+    await preAcceptCookies(page);
     await page.goto('/signup');
     await handleOverlays(page);
 
@@ -47,8 +49,14 @@ async function login(page) {
     if (await confirmInput.isVisible({ timeout: 2000 }).catch(() => false)) {
         await confirmInput.fill(testPassword);
     }
-    const terms = page.locator('form button[type="button"]').last();
-    if (await terms.isVisible({ timeout: 2000 }).catch(() => false)) {
+    // Ancrage stable sur la case des conditions. La version precedente prenait
+    // `form button[type="button"]` .last(), ce qui dependait de l'ordre du DOM :
+    // l'oeil d'affichage du mot de passe est aussi un bouton de ce type. Sur
+    // mobile la case restait donc decochee, la validation bloquait le submit, et
+    // toute la suite echouait sur un waitForURL sans explication.
+    const terms = page.getByTestId('signup-terms');
+    await terms.waitFor({ state: 'visible', timeout: 10000 });
+    if ((await terms.getAttribute('aria-checked')) !== 'true') {
         await terms.click({ force: true });
     }
     await page.click('button[type="submit"]', { force: true });
@@ -59,19 +67,21 @@ async function login(page) {
         await handleOverlays(page);
         await page.getByLabel(/Nom|Store/i).fill('Verification Store');
         await page.getByRole('button', { name: /Suivant|Next/i }).click({ force: true });
-        await page.waitForTimeout(500);
 
-        await handleOverlays(page);
+        // Attendre l'élément de l'étape suivante, pas un délai fixe : les étapes
+        // sont animées (framer-motion, mode 'wait') et 500 ms ne suffisaient pas
+        // sur WebKit. Voir la même correction dans _auth.js.
         const phone = page.getByLabel(/WhatsApp|Phone|Tél/i);
+        await phone.waitFor({ state: 'visible', timeout: 15000 });
+        await handleOverlays(page);
         if (await phone.isVisible({ timeout: 5000 }).catch(() => false)) await phone.fill('0600000000');
         const city = page.getByLabel(/Ville|City/i);
         if (await city.isVisible({ timeout: 2000 }).catch(() => false)) await city.fill('Casablanca');
         await page.getByRole('button', { name: /Suivant|Next/i }).click({ force: true });
-        await page.waitForTimeout(500);
 
-        await handleOverlays(page);
         const finishBtn = page.getByRole('button', { name: /Terminer|Finish/i });
-        await finishBtn.waitFor({ state: 'visible', timeout: 8000 });
+        await finishBtn.waitFor({ state: 'visible', timeout: 15000 });
+        await handleOverlays(page);
         await finishBtn.click({ force: true });
     }
 
@@ -129,8 +139,12 @@ test.describe('Global PWA Test Scenario', () => {
         const confirmInput = page.locator('input[placeholder*="Confirmer"], input[placeholder*="Confirm"]');
         await confirmInput.fill(testPassword);
 
-        // Accept Terms
-        await page.locator('form button[type="button"]').last().click();
+        // Accept Terms — ancrage stable, voir la note dans le helper de connexion.
+        const termsBox = page.getByTestId('signup-terms');
+        await termsBox.waitFor({ state: 'visible', timeout: 10000 });
+        if ((await termsBox.getAttribute('aria-checked')) !== 'true') {
+            await termsBox.click({ force: true });
+        }
         await page.click('button[type="submit"]', { force: true });
 
         // Onboarding Step 1
@@ -182,7 +196,12 @@ test.describe('Global PWA Test Scenario', () => {
         const ordersHeading = page.getByRole('heading', { name: /Commandes|Orders/i }).or(page.locator('h1:has-text("Commandes")'));
         await expect(ordersHeading).toBeVisible({ timeout: 20000 });
         
-        const newOrderBtn = page.locator('#new-order-button').or(page.getByRole('button', { name: /Nouvelle|New/i }).first());
+        // #new-order-button est `hidden sm:block` : en viewport mobile c'est le
+        // bouton flottant #new-order-fab qui est rendu a sa place.
+        const newOrderBtn = page
+            .locator('#new-order-button:visible, #new-order-fab:visible')
+            .or(page.getByRole('button', { name: /Nouvelle|New/i }))
+            .first();
         await expect(newOrderBtn).toBeVisible();
     });
 

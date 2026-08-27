@@ -1,14 +1,24 @@
 import { test, expect } from '@playwright/test';
+import { signupAndOnboard } from '../e2e/_auth.js';
 
-const TEST_EMAIL = process.env.TEST_EMAIL || 'amadou@abadou.com';
-const TEST_PASSWORD = process.env.TEST_PASSWORD || '123456';
+// Aucun identifiant en dur ici. La suite créait auparavant sa session en se
+// connectant à un compte fixe, avec un repli 'amadou@abadou.com' / '123456'
+// écrit dans le source : ce compte n'existe pas dans un émulateur neuf, et le
+// jour où le serveur de test pointerait ailleurs qu'en local, la suite écrirait
+// de vraies commandes avec ces identifiants.
+//
+// Elle crée désormais son propre compte, comme les 11 specs E2E.
 
 test.describe('BayIIn Critical Paths Regression', () => {
 
     test.beforeEach(async ({ page }) => {
-        // Clear everything to ensure a fresh state
         await page.addInitScript(() => {
-            window.localStorage.clear();
+            // PAS de localStorage.clear() ici : cet init script s'execute a CHAQUE
+            // navigation, et Firebase Auth y conserve la session. Le vider en
+            // continu detruisait la session juste apres l'inscription, si bien que
+            // la redirection vers /onboarding n'arrivait jamais.
+            // L'isolation est deja garantie : Playwright ouvre un contexte neuf par
+            // test, et chaque test cree desormais son propre compte.
             window.localStorage.setItem('language', 'fr');
             // Mock biometrics to be unavailable
             if (window.PublicKeyCredential) {
@@ -65,64 +75,67 @@ test.describe('BayIIn Critical Paths Regression', () => {
         } catch (e) { /* ignore */ }
     };
 
-    test('Full Journey: Login -> Create Order -> Verify Stats', async ({ page }) => {
-        // 1. Authentication
-        await page.goto('/login');
+    test('Full Journey: Signup -> Create Order -> Verify Stats', async ({ page }) => {
+        // Crée un compte neuf et traverse l'onboarding. Le helper est partagé avec
+        // les E2E : ses attentes sont ancrées sur les éléments réels plutôt que
+        // sur des délais fixes, ce qui le rend fiable aussi sous WebKit.
+        await signupAndOnboard(page);
         await handleOverlays(page);
-        
-        const ownerButton = page.getByTestId('role-owner-button');
-        if (await ownerButton.isVisible({ timeout: 5000 })) {
-            await ownerButton.click();
-        }
-
-        await page.fill('[data-testid="login-email"]', TEST_EMAIL);
-        await page.fill('[data-testid="login-password"]', TEST_PASSWORD);
-        await page.click('[data-testid="login-submit"]', { force: true });
-        
-        // Wait for redirection and handle potential onboarding
-        await expect(page).toHaveURL(/.*\/(dashboard|onboarding)/, { timeout: 20000 });
-        await handleOverlays(page);
-
-        if (page.url().includes('/onboarding')) {
-            console.log('Onboarding required...');
-            await page.getByLabel(/Nom du Magasin/i).fill('REGRESSION STORE');
-            await page.getByRole('button', { name: /Suivant/i }).click();
-            await handleOverlays(page);
-            await page.getByLabel(/WhatsApp/i).fill('0600000000');
-            await page.getByLabel(/Ville/i).fill('Casablanca');
-            await page.getByRole('button', { name: /Suivant/i }).click();
-            await handleOverlays(page);
-            await page.getByRole('button', { name: /Terminer/i }).click();
-            await expect(page).toHaveURL(/.*\/dashboard/, { timeout: 20000 });
-        }
-        
-        console.log('Login successful');
+        console.log('Session prête :', page.url());
 
         // 2. Products
         await page.goto('/products');
         await handleOverlays(page);
         
         // Wait for content (Heading or empty state)
-        await expect(page.getByRole('heading', { name: /Produits|Products/i }).or(page.getByText(/Aucune donnée|No products/i))).toBeVisible({ timeout: 20000 });
+        // .first() indispensable : une fois la page reellement chargee, le titre ET
+        // l'etat vide sont presents, et `.or()` sans .first() leve une violation du
+        // mode strict. L'ancienne version passait par accident, la page etant encore
+        // en chargement au moment de l'assertion.
+        await expect(
+            page.getByRole('heading', { name: /Produits|Products/i })
+                .or(page.getByText(/Aucune donnée|No products/i))
+                .first()
+        ).toBeVisible({ timeout: 20000 });
         
-        const noData = page.getByText(/Aucune donnée trouvée|No products/i);
-        if (await noData.isVisible({ timeout: 5000 }).catch(() => false)) {
-            console.log('Creating regression product...');
-            await page.click('button:has-text("Ajouter Produit")');
-            await page.getByLabel('Nom du Produit').fill('REGRESSION PRODUCT');
-            await page.getByLabel('Prix de Base (DH)').fill('100');
-            await page.getByLabel('Stock Total').fill('20');
-            await page.click('button:has-text("Enregistrer Produit")');
-            await expect(noData).not.toBeVisible();
-        }
-        
-        // Find stock
-        const stockLabel = page.locator('span:has-text("stock")').first();
-        await expect(stockLabel).toBeVisible({ timeout: 10000 });
+        // Sur un compte neuf la liste est TOUJOURS vide : on cree le produit sans
+        // condition. L'ancienne version testait `noData.isVisible({ timeout: 5000 })`,
+        // ce qui etait une course avec le chargement Firestore — a 5 s la page
+        // affichait encore son squelette, la creation etait silencieusement sautee,
+        // et l'assertion suivante echouait faute de produit.
+        const addProductBtn = page
+            .getByRole('button', { name: /Ajouter Produit|Add Product/i })
+            .first();
+        await addProductBtn.waitFor({ state: 'visible', timeout: 30000 });
+        await addProductBtn.click({ force: true });
+
+        await page.getByLabel(/Nom du Produit|Product Name/i).fill('REGRESSION PRODUCT');
+        await page.getByLabel(/Prix de Base|Base Price/i).fill('100');
+        await page.getByLabel(/Stock Total|Total Stock/i).fill('20');
+        const saveBtn = page.getByRole('button', { name: /Enregistrer|Save/i }).first();
+        await saveBtn.click({ force: true });
+
+        // Attendre la FERMETURE du modal avant de conclure. L'assertion suivante
+        // cherchait le nom du produit sans cette attente : elle matchait le texte
+        // DANS le modal encore ouvert, donc passait alors que l'ecriture Firestore
+        // n'etait pas terminee. La commande partait ensuite vers /orders avec une
+        // liste de produits vide.
+        await expect(saveBtn).toBeHidden({ timeout: 20000 });
+
+        // La liste est rendue en tableau (desktop) ET en cartes (mobile), l'un des
+        // deux etant masque : `:visible` cible le rendu reellement affiche.
+        await expect(
+            page.locator(':visible:text-is("REGRESSION PRODUCT")').first()
+        ).toBeVisible({ timeout: 20000 });
         console.log('Products verified');
 
         // 3. Create Order
-        await page.getByRole('link', { name: /Commandes|Orders/i }).click();
+        // Navigation directe plutot que par le menu. Le lien existe DEUX fois sur
+        // mobile (sidebar + BottomNav), et la sidebar est un tiroir hors ecran :
+        // Playwright la considere visible mais refuse le clic (« outside of the
+        // viewport »). Cette suite valide le PARCOURS METIER, pas la mecanique du
+        // menu — la navigation est deja couverte par les specs E2E.
+        await page.goto('/orders');
         await expect(page).toHaveURL(/.*\/orders/);
         await handleOverlays(page);
         
@@ -139,6 +152,12 @@ test.describe('BayIIn Critical Paths Regression', () => {
         await page.fill('#order-client-address', '123 Regression St');
         
         // Select first product
+        // Attendre que le produit cree soit REELLEMENT propose, plutot que la simple
+        // presence d'une 2e option : la liste vient d'un onSnapshot Firestore et
+        // n'est pas peuplee a l'instant ou la page /orders s'ouvre.
+        await expect(
+            page.locator('[data-testid="product-select"] option', { hasText: 'REGRESSION PRODUCT' })
+        ).toHaveCount(1, { timeout: 30000 });
         await expect(page.locator('[data-testid="product-select"] option').nth(1)).toBeAttached({ timeout: 15000 });
         await page.selectOption('[data-testid="product-select"]', { index: 1 });
         await page.click('text=/Ajouter|Add/i', { force: true });

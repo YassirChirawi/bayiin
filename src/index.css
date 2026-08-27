@@ -110,6 +110,12 @@ body {
 .pb-safe-nav { padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px)); }
 /* Position d'un FAB flottant au-dessus du BottomNav + safe area. */
 .bottom-fab-safe { bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); }
+/* Second FAB, empilé au-dessus du premier.
+   Le copilote Beya3 occupe déjà `bottom-fab-safe right-6` en z-50 sur toutes les
+   pages. Un FAB de page qui réutilisait la même position se retrouvait
+   intégralement recouvert : sur mobile, appuyer sur « nouvelle commande »
+   ouvrait le copilote. Décalage = hauteur du FAB (3.5rem) + une marge. */
+.bottom-fab-stacked { bottom: calc(5rem + 4.5rem + env(safe-area-inset-bottom, 0px)); }
 
 @media screen and (max-width: 768px) {
 

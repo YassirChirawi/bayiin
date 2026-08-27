@@ -2,6 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, connectAuthEmulator } from "firebase/auth";
 import {
     getFirestore,
+    initializeFirestore,
     connectFirestoreEmulator,
     enableIndexedDbPersistence
 } from "firebase/firestore";
@@ -23,8 +24,23 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Use the 'comsaas' database to match backend and scripts
-export const db = getFirestore(app, 'comsaas');
+// Le drapeau doit être lu AVANT la création de Firestore : initializeFirestore
+// ne peut pas s'appliquer une fois l'instance démarrée.
+const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === "true";
+
+// Use the 'comsaas' database to match backend and scripts.
+//
+// En mode émulateur uniquement : long-polling forcé. Le transport WebChannel par
+// défaut n'aboutit pas sous WebKit face à l'émulateur local — l'authentification
+// et l'interface fonctionnent, mais les écritures Firestore n'arrivent jamais.
+// Concrètement l'onboarding restait bloqué sur « Terminer » et les 17 specs
+// mobile-safari échouaient, alors que Chromium passait.
+//
+// Aucun effet en production : ce chemin n'est emprunté qu'avec
+// VITE_USE_FIREBASE_EMULATOR=true, positionné par le lanceur de tests.
+export const db = useEmulator
+    ? initializeFirestore(app, { experimentalForceLongPolling: true }, 'comsaas')
+    : getFirestore(app, 'comsaas');
 
 export const storage = getStorage(app);
 
@@ -37,7 +53,6 @@ export const functions = getFunctions(app);
 // `db` (dont enableIndexedDbPersistence, qui démarre Firestore). Sinon il lève
 // "Firestore has already been started", ce throw top-level fait échouer tout le
 // module et l'app rend une page blanche. On connecte donc les émulateurs d'abord.
-const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === "true";
 console.log("Firebase Emulator Status:", useEmulator);
 
 if (useEmulator) {

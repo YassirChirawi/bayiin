@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { preAcceptCookies } from './_auth.js';
 
 test.describe('Security & Access Control', () => {
 
@@ -18,7 +19,8 @@ test.describe('Security & Access Control', () => {
         await page.goto('/');
         expect(page.url()).not.toContain('/login');
         
-        await page.goto('/signup');
+        await preAcceptCookies(page);
+    await page.goto('/signup');
         expect(page.url()).toContain('/signup');
     });
 

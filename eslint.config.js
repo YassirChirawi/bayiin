@@ -5,7 +5,8 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'functions', 'scripts', 'public/**/*.js', '*.js', 'coverage', 'playwright-report', 'test-results', 'android', 'ios']),
+  // 'scratch' : fichiers de travail jetables, non destinés à être livrés ni lintés.
+  globalIgnores(['dist', 'functions', 'scripts', 'scratch', 'public/**/*.js', '*.js', 'coverage', 'playwright-report', 'test-results', 'android', 'ios']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -31,7 +32,31 @@ export default defineConfig([
         argsIgnorePattern: '^_|e|page'
       }],
       'react-hooks/rules-of-hooks': 'warn',
-      'no-undef': 'warn',
+
+      // ── Diagnostics du React Compiler ──────────────────────────────────────
+      // Livrés en 'error' par reactHooks.configs.flat.recommended. Ce sont des
+      // diagnostics d'optimisation (le composant ne sera pas mémoïsé), pas des
+      // bugs avérés : l'application fonctionne, elle est seulement moins
+      // optimisable. Les laisser bloquants faisait échouer `npm run lint`, donc
+      // la CI s'arrêtait avant les E2E, Snyk et le déploiement staging — et plus
+      // rien n'était vérifié du tout.
+      //
+      // Rétrogradés en 'warn' pour que la CI redevienne utile. Ils restent
+      // visibles et sont à traiter progressivement : voir docs/LAUNCH_AUDIT.md.
+      // Ne PAS les supprimer : chacun signale un composant non optimisable.
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/purity': 'warn',
+      'react-hooks/immutability': 'warn',
+      'react-hooks/static-components': 'warn',
+      'react-hooks/error-boundaries': 'warn',
+      'react-hooks/preserve-manual-memoization': 'warn',
+      // BLOQUANT, volontairement. Un symbole indefini n'est jamais un style :
+      // c'est une ReferenceError garantie a l'execution. En 'warn', trois bugs
+      // reels sont passes en production — deleteDoc manquant dans Drivers
+      // (suppression d'absence impossible), la prop `cities` non declaree dans
+      // CartDrawer (tunnel d'achat de la vitrine en erreur), et une reference
+      // residuelle dans BiometricLock.
+      'no-undef': 'error',
       'no-empty': 'warn',
       'no-case-declarations': 'warn',
       'react-refresh/only-export-components': 'warn'

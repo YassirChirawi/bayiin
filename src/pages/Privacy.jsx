@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
+import { SUPPORT_EMAIL, DPO_EMAIL, PUBLIC_CONTACT_PATH, LEGAL_ENTITY, CNDP_DECLARED } from "../config/brand";
 
 export default function Privacy() {
     const LAST_UPDATED = "31 mai 2026";
@@ -29,8 +30,16 @@ export default function Privacy() {
                             l'intégration <strong>YouCan Marketplace</strong>.
                         </p>
                         <p className="mt-2">
-                            Éditeur : BayIIn · Email de contact : <a href="mailto:contact@bayiin.shop" className="text-indigo-600">contact@bayiin.shop</a>
-                            <br />Délégué à la Protection des Données (DPO) : <a href="mailto:privacy@bayiin.shop" className="text-indigo-600">privacy@bayiin.shop</a>
+                            Éditeur : {LEGAL_ENTITY || 'BayIIn'} · Contact :{' '}
+                            {SUPPORT_EMAIL
+                                ? <a href={`mailto:${SUPPORT_EMAIL}`} className="text-indigo-600">{SUPPORT_EMAIL}</a>
+                                : <Link to={PUBLIC_CONTACT_PATH} className="text-indigo-600">formulaire de contact</Link>}
+                            {DPO_EMAIL && (
+                                <>
+                                    <br />Délégué à la Protection des Données (DPO) :{' '}
+                                    <a href={`mailto:${DPO_EMAIL}`} className="text-indigo-600">{DPO_EMAIL}</a>
+                                </>
+                            )}
                         </p>
                     </section>
 
@@ -146,13 +155,19 @@ export default function Privacy() {
                             <li>Droit de révocation de l'accès OAuth YouCan (via votre dashboard YouCan → Apps)</li>
                         </ul>
                         <p className="mt-3">
-                            Pour exercer ces droits, contactez notre DPO à :{' '}
-                            <a href="mailto:privacy@bayiin.shop" className="text-indigo-600 font-medium">privacy@bayiin.shop</a>
+                            Pour exercer ces droits, contactez-nous :{' '}
+                            {DPO_EMAIL
+                                ? <a href={`mailto:${DPO_EMAIL}`} className="text-indigo-600 font-medium">{DPO_EMAIL}</a>
+                                : <Link to={PUBLIC_CONTACT_PATH} className="text-indigo-600 font-medium">via le formulaire de contact</Link>}
                         </p>
-                        <p className="mt-2 text-sm text-gray-500">
-                            Ce traitement a fait l'objet d'une déclaration auprès de la <strong>CNDP</strong>
-                            {' '}(Commission Nationale de contrôle de la protection des Données à caractère Personnel).
-                        </p>
+                        {/* Affirmer une déclaration CNDP non déposée serait une fausse
+                            déclaration sur une page légale publique. Voir docs/LAUNCH_AUDIT.md. */}
+                        {CNDP_DECLARED && (
+                            <p className="mt-2 text-sm text-gray-500">
+                                Ce traitement a fait l'objet d'une déclaration auprès de la <strong>CNDP</strong>
+                                {' '}(Commission Nationale de contrôle de la protection des Données à caractère Personnel).
+                            </p>
+                        )}
                     </section>
 
                     {/* Section 7 */}
@@ -167,7 +182,8 @@ export default function Privacy() {
                 </div>
 
                 <div className="mt-10 pt-6 border-t border-gray-100 text-center text-xs text-gray-400">
-                    © {new Date().getFullYear()} BayIIn Retail OS · <a href="mailto:privacy@bayiin.shop" className="hover:text-gray-600">privacy@bayiin.shop</a>
+                    © {new Date().getFullYear()} BayIIn Retail OS
+                    {DPO_EMAIL && <> · <a href={`mailto:${DPO_EMAIL}`} className="hover:text-gray-600">{DPO_EMAIL}</a></>}
                     {' '}·{' '}
                     <Link to="/terms" className="hover:text-gray-600">Conditions d'utilisation</Link>
                 </div>

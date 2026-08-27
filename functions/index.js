@@ -1,5 +1,5 @@
 const functions = require('firebase-functions');
-const { onDocumentWritten } = require("firebase-functions/v2/firestore");
+const { onDocumentWritten, onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require('firebase-admin/app');
@@ -146,6 +146,58 @@ exports.onActionDraftUpdate = onDocumentWritten({
  *
  * Supported roles: 'super_admin', 'franchise_admin', 'owner', 'staff'
  */
+/**
+ * onContactRequestCreated — canal de contact BayIIn.
+ *
+ * Une demande écrite dans contact_requests (landing ou page Aide) déclenche une
+ * alerte email vers la boîte support. Sans ce trigger la demande dormait dans
+ * Firestore sans que personne ne soit prévenu.
+ *
+ * Les alertes sont désactivées tant que SUPPORT_INBOX_EMAIL n'est pas défini :
+ * le suivi se fait alors depuis Admin → Contacts. Renseigner la variable les
+ * rallume sans redéploiement de code.
+ *
+ * Estampilles posées sur le document :
+ *   notifiedAt   — l'alerte est partie
+ *   notifyError  — l'envoi a échoué, la demande est à traiter à la main
+ *   (aucune)     — alertes désactivées : rien d'anormal, pas de marqueur rouge
+ */
+exports.onContactRequestCreated = onDocumentCreated({
+    document: "contact_requests/{requestId}",
+    database: "comsaas",
+    // SUPPORT_INBOX_EMAIL n'est pas un secret (simple adresse) : variable
+    // d'environnement, lue dans emailService. Absente = alertes désactivées.
+    secrets: ["RESEND_API_KEY"],
+}, async (event) => {
+    const snap = event.data;
+    if (!snap?.exists) return;
+
+    const requestId = event.params.requestId;
+    const data = snap.data();
+
+    let status = 'failed';
+    try {
+        const { sendContactRequestAlert } = require('./emailService');
+        status = await sendContactRequestAlert(requestId, data);
+    } catch (err) {
+        console.error('[onContactRequestCreated] alert failed:', err);
+        await logServerError('onContactRequestCreated', err, { requestId });
+    }
+
+    // Alertes désactivées : on ne touche pas au document. Estampiller notifyError
+    // ferait remonter un marqueur rouge sur chaque demande alors que rien n'est
+    // cassé — le bruit finirait par masquer les vraies pannes d'envoi.
+    if (status === 'disabled') return;
+
+    try {
+        await snap.ref.update(status === 'sent'
+            ? { notifiedAt: FieldValue.serverTimestamp() }
+            : { notifyError: true });
+    } catch (err) {
+        console.error('[onContactRequestCreated] stamp failed:', err.message);
+    }
+});
+
 exports.onUserWrite = onDocumentWritten({
     document: "users/{userId}",
     database: "comsaas",

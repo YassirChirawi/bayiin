@@ -9,6 +9,9 @@ const { collectedValue, isRealized: isOrderRealized, orderCOGS, orderDeliveryCos
 
 const getDb = () => getFirestore('comsaas');
 
+/** Statuts considérés comme un retour, pour la ventilation du reporting. */
+const RETURN_STATUSES = ['retour', 'retour en cours'];
+
 // Helpers for date filtering
 const getStartOfDay = (dateString) => {
     const d = dateString ? new Date(dateString) : new Date();
@@ -169,7 +172,21 @@ async function calculateNetProfit(storeId, startDate, endDate, breakdown = 'tota
                 if (breakdown === 'by_day') byDay[dateKey] = (byDay[dateKey] || 0) + collected;
             }
             // Coûts de livraison : encourus dès l'expédition (0 sinon) — même définition partagée.
-            deliveryCosts += orderDeliveryCost(order);
+            const delivery = orderDeliveryCost(order);
+            deliveryCosts += delivery;
+
+            // returnImpact est une VENTILATION pour le reporting, pas une charge
+            // supplémentaire : le coût de livraison d'un retour est déjà compté
+            // dans deliveryCosts ci-dessus. Il n'entre donc pas dans netProfit,
+            // sous peine de double comptage.
+            //
+            // Ce compteur n'était jamais incrémenté : il restait à 0 en toutes
+            // circonstances, et le brief quotidien envoyé aux marchands
+            // (proactiveAgent.js) annonçait donc « retours : 0 » même après une
+            // journée de retours.
+            if (RETURN_STATUSES.includes(order.status)) {
+                returnImpact += delivery;
+            }
         }
     });
 
@@ -186,7 +203,10 @@ async function calculateNetProfit(storeId, startDate, endDate, breakdown = 'tota
         }
     });
 
-    const netProfit = computeNetProfit({ realizedRevenue: grossRevenue, cogs, delivery: deliveryCosts, expenses, refunds: returnImpact });
+    // refunds: 0 — volontaire. Le coût des retours est déjà inclus dans
+    // deliveryCosts ; le repasser ici le compterait deux fois. returnImpact
+    // reste exposé comme ventilation informative dans le résultat.
+    const netProfit = computeNetProfit({ realizedRevenue: grossRevenue, cogs, delivery: deliveryCosts, expenses, refunds: 0 });
     const margin = grossRevenue > 0 ? (netProfit / grossRevenue) * 100 : 0;
 
     const result = {

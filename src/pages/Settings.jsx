@@ -28,6 +28,7 @@ const Beya3Settings = lazy(() => import('../components/settings/Beya3Settings'))
 import WhatsAppConnector from '../components/settings/WhatsAppConnector';
 import YouCanIntegration from '../components/integrations/YouCanIntegration';
 import ShopifyIntegration from '../components/integrations/ShopifyIntegration';
+import { FEATURES } from '../config/features';
 import ConfirmDialog from "../components/ConfirmDialog";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 
@@ -502,11 +503,11 @@ export default function Settings() {
                             </div>
                         </div>
 
-                        {/* YouCan Integration Section */}
-                        <YouCanIntegration store={store} />
+                        {/* YouCan Integration Section — masqué tant que le module n'est pas livré */}
+                        {FEATURES.youcanIntegration && <YouCanIntegration store={store} />}
 
-                        {/* Shopify Integration Section */}
-                        <ShopifyIntegration store={store} />
+                        {/* Shopify Integration Section — masqué tant que le module n'est pas livré */}
+                        {FEATURES.shopifyIntegration && <ShopifyIntegration store={store} />}
 
                         <div className="glass-panel rounded-2xl p-6 sm:p-8">
                             <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
@@ -653,10 +654,25 @@ export default function Settings() {
                                     <button 
                                         onClick={async () => {
                                             const newVal = !store.testerMode;
+                                            // Mise à jour optimiste : on la ANNULE si l'écriture est refusée.
+                                            // testerMode fait partie des champs réservés au super_admin
+                                            // dans firestore.rules (il ouvre l'accès à la Recette QA et
+                                            // au plan PRO). Sans try/catch, le rejet passait en silence :
+                                            // l'interrupteur basculait à l'écran, rien n'était écrit, et
+                                            // aucun message n'apparaissait.
                                             setStore(prev => ({ ...prev, testerMode: newVal }));
-                                            await updateDoc(doc(db, "stores", store.id), { testerMode: newVal });
-                                            toast.success(newVal ? "Mode Testeur activé !" : "Mode Testeur désactivé");
-                                            vibrate('success');
+                                            try {
+                                                await updateDoc(doc(db, "stores", store.id), { testerMode: newVal });
+                                                toast.success(newVal ? "Mode Testeur activé !" : "Mode Testeur désactivé");
+                                                vibrate('success');
+                                            } catch (err) {
+                                                setStore(prev => ({ ...prev, testerMode: !newVal }));
+                                                const denied = err?.code === 'permission-denied';
+                                                toast.error(denied
+                                                    ? "Le Mode Testeur est activé par l'équipe BayIIn. Contactez-nous pour y accéder."
+                                                    : "Impossible de modifier le Mode Testeur.");
+                                                console.error('testerMode toggle:', err);
+                                            }
                                         }}
                                         className={`relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${store.testerMode ? 'bg-indigo-600' : 'bg-gray-200'}`}
                                     >

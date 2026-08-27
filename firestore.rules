@@ -401,6 +401,45 @@ service cloud.firestore {
        allow read: if request.auth != null && (belongsToStore(resource.data.storeId) || isStoreOwner(resource.data.storeId) || isSuperAdmin());
     }
 
+    // ── Contact BayIIn (formulaire landing + page Aide) ────────────────────────
+    // Canal de contact officiel : atterrit dans l'onglet Contacts de l'AdminDashboard.
+    // Création ouverte (un prospect n'est pas connecté), mais chaque champ est validé
+    // pour empêcher le spam et le bourrage de payload. Le statut est forcé à 'new' :
+    // seul un super admin peut le passer à 'read' / 'done'.
+    match /contact_requests/{requestId} {
+      allow create: if request.resource.data.keys().hasAll(['type', 'phone', 'status', 'createdAt'])
+                    && request.resource.data.keys().size() <= 14
+                    && request.resource.data.type in ['support', 'devis', 'integration', 'franchise']
+                    && request.resource.data.status == 'new'
+                    && request.resource.data.phone is string
+                    && request.resource.data.phone.size() >= 6
+                    && request.resource.data.phone.size() <= 30
+                    && (!('name' in request.resource.data)
+                        || (request.resource.data.name is string && request.resource.data.name.size() <= 200))
+                    && (!('email' in request.resource.data)
+                        || (request.resource.data.email is string && request.resource.data.email.size() <= 320))
+                    && (!('company' in request.resource.data)
+                        || (request.resource.data.company is string && request.resource.data.company.size() <= 200))
+                    && (!('message' in request.resource.data)
+                        || (request.resource.data.message is string && request.resource.data.message.size() <= 2000))
+                    && (!('source' in request.resource.data)
+                        || (request.resource.data.source is string && request.resource.data.source.size() <= 60))
+                    && (!('budget' in request.resource.data)
+                        || (request.resource.data.budget is string && request.resource.data.budget.size() <= 60))
+                    && (!('storeCount' in request.resource.data)
+                        || (request.resource.data.storeCount is string && request.resource.data.storeCount.size() <= 20))
+                    && (!('integrationOptions' in request.resource.data)
+                        || (request.resource.data.integrationOptions is list
+                            && request.resource.data.integrationOptions.size() <= 20));
+      // Lecture couverte par le catch-all super admin ; explicite ici pour la lisibilité.
+      allow read: if isSuperAdmin();
+      // Suivi du traitement : statut + note interne uniquement, jamais le contenu reçu.
+      allow update: if isSuperAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['status', 'handledAt', 'handledBy', 'internalNote']);
+      allow delete: if isSuperAdmin();
+    }
+
     // Incidents
     match /incidents/{incidentId} {
       allow read: if request.auth != null && (isStoreOwner(resource.data.storeId) || belongsToStore(resource.data.storeId) || isSuperAdmin());

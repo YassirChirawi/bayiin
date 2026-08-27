@@ -4,32 +4,42 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createRequire } from 'node:module';
 
-// Mocks the firebase-admin/firestore module
+// financialEngine est un module CommonJS (les Cloud Functions sont en CJS) et il
+// capture getFirestore par destructuration AU CHARGEMENT :
+//     const { getFirestore } = require('firebase-admin/firestore');
+//
+// `vi.mock` n'intercepte pas les `require` CJS : ils passent par le loader Node
+// et non par le graphe de modules de Vite. C'est pour cette raison que la suite
+// avait ete neutralisee par un `describe.skip` plutot que corrigee, laissant le
+// moteur financier de Beya3 sans aucune couverture.
+//
+// On remplace donc getFirestore sur l'objet exports AVANT de charger le moteur :
+// la destructuration capture alors le stub. L'ordre est essentiel.
 const mockGet = vi.fn();
 const mockWhere = vi.fn();
 const mockCollection = vi.fn();
 
-vi.mock('firebase-admin/firestore', () => {
-    return {
-        getFirestore: () => ({
-            collection: mockCollection
-        })
-    };
-});
+// Le depot embarque DEUX installations de firebase-admin : node_modules/ a la
+// racine et functions/node_modules/. Un require depuis ce fichier resoudrait
+// celle de la racine, alors que financialEngine charge celle de functions/ :
+// deux instances distinctes, et le stub ne s'appliquerait pas.
+// createRequire ancre la resolution sur le moteur lui-meme.
+const requireFromEngine = createRequire(
+    new URL('../../functions/copilot/financialEngine.js', import.meta.url)
+);
 
-import { initializeApp } from 'firebase-admin/app';
+const firestoreModule = requireFromEngine('firebase-admin/firestore');
+firestoreModule.getFirestore = () => ({ collection: mockCollection });
 
-initializeApp({ projectId: "test-project" });
+const {
+    calculateNetProfit,
+    detectFinancialAnomalies,
+    predictStockRunout,
+} = requireFromEngine('./financialEngine');
 
-// Assuming we run this in a Node environment or adapt for Vite
-const { 
-    calculateNetProfit, 
-    detectFinancialAnomalies, 
-    predictStockRunout 
-} = require('../../functions/copilot/financialEngine');
-
-describe.skip('Financial Engine (Beya3)', () => {
+describe('Financial Engine (Beya3)', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         
@@ -64,6 +74,10 @@ describe.skip('Financial Engine (Beya3)', () => {
                     cb({
                         data: () => ({
                             status: 'livré',
+                            // Depuis BAY-104 la compta est en CAISSE RÉALISÉE : une commande
+                            // livrée mais non encaissée ne produit aucun revenu. C'est le
+                            // modèle COD. Sans isPaid, cette commande vaudrait 0.
+                            isPaid: true,
                             price: 100,
                             quantity: 2, // 200 revenue
                             costPrice: 30, // 60 COGS
@@ -110,11 +124,83 @@ describe.skip('Financial Engine (Beya3)', () => {
 
             expect(result.grossRevenue).toBe(200);
             expect(result.cogs).toBe(60);
-            expect(result.deliveryCosts).toBe(20);
+            // deliveryCosts agrège TOUTE livraison engagée, retour compris : 20 + 25.
+            expect(result.deliveryCosts).toBe(45);
+            // returnImpact est une ventilation informative du coût ci-dessus, pas
+            // une charge supplémentaire — il n'entre pas dans netProfit.
             expect(result.returnImpact).toBe(25);
             expect(result.expenses).toBe(50);
+            // 200 - 60 - 45 - 50 = 45. Le retour n'est déduit qu'une seule fois.
             expect(result.netProfit).toBe(45);
             expect(result.margin).toBe(22.5); // (45 / 200) * 100
+        });
+    });
+
+    describe('ventilation des retours', () => {
+        it("le coût de livraison d'un retour n'est déduit qu'une seule fois", async () => {
+            // returnImpact restait bloqué à 0 : le brief quotidien annonçait
+            // « retours : 0 » même après une journée de retours. Il est désormais
+            // alimenté, mais comme VENTILATION de deliveryCosts — le repasser dans
+            // netProfit le compterait deux fois.
+            mockGet.mockResolvedValueOnce({
+                forEach: (cb) => cb({
+                    data: () => ({
+                        status: 'retour',
+                        price: 150,
+                        quantity: 1,
+                        realDeliveryCost: 25,
+                        date: '2026-05-11T12:00:00Z',
+                    }),
+                }),
+            });
+            mockGet.mockResolvedValueOnce({ forEach: vi.fn() });
+
+            const r = await calculateNetProfit('store123', '2026-05-01', '2026-05-31');
+            expect(r.returnImpact).toBe(25);
+            expect(r.deliveryCosts).toBe(25);
+            expect(r.netProfit).toBe(-25); // et non -50
+        });
+    });
+
+    describe('modèle COD — caisse réalisée', () => {
+        it('une commande livrée mais NON encaissée ne produit aucun revenu', async () => {
+            // Règle métier centrale du COD marocain : la livraison ne vaut pas
+            // encaissement. Ce test existe parce que l'ancienne version de la
+            // suite supposait l'inverse et comptait le revenu à la livraison.
+            mockGet.mockResolvedValueOnce({
+                forEach: (cb) => cb({
+                    data: () => ({
+                        status: 'livré',
+                        price: 100,
+                        quantity: 2,
+                        costPrice: 30,
+                        date: '2026-05-10T12:00:00Z',
+                    }),
+                }),
+            });
+            mockGet.mockResolvedValueOnce({ forEach: vi.fn() });
+
+            const result = await calculateNetProfit('store123', '2026-05-01', '2026-05-31');
+            expect(result.grossRevenue).toBe(0);
+        });
+
+        it('la même commande encaissée produit bien le revenu', async () => {
+            mockGet.mockResolvedValueOnce({
+                forEach: (cb) => cb({
+                    data: () => ({
+                        status: 'livré',
+                        isPaid: true,
+                        price: 100,
+                        quantity: 2,
+                        costPrice: 30,
+                        date: '2026-05-10T12:00:00Z',
+                    }),
+                }),
+            });
+            mockGet.mockResolvedValueOnce({ forEach: vi.fn() });
+
+            const result = await calculateNetProfit('store123', '2026-05-01', '2026-05-31');
+            expect(result.grossRevenue).toBe(200);
         });
     });
 

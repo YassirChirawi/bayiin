@@ -30,6 +30,7 @@ import SortableSectionItem from '../builder/components/SortableSectionItem';
 import ResponsiveControl from '../builder/components/ResponsiveControl';
 import ItemsManager from '../builder/components/ItemsManager';
 import SectionBlocksManager from '../builder/components/SectionBlocksManager';
+import { FEATURES } from '../config/features';
 
 const FONTS = ['Inter', 'Outfit', 'Poppins', 'Montserrat', 'Cairo', 'Tajawal', 'Roboto', 'Playfair Display'];
 
@@ -895,6 +896,7 @@ export default function HybridStoreBuilder() {
                                     </select>
                                 </div>
 
+                                {FEATURES.builderConversionKit && (
                                 <div className="pt-2 border-t border-slate-100 relative opacity-60">
                                     <div className="absolute top-0 right-0 bg-slate-800 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest mt-2">PRO (Bientôt)</div>
                                     <label className="block text-xs font-bold text-slate-700 mb-3">Conversion & FOMO</label>
@@ -923,6 +925,8 @@ export default function HybridStoreBuilder() {
                                         <span className="text-xs font-medium text-slate-500">Compteur de Visiteurs en ligne</span>
                                     </label>
                                 </div>
+                                )}
+                                {FEATURES.builderLocalization && (
                                 <div className="pt-2 border-t border-slate-100 relative opacity-60">
                                     <div className="absolute top-0 right-0 bg-slate-800 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest mt-2">PRO (Bientôt)</div>
                                     <label className="block text-xs font-bold text-slate-700 mb-3">Localisation</label>
@@ -934,7 +938,9 @@ export default function HybridStoreBuilder() {
                                         <span className="text-xs font-medium text-slate-500">Activer le mode RTL (Arabe)</span>
                                     </label>
                                 </div>
+                                )}
 
+                                {FEATURES.builderTrackingPixels && (
                                 <div className="pt-2 border-t border-slate-100 relative opacity-60 pointer-events-none">
                                     <div className="absolute top-0 right-0 bg-slate-800 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest mt-2">PRO (Bientôt)</div>
                                     <label className="block text-xs font-bold text-slate-700 mb-3">Tracking & Pixels</label>
@@ -953,6 +959,7 @@ export default function HybridStoreBuilder() {
                                         </div>
                                     </div>
                                 </div>
+                                )}
                             </div>
                         </div>
                     </div>

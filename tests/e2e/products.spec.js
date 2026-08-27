@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { preAcceptCookies } from './_auth.js';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
@@ -8,6 +9,7 @@ async function login(page) {
     const uniqueEmail = `test_${Date.now()}_${Math.floor(Math.random() * 1000)}@bayiin.com`;
     const testPassword = "Password123!";
     
+    await preAcceptCookies(page);
     await page.goto('/signup');
     await page.waitForLoadState('load');
 
@@ -18,9 +20,15 @@ async function login(page) {
         await confirmInput.fill(testPassword);
     }
 
-    const termsCheck = page.locator('form button[type="button"]').last();
-    if (await termsCheck.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await termsCheck.click({ force: true });
+    // Ancrage stable sur la case des conditions. La version precedente prenait
+    // `form button[type="button"]` .last(), ce qui dependait de l'ordre du DOM :
+    // l'oeil d'affichage du mot de passe est aussi un bouton de ce type. Sur
+    // mobile la case restait donc decochee, la validation bloquait le submit, et
+    // toute la suite echouait sur un waitForURL sans explication.
+    const terms = page.getByTestId('signup-terms');
+    await terms.waitFor({ state: 'visible', timeout: 10000 });
+    if ((await terms.getAttribute('aria-checked')) !== 'true') {
+        await terms.click({ force: true });
     }
     await page.click('button[type="submit"]', { force: true });
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
 import { Shield, Scale, FileText, Lock } from 'lucide-react';
+import { SUPPORT_EMAIL, PUBLIC_CONTACT_PATH, LEGAL_ENTITY, LEGAL_ICE, LEGAL_RC, LEGAL_IF, LEGAL_ADDRESS } from "../config/brand";
 
 export default function Terms() {
     const lastUpdated = "29 Avril 2026";
@@ -111,8 +112,10 @@ export default function Terms() {
                             </li>
                             <li>
                                 <strong>Remboursement :</strong> En cas de non-satisfaction dans les <strong>30 premiers jours</strong>
-                                {' '}suivant le premier paiement, vous pouvez demander un remboursement intégral à{' '}
-                                <a href="mailto:contact@bayiin.shop" className="text-indigo-600">contact@bayiin.shop</a>.
+                                {' '}suivant le premier paiement, vous pouvez demander un remboursement intégral{' '}
+                                {SUPPORT_EMAIL
+                                    ? <>à <a href={`mailto:${SUPPORT_EMAIL}`} className="text-indigo-600">{SUPPORT_EMAIL}</a>.</>
+                                    : <>via le <Link to={PUBLIC_CONTACT_PATH} className="text-indigo-600">formulaire de contact</Link>.</>}
                             </li>
                             <li>
                                 <strong>Annulation :</strong> L'annulation entraîne le passage automatique au Plan Free
@@ -146,16 +149,26 @@ export default function Terms() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
                             <div>
                                 <p className="font-bold text-gray-800">Éditeur du Site</p>
-                                <p>BayIIn SARL (en cours de constitution)</p>
-                                <p>Casablanca, Maroc</p>
-                                <p>Email : contact@bayiin.shop</p>
+                                <p>{LEGAL_ENTITY || 'BayIIn'}</p>
+                                <p>{LEGAL_ADDRESS || 'Casablanca, Maroc'}</p>
+                                <p>
+                                    Contact :{' '}
+                                    {SUPPORT_EMAIL
+                                        ? <a href={`mailto:${SUPPORT_EMAIL}`} className="text-indigo-600">{SUPPORT_EMAIL}</a>
+                                        : <Link to={PUBLIC_CONTACT_PATH} className="text-indigo-600">formulaire de contact</Link>}
+                                </p>
                             </div>
-                            <div>
-                                <p className="font-bold text-gray-800">Identifiants (Placeholders)</p>
-                                <p>ICE : 00XXXXXXXXXXXXX</p>
-                                <p>RC : XXXXXX (Casablanca)</p>
-                                <p>IF : XXXXXXXX</p>
-                            </div>
+                            {/* Les identifiants ne s'affichent qu'une fois réels : publier
+                                un numéro d'ICE factice sur une page légale publique est
+                                pire que de ne rien afficher. Voir docs/LAUNCH_AUDIT.md. */}
+                            {(LEGAL_ICE || LEGAL_RC || LEGAL_IF) && (
+                                <div>
+                                    <p className="font-bold text-gray-800">Identifiants</p>
+                                    {LEGAL_ICE && <p>ICE : {LEGAL_ICE}</p>}
+                                    {LEGAL_RC && <p>RC : {LEGAL_RC}</p>}
+                                    {LEGAL_IF && <p>IF : {LEGAL_IF}</p>}
+                                </div>
+                            )}
                             <div className="md:col-span-2">
                                 <p className="font-bold text-gray-800">Hébergement</p>
                                 <p>Le site est hébergé par Google Cloud Platform (GCP) - Région Europe.</p>
