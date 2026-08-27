@@ -63,12 +63,13 @@ export async function signupAndOnboard(page) {
     }
     await page.click('button[type="submit"]', { force: true });
 
-    // 45 s : la redirection post-inscription enchaine un aller-retour Firebase
-    // Auth puis le premier chargement Firestore, ce dernier en long-polling force
-    // sous emulateur. Sur une machine chargee — la suite joue deux parcours
-    // complets a la file, un par navigateur — 30 s etaient encore depasses.
-    // Une porte de production qui echoue au hasard ne protege rien.
-    await page.waitForURL(/.*\/(onboarding|dashboard)/, { timeout: 45000 });
+    // waitUntil: 'commit' est ESSENTIEL ici. Par defaut waitForURL attend l'etat
+    // 'load' du document ; or la redirection post-inscription est une navigation
+    // SPA (React Router, History API) sans nouveau document, et la connexion
+    // Firestore en long-polling maintient des requetes ouvertes. L'attente
+    // expirait donc sur « waiting for navigation until load » alors que l'URL
+    // etait deja la bonne. 'commit' resout des que l'URL correspond.
+    await page.waitForURL(/.*\/(onboarding|dashboard)/, { timeout: 45000, waitUntil: 'commit' });
 
     if (page.url().includes('/onboarding')) {
         await handleOverlays(page);

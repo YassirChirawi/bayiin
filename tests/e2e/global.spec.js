@@ -61,7 +61,7 @@ async function login(page) {
     }
     await page.click('button[type="submit"]', { force: true });
 
-    await page.waitForURL(/.*\/(onboarding|dashboard)/, { timeout: 20000 });
+    await page.waitForURL(/.*\/(onboarding|dashboard)/, { timeout: 20000, waitUntil: 'commit' });
 
     if (page.url().includes('/onboarding')) {
         await handleOverlays(page);
@@ -86,7 +86,7 @@ async function login(page) {
     }
 
     await handleOverlays(page);
-    await page.waitForURL(/.*\/(dashboard|orders|products|settings)/, { timeout: 40000 });
+    await page.waitForURL(/.*\/(dashboard|orders|products|settings)/, { timeout: 40000, waitUntil: 'commit' });
     console.log(`Signup/onboard successful, currently at: ${page.url()}`);
 }
 
@@ -148,7 +148,7 @@ test.describe('Global PWA Test Scenario', () => {
         await page.click('button[type="submit"]', { force: true });
 
         // Onboarding Step 1
-        await page.waitForURL('**/onboarding', { timeout: 20000 });
+        await page.waitForURL('**/onboarding', { timeout: 20000, waitUntil: 'commit' });
         await handleOverlays(page);
         
         await page.getByLabel(/Nom|Store/i).fill("Verification Store");
@@ -167,7 +167,7 @@ test.describe('Global PWA Test Scenario', () => {
         await finishBtn.click();
 
         // Dashboard - increase timeout and be more lenient
-        await page.waitForURL(/.*\/(dashboard|orders|products)/, { timeout: 40000 });
+        await page.waitForURL(/.*\/(dashboard|orders|products)/, { timeout: 40000, waitUntil: 'commit' });
         await handleOverlays(page);
         await expect(page.locator('#tour-nav').or(page.getByRole('navigation').first())).toBeVisible({ timeout: 15000 });
     });
