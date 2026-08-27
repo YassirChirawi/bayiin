@@ -433,6 +433,35 @@ en revanche aucun code de rendu : `getDefaultSettingsForType` lui donne
 
 ---
 
+## ⚠️ Non-régression : deux assertions restantes
+
+`npm run test:regression` est la porte de `ci-master` vers la production. Elle
+était structurellement cassée et ne pouvait pas passer (BAY-140) : pas
+d'émulateur démarré, identifiants en dur, session Firebase détruite à chaque
+navigation. Ces quatre défauts sont corrigés.
+
+**Le parcours complet passe désormais sur Chromium** : inscription, onboarding,
+création de produit, création de commande, vérification du KPI Finances.
+
+Deux assertions restent à traiter avant de pouvoir merger vers `main` :
+
+1. **Liste déroulante des produits du modal de commande**
+   `[data-testid="product-select"] option` n'a toujours qu'une option après
+   15 s. Le produit vient d'être créé sur la page Produits, mais la liste
+   reçue par OrderModal n'est pas encore rafraîchie. À confirmer : attendre le
+   produit par son nom dans la liste plutôt qu'un délai fixe.
+
+2. **Inscription > 30 s sous WebKit, dans cette suite uniquement**
+   Les 34 specs E2E utilisent le même helper `signupAndOnboard` et passent en
+   ~10 s. La différence tient donc au `beforeEach` propre à cette suite
+   (injection CSS, hook console, simulation biométrique) — piste à instrumenter.
+
+Tant que ces deux points ne sont pas résolus, un merge `develop → main`
+échouera à l'étape de non-régression, AVANT tout déploiement. La production
+n'est donc pas exposée — mais rien ne part non plus.
+
+---
+
 ## ✅ Garde-fous en place
 
 `tests/unit/contactChannel.test.js` balaie tout `src/` et **échoue en nommant
