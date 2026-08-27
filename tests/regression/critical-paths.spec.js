@@ -112,7 +112,15 @@ test.describe('BayIIn Critical Paths Regression', () => {
         await page.getByLabel(/Nom du Produit|Product Name/i).fill('REGRESSION PRODUCT');
         await page.getByLabel(/Prix de Base|Base Price/i).fill('100');
         await page.getByLabel(/Stock Total|Total Stock/i).fill('20');
-        await page.getByRole('button', { name: /Enregistrer|Save/i }).first().click({ force: true });
+        const saveBtn = page.getByRole('button', { name: /Enregistrer|Save/i }).first();
+        await saveBtn.click({ force: true });
+
+        // Attendre la FERMETURE du modal avant de conclure. L'assertion suivante
+        // cherchait le nom du produit sans cette attente : elle matchait le texte
+        // DANS le modal encore ouvert, donc passait alors que l'ecriture Firestore
+        // n'etait pas terminee. La commande partait ensuite vers /orders avec une
+        // liste de produits vide.
+        await expect(saveBtn).toBeHidden({ timeout: 20000 });
 
         // La liste est rendue en tableau (desktop) ET en cartes (mobile), l'un des
         // deux etant masque : `:visible` cible le rendu reellement affiche.
@@ -144,6 +152,12 @@ test.describe('BayIIn Critical Paths Regression', () => {
         await page.fill('#order-client-address', '123 Regression St');
         
         // Select first product
+        // Attendre que le produit cree soit REELLEMENT propose, plutot que la simple
+        // presence d'une 2e option : la liste vient d'un onSnapshot Firestore et
+        // n'est pas peuplee a l'instant ou la page /orders s'ouvre.
+        await expect(
+            page.locator('[data-testid="product-select"] option', { hasText: 'REGRESSION PRODUCT' })
+        ).toHaveCount(1, { timeout: 30000 });
         await expect(page.locator('[data-testid="product-select"] option').nth(1)).toBeAttached({ timeout: 15000 });
         await page.selectOption('[data-testid="product-select"]', { index: 1 });
         await page.click('text=/Ajouter|Add/i', { force: true });

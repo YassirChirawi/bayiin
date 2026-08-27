@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useBiometrics } from '../hooks/useBiometrics';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import Button from './Button';
 import { Shield, Lock, ScanFace, Fingerprint } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,7 +9,9 @@ import { vibrate } from '../utils/haptics';
 
 export default function BiometricLock({ children }) {
     const [isLocked, setIsLocked] = useState(false);
-    const { verify, getBiometricType } = useBiometrics();
+    const { verifyDetailed, isAvailable, getBiometricType } = useBiometrics();
+    const { logout } = useAuth();
+    const [failed, setFailed] = useState(false);
     const { t } = useLanguage();
     const [bioInfo, setBioInfo] = useState(() => verify ? getBiometricType() : { id: 'unknown', labelKey: 'bio_type_generic', icon: 'Shield' });
 
@@ -19,14 +22,35 @@ export default function BiometricLock({ children }) {
     useEffect(() => {
         const checkLockStatus = async () => {
             const biometricEnabled = localStorage.getItem('biometricEnabled') === 'true';
+            if (!biometricEnabled) return;
+
+            // La passkey est liée au domaine : si l'app est ouverte sur un autre
+            // hôte que celui de l'enregistrement, elle est introuvable par
+            // construction. On lève le verrou plutôt que d'enfermer l'utilisateur.
+            const rpId = localStorage.getItem('biometricRpId');
+            if (rpId && rpId !== window.location.hostname) {
+                localStorage.removeItem('biometricEnabled');
+                localStorage.removeItem('lastActive');
+                return;
+            }
+
+            // Ne JAMAIS verrouiller un appareil incapable de déverrouiller.
+            // Le drapeau vit dans localStorage, la passkey est liée au DOMAINE et
+            // à l'appareil : ouvrir l'app sur un autre navigateur, un autre
+            // domaine, ou après effacement des données donnait un écran de
+            // verrouillage impossible à franchir.
+            const supported = await isAvailable().catch(() => false);
+            if (!supported) {
+                localStorage.removeItem('biometricEnabled');
+                localStorage.removeItem('lastActive');
+                return;
+            }
+
             const lastActive = localStorage.getItem('lastActive');
             const now = Date.now();
-            const GRACE_PERIOD = 2 * 60 * 1000; 
-
-            if (biometricEnabled) {
-                if (!lastActive || (now - parseInt(lastActive)) > GRACE_PERIOD) {
-                    setIsLocked(true);
-                }
+            const GRACE_PERIOD = 2 * 60 * 1000;
+            if (!lastActive || (now - parseInt(lastActive)) > GRACE_PERIOD) {
+                setIsLocked(true);
             }
         };
         checkLockStatus();
@@ -50,17 +74,39 @@ export default function BiometricLock({ children }) {
 
         document.addEventListener("visibilitychange", handleVisibilityChange);
         return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-    }, []);
+    }, [isAvailable]);
 
     const handleUnlock = async () => {
-        const success = await verify();
-        if (success) {
+        const { ok } = await verifyDetailed();
+        if (ok) {
             vibrate('success');
+            setFailed(false);
             setIsLocked(false);
-        } else {
-            vibrate('error');
+            return;
         }
+        // Echec : on expose les portes de sortie plutôt que de vibrer dans le vide.
+        vibrate('error');
+        setFailed(true);
     };
+
+    /** Retire le verrou sur CET appareil. La session reste authentifiée. */
+    const handleDisableLock = useCallback(() => {
+        localStorage.removeItem('biometricEnabled');
+        localStorage.removeItem('biometricRpId');
+        localStorage.removeItem('lastActive');
+        setIsLocked(false);
+    }, []);
+
+    /** Sortie garantie, sans affaiblir la sécurité : on ferme la session. */
+    const handleLogout = useCallback(async () => {
+        localStorage.removeItem('lastActive');
+        try {
+            await logout();
+        } catch (err) {
+            console.error('BiometricLock — déconnexion impossible:', err);
+        }
+        setIsLocked(false);
+    }, [logout]);
 
     const IconComponent = {
         ScanFace,
@@ -125,6 +171,34 @@ export default function BiometricLock({ children }) {
                                 <p className="mt-6 text-xs text-slate-500 font-medium uppercase tracking-widest">
                                     Utilisation de {t(bioInfo.labelKey)}
                                 </p>
+
+                                {failed && (
+                                    <p className="mt-5 text-sm text-amber-300/90 leading-relaxed">
+                                        Aucune empreinte enregistrée pour ce site sur cet appareil.
+                                        C'est normal après un changement de téléphone, de navigateur
+                                        ou d'adresse du site.
+                                    </p>
+                                )}
+
+                                {/* Sorties TOUJOURS disponibles. Sans elles, un échec de
+                                    vérification enfermait définitivement l'utilisateur :
+                                    l'écran n'offrait que « Déverrouiller ». */}
+                                <div className="mt-8 space-y-3 border-t border-white/10 pt-6">
+                                    {failed && (
+                                        <button
+                                            onClick={handleDisableLock}
+                                            className="w-full text-sm font-semibold text-slate-200 hover:text-white transition-colors py-2"
+                                        >
+                                            Désactiver le verrouillage sur cet appareil
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={handleLogout}
+                                        className="w-full text-sm font-semibold text-slate-400 hover:text-white transition-colors py-2"
+                                    >
+                                        Se déconnecter
+                                    </button>
+                                </div>
                             </div>
                         </motion.div>
 

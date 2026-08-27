@@ -16,6 +16,12 @@ export default function BiometricSetupModal({ isOpen, onClose, userId }) {
         const success = await register(userId);
         if (success) {
             localStorage.setItem('biometricEnabled', 'true');
+            // Une passkey est liée au RP ID, c'est-à-dire au DOMAINE. Celle créée
+            // ici n'existera pas sur un autre hôte (bayiin.shop vs bayiin.vercel.app,
+            // ou une URL de preview). On mémorise le domaine pour que le verrou
+            // puisse se désactiver seul ailleurs, au lieu d'afficher un écran
+            // impossible à franchir.
+            localStorage.setItem('biometricRpId', window.location.hostname);
             vibrate('success');
             toast.success(t('msg_biometric_enabled'));
             onClose();
