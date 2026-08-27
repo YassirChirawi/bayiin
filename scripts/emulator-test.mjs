@@ -9,7 +9,7 @@
  * (JBR d'Android Studio, ou tout JDK 21 sous Program Files) et le préfixe au PATH pour la commande.
  * Sur CI/Linux où `java` est déjà en 21, il ne change rien.
  *
- * Usage : node scripts/emulator-test.mjs <integration|rules|e2e|all>
+ * Usage : node scripts/emulator-test.mjs <integration|rules|e2e|regression|all>
  */
 import { spawnSync } from 'child_process';
 import { existsSync, readdirSync } from 'fs';
@@ -19,6 +19,10 @@ const SUITES = {
     integration: { only: 'firestore', inner: 'vitest run --config vitest.emulator.config.js tests/integration' },
     rules: { only: 'firestore', inner: 'vitest run --config vitest.emulator.config.js tests/rules' },
     e2e: { only: 'auth,firestore', inner: 'playwright test tests/e2e' },
+    // La non-regression est la PORTE vers la production (ci-master). Elle doit
+    // tourner sur les emulateurs comme les E2E : sans eux, le serveur de dev
+    // pointe vers localhost:8080 ou rien n'ecoute, et la suite echoue au login.
+    regression: { only: 'auth,firestore', inner: 'playwright test tests/regression' },
     all: { only: 'firestore', inner: 'vitest run --config vitest.emulator.config.js' },
 };
 

@@ -57,7 +57,10 @@ export async function signupAndOnboard(page) {
     }
     await page.click('button[type="submit"]', { force: true });
 
-    await page.waitForURL(/.*\/(onboarding|dashboard)/, { timeout: 20000 });
+    // 30 s : la redirection post-inscription depend d'un aller-retour Firebase Auth
+    // puis du premier chargement Firestore. 20 s passaient la plupart du temps mais
+    // laissaient une suite entiere echouer sur un demarrage lent.
+    await page.waitForURL(/.*\/(onboarding|dashboard)/, { timeout: 30000 });
 
     if (page.url().includes('/onboarding')) {
         await handleOverlays(page);
