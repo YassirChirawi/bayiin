@@ -16,6 +16,7 @@ import { CartProvider } from "./context/CartContext";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
+import QARouteGuard from "./components/QARouteGuard";
 import FeatureProtectedRoute from "./components/FeatureProtectedRoute";
 import Layout from "./components/Layout";
 import BiometricLock from "./components/BiometricLock";
@@ -224,7 +225,11 @@ function App() {
                             <Route path="/returns" element={<FeatureProtectedRoute feature="returns"><Returns /></FeatureProtectedRoute>} />
                             <Route path="/marketing" element={<FeatureProtectedRoute feature="marketing"><Marketing /></FeatureProtectedRoute>} />
                             <Route path="/assets" element={<FeatureProtectedRoute feature="assets"><Assets /></FeatureProtectedRoute>} />
-                            <Route path="/qa" element={<QA />} />
+                            {/* La page Recette QA peuple la boutique de données de démo et
+                                bascule le plan : sans garde, tout utilisateur authentifié
+                                pouvait l'atteindre en tapant l'URL et corrompre sa
+                                production. Seul le lien du menu était masqué. */}
+                            <Route path="/qa" element={<QARouteGuard><QA /></QARouteGuard>} />
                           </Route>
 
                           <Route path="*" element={<NotFound />} />
