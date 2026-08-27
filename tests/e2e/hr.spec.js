@@ -33,7 +33,7 @@ async function login(page) {
     await page.click('button[type="submit"]', { force: true });
 
     // Handle Onboarding if present
-    await page.waitForURL(/.*\/(onboarding|dashboard)/, { timeout: 15000 });
+    await page.waitForURL(/.*\/(onboarding|dashboard)/, { timeout: 15000, waitUntil: 'commit' });
     
     if (page.url().includes('/onboarding')) {
         // Step 1: Store Name
@@ -64,7 +64,7 @@ async function login(page) {
         }
     } catch (e) {}
 
-    await page.waitForURL(/.*\/(dashboard|settings|orders|products|hr)/, { timeout: 30000 });
+    await page.waitForURL(/.*\/(dashboard|settings|orders|products|hr)/, { timeout: 30000, waitUntil: 'commit' });
 }
 
 test.describe('HR Module E2E', () => {

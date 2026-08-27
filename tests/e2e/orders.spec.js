@@ -34,7 +34,7 @@ async function signupAndOnboard(page) {
     }
     await page.click('button[type="submit"]', { force: true });
 
-    await page.waitForURL(/.*\/(onboarding|dashboard)/, { timeout: 15000 });
+    await page.waitForURL(/.*\/(onboarding|dashboard)/, { timeout: 15000, waitUntil: 'commit' });
 
     if (page.url().includes('/onboarding')) {
         const nameInput = page.locator('input[placeholder*="My Awesome Store"], input[type="text"]').first();
@@ -60,7 +60,7 @@ async function signupAndOnboard(page) {
         await maybeLater.click({ force: true });
     }
 
-    await page.waitForURL(/.*\/(dashboard|settings|orders|products)/, { timeout: 30000 });
+    await page.waitForURL(/.*\/(dashboard|settings|orders|products)/, { timeout: 30000, waitUntil: 'commit' });
 }
 
 async function openNewOrderModal(page) {
