@@ -50,7 +50,13 @@ export default defineConfig([
       'react-hooks/static-components': 'warn',
       'react-hooks/error-boundaries': 'warn',
       'react-hooks/preserve-manual-memoization': 'warn',
-      'no-undef': 'warn',
+      // BLOQUANT, volontairement. Un symbole indefini n'est jamais un style :
+      // c'est une ReferenceError garantie a l'execution. En 'warn', trois bugs
+      // reels sont passes en production — deleteDoc manquant dans Drivers
+      // (suppression d'absence impossible), la prop `cities` non declaree dans
+      // CartDrawer (tunnel d'achat de la vitrine en erreur), et une reference
+      // residuelle dans BiometricLock.
+      'no-undef': 'error',
       'no-empty': 'warn',
       'no-case-declarations': 'warn',
       'react-refresh/only-export-components': 'warn'

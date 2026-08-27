@@ -9,7 +9,12 @@ export default function CartDrawer({
     upsellProduct,
     onAddUpsell,
     isCheckingOut,
-    onCheckoutClick
+    onCheckoutClick,
+    // PublicCatalog et StorefrontPreview passaient deja `cities`, mais la prop
+    // n'etait pas declaree : l'etape « Ville » du tunnel referencait un
+    // identifiant inexistant et levait une ReferenceError au rendu. Le client
+    // du marchand ne pouvait pas finaliser sa commande.
+    cities = [],
 }) {
     const { isCartOpen: isOpen, closeCart: onClose, cartItems: cart, updateQuantity: onUpdateQuantity, removeFromCart: onRemove, cartTotal: total } = useCart();
     const primaryColor = theme?.primaryColor || '#4f46e5';

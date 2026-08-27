@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
     collection, query, where, getDocs, doc, updateDoc,
-    setDoc, serverTimestamp, addDoc, getDoc
+    setDoc, serverTimestamp, addDoc, getDoc, deleteDoc
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useTenant } from '../context/TenantContext';
