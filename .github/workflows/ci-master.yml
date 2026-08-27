@@ -20,6 +20,16 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      # Les emulateurs Firebase tournent sur la JVM, et scripts/emulator-test.mjs
+      # exige un JDK >= 21 (il sort en erreur sinon). L'image ubuntu-latest ne
+      # garantit pas cette version par defaut : on la fixe explicitement, sinon
+      # les suites qui dependent des emulateurs echouent avant de commencer.
+      - name: Setup Java 21 (emulateurs Firebase)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
       - name: Install dependencies
         run: npm ci
 
