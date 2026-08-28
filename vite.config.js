@@ -73,6 +73,38 @@ export default defineConfig({
       'src/**/*.{test,spec}.{js,ts,jsx,tsx}',
       'tests/unit/**/*.{test,spec}.{js,ts,jsx,tsx}',
     ],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text-summary', 'json-summary', 'lcov'],
+      // Fichiers sans logique a verifier : point d'entree, config, styles,
+      // catalogues de donnees, et les tests eux-memes.
+      exclude: [
+        '**/*.{test,spec}.{js,jsx}',
+        'src/main.jsx',
+        'src/setupTests.js',
+        'src/locales/**',
+        'src/data/**',
+        '**/node_modules/**',
+      ],
+      // SEUILS PLANCHER, pas des cibles. Ils constatent l'etat mesure
+      // (50,3 % de statements) avec une petite marge, et servent de cliquet :
+      // la couverture ne peut plus BAISSER sans faire echouer la CI.
+      //
+      // A remonter au fur et a mesure. Ne jamais les abaisser pour faire passer
+      // un build : ce serait exactement le defaut qu'on a corrige sur le lint,
+      // ou une regle non bloquante avait laisse passer trois bugs reels.
+      //
+      // Attention a l'interpretation : ce pourcentage ne compte QUE Vitest. Les
+      // 34 tests E2E, les 35 tests de regles et les 28 tests d'integration ne
+      // sont pas instrumentes ici. `pages/` apparait a 0 % alors que le parcours
+      // complet est verifie a chaque execution.
+      thresholds: {
+        statements: 48,
+        branches: 43,
+        functions: 42,
+        lines: 48,
+      },
+    },
   },
   esbuild: {
     drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],

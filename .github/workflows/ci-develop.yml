@@ -39,8 +39,13 @@ jobs:
 
       # `continue-on-error: true` rendait cette etape purement decorative :
       # les tests pouvaient echouer sans rien bloquer. Retire.
-      - name: Vitest unit + integration tests
-        run: npm run test:unit && npm run test:integration
+      # test:coverage remplace test:unit : c'est un SUR-ENSEMBLE (il execute aussi
+      # les tests de composants sous src/) et il applique desormais les seuils de
+      # couverture definis dans vite.config.js. Sans cette etape, les seuils
+      # existent sans jamais etre verifies — le defaut exact qu'on avait sur le
+      # lint, non bloquant pendant des mois.
+      - name: Vitest (couverture + seuils) + integration
+        run: npm run test:coverage && npm run test:integration
 
       # Les tests de regles couvrent les gardes de securite (P0-5 auto-attribution
       # de plan, anti-escalade RBAC allowed_users). Ils existaient depuis
