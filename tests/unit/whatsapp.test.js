@@ -1,4 +1,11 @@
+/**
+ * @vitest-environment node
+ *
+ * Environnement node : createRequire vient de `node:module`, indisponible sous
+ * jsdom (l'environnement par defaut du projet). Ce fichier ne touche pas au DOM.
+ */
 import { describe, it, expect, vi } from 'vitest';
+import { createRequire } from 'node:module';
 import {
     renderTemplate,
     WHATSAPP_TEMPLATES,
@@ -6,72 +13,28 @@ import {
     DEFAULT_TEMPLATES,
     getWhatsappMessage,
 } from '../../src/utils/whatsappTemplates.js';
+// Les fonctions NLU etaient RECOPIEES ici, avec la mention « mirrored from
+// whatsappUtils.js for testing », pour contourner le melange ESM/CJS. Les 32
+// tests validaient donc une COPIE : le module de production n'etait pas couvert
+// (0 %), et rien n'empechait la copie de deriver silencieusement de l'original.
+//
+// createRequire franchit la frontiere CJS/ESM et permet de tester le vrai
+// module. Meme technique que financialEngine.test.js et actionExecutor.test.js.
+//
+// Ces fonctions decident si un client a confirme ou refuse sa commande COD :
+// une divergence entre la copie et l'original passait inapercue tout en
+// changeant le comportement du bot.
+const requireFromFunctions = createRequire(
+    new URL('../../functions/whatsappUtils.js', import.meta.url)
+);
+const {
+    isConfirmation,
+    isRefusal,
+    isReschedule,
+    isHumanRequest,
+    normalizePhone,
+} = requireFromFunctions('./whatsappUtils');
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Import WhatsApp utils (NLU + normalizePhone)
-// These are Node.js CommonJS modules, so we import them differently
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// Since whatsappUtils uses CommonJS exports, we'll test the logic inline
-// to avoid module system conflicts with vitest ESM.
-
-// ── NLU Functions (mirrored from whatsappUtils.js for testing) ──────────────
-
-function isConfirmation(text) {
-    const confirmWords = [
-        'oui', 'yes', 'confirme', 'ok', 'okay', 'accord', 'parfait',
-        'nickel', 'valide', 'confirmer', 'c ok', 'ok oui', 'daccord',
-        "d'accord", 'bien sûr', 'absolument', 'exactement',
-        'ايه', 'واخا', 'مزيان', 'كنفيرم', 'ayeh', 'waxha', 'wakha',
-        'ah', 'iyyeh', 'نعم', 'صافي', 'safi', 'mzyan'
-    ];
-    return confirmWords.some(w => text.includes(w));
-}
-
-function isRefusal(text) {
-    const refuseWords = [
-        'non', 'no', 'annule', 'annuler', 'pas', 'cancel', 'refuse',
-        'refuser', 'jamais', 'plus besoin',
-        'انولي', 'ما غاديش', 'ma ghadi', 'la', 'لا', 'نا',
-        'mabghitch', 'ما بغيتش', 'annuli'
-    ];
-    return refuseWords.some(w => text.includes(w));
-}
-
-function isReschedule(text) {
-    const rescheduleWords = [
-        'reporter', 'plus tard', 'demain', 'semaine', 'attendre',
-        'après-demain', 'weekend', 'lundi', 'mardi', 'mercredi',
-        'jeudi', 'vendredi', 'samedi', 'dimanche', 'prochaine',
-        'بكري', 'غدا', 'lboukra', 'men bad', 'باكي', 'ghda',
-        'baad', 'من بعد'
-    ];
-    return rescheduleWords.some(w => text.includes(w));
-}
-
-function isHumanRequest(text) {
-    const humanWords = [
-        'humain', 'personne', 'agent', 'conseiller', 'responsable',
-        'parler', 'appel', 'téléphone', 'quelqu', 'manager',
-        'directeur', 'patron', 'support', 'aide',
-        'واحد', 'شي حد', 'shi had', 'bnadem', 'بنادم',
-        'klm chi had', 'كلم شي حد'
-    ];
-    return humanWords.some(w => text.includes(w));
-}
-
-function normalizePhone(phone) {
-    if (!phone) return '';
-    let normalized = phone.replace(/[\s()+-]/g, '');
-    if (normalized.startsWith('0')) {
-        normalized = '212' + normalized.slice(1);
-    }
-    return normalized;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// EXISTING TESTS — WhatsApp Template Rendering
-// ═══════════════════════════════════════════════════════════════════════════════
 
 describe('renderTemplate — remplacement de variables {placeholder}', () => {
 
