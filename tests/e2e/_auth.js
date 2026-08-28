@@ -1,3 +1,4 @@
+import { expect } from '@playwright/test';
 /**
  * Helper d'authentification E2E partagé.
  *
@@ -58,10 +59,39 @@ export async function signupAndOnboard(page) {
     // toute la suite echouait sur un waitForURL sans explication.
     const terms = page.getByTestId('signup-terms');
     await terms.waitFor({ state: 'visible', timeout: 10000 });
-    if ((await terms.getAttribute('aria-checked')) !== 'true') {
-        await terms.click({ force: true });
+
+    // PAS de force:true. `force` court-circuite les controles d'actionnabilite :
+    // sous WebKit le clic partait avant que l'element soit stable et n'atteignait
+    // pas le gestionnaire React. La case restait decochee, et comme le submit est
+    // `disabled={loading || !termsAccepted}`, la suite expirait 45 s plus tard sur
+    // waitForURL sans jamais dire pourquoi.
+    //
+    // On verifie l'EFFET du clic au lieu de le supposer, avec quelques essais.
+    // Le clic Playwright standard EXPIRE ici sous WebKit : le panneau de
+    // robustesse du mot de passe s'anime pendant la saisie, la case se deplace
+    // (mesure : sa boite passe de 56,554 a 49,625 entre deux essais) et un autre
+    // bouton se retrouve au-dessus. Playwright attend une stabilite qui n'arrive
+    // jamais, et `force: true` ne dispatchait pas non plus l'evenement React.
+    //
+    // On appelle donc .click() sur l'element via le DOM : le gestionnaire React
+    // se declenche quels que soient l'animation et le recouvrement. La
+    // verification qui suit garantit qu'on ne suppose rien.
+    for (let i = 0; i < 3; i++) {
+        if ((await terms.getAttribute('aria-checked')) === 'true') break;
+        await terms.evaluate((el) => el.click());
+        await page.waitForTimeout(300);
     }
-    await page.click('button[type="submit"]', { force: true });
+    await expect(terms, "la case des conditions n'a pas pu etre cochee")
+        .toHaveAttribute('aria-checked', 'true');
+
+    // Le bouton est desactive tant que les conditions ne sont pas acceptees :
+    // attendre qu'il soit actif plutot que de forcer un clic sur un bouton inerte.
+    const submit = page.locator('button[type="submit"]');
+    await expect(submit).toBeEnabled({ timeout: 15000 });
+    // Meme raison que pour la case ci-dessus : le clic Playwright expire, la page
+    // n'etant jamais consideree stable tant que le panneau de robustesse s'anime.
+    // On declenche donc la soumission via le DOM.
+    await submit.evaluate((el) => el.click());
 
     // waitUntil: 'commit' est ESSENTIEL ici. Par defaut waitForURL attend l'etat
     // 'load' du document ; or la redirection post-inscription est une navigation
@@ -84,7 +114,7 @@ export async function signupAndOnboard(page) {
         // specs mobile-safari échouaient. L'application, elle, fonctionne : vérifié
         // en rejouant les trois étapes avec une attente suffisante.
         const phone = page.getByLabel(/WhatsApp|Phone|Tél/i);
-        await phone.waitFor({ state: 'visible', timeout: 15000 });
+        await phone.waitFor({ state: 'visible', timeout: 30000 });
         await handleOverlays(page);
         if (await phone.isVisible({ timeout: 5000 }).catch(() => false)) await phone.fill('0600000000');
         const city = page.getByLabel(/Ville|City/i);
@@ -92,7 +122,7 @@ export async function signupAndOnboard(page) {
         await page.getByRole('button', { name: /Suivant|Next/i }).click({ force: true });
 
         const finishBtn = page.getByRole('button', { name: /Terminer|Finish/i });
-        await finishBtn.waitFor({ state: 'visible', timeout: 15000 });
+        await finishBtn.waitFor({ state: 'visible', timeout: 30000 });
         await handleOverlays(page);
         await finishBtn.click({ force: true });
     }
