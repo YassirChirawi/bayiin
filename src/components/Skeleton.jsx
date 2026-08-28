@@ -12,7 +12,9 @@ export const DashboardSkeleton = () => {
             <div className="flex justify-between items-start">
                 <div className="space-y-3">
                     <div className="h-8 w-64 bg-gray-200 animate-shimmer rounded-lg"></div>
-                    <div className="h-4 w-96 bg-gray-100 animate-shimmer rounded"></div>
+                    {/* max-w-full : w-96 vaut 384 px et, avec les marges, dépassait
+                        la largeur d'un téléphone de 390 px pendant le chargement. */}
+                    <div className="h-4 w-96 max-w-full bg-gray-100 animate-shimmer rounded"></div>
                 </div>
                 <div className="h-10 w-10 bg-gray-200 animate-shimmer rounded-lg"></div>
             </div>

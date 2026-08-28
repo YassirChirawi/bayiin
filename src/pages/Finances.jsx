@@ -354,7 +354,10 @@ export default function Finances() {
                     </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                {/* flex-wrap : entre 640 et 1024 px (tablette) la rangée passait en
+                    sm:flex-row tout en gardant w-full, et le sélecteur de période
+                    plus les boutons dépassaient largement la largeur de l'écran. */}
+                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 w-full lg:w-auto">
                     {/* Collection Selector */}
                     <div className="relative">
                         <select

@@ -152,12 +152,19 @@ export default function Sidebar({ isOpen, onClose }) {
             )}
 
             {/* Sidebar */}
+            {/* `flex flex-col` et `overflow-hidden` s'appliquent à TOUS les formats.
+                Ils étaient préfixés md: : sur téléphone le conteneur n'était donc pas
+                un flex, le `flex-1` du <nav> restait inerte, sa hauteur suivait son
+                contenu et `overflow-y-auto` ne se déclenchait jamais. Le menu
+                débordait hors de l'écran sans pouvoir défiler, et les dernières
+                entrées étaient inatteignables. */}
             <div className={`
                 fixed inset-y-0 left-0 z-40 w-72 glass-sidebar transform transition-transform duration-300 ease-in-out
-                md:translate-x-0 md:static md:h-screen md:flex md:flex-col md:w-64
+                flex flex-col overflow-hidden
+                md:translate-x-0 md:static md:h-screen md:w-64
                 ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}
             `}>
-                <div className="p-4 border-b border-gray-200 flex flex-col gap-4">
+                <div className="p-4 border-b border-gray-200 flex flex-col gap-4 flex-shrink-0">
                     <div className="flex justify-between items-start">
                         <div className="flex-1 min-w-0">
                             <StoreSwitcher />
@@ -230,7 +237,10 @@ export default function Sidebar({ isOpen, onClose }) {
                     })}
                 </nav>
 
-                <div className="p-4 border-t border-gray-200 space-y-2">
+                {/* flex-shrink-0 : sans cela le pied se comprimait quand la liste
+                    est longue. safe-area : évite que le dernier bouton passe sous la
+                    barre gestuelle des téléphones sans bouton physique. */}
+                <div className="p-4 border-t border-gray-200 space-y-2 flex-shrink-0 safe-area-inset-bottom">
                     {(isOffline || pendingOffline > 0) && (
                         <button
                             onClick={handleSync}

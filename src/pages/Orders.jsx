@@ -255,7 +255,10 @@ export default function Orders() {
 
             {/* Tabs */}
              <div className="border-b border-gray-200">
-                <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                {/* overflow-x-auto : le dernier onglet porte ml-auto et sortait de
+                    l'écran sur mobile. Même correction que la barre d'onglets des
+                    Paramètres — sans elle, aucun défilement horizontal n'est possible. */}
+                <nav className="-mb-px flex space-x-8 overflow-x-auto no-scrollbar" aria-label="Tabs">
                     <button onClick={() => setActiveTab('orders')} className={`${activeTab === 'orders' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}><Package className="h-5 w-5"/> {t('tab_orders')}</button>
                     <button onClick={() => setActiveTab('carts')} className={`${activeTab === 'carts' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}><ShoppingCart className="h-5 w-5"/> {t('tab_carts')}
                          {orders.filter(o => o.status === 'pending_catalog').length > 0 && <span className="bg-red-100 text-red-600 py-0.5 px-2.5 rounded-full text-xs font-bold">{orders.filter(o => o.status === 'pending_catalog').length}</span>}

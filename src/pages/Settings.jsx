@@ -208,7 +208,11 @@ export default function Settings() {
 
             {/* Tabs Navigation */}
             <div className="border-b border-gray-200">
-                <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                {/* overflow-x-auto : les six onglets totalisent ~1090 px. Sans lui,
+                    sur un téléphone de 390 px les derniers étaient hors écran et
+                    INATTEIGNABLES — aucun défilement horizontal n'était possible.
+                    whitespace-nowrap empêche les libellés de se casser en deux lignes. */}
+                <nav className="-mb-px flex space-x-8 overflow-x-auto whitespace-nowrap no-scrollbar" aria-label="Tabs">
                     {tabs.map((tab) => {
                         const Icon = tab.icon;
                         return (

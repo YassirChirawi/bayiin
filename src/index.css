@@ -108,6 +108,13 @@ body {
 .safe-area-inset-top    { padding-top: env(safe-area-inset-top, 0px); }
 /* Réserve sous le contenu = hauteur BottomNav (4rem) + inset bas du device. */
 .pb-safe-nav { padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px)); }
+/* Masque la barre de defilement sans empecher le defilement.
+   Utilisee par les barres d'onglets horizontales : sur mobile on fait glisser,
+   sur desktop la barre serait inesthetique sous les onglets.
+   Etait deja referencee par AdminDashboard sans jamais avoir ete definie. */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
 /* Position d'un FAB flottant au-dessus du BottomNav + safe area. */
 .bottom-fab-safe { bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); }
 /* Second FAB, empilé au-dessus du premier.

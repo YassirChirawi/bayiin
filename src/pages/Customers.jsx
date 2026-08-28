@@ -207,7 +207,10 @@ export default function Customers() {
                         {t('page_subtitle_customers')}
                     </p>
                 </div>
-                <div className="flex gap-2">
+                {/* flex-wrap : sur mobile les boutons Importer/Exporter débordaient
+                    jusqu'à 478 px dans un écran de 390 px. Ils passent à la ligne
+                    au lieu de sortir du cadre. */}
+                <div className="flex flex-wrap gap-2">
                     <Button
                         variant="secondary"
                         icon={Upload}
