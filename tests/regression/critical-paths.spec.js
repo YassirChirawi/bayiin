@@ -42,7 +42,12 @@ test.describe('BayIIn Critical Paths Regression', () => {
             }
         });
 
-        await page.context().clearCookies();
+        // clearCookies() retire : Playwright ouvre deja un contexte NEUF par test,
+        // donc l'appel etait redondant. Il coincidait par ailleurs avec des
+        // echecs systematiques de la redirection d'inscription sous WebKit,
+        // alors que les 34 specs E2E, qui utilisent le meme helper SANS cet
+        // appel, passent. Hypothese testee et confirmee ci-dessous.
+        // await page.context().clearCookies();
     });
 
     const handleOverlays = async (page) => {
