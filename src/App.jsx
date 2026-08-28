@@ -17,6 +17,7 @@ import { CartProvider } from "./context/CartContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
 import QARouteGuard from "./components/QARouteGuard";
+import { FEATURES } from "./config/features";
 import FeatureProtectedRoute from "./components/FeatureProtectedRoute";
 import Layout from "./components/Layout";
 import BiometricLock from "./components/BiometricLock";
@@ -150,7 +151,13 @@ function App() {
                           <Route path="/" element={<SmartLanding />} />
 
                           {/* Public Routes */}
-                          <Route path="/catalog/:storeId" element={<PublicCatalog />} />
+                          {/* Vitrine publique. Masquée tant que FEATURES.storefront est
+                              faux : le StoreBuilder n'est pas fini. Vérifié avant de
+                              couper — aucune des 81 boutiques de production n'avait
+                              publicCatalogEnabled, donc aucun lien client en circulation. */}
+                          {FEATURES.storefront && (
+                            <Route path="/catalog/:storeId" element={<PublicCatalog />} />
+                          )}
                           <Route path="/delivery/:token" element={<DeliveryApp />} />
                           <Route path="/apply/driver/:storeId" element={<DriverApplication />} />
                           <Route path="/apply/franchise/:storeId" element={<FranchiseApplication />} />
@@ -193,11 +200,13 @@ function App() {
                           } />
 
                           {/* Authenticated App Routes */}
-                          <Route path="/customizer" element={
-                            <ProtectedRoute>
-                                <StoreCustomizer />
-                            </ProtectedRoute>
-                          } />
+                          {FEATURES.storefront && (
+                            <Route path="/customizer" element={
+                              <ProtectedRoute>
+                                  <StoreCustomizer />
+                              </ProtectedRoute>
+                            } />
+                          )}
 
                           <Route element={
                             <ProtectedRoute>
