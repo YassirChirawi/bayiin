@@ -31,6 +31,20 @@ export const FEATURES = {
     postPurchaseUpsell: false,
 
     /**
+     * Vitrine publique : éditeur (/customizer), catalogue public
+     * (/catalog/:storeId), partage de catalogue et étape d'onboarding associée.
+     *
+     * Masquée en production sur décision produit : le StoreBuilder n'est pas
+     * fini (il était déjà derrière un code promo) et plusieurs de ses blocs ne
+     * sont pas rendus. Vérifié avant de couper : sur 81 boutiques en
+     * production, AUCUNE n'avait publicCatalogEnabled à true — aucun lien
+     * client en circulation, donc rien de casse.
+     *
+     * Repasser à true rétablit l'ensemble d'un coup.
+     */
+    storefront: false,
+
+    /**
      * Section Témoignages de la landing.
      * Les trois témoignages actuels sont inventés, avec des avatars générés par
      * i.pravatar.cc. Publier de faux avis clients est un risque juridique autant

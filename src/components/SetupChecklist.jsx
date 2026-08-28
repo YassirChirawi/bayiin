@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, Circle, Rocket, X, ArrowRight } from "lucide-react";
 import { useTenant } from "../context/TenantContext";
+import { FEATURES } from '../config/features';
 
 /**
  * SetupChecklist — guide de démarrage sur le dashboard (activation).
@@ -26,7 +27,7 @@ export default function SetupChecklist({ hasProduct = false, hasOrder = false })
         { id: 'product', label: 'Ajouter un premier produit', done: hasProduct, to: '/products', cta: 'Ajouter' },
         { id: 'shipping', label: 'Configurer la livraison (transporteur)', done: carrierDone, to: '/settings?tab=shipping', cta: 'Configurer' },
         { id: 'whatsapp', label: 'Connecter WhatsApp', done: !!store.whatsappEnabled, to: '/settings?tab=whatsapp', cta: 'Connecter' },
-        { id: 'storefront', label: 'Personnaliser & publier la boutique', done: !!store.publicCatalogEnabled, to: '/customizer', cta: 'Ouvrir' },
+        ...(FEATURES.storefront ? [{ id: 'storefront', label: 'Personnaliser & publier la boutique', done: !!store.publicCatalogEnabled, to: '/customizer', cta: 'Ouvrir' }] : []),
         { id: 'order', label: 'Recevoir votre première commande', done: hasOrder, to: '/orders', cta: 'Voir' },
     ];
 

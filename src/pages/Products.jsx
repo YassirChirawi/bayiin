@@ -19,6 +19,7 @@ import { db } from "../lib/firebase"; // NEW
 import { predictStockout } from "../utils/stockPrediction";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
+import { FEATURES } from '../config/features';
 
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -172,14 +173,16 @@ export default function Products() {
                     </p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                    <Button
-                        variant="secondary"
-                        icon={Share2}
-                        className="bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
-                        onClick={() => setIsShareModalOpen(true)}
-                    >
-                        {t('btn_share_catalog') || "Share Catalog"}
-                    </Button>
+                    {FEATURES.storefront && (
+                        <Button
+                            variant="secondary"
+                            icon={Share2}
+                            className="bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                            onClick={() => setIsShareModalOpen(true)}
+                        >
+                            {t('btn_share_catalog') || "Share Catalog"}
+                        </Button>
+                    )}
                     <Button
                         variant="secondary"
                         icon={Sparkles}
@@ -573,11 +576,13 @@ export default function Products() {
                 templateHeaders={["Name", "Price"]}
             />
 
-            <ShareCatalogModal
-                isOpen={isShareModalOpen}
-                onClose={() => setIsShareModalOpen(false)}
-                storeId={store?.id}
-            />
+            {FEATURES.storefront && (
+                <ShareCatalogModal
+                    isOpen={isShareModalOpen}
+                    onClose={() => setIsShareModalOpen(false)}
+                    storeId={store?.id}
+                />
+            )}
 
             <StockOptimizerModal
                 isOpen={isOptimizerModalOpen}

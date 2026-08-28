@@ -40,6 +40,7 @@ import { db } from "../lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { usePWA } from "../context/PWAContext";
 import { useLanguage } from "../context/LanguageContext";
+import { FEATURES } from '../config/features';
 
 export default function Sidebar({ isOpen, onClose }) {
     const { pathname } = useLocation();
@@ -127,7 +128,7 @@ export default function Sidebar({ isOpen, onClose }) {
         ...(role !== 'staff' ? [
             { name: t('finances'), href: '/finances', icon: DollarSign },
             { name: t('team'), href: '/team', icon: UserPlus },
-            { name: 'Vitrine (Customizer)', href: '/customizer', icon: Paintbrush },
+            ...(FEATURES.storefront ? [{ name: 'Vitrine (Customizer)', href: '/customizer', icon: Paintbrush }] : []),
             { name: t('settings'), href: '/settings', icon: Settings },
         ] : []),
         ...(store?.testerMode ? [

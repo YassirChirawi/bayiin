@@ -66,3 +66,43 @@ describe("champs réservés — cohérence client / règles", () => {
         expect(block, "l'état optimiste doit être annulé en cas de refus").toContain("!newVal");
     });
 });
+
+describe("vitrine publique — masquée en production", () => {
+    // Décision produit : le StoreBuilder n'est pas fini. Vérifié avant de couper —
+    // sur 81 boutiques en production, aucune n'avait publicCatalogEnabled, donc
+    // aucun lien client en circulation.
+    it("le drapeau storefront est bien éteint", async () => {
+        const { FEATURES } = await import("../../src/config/features.js");
+        expect(FEATURES.storefront).toBe(false);
+    });
+
+    it("les routes vitrine sont conditionnées au drapeau", () => {
+        for (const route of ["/catalog/:storeId", "/customizer"]) {
+            const i = APP.indexOf(`path="${route}"`);
+            expect(i, `route ${route} absente de App.jsx`).toBeGreaterThan(-1);
+            // Le conditionnement precede la declaration de la route.
+            const before = APP.slice(Math.max(0, i - 600), i);
+            expect(before, `${route} doit dependre de FEATURES.storefront`)
+                .toContain("FEATURES.storefront &&");
+        }
+    });
+
+    it("aucun point d'entrée vitrine ne subsiste sans condition", () => {
+        const entries = [
+            ["components/Sidebar.jsx", "Vitrine (Customizer)"],
+            // Libelle exact : la formule courte apparait aussi dans l'en-tete du fichier.
+            ["components/SetupChecklist.jsx", "Personnaliser & publier la boutique"],
+            // On vise l'USAGE JSX, pas la ligne d'import qui la precede.
+            ["pages/Products.jsx", "<ShareCatalogModal"],
+        ];
+        for (const [file, needle] of entries) {
+            const src = fs.readFileSync(path.join(SRC, file), "utf8");
+            const i = src.indexOf(needle);
+            expect(i, `${needle} introuvable dans ${file}`).toBeGreaterThan(-1);
+            expect(src, `${file} doit importer le registre de drapeaux`)
+                .toContain("FEATURES");
+            expect(src.slice(Math.max(0, i - 400), i), `${file} : ${needle} non conditionne`)
+                .toContain("FEATURES.storefront");
+        }
+    });
+});
