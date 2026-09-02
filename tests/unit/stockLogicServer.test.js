@@ -1,11 +1,14 @@
 /**
  * Tests de functions/stockLogic.js — la mutation de stock SERVEUR.
  *
- * `stockManagement.test.js` couvre déjà src/utils/orderLogic, mais ce n'est que
- * le miroir client. Le module testé ici est celui qui écrit réellement en base,
- * dans une transaction, et il n'avait aucune couverture. C'est pourtant lui qui
- * décide du stock réel d'un marchand : une erreur y vend des produits qui
- * n'existent plus, ou en immobilise qui existent.
+ * Ce module écrit réellement le stock en base, dans une transaction, et n'avait
+ * aucune couverture. C'est pourtant lui qui décide du stock réel d'un marchand :
+ * une erreur y vend des produits qui n'existent plus, ou en immobilise qui
+ * existent.
+ *
+ * La sémantique partagée (quels articles consomment du stock) vit dans
+ * functions/shared/orderStock.js, dont le miroir client est verrouillé par
+ * tests/unit/orderStock.consistency.test.js.
  *
  * @vitest-environment node
  */

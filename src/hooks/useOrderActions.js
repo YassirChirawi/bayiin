@@ -7,7 +7,6 @@ import { httpsCallable } from 'firebase/functions';
 import { logActivity } from '../utils/logger'; // NEW
 import { useAuth } from '../context/AuthContext'; // NEW
 import { useAudit } from './useAudit'; // NEW
-import { shouldRestock, shouldDeductStock } from '../utils/orderLogic'; // PURE LOGIC
 import { computeNetDeltas } from '../utils/orderStock'; // BAY-109 : même base que la mutation serveur
 import { logAudit } from '../lib/audit';
 import { logStockMovement } from '../lib/stockAudit';
@@ -255,9 +254,6 @@ export const useOrderActions = () => {
                 }
             }
 
-            const restock = shouldRestock(oldData.status, newData.status);
-            const deduct = shouldDeductStock(oldData.status, newData.status);
-            
             // Deltas de stock pour le journal d'audit — MÊME base que la mutation serveur
             // (items actifs before/after), pour que l'audit reflète la réalité (BAY-109).
             const groupedByProduct = computeNetDeltas(oldData, newData);
