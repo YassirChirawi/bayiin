@@ -214,6 +214,13 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
         return res.status(403).json({ error: 'Forbidden: storeId does not match your account' });
     }
     
+    // Le try couvre desormais TOUT ce qui suit la porte d'entree.
+    // Il ne commencait qu'au streaming : retrieveMemories, getMerchantProfile,
+    // buildSystemPrompt et l'initialisation de Groq etaient EN DEHORS. Un simple
+    // hoquet Firestore pendant le chargement de la memoire rejetait donc une
+    // promesse sans gestionnaire : le client ne recevait AUCUNE reponse et la
+    // requete pendait jusqu'au timeout de 120 s, sans trace exploitable.
+    try {
     // ── CHARGEMENT CONTEXTE ET MÉMOIRE ──────────────────────────
     const userLastMessage = messages[messages.length - 1].content;
     const relevantMemories = await retrieveMemories(storeId, userLastMessage, 5);
@@ -246,7 +253,6 @@ exports.copilotChatV1 = functions.runWith({ secrets: ["GROQ_API_KEY"], timeoutSe
         agentTemperature = specificAgent.temperature;
     }
 
-    try {
       // Setup Streaming headers for EVOLUTION 8
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
