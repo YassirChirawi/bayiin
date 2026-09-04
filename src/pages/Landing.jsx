@@ -10,6 +10,7 @@ import FAQ from "../components/Landing/FAQ";
 import Testimonials from "../components/Landing/Testimonials";
 import Beya3Demo from "../components/Landing/Beya3Demo";
 import StoryTellingSection from "../components/Landing/StoryTellingSection";
+import Features from "../components/Landing/Features";
 import FloatingCTA from "../components/Landing/FloatingCTA";
 import InteractiveSignupPreview from "../components/Landing/InteractiveSignupPreview";
 import { useLanguage } from "../context/LanguageContext";
@@ -246,6 +247,10 @@ export default function Landing() {
                     </div>
                 </section>
             )}
+
+            {/* FONCTIONNALITES — la navigation pointait vers #features depuis
+                toujours, sans qu'aucune section ne porte cette ancre. */}
+            <Features />
 
             {/* STORYTELLING SECTION */}
             <StoryTellingSection />

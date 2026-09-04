@@ -235,3 +235,41 @@ describe("non-régression — aucune credential dans le bundle client", () => {
         expect(offenders).toEqual([]);
     });
 });
+
+describe("landing — cohérence avec le produit livré", () => {
+    const LANDING = path.join(SRC, "pages/Landing.jsx");
+    const landingSrc = fs.readFileSync(LANDING, "utf8");
+
+    it("chaque ancre de navigation existe réellement", () => {
+        // Le lien #features a longtemps pointé vers une ancre inexistante :
+        // cliquer « Fonctionnalités » ne faisait rien, et la page ne décrivait
+        // nulle part ce que fait le produit.
+        const anchors = [...landingSrc.matchAll(/href="#([a-z-]+)"/g)].map((m) => m[1]);
+        const allSrc = [LANDING,
+            path.join(SRC, "components/Landing/Features.jsx"),
+            path.join(SRC, "components/Landing/FAQ.jsx"),
+            path.join(SRC, "components/ContactSection.jsx"),
+        ].map((f) => fs.readFileSync(f, "utf8")).join("\n");
+
+        const missing = [...new Set(anchors)].filter(
+            (a) => !allSrc.includes(`id="${a}"`)
+        );
+        expect(missing).toEqual([]);
+    });
+
+    it("la landing ne vante aucun module coupé", () => {
+        // Promettre un module derrière un drapeau, c'est reproduire les overlays
+        // « Bientôt Disponible » qu'on a retirés — mais côté commercial.
+        // On retire les commentaires avant de verifier : ce qui compte est ce qui
+        // est AFFICHE au visiteur, pas la documentation du fichier — laquelle cite
+        // justement ces modules comme contre-exemples a ne pas lister.
+        const features = fs
+            .readFileSync(path.join(SRC, "components/Landing/Features.jsx"), "utf8")
+            .replace(/\/\*[\s\S]*?\*\//g, "")
+            .replace(/^\s*\/\/.*$/gm, "");
+        for (const banned of ["YouCan", "Shopify", "Cathedis", "vitrine", "Vitrine"]) {
+            expect(features, `Features.jsx mentionne « ${banned} », module coupé`)
+                .not.toContain(banned);
+        }
+    });
+});

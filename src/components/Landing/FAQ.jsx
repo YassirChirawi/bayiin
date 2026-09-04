@@ -5,7 +5,12 @@ import { ChevronDown, MessageCircle } from 'lucide-react';
 const FAQS = [
   {
     question: "BayIIn est-il compatible avec ma boutique YouCan / Shopify ?",
-    answer: "Absolument. BayIIn dispose d'une API et d'intégrations natives (en développement) pour synchroniser automatiquement vos commandes depuis YouCan, Shopify ou WooCommerce. Vous pouvez aussi importer un fichier Excel d'un clic."
+    // Réponse revue : les intégrations YouCan et Shopify sont derrière un drapeau
+    // (src/config/features.js) et ne sont pas accessibles aujourd'hui. Répondre
+    // « Absolument » puis « en développement » dans la même phrase était
+    // contradictoire, et promettait une fonctionnalité qu'un marchand ne trouve
+    // pas dans l'application.
+    answer: "Aujourd'hui, oui — par import. Vous récupérez vos commandes depuis YouCan, Shopify ou WooCommerce avec un fichier Excel ou CSV, en un clic, et BayIIn prend le relais : stock, confirmation WhatsApp, livraison, finances. La synchronisation automatique est en cours de développement et n'est pas encore ouverte."
   },
   {
     question: "Comment fonctionne l'intelligence artificielle Beya3 ?",
