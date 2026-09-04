@@ -266,9 +266,32 @@ export const CopilotProvider = ({ children }) => {
                 });
             }
         } catch (error) {
-            console.error("Copilot Local Error:", error);
-            setMessages(prev => prev.map(m => 
-                m.id === streamId ? { ...m, content: "Oups, j'ai eu un petit bug interne... Réessaie ! 😅" } : m
+            console.error("Copilot: appel distant impossible, repli local.", error);
+
+            // REPLI REEL sur le moteur local, au lieu d'un message d'excuse.
+            //
+            // Avant, toute panne — fonction injoignable, cle Groq absente, reseau
+            // coupe — affichait « Oups, j'ai eu un petit bug interne... Reessaie ! »,
+            // et reessayer ne changeait rien. Le moteur local existait pourtant :
+            // il connait les ventes, le stock et le contexte de la boutique, mais
+            // n'etait atteignable que via la variable VITE_AI_MODE.
+            //
+            // Beya3 reste donc utile hors ligne et pendant une panne Groq. Le mode
+            // degrade est ANNONCE : on ne fait pas passer une reponse heuristique
+            // pour une reponse du modele.
+            let fallbackText = null;
+            try {
+                fallbackText = generateLocalResponse(text, businessContext);
+            } catch (localError) {
+                console.error("Copilot: le moteur local a echoue aussi.", localError);
+            }
+
+            const degraded = fallbackText
+                ? `_Mode hors ligne — je reponds avec vos donnees locales._\n\n${fallbackText}`
+                : "Je n'arrive pas a vous repondre pour le moment. Verifiez votre connexion ; vos donnees, elles, ne risquent rien.";
+
+            setMessages(prev => prev.map(m =>
+                m.id === streamId ? { ...m, content: degraded, degraded: true } : m
             ));
         } finally {
             setLoading(false);

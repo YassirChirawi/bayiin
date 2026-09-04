@@ -43,6 +43,11 @@
         ],
         "rewrites": [
             {
+                "_comment": "Le client appelle /api/copilotChatV1 (src/services/aiService.js). La reecriture ne couvrait que /api/copilot : sur Firebase Hosting l'appel tombait donc sur le catch-all ** et recevait index.html au lieu de JSON, rendant Beya3 muet. Vercel, lui, mappe /api/:match* et fonctionnait. Les deux chemins sont desormais couverts.",
+                "source": "/api/copilotChatV1",
+                "function": "copilotChatV1"
+            },
+            {
                 "source": "/api/copilot",
                 "function": "copilotChatV1"
             },
